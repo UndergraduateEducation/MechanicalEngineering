@@ -1,0 +1,41 @@
+:root{
+  --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+  --beam:#f7e2c4; --beamline:#78461a; --load:#aa1e28; --sec:#cde1cd; --secline:#1e5a32;
+  --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+     font:16px/1.55 "Georgia","Times New Roman",serif}
+header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+.sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+button.ghost{background:#fff;color:var(--accent)}
+button:hover{filter:brightness(1.08)}
+input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+label{color:var(--muted)}
+.tag{display:inline-block;font-family:system-ui,sans-serif;font-size:.78rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 9px;margin-left:6px}
+svg{width:100%;height:auto;display:block}
+.statement p{margin:.3em 0}
+.answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+.mark{font-weight:600;min-width:7em}
+.mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+#solution{display:none}
+#solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+th{color:var(--muted);font-weight:600}
+td:first-child,th:first-child{text-align:left}
+.eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+.note{color:var(--muted);font-size:.92rem}
+.final{font-weight:600}
+@media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+
+select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+.answers input{width:8em}
+.answers input.expr{width:19em;font-family:ui-monospace,Menlo,Consolas,monospace}
+.halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+.sub a{color:var(--accent)}

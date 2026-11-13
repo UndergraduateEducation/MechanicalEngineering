@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Static Failures Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --beam:#f7e2c4; --beamline:#78461a; --load:#aa1e28; --sec:#cde1cd; --secline:#1e5a32;
+    --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  .tag{display:inline-block;font-family:system-ui,sans-serif;font-size:.78rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 9px;margin-left:6px}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .answers input.expr{width:19em;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<header>
+  <h1>Static Failures Problem Generator</h1>
+  <div class="sub">Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem.</div>
+</header>
+<main>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+function fmt(v,d=0){if(Math.abs(v)<0.5*10**-d)v=0;return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+// ===== symbolic answers: expression parser and equivalence check
+function exprCompile(str,vars){
+  const toks=[], re=/\s*(\d+\.?\d*(?:[eE][+-]?\d+)?|\.\d+|[A-Za-zπ]+|[-+*/^()·×])/y; let m, i=0;
+  str=str.replace(/[−–]/g,"-").replace(/[\[{]/g,"(").replace(/[\]}]/g,")").replace(/²/g,"^2").replace(/³/g,"^3").replace(/⁴/g,"^4").replace(/\s+$/,"");
+  while(i<str.length){re.lastIndex=i;m=re.exec(str);if(!m) throw new Error("cannot read near “"+str.slice(i,i+6)+"”");i=re.lastIndex;
+    const t=m[1];
+    if(/^[\d.]/.test(t)) toks.push({k:"n",v:parseFloat(t)});
+    else if(/^[A-Za-zπ]+$/.test(t)){
+      if(t==="pi"||t==="π") toks.push({k:"n",v:Math.PI});
+      else if(vars.includes(t)) toks.push({k:"v",v:t});
+      else if([...t].every(ch=>vars.includes(ch)||ch==="π")) [...t].forEach(ch=>toks.push(ch==="π"?{k:"n",v:Math.PI}:{k:"v",v:ch}));
+      else throw new Error("unknown symbol “"+t+"”; use "+vars.join(", "));
+    } else toks.push({k:"o",v:t==="·"||t==="×"?"*":t});
+  }
+  let p=0; const peek=()=>toks[p], take=()=>toks[p++];
+  const isStart=t=>t&&(t.k==="n"||t.k==="v"||(t.k==="o"&&t.v==="("));
+  function expr(){let f=term();while(peek()&&peek().k==="o"&&"+-".includes(peek().v)){const o=take().v,g=term(),h=f;f=o==="+"?e=>h(e)+g(e):e=>h(e)-g(e)}return f}
+  function term(){let f=unary();for(;;){const t=peek();
+    if(t&&t.k==="o"&&"*/".includes(t.v)){take();const g=unary(),h=f;f=t.v==="*"?e=>h(e)*g(e):e=>h(e)/g(e)}
+    else if(isStart(t)){const g=power(),h=f;f=e=>h(e)*g(e)} else return f}}
+  function unary(){const t=peek();if(t&&t.k==="o"&&"+-".includes(t.v)){take();const g=unary();return t.v==="-"?e=>-g(e):g}return power()}
+  function power(){const b=primary();if(peek()&&peek().k==="o"&&peek().v==="^"){take();const x=unary();return e=>Math.pow(b(e),x(e))}return b}
+  function primary(){const t=take();if(!t) throw new Error("expression ends early");
+    if(t.k==="n") return ()=>t.v; if(t.k==="v") return e=>e[t.v];
+    if(t.v==="("){const f=expr();const c=take();if(!c||c.v!==")") throw new Error("missing )");return f}
+    throw new Error("unexpected “"+t.v+"”")}
+  const f=expr(); if(p<toks.length) throw new Error("unexpected “"+toks[p].v+"”"); return f;
+}
+function exprEquivalent(str,f){
+  let g; try{g=exprCompile(str,f.vars)}catch(err){return {ok:false,msg:err.message}}
+  const r=mulberry32(12345);
+  for(let k=0;k<8;k++){const e=f.sample(r), t=f.fn(e), v=g(e);
+    if(!isFinite(v)||Math.abs(v-t)>1e-7*(Math.abs(t)+1e-9)) return {ok:false};}
+  return {ok:true};
+}
+
+// ===== ductile material, plane stress: distortion energy and maximum shear stress factors of safety
+function dmSolve(p){
+  const {sx,sy,t}=p, c=(sx+sy)/2, R=Math.hypot((sx-sy)/2,t), A=c+R, B=c-R;
+  const vm=Math.sqrt(sx*sx-sx*sy+sy*sy+3*t*t), o=[A,B,0].sort((u,v)=>v-u), d13=o[0]-o[2];
+  return {c,R,A,B,vm,nDE:p.Sy/vm,o,d13,nMSS:p.Sy/d13,same:A*B>0};
+}
+function dmGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4, st=us?1:5, sc=us?0.145:1, v=()=>pick(r,range(-150,150,st*(us?1:1)).filter(x=>x!==0).map(x=>Math.round(x*sc/st)*st));
+    const type=pick(r,["equal","opp","same","shear","general"]); let sx=v(),sy=v(),t=v();
+    if(type==="equal"){sy=sx;t=0} else if(type==="opp"){t=0;if(sx*sy>0)sy=-sy} else if(type==="same"){t=0;if(sx*sy<0)sy=-sy;if(sx===sy)continue}
+    else if(type==="shear"){if(r()<0.5)sx=0;else sy=0}
+    if(!sx&&!sy&&!t) continue;
+    const p={us,type,sx,sy,t,Sy:us?pick(r,range(30,80,1)):pick(r,range(200,550,10))}, s=dmSolve(p);
+    if(s.nDE<1.2||s.nDE>5) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function dmStatement(p,s){
+  const u=p.us?"kpsi":"MPa", parts=[];
+  if(p.sx) parts.push(`σ<sub><i>x</i></sub> = ${fmt(p.sx)} ${u}`); if(p.sy) parts.push(`σ<sub><i>y</i></sub> = ${fmt(p.sy)} ${u}`); if(p.t) parts.push(`τ<sub><i>xy</i></sub> = ${fmt(p.t)} ${u}`);
+  return `<p>A ductile steel part has a minimum yield strength of ${fmt(p.Sy)} ${u} in both tension and compression. At the critical point the state of plane stress is ${parts.join(", ")}${parts.length<3?" (the components not listed are zero)":""}, as shown on the stress element.</p>
+  <p>Find the principal stresses σ<sub><i>A</i></sub> ≥ σ<sub><i>B</i></sub>, the von Mises stress, and the factors of safety by the distortion-energy (DE) and maximum-shear-stress (MSS) theories.</p>`;
+}
+function dmFigure(p,s){
+  const mi=v=>(v<0?"−":"")+fmt(Math.abs(v)), u=p.us?"kpsi":"MPa", h=80, L=52, f1=v=>v.toFixed(1), it=v=>`<tspan font-style="italic">${v}</tspan>`;
+  const ln=(x1,y1,x2,y2,c="#aa1e28")=>`<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" stroke="${c}" stroke-width="3" marker-end="url(#dm-ar)"/>`;
+  const tx=(x,y,t,attr="")=>`<text x="${f1(x)}" y="${f1(y)}" ${attr}>${t}</text>`;
+  let g=`<rect x="${-h}" y="${-h}" width="${2*h}" height="${2*h}" fill="#eec878" stroke="#7d5014" stroke-width="1.8"/>`;
+  // normal stresses: arrows point away from the face in tension, toward it in compression
+  const nrm=(val,dx,dy)=>{if(!val)return"";const a=[dx*(h+22),dy*(h+22)],b=[dx*(h+22+L),dy*(h+22+L)];return val>0?ln(...a,...b):ln(...b,...a)};
+  g+=nrm(p.sx,1,0)+nrm(p.sx,-1,0)+nrm(p.sy,0,-1)+nrm(p.sy,0,1);
+  if(p.sx) g+=tx(h+L+30,6,`σ<tspan baseline-shift="sub" font-size="13">${it("x")}</tspan> = ${mi(p.sx)}`,`class="halo"`);
+  if(p.sy) g+=tx(14,-h-L-8,`σ<tspan baseline-shift="sub" font-size="13">${it("y")}</tspan> = ${mi(p.sy)}`,`class="halo"`);
+  // shear: on the +x face tau_xy acts in +y (screen up) when positive; equilibrium sets the other faces
+  if(p.t){const sg=Math.sign(p.t), o=h+12, m=0.62*h;
+    g+=ln(o,sg*m,o,-sg*m,"#28405a")+ln(-o,-sg*m,-o,sg*m,"#28405a")+ln(-sg*m,-o,sg*m,-o,"#28405a")+ln(sg*m,o,-sg*m,o,"#28405a");
+    g+=tx(h+22,h-6,`τ<tspan baseline-shift="sub" font-size="13">${it("xy")}</tspan> = ${mi(p.t)}`,`fill="#28405a" class="halo"`)}
+  g+=`<line x1="-150" y1="${h+96}" x2="-100" y2="${h+96}" stroke="#222" stroke-width="1.3" marker-end="url(#dm-ax)"/><line x1="-150" y1="${h+96}" x2="-150" y2="${h+46}" stroke="#222" stroke-width="1.3" marker-end="url(#dm-ax)"/>`;
+  g+=tx(-94,h+102,it("x"))+tx(-155,h+40,it("y"),`text-anchor="end"`)+tx(230,h+102,`Stresses in ${u}`,`text-anchor="end" font-size="15"`);
+  return `<svg viewBox="-200 -190 470 410" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="18" style="max-height:380px">
+  <defs><marker id="dm-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="context-stroke"/></marker>
+  <marker id="dm-ax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker></defs>${g}</svg>`;
+}
+function dmSolution(p,s){
+  const u=p.us?"kpsi":"MPa", d=p.us?2:1;
+  return `<h3>1. Principal stresses</h3>
+  <p><span class="eq">σ<sub>A,B</sub> = (σ<sub>x</sub> + σ<sub>y</sub>)/2 ± √[((σ<sub>x</sub> − σ<sub>y</sub>)/2)² + τ<sub>xy</sub>²] = ${fmt(s.c,d)} ± ${fmt(s.R,d)}</span></p>
+  <p class="final">σ<sub>A</sub> = ${fmt(s.A,d)} ${u}, σ<sub>B</sub> = ${fmt(s.B,d)} ${u}</p>
+  <h3>2. Distortion energy</h3>
+  <p><span class="eq">σ′ = √(σ<sub>x</sub>² − σ<sub>x</sub>σ<sub>y</sub> + σ<sub>y</sub>² + 3τ<sub>xy</sub>²) = ${fmt(s.vm,d)} ${u}</span>&nbsp; <span class="eq">n = S<sub>y</sub>/σ′ = ${fmt(p.Sy)}/${fmt(s.vm,d)}</span></p>
+  <p class="final">n<sub>DE</sub> = ${fmt(s.nDE,2)}</p>
+  <h3>3. Maximum shear stress</h3>
+  <p>Order all three principal stresses, including σ<sub>z</sub> = 0: σ<sub>1</sub> = ${fmt(s.o[0],d)}, σ<sub>2</sub> = ${fmt(s.o[1],d)}, σ<sub>3</sub> = ${fmt(s.o[2],d)} ${u}. ${s.same?`Because σ<sub>A</sub> and σ<sub>B</sub> have the same sign, the zero stress is σ<sub>${s.A>0?"3":"1"}</sub>, and σ<sub>A</sub> − σ<sub>B</sub> is not the largest difference.`:s.A*s.B<0?`Because σ<sub>A</sub> and σ<sub>B</sub> have opposite signs, σ<sub>1</sub> − σ<sub>3</sub> = σ<sub>A</sub> − σ<sub>B</sub>.`:""}</p>
+  <p><span class="eq">n = S<sub>y</sub>/(σ<sub>1</sub> − σ<sub>3</sub>) = ${fmt(p.Sy)}/${fmt(s.d13,d)}</span></p>
+  <p class="final">n<sub>MSS</sub> = ${fmt(s.nMSS,2)}</p>
+  <p class="note">n<sub>MSS</sub> ≤ n<sub>DE</sub> always; the two agree when one principal stress is zero or both are equal.</p>`;
+}
+
+// ===== distortion energy with the failure locus and load line
+function dlGenerate(seed){                                       // load line must lie clearly inside one quadrant
+  for(let k=0;;k++){const q=dmGenerate(((seed+7777*k)*2654435761)>>>0), m=Math.max(Math.abs(q.s.A),Math.abs(q.s.B));
+    if(Math.min(Math.abs(q.s.A),Math.abs(q.s.B))>0.04*m) return q}
+}
+function dlRegion(s){ return s.B>=0?"First quadrant (both tensile)":s.A<=0?"Third quadrant (both compressive)":"Fourth quadrant (opposite signs)" }
+function dlStatement(p,s){
+  const u=p.us?"kpsi":"MPa", parts=[];
+  if(p.sx) parts.push(`σ<sub><i>x</i></sub> = ${fmt(p.sx)} ${u}`); if(p.sy) parts.push(`σ<sub><i>y</i></sub> = ${fmt(p.sy)} ${u}`); if(p.t) parts.push(`τ<sub><i>xy</i></sub> = ${fmt(p.t)} ${u}`);
+  return `<p>A steel part has a yield strength <i>S<sub>y</sub></i> = ${fmt(p.Sy)} ${u}. At the critical point the state of plane stress is ${parts.join(", ")}${parts.length<3?" (the components not listed are zero)":""}, as shown on the stress element.</p>
+  <p>Using the distortion-energy theory, (a) find the principal stresses σ<sub><i>A</i></sub> ≥ σ<sub><i>B</i></sub>, the von Mises stress and the factor of safety; (b) plot the failure locus and the load line in the σ<sub><i>A</i></sub>–σ<sub><i>B</i></sub> plane, state where the load line lies, and estimate the factor of safety by graphical measurement.</p>`;
+}
+function dlPlot(p,s){
+  const Sy=p.Sy, K=140/Sy, f1=v=>v.toFixed(1), P=(a,b)=>[a*K,-b*K], it=v=>`<tspan font-style="italic">${v}</tspan>`;
+  const pts=[];for(let i=0;i<=120;i++){const t=2*Math.PI*i/120,u=Math.SQRT2*Sy*Math.cos(t),v=Math.sqrt(2/3)*Sy*Math.sin(t);pts.push(P((u-v)/Math.SQRT2,(u+v)/Math.SQRT2))}
+  const X=P(s.A,s.B), E=P(s.A*s.nDE,s.B*s.nDE), ln=(a,b,attr)=>`<line x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}" ${attr}/>`;
+  const ax=`stroke="#222" stroke-width="1.2" marker-end="url(#dl-ax)"`, ang=Math.atan2(E[1],E[0]);
+  let g=`<polygon points="${pts.map(q=>f1(q[0])+","+f1(q[1])).join(" ")}" fill="#f6e3b8" stroke="#7d5014" stroke-width="1.6"/>`;
+  g+=ln([-200,0],[205,0],ax)+ln([0,200],[0,-205],ax)+ln(P(-1.25*Sy,-1.25*Sy),P(1.25*Sy,1.25*Sy),`stroke="#999" stroke-dasharray="5 4"`);
+  for(const v of [Sy,-Sy]){g+=ln(P(v,0).map((c,i)=>i?c-4:c),P(v,0).map((c,i)=>i?c+4:c),`stroke="#222"`)+ln(P(0,v).map((c,i)=>i?c:c-4),P(0,v).map((c,i)=>i?c:c+4),`stroke="#222"`)}
+  g+=`<text x="${f1(140+4)}" y="-6" class="halo">${it("S")}<tspan baseline-shift="sub" font-size="12">${it("y")}</tspan></text><text x="-8" y="-144" text-anchor="end">${it("S")}<tspan baseline-shift="sub" font-size="12">${it("y")}</tspan></text>`;
+  g+=`<text x="206" y="6">σ<tspan baseline-shift="sub" font-size="12">${it("A")}</tspan></text><text x="6" y="-204">σ<tspan baseline-shift="sub" font-size="12">${it("B")}</tspan></text>`;
+  g+=ln([0,0],E,`stroke="#aa1e28" stroke-width="2"`)+`<circle cx="${f1(X[0])}" cy="${f1(X[1])}" r="4" fill="#aa1e28"/><circle cx="${f1(E[0])}" cy="${f1(E[1])}" r="5" fill="#fff" stroke="#aa1e28" stroke-width="2"/>`;
+  g+=`<text x="${f1(E[0]+34*Math.cos(ang))}" y="${f1(E[1]+34*Math.sin(ang)+6)}" text-anchor="middle" fill="#aa1e28" font-size="15" class="halo">n = ${fmt(s.nDE,2)}</text>`;
+  return `<svg viewBox="-230 -235 480 465" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="17" style="max-height:400px;display:block;margin:.5em 0">
+  <defs><marker id="dl-ax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker></defs>${g}</svg>`;
+}
+function dlSolution(p,s){
+  const u=p.us?"kpsi":"MPa", d=p.us?2:1;
+  return `<h3>1. Principal stresses</h3>
+  <p><span class="eq">σ<sub>A,B</sub> = (σ<sub>x</sub> + σ<sub>y</sub>)/2 ± √[((σ<sub>x</sub> − σ<sub>y</sub>)/2)² + τ<sub>xy</sub>²] = ${fmt(s.c,d)} ± ${fmt(s.R,d)}</span></p>
+  <p class="final">σ<sub>A</sub> = ${fmt(s.A,d)} ${u}, σ<sub>B</sub> = ${fmt(s.B,d)} ${u}</p>
+  <h3>2. (a) Distortion energy</h3>
+  <p><span class="eq">σ′ = √(σ<sub>A</sub>² − σ<sub>A</sub>σ<sub>B</sub> + σ<sub>B</sub>²) = ${fmt(s.vm,d)} ${u}</span>&nbsp; <span class="eq">n = S<sub>y</sub>/σ′</span></p>
+  <p class="final">σ′ = ${fmt(s.vm,d)} ${u}; n = ${fmt(s.nDE,2)}</p>
+  <h3>3. (b) Failure locus and load line</h3>
+  <p>The locus σ<sub>A</sub>² − σ<sub>A</sub>σ<sub>B</sub> + σ<sub>B</sub>² = S<sub>y</sub>² is an ellipse with semi-axes √2 S<sub>y</sub> along the 45° line and √(2/3) S<sub>y</sub> across it. The load line runs from the origin through the stress state (${fmt(s.A,d)}, ${fmt(s.B,d)}) and meets the locus at (${fmt(s.A*s.nDE,d)}, ${fmt(s.B*s.nDE,d)}). The ratio of the two lengths is the factor of safety.</p>
+  ${dlPlot(p,s)}
+  <p class="final">The load line lies in the ${dlRegion(s).toLowerCase().replace(" (", ", ").replace(")","")}; graphically n ≈ ${fmt(s.nDE,1)}.</p>`;
+}
+
+// ===== brittle material: brittle Coulomb-Mohr and modified-Mohr factors of safety
+const BM_MAT=[["ASTM 20 gray cast iron",152,572,22,83],["ASTM 25 gray cast iron",179,669,26,97],["ASTM 30 gray cast iron",214,752,31,109],
+  ["ASTM 35 gray cast iron",252,855,36.5,124],["ASTM 40 gray cast iron",293,965,42.5,140],["ASTM 50 gray cast iron",362,1130,52.5,164],["ASTM 60 gray cast iron",431,1293,62.5,187.5]];
+const BM_BR=["σA ≥ σB ≥ 0","σA ≥ 0 ≥ σB with |σB/σA| ≤ 1","σA ≥ 0 ≥ σB with |σB/σA| > 1","0 ≥ σA ≥ σB"];
+function bmSolve(p){
+  const m=BM_MAT[p.mat], Sut=p.us?m[3]:m[1], Suc=p.us?m[4]:m[2], {sx,sy,t}=p, c=(sx+sy)/2, R=Math.hypot((sx-sy)/2,t), A=c+R, B=c-R;
+  let nB,nM,br;
+  if(B>=0){nB=nM=Sut/A;br=0} else if(A<=0){nB=nM=-Suc/B;br=3}
+  else {nB=1/(A/Sut-B/Suc); if(Math.abs(B/A)<=1){nM=Sut/A;br=1} else {nM=1/((Suc-Sut)*A/(Suc*Sut)-B/Suc);br=2}}
+  return {m,Sut,Suc,c,R,A,B,nB,nM,br};
+}
+function bmGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<20000;k++){
+    const us=r()<0.4, mat=Math.floor(r()*BM_MAT.length), m=BM_MAT[mat], Suc=us?m[4]:m[2], st=us?1:5, lim=Math.round(0.45*Suc/st);
+    const v=()=>pick(r,range(-lim,lim,1))*st, want=Math.floor(r()*4);
+    const p={us,mat,sx:v(),sy:v(),t:r()<0.5?0:v()}; if(r()<0.25){if(r()<0.5)p.sx=0;else p.sy=0}
+    if(!p.sx&&!p.sy&&!p.t) continue;
+    const s=bmSolve(p);
+    if(s.br!==want) continue;                                        // balance the four branches
+    const mx=Math.max(Math.abs(s.A),Math.abs(s.B));
+    if(Math.min(Math.abs(s.A),Math.abs(s.B))<0.04*mx) continue;      // region is never borderline
+    if((s.br===1||s.br===2)&&Math.abs(Math.abs(s.B/s.A)-1)<0.08) continue;
+    if(s.nB<1.2||s.nB>5) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function bmStatement(p,s){
+  const u=p.us?"kpsi":"MPa", parts=[];
+  if(p.sx) parts.push(`σ<sub><i>x</i></sub> = ${fmt(p.sx)} ${u}`); if(p.sy) parts.push(`σ<sub><i>y</i></sub> = ${fmt(p.sy)} ${u}`); if(p.t) parts.push(`τ<sub><i>xy</i></sub> = ${fmt(p.t)} ${u}`);
+  return `<p>A part made of ${s.m[0]} carries, at its critical point, the state of plane stress ${parts.join(", ")}${parts.length<3?" (the components not listed are zero)":""}, as shown on the stress element.</p>
+  <p>Using the strengths below, find the principal stresses σ<sub><i>A</i></sub> ≥ σ<sub><i>B</i></sub> and the factors of safety by the brittle Coulomb-Mohr (BCM) and modified-Mohr (MM) theories, and identify which modified-Mohr case applies.</p>
+  <table><tr><th>Material</th><th>S<sub>ut</sub> (${u})</th><th>S<sub>uc</sub> (${u})</th></tr>${BM_MAT.map(m=>`<tr><td>${m[0]}</td><td>${fmt(p.us?m[3]:m[1],1)}</td><td>${fmt(p.us?m[4]:m[2],1)}</td></tr>`).join("")}</table>`;
+}
+function bmPlot(p,s){
+  const Sut=s.Sut, Suc=s.Suc, K=200/Suc, f1=v=>v.toFixed(1), P=(a,b)=>[a*K,-b*K], it=v=>`<tspan font-style="italic">${v}</tspan>`;
+  const ln=(a,b,attr)=>`<line x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}" ${attr}/>`, pt=q=>f1(q[0])+","+f1(q[1]);
+  const MM=[P(Sut,Sut),P(Sut,-Sut),P(0,-Suc),P(-Suc,-Suc),P(-Suc,0),P(-Sut,Sut)];
+  const ax=`stroke="#222" stroke-width="1.2" marker-end="url(#bm-ax)"`, X=P(s.A,s.B), EB=P(s.A*s.nB,s.B*s.nB), EM=P(s.A*s.nM,s.B*s.nM);
+  let g=`<polygon points="${MM.map(pt).join(" ")}" fill="#f6e3b8" stroke="#7d5014" stroke-width="1.6"/>`;
+  g+=ln(P(Sut,0),P(0,-Suc),`stroke="#7d5014" stroke-width="1.4" stroke-dasharray="6 4"`)+ln(P(0,Sut),P(-Suc,0),`stroke="#7d5014" stroke-width="1.4" stroke-dasharray="6 4"`);
+  g+=ln(P(-Suc-30/K,0),P(Sut+80/K,0),ax)+ln(P(0,-Suc-30/K),P(0,Sut+70/K),ax)+ln(P(-Suc,-Suc),P(Sut*1.15,Sut*1.15),`stroke="#999" stroke-dasharray="5 4"`);
+  g+=`<text x="${f1(Sut*K+80+6)}" y="6">σ<tspan baseline-shift="sub" font-size="12">${it("A")}</tspan></text><text x="6" y="${f1(-Sut*K-74)}">σ<tspan baseline-shift="sub" font-size="12">${it("B")}</tspan></text>`;
+  g+=`<text x="${f1(Sut*K+4)}" y="-6" class="halo">${it("S")}<tspan baseline-shift="sub" font-size="12">ut</tspan></text><text x="8" y="${f1(Suc*K+4)}" class="halo">−${it("S")}<tspan baseline-shift="sub" font-size="12">uc</tspan></text>`;
+  g+=ln([0,0],EM,`stroke="#aa1e28" stroke-width="2"`)+`<circle cx="${f1(X[0])}" cy="${f1(X[1])}" r="4" fill="#aa1e28"/>`;
+  g+=`<circle cx="${f1(EB[0])}" cy="${f1(EB[1])}" r="5" fill="#fff" stroke="#aa1e28" stroke-width="2"/><rect x="${f1(EM[0]-5)}" y="${f1(EM[1]-5)}" width="10" height="10" fill="#fff" stroke="#28405a" stroke-width="2"/>`;
+  const lx=Sut*K+28, ly=0.55*Suc*K;
+  g+=[`solid: modified Mohr`,`dashed: Coulomb-Mohr`,`dot: stress state`,`circle: BCM, square: MM`].map((t,i)=>`<text x="${f1(lx)}" y="${f1(ly+20*i)}" font-size="14">${t}</text>`).join("");
+  return `<svg viewBox="${f1(-Suc*K-20)} ${f1(-Sut*K-100)} ${f1((Suc+Sut)*K+220)} ${f1((Suc+Sut)*K+140)}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="17" style="max-height:420px;display:block;margin:.5em 0">
+  <defs><marker id="bm-ax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker></defs>${g}</svg>`;
+}
+function bmSolution(p,s){
+  const u=p.us?"kpsi":"MPa", d=p.us?2:1, A=fmt(s.A,d), B=fmt(s.B,d), r=Math.abs(s.B/s.A);
+  const bcm=s.br===0?`<span class="eq">n = S<sub>ut</sub>/σ<sub>A</sub> = ${fmt(s.Sut,1)}/${A}</span>`:s.br===3?`<span class="eq">n = −S<sub>uc</sub>/σ<sub>B</sub> = −${fmt(s.Suc,1)}/(${B})</span>`
+    :`<span class="eq">1/n = σ<sub>A</sub>/S<sub>ut</sub> − σ<sub>B</sub>/S<sub>uc</sub> = ${A}/${fmt(s.Sut,1)} − (${B})/${fmt(s.Suc,1)}</span>`;
+  const mm=s.br===0||s.br===3?`The stress state lies in a quadrant where both theories coincide: n<sub>MM</sub> = n<sub>BCM</sub>.`
+    :s.br===1?`|σ<sub>B</sub>/σ<sub>A</sub>| = ${fmt(r,3)} ≤ 1, so <span class="eq">n = S<sub>ut</sub>/σ<sub>A</sub> = ${fmt(s.Sut,1)}/${A}</span>.`
+    :`|σ<sub>B</sub>/σ<sub>A</sub>| = ${fmt(r,3)} > 1, so <span class="eq">1/n = (S<sub>uc</sub> − S<sub>ut</sub>)σ<sub>A</sub>/(S<sub>uc</sub>S<sub>ut</sub>) − σ<sub>B</sub>/S<sub>uc</sub></span>.`;
+  return `<h3>1. Principal stresses</h3>
+  <p><span class="eq">σ<sub>A,B</sub> = ${fmt(s.c,d)} ± ${fmt(s.R,d)}</span></p>
+  <p class="final">σ<sub>A</sub> = ${A} ${u}, σ<sub>B</sub> = ${B} ${u}; case: ${BM_BR[s.br]}</p>
+  <h3>2. Brittle Coulomb-Mohr</h3><p>${s.m[0]}: S<sub>ut</sub> = ${fmt(s.Sut,1)} ${u}, S<sub>uc</sub> = ${fmt(s.Suc,1)} ${u}. ${bcm}</p>
+  <p class="final">n<sub>BCM</sub> = ${fmt(s.nB,2)}</p>
+  <h3>3. Modified Mohr</h3><p>${mm}</p>
+  <p class="final">n<sub>MM</sub> = ${fmt(s.nM,2)}</p>
+  <h3>4. Failure loci and load line</h3>${bmPlot(p,s)}
+  <p class="note">The modified-Mohr locus lies on or outside the Coulomb-Mohr locus, so n<sub>MM</sub> ≥ n<sub>BCM</sub>.</p>`;
+}
+
+// ===== thick-walled tube under pressure: distortion-energy yield pressure
+const TP_MAT=[["AISI 1015 HR",190,27.5],["AISI 1015 CD",320,47],["AISI 1020 HR",210,30],["AISI 1020 CD",390,57],["AISI 1030 HR",260,37.5],
+  ["AISI 1030 CD",440,64],["AISI 1040 HR",290,42],["AISI 1040 CD",490,71],["AISI 1050 HR",340,49.5],["AISI 1050 CD",580,84]];
+function tpStress(p,r){  // principal stresses per unit pressure at radius r
+  const ri=p.ID/2, ro=p.OD/2, D=ro*ro-ri*ri, pi=p.side==="in"?1:0, po=1-pi;
+  const a=(pi*ri*ri-po*ro*ro)/D, b=ri*ri*ro*ro*(pi-po)/(D*r*r);
+  return {t:a+b, r:a-b, l:p.ends==="closed"?a:0};
+}
+function tpVM(q){return Math.sqrt(((q.t-q.r)**2+(q.r-q.l)**2+(q.l-q.t)**2)/2)}
+function tpSolve(p){
+  const m=TP_MAT[p.mat], Sy=p.us?m[2]:m[1], qi=tpStress(p,p.ID/2), qo=tpStress(p,p.OD/2), ki=tpVM(qi), ko=tpVM(qo);
+  const k=Math.max(ki,ko); return {m,Sy,qi,qo,ki,ko,k,pY:Sy/k,crit:ki>=ko?"Inner surface":"Outer surface"};
+}
+function tpGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4, ID=us?pick(r,range(4,32,1))/4:pick(r,range(40,240,10)), ratio=1.2+1.3*r(), OD=us?Math.round(ID*ratio*4)/4:Math.round(ID*ratio/10)*10;
+    const p={us,ID,OD,mat:Math.floor(r()*TP_MAT.length),side:r()<0.5?"in":"out",ends:r()<0.5?"closed":"open"};
+    if(OD/ID<1.15) continue;
+    const s=tpSolve(p);
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function tpStatement(p,s){
+  const u=p.us?"in":"mm", su=p.us?"kpsi":"MPa";
+  return `<p>An ${s.m[0]} steel tube is ${fmt(p.OD,p.us?2:0)} ${u} OD by ${fmt(p.ID,p.us?2:0)} ${u} ID. It carries ${p.side==="in"?"an internal":"an external"} pressure only, and its ends are ${p.ends==="closed"?"closed, so the pressure also produces an axial stress":"open, so there is no axial stress"}.</p>
+  <p>Using the distortion-energy theory and the yield strengths below, find the von Mises stress per unit pressure at the inner and outer surfaces, and the pressure that would cause the tube to yield.</p>
+  <table><tr><th>Material</th><th>S<sub>y</sub> (${su})</th></tr>${TP_MAT.map(m=>`<tr><td>${m[0]}</td><td>${fmt(p.us?m[2]:m[1],1)}</td></tr>`).join("")}</table>`;
+}
+function tpFigure(p,s){
+  const f1=v=>v.toFixed(1), Ro=110, Ri=Ro*p.ID/p.OD, ins=p.side==="in", u=p.us?"in":"mm", it=v=>`<tspan font-style="italic">${v}</tspan>`;
+  const ln=(x1,y1,x2,y2,attr)=>`<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" ${attr}/>`;
+  const AR=`stroke="#aa1e28" stroke-width="2" marker-end="url(#tp-ar)"`, DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#tp-dm)" marker-end="url(#tp-dm)"`, EXT=`stroke="#999" stroke-width="0.8"`;
+  let g=`<path d="M${Ro},0 A${Ro},${Ro} 0 1,0 ${-Ro},0 A${Ro},${Ro} 0 1,0 ${Ro},0 Z M${f1(Ri)},0 A${f1(Ri)},${f1(Ri)} 0 1,1 ${f1(-Ri)},0 A${f1(Ri)},${f1(Ri)} 0 1,1 ${f1(Ri)},0 Z" fill="#eec878" fill-rule="evenodd" stroke="#7d5014" stroke-width="1.8"/>`;
+  for(let a=0;a<360;a+=30){const c=Math.cos(a*Math.PI/180), sn=Math.sin(a*Math.PI/180);
+    g+=ins?ln(0.35*Ri*c,0.35*Ri*sn,(Ri-4)*c,(Ri-4)*sn,AR):ln((Ro+40)*c,(Ro+40)*sn,(Ro+4)*c,(Ro+4)*sn,AR)}
+  g+=`<text x="${ins?0:Ro+44}" y="${ins?6:-Ro-20}" text-anchor="middle" fill="#aa1e28" class="halo">${it("p")}<tspan baseline-shift="sub" font-size="13">${ins?"i":"o"}</tspan></text>`;
+  const yb=Ro+70; g+=ln(-Ro,6,-Ro,yb+8,EXT)+ln(Ro,6,Ro,yb+8,EXT)+ln(-Ro,yb,Ro,yb,DIM)+`<text x="0" y="${yb-7}" text-anchor="middle" class="halo">${fmt(p.OD,p.us?2:0)} OD</text>`;
+  const yt=-Ro-(ins?30:66); g+=ln(-Ri,-6,-Ri,yt-8,EXT)+ln(Ri,-6,Ri,yt-8,EXT)+ln(-Ri,yt,Ri,yt,DIM)+`<text x="0" y="${yt-7}" text-anchor="middle" class="halo">${fmt(p.ID,p.us?2:0)} ID</text>`;
+  // side view
+  const X0=230, L=230, cl=p.ends==="closed", e=cl?16:0;
+  g+=`<rect x="${X0-e}" y="${-Ro}" width="${L+2*e}" height="${2*Ro}" fill="#eec878" stroke="#7d5014" stroke-width="1.8"/>`;
+  g+=`<rect x="${X0}" y="${f1(-Ri)}" width="${L}" height="${f1(2*Ri)}" fill="#fff" stroke="#7d5014" stroke-width="1.4"/>`;
+  if(!cl) g+=ln(X0,-Ri,X0,Ri,`stroke="#fff" stroke-width="3"`)+ln(X0+L,-Ri,X0+L,Ri,`stroke="#fff" stroke-width="3"`);
+  for(let x=X0+30;x<X0+L;x+=42) g+=ins?ln(x,-0.25*Ri,x,-Ri+3,AR)+ln(x,0.25*Ri,x,Ri-3,AR):ln(x,-Ro-34,x,-Ro-3,AR)+ln(x,Ro+34,x,Ro+3,AR);
+  if(ins&&cl) g+=ln(X0+28,0,X0+3,0,AR)+ln(X0+L-28,0,X0+L-3,0,AR);
+  if(!ins&&cl) g+=ln(X0-e-34,0,X0-e-3,0,AR)+ln(X0+L+e+34,0,X0+L+e+3,0,AR);
+  g+=`<text x="${X0+L/2}" y="${Ro+(ins?34:60)}" text-anchor="middle">${cl?"closed ends":"open ends"}</text><text x="${X0+L+60}" y="${Ro+92}" text-anchor="end" font-size="15">Dimensions in ${u}</text>`;
+  return `<svg viewBox="-170 -215 690 435" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="18" style="max-height:380px">
+  <defs><marker id="tp-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+  <marker id="tp-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker></defs>${g}</svg>`;
+}
+function tpSolution(p,s){
+  const ri=p.ID/2, ro=p.OD/2, u=p.us?"in":"mm", su=p.us?"kpsi":"MPa", f=v=>fmt(v,4), P=p.side==="in"?"p<sub>i</sub>":"p<sub>o</sub>";
+  const row=(nm,q,k)=>`<tr><td>${nm}</td><td>${f(q.t)}</td><td>${f(q.r)}</td><td>${f(q.l)}</td><td>${f(k)}</td></tr>`;
+  return `<h3>1. Lamé stresses</h3>
+  <p>With r<sub>i</sub> = ${fmt(ri,3)} ${u} and r<sub>o</sub> = ${fmt(ro,3)} ${u}:</p>
+  <p><span class="eq">σ<sub>t,r</sub> = (p<sub>i</sub>r<sub>i</sub>² − p<sub>o</sub>r<sub>o</sub>²)/(r<sub>o</sub>² − r<sub>i</sub>²) ± r<sub>i</sub>²r<sub>o</sub>²(p<sub>i</sub> − p<sub>o</sub>)/[r²(r<sub>o</sub>² − r<sub>i</sub>²)]</span></p>
+  <p>${p.ends==="closed"?`Closed ends: <span class="eq">σ<sub>l</sub> = (p<sub>i</sub>r<sub>i</sub>² − p<sub>o</sub>r<sub>o</sub>²)/(r<sub>o</sub>² − r<sub>i</sub>²)</span>.`:"Open ends: σ<sub>l</sub> = 0."} Here ${p.side==="in"?"p<sub>o</sub> = 0":"p<sub>i</sub> = 0"}.</p>
+  <h3>2. Von Mises stress per unit ${P}</h3>
+  <p><span class="eq">σ′/${P} = √{[(σ<sub>t</sub> − σ<sub>r</sub>)² + (σ<sub>r</sub> − σ<sub>l</sub>)² + (σ<sub>l</sub> − σ<sub>t</sub>)²]/2}</span>, all stresses per unit ${P}:</p>
+  <table><tr><th>Surface</th><th>σ<sub>t</sub></th><th>σ<sub>r</sub></th><th>σ<sub>l</sub></th><th>σ′</th></tr>${row("Inner",s.qi,s.ki)}${row("Outer",s.qo,s.ko)}</table>
+  <p class="final">The ${s.crit.toLowerCase()} governs: σ′ = ${f(s.k)} ${P}.</p>
+  <h3>3. Yield pressure</h3>
+  <p>${s.m[0]}: S<sub>y</sub> = ${fmt(s.Sy,1)} ${su}. <span class="eq">${P} = S<sub>y</sub>/${f(s.k)}</span></p>
+  <p class="final">${P} = ${fmt(s.pY,p.us?2:1)} ${su}; yielding begins at the ${s.crit.toLowerCase()}.</p>`;
+}
+
+const SY_UNIT={"+z":[0,0,1],"-z":[0,0,-1],"-y":[0,-1,0]};
+const SY_DIRTEXT={"+z":"horizontally, in the +<i>z</i> direction","-z":"horizontally, in the &minus;<i>z</i> direction","-y":"vertically downward (&minus;<i>y</i>)"};
+
+// contact points (y,z) of the two belt strands for a belt pulling along dir
+function syPoints(dir,r){return dir==="-y"?[[0,r],[0,-r]]:[[r,0],[-r,0]]}
+// torque about x of a strand at (y,z) with tension t along unit u
+const syMx=(pt,u,t)=>(pt[0]*u[2]-pt[1]*u[1])*t;
+// largest -z arrow length (in) before reaching pulley B (from A) or the front corner of bearing C (from B)
+const syRoomA=p=>(0.2157*p.b-1.5)/0.1053;
+const syRoomB=p=>2.05*p.c-13;
+// arrow length (in) that keeps a -z lower strand clear of the shaft and the far bearing
+function syLen(dir,r,d,maxLen){
+  if(dir==="-y") return 11;
+  if(dir==="+z") return 9;
+  return Math.min(11,(0.229*r-0.229*d/2-0.4)/0.0645,maxLen);
+}
+
+function syFigure(P0,S0){
+  const p=S0.q, s=S0.g;
+  const K=52, ex=[0.2157,-0.0315], ey=[0,0.2290], ez=[-0.1053,-0.0645];
+  let mnX=1e9,mnY=1e9,mxX=-1e9,mxY=-1e9;
+  const P=(x,y,z)=>{const X=K*(x*ex[0]+y*ey[0]+z*ez[0]), Y=-K*(x*ex[1]+y*ey[1]+z*ez[1]);
+    mnX=Math.min(mnX,X);mxX=Math.max(mxX,X);mnY=Math.min(mnY,Y);mxY=Math.max(mxY,Y);return [X,Y]};
+  const pt=a=>a[0].toFixed(1)+","+a[1].toFixed(1);
+  const poly=(pts,fill,stroke,sw=1.6)=>`<polygon points="${pts.map(pt).join(" ")}" fill="${fill}" stroke="${stroke||"none"}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+  const line=(a,b,attr)=>`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" ${attr}/>`;
+  const text=(a,str,attr="")=>{mnX=Math.min(mnX,a[0]-60);mxX=Math.max(mxX,a[0]+80);mnY=Math.min(mnY,a[1]-18);mxY=Math.max(mxY,a[1]+8);
+    return `<text x="${a[0].toFixed(1)}" y="${a[1].toFixed(1)}" ${attr}>${str}</text>`};
+  let g="";
+  const box=(x0,x1,y0,y1,z0,z1,c)=>
+    poly([P(x1,y0,z0),P(x1,y1,z0),P(x1,y1,z1),P(x1,y0,z1)],c[0],"#28405a")+
+    poly([P(x0,y1,z0),P(x1,y1,z0),P(x1,y1,z1),P(x0,y1,z1)],c[1],"#28405a")+
+    poly([P(x0,y0,z1),P(x1,y0,z1),P(x1,y1,z1),P(x0,y1,z1)],c[2],"#28405a");
+  const bearing=x=>box(x-3.2,x+3.2,-4.3,-3.5,-3.6,3.6,["#7f8b99","#d3dde7","#98a6b6"])+
+                   box(x-1.6,x+1.6,-3.5,1.2,-2.6,2.6,["#87909b","#c4d3e1","#b7c8d8"]);
+  const shaft=(x0,x1)=>{const a=P(x0,0,0),b=P(x1,0,0),w=K*p.d*0.229;
+    return line(a,b,`stroke="#464b55" stroke-width="${(w+2.5).toFixed(1)}"`)+line(a,b,`stroke="#969ba5" stroke-width="${w.toFixed(1)}"`)+
+      line(P(x0,p.d*0.22,0),P(x1,p.d*0.22,0),`stroke="#c9ccd2" stroke-width="1.2"`)};
+  const ell=(x,r,t0=0,t1=360)=>{const o=[];for(let t=t0;t<=t1+1e-6;t+=5)o.push(P(x,r*Math.cos(t*Math.PI/180),r*Math.sin(t*Math.PI/180)));return o};
+  const tsA=-19.23, tsB=160.77;
+  const pulley=(x,r,pw)=>{
+    const xl=x-pw/2, xr=x+pw/2, c=Math.PI/180;
+    const sA=[r*Math.cos(tsA*c),r*Math.sin(tsA*c)], sB=[r*Math.cos(tsB*c),r*Math.sin(tsB*c)];
+    let q=poly(ell(xl,r),"#c9a865")+poly([P(xl,...sA),P(xr,...sA),P(xr,...sB),P(xl,...sB)],"#c9a865");
+    q+=`<polyline points="${ell(xl,r,tsA,tsB).map(pt).join(" ")}" fill="none" stroke="#7d5014" stroke-width="1.6"/>`;
+    q+=line(P(xl,...sA),P(xr,...sA),`stroke="#7d5014" stroke-width="1.6"`)+line(P(xl,...sB),P(xr,...sB),`stroke="#7d5014" stroke-width="1.6"`);
+    q+=poly(ell(xr,r),"#eec878","#7d5014")+poly(ell(xr,0.8*r),"none","#7d5014",0.8)+poly(ell(xr,0.3*r),"#a8884c","#7d5014",0.8);
+    return q};
+  const labels=[], occ=[];
+  const arrows=(x,dir,r,tight,loose,tightIdx,which,maxLen)=>{
+    const u=SY_UNIT[dir], pts=syPoints(dir,r);
+    const len=syLen(dir,r,p.d,maxLen);
+    let q="";
+    pts.forEach((pp,i)=>{
+      const behind=(dir==="-z"&&i===1)||(dir==="-y"&&i===1);
+      if((which==="before")!==behind) return;
+      const a=P(x,pp[0],pp[1]), b=P(x+len*u[0],pp[0]+len*u[1],pp[1]+len*u[2]);
+      q+=line(a,b,`stroke="#aa1e28" stroke-width="2.6" marker-end="url(#syar)"`);
+      const lab=i===tightIdx?tight:loose;
+      const lw=7.6*lab.replace(/<[^>]*>/g,"").length;
+      occ.push([Math.min(a[0],b[0])-3,Math.min(a[1],b[1])-3,Math.abs(a[0]-b[0])+6,Math.abs(a[1]-b[1])+6]);   // arrow
+      if(dir==="-y") occ.push([b[0]-lw/2,b[1]+8,lw,18]); else occ.push([b[0]+8,b[1]+(i===1?17:4)-14,lw,18]);
+      labels.push(dir==="-y"?text([b[0],b[1]+22],lab,`text-anchor="middle" fill="#aa1e28" class="halo"`):text([b[0]+8,b[1]+(i===1?17:4)],lab,`fill="#aa1e28" class="halo"`));
+    });
+    return q};
+  const rA=p.dA/2, rB=p.dB/2, pwA=Math.max(2,0.24*p.dA), pwB=Math.max(2,0.24*p.dB);
+  const labA=S0.lab[0], labAl=S0.lab[1];
+  const yd=Math.max(rA,rB)+7;
+  g+=bearing(0);
+  g+=line(P(0,1.2,0),P(0,yd+1,0),`stroke="#888" stroke-dasharray="4 3"`)+line(P(0,yd+1,0),P(0,yd+4,0),`stroke="#222" stroke-width="1.6" marker-end="url(#syax)"`)+text(P(0,yd+5,0),"<tspan font-style='italic'>y</tspan>",`text-anchor="middle"`);
+  g+=line(P(0,0,2.6),P(0,0,6),`stroke="#888" stroke-dasharray="4 3"`)+line(P(0,0,6),P(0,0,10),`stroke="#222" stroke-width="1.6" marker-end="url(#syax)"`)+text(P(0,-1.5,11.5),"<tspan font-style='italic'>z</tspan>",`text-anchor="end"`);
+  g+=shaft(1.6,s.xA);
+  g+=arrows(s.xA,p.dirA,rA,labA,labAl,0,"before",syRoomA(p))+pulley(s.xA,rA,pwA)+arrows(s.xA,p.dirA,rA,labA,labAl,0,"after",syRoomA(p));
+  g+=shaft(s.xA+pwA/2,s.xB);
+  g+=arrows(s.xB,p.dirB,rB,S0.lab[2],S0.lab[3],s.tightB,"before",syRoomB(p))
+     +pulley(s.xB,rB,pwB)
+     +arrows(s.xB,p.dirB,rB,S0.lab[2],S0.lab[3],s.tightB,"after",syRoomB(p));
+  g+=shaft(s.xB+pwB/2,s.L-1.6);
+  g+=bearing(s.L);
+  g+=line(P(s.L+1.6,0,0),P(s.L+5,0,0),`stroke="#888" stroke-dasharray="4 3"`)+line(P(s.L+5,0,0),P(s.L+8,0,0),`stroke="#222" stroke-width="1.6" marker-end="url(#syax)"`)+text(P(s.L+9,0,0),"<tspan font-style='italic'>x</tspan>");
+  // labels
+  g+=text(add2(P(-1.6,1.2,2.6),[-8,0]),"<tspan font-style='italic'>A</tspan>",`text-anchor="end"`);
+  g+=text(P(s.L+1.2,2.4,-2.6),"<tspan font-style='italic'>D</tspan>");
+  // station letter at the top-left of each pulley; its diameter on a leader from the lower front of the rim, left of any vertical strand
+  const hit=(q)=>occ.some(o=>q[0]<o[0]+o[2]&&q[0]+q[2]>o[0]&&q[1]<o[1]+o[3]&&q[1]+q[3]>o[1]);
+  const tag=(x,r,pw,nm,dl)=>{const at=P(x-pw/2,r,0), bot=P(x-pw/2,-r,0), txt=`${dl} dia.`, w=7.2*txt.length;
+    const L=P(x-pw/2,-0.34*r,0.94*r), R=P(x+pw/2,-0.7*r,-0.7*r), ty=Math.max(bot[1],L[1])+22;
+    const cands=[[L,L[0]-16-w,"end",L[0]-16],[R,R[0]+16,"start",R[0]+16]];
+    let c=cands.find(([rim,x0])=>!hit([x0,ty-13,w,17]))||cands[0];
+    occ.push([c[1],ty-13,w,17]);
+    return text(add2(at,[-6,-4]),`<tspan font-style='italic' font-size='17'>${nm}</tspan>`,`text-anchor="end" class="halo"`)+
+      line(c[0],[c[3]+(c[2]==="end"?2:-2),ty-5],`stroke="#222" stroke-width="0.9"`)+text([c[3],ty],txt,`text-anchor="${c[2]}" font-size="14" class="halo"`)};
+  g+=tag(s.xA,rA,pwA,"B",S0.dl[0])+tag(s.xB,rB,pwB,"C",S0.dl[1]);
+  // shaft callout
+  const xm=s.xA+0.5*p.b, cs=P(xm,p.d*0.4,0), ce=P(xm-0.6,Math.min(rA,rB)*0.75+1.5,0);
+  g+=line(cs,ce,`stroke="#222" stroke-width="0.9"`)+text([ce[0],ce[1]-5],`<tspan font-style='italic'>d</tspan>`,`text-anchor="middle" class="halo"`);
+  // dimensions along x
+  const tops=[[0,1.5],[s.xA,rA+0.6],[s.xB,rB+0.6],[s.L,1.5]];
+  tops.forEach(([x,y0])=>{g+=line(P(x,y0,0),P(x,yd+0.8,0),`stroke="#999" stroke-width="0.8"`)});
+  [[0,s.xA,p.a],[s.xA,s.xB,p.b],[s.xB,s.L,p.c]].forEach(([x0,x1,v])=>{
+    g+=line(P(x0,yd,0),P(x1,yd,0),`stroke="#222" stroke-width="0.9" marker-start="url(#sydm)" marker-end="url(#sydm)"`);
+    const m=P((x0+x1)/2,yd+0.9,0);g+=text(m,S0.sl[[p.a,p.b,p.c].indexOf(v)],`text-anchor="middle" font-size="14"`)});
+  g+=labels.join("");
+  const pad=14, W=mxX-mnX+2*pad, H=mxY-mnY+2*pad;
+  return `<svg viewBox="${(mnX-pad).toFixed(0)} ${(mnY-pad).toFixed(0)} ${W.toFixed(0)} ${H.toFixed(0)}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:520px">
+  <defs>
+   <marker id="syar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+   <marker id="syax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker>
+   <marker id="sydm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  </defs>${g}</svg>`;
+}
+
+// ===== pulley shaft sized against yielding: MSS (conservative) and DE
+const SYS_MAT=[["AISI 1015 CD",320,47],["AISI 1020 CD",390,57],["AISI 1030 CD",440,64],["AISI 1035 CD",460,67],["AISI 1040 CD",490,71],["AISI 1050 CD",580,84]];
+function sysSolve(p){
+  const L=p.a+p.b+p.c, xB=p.a, xC=p.a+p.b, uB=SY_UNIT[p.dirB], uC=SY_UNIT[p.dirC];
+  const T=(p.B1-p.B2)*p.dB/2;                                       // torque in N·mm or lbf·in
+  const FB=uB.map(u=>u*(p.B1+p.B2)), FC=uC.map(u=>u*(p.C1+p.C2));
+  const RA=[0,0,0], RD=[0,0,0];
+  for(const k of [1,2]){RD[k]=-(FB[k]*xB+FC[k]*xC)/L;RA[k]=-(FB[k]+FC[k])-RD[k]}
+  const Mk=(k,x)=>RA[k]*x+(x>xB?FB[k]*(x-xB):0)+(x>xC?FC[k]*(x-xC):0);
+  const MB=Math.hypot(Mk(1,xB),Mk(2,xB)), MC=Math.hypot(Mk(1,xC),Mk(2,xC)), M=Math.max(MB,MC), crit=MB>=MC?"B":"C";
+  const m=SYS_MAT[p.mat], Sy=p.us?m[2]*1000:m[1];                    // psi or MPa
+  const dMSS=(32*p.n/(Math.PI*Sy)*Math.hypot(M,T))**(1/3), dDE=(32*p.n/(Math.PI*Sy)*Math.sqrt(M*M+0.75*T*T))**(1/3);
+  // drawing: inch-equivalent geometry, strand placement so the two pulley torques oppose
+  const k=p.us?1:1/25.4, q={a:p.a*k,b:p.b*k,c:p.c*k,dA:p.dB*k,dB:p.dC*k,dirA:p.dirB,dirB:p.dirC,d:0.13*Math.max(p.dB,p.dC)*k};
+  const ptsB=syPoints(p.dirB,1), ptsC=syPoints(p.dirC,1);
+  const MxB=syMx(ptsB[0],uB,p.B1)+syMx(ptsB[1],uB,p.B2), MxC0=syMx(ptsC[0],uC,p.C1)+syMx(ptsC[1],uC,p.C2);
+  const g={xA:q.a,xB:q.a+q.b,L:q.a+q.b+q.c,tightB:Math.sign(MxC0)===-Math.sign(MxB)?0:1};
+  const F=p.us?"lbf":"N", Lu=p.us?" in":"";
+  return {L,xB,xC,T,TC:(p.C1-p.C2)*p.dC/2,FB,FC,RA,RD,Mk,MB,MC,M,crit,m,Sy,dMSS,dDE,RAm:Math.hypot(RA[1],RA[2]),RDm:Math.hypot(RD[1],RD[2]),
+    q,g,lab:[`${fmt(p.B1)} ${F}`,`${fmt(p.B2)} ${F}`,`${fmt(p.C1)} ${F}`,`${fmt(p.C2)} ${F}`],dl:[`${fmt(p.dB)}${Lu}`,`${fmt(p.dC)}${Lu}`],sl:[p.a,p.b,p.c].map(v=>`${fmt(v)}${Lu}`)};
+}
+function sysGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4, sp=us?range(4,12,1):range(100,300,25), dd=us?range(6,12,1):range(150,300,25);
+    const combo=pick(r,[["-z","-y"],["-y","-z"],["-z","-y"],["-y","-z"],["-z","-z"],["-y","-y"]]), long=us?range(10,12,1):range(250,300,25);
+    const p={us,a:pick(r,sp),b:pick(r,combo[0]==="-z"?long:sp),c:pick(r,combo[1]==="-z"?long:sp),dB:pick(r,dd),dC:pick(r,dd),dirB:combo[0],dirC:combo[1],
+      mat:Math.floor(r()*SYS_MAT.length),n:pick(r,[1.5,2,2.5,3])};
+    const st=us?5:20; p.B1=pick(r,range(us?200:1000,us?800:4000,st)); p.B2=pick(r,range(us?30:150,us?150:700,st));
+    if(p.B2>0.3*p.B1||p.dB===p.dC) continue;
+    const T=(p.B1-p.B2)*p.dB/2, dC=T/(p.dC/2);                       // tension difference needed at C
+    p.C2=pick(r,range(us?30:150,us?150:700,st)); p.C1=Math.round((p.C2+dC)/st)*st;
+    if(p.C1<=p.C2*3) continue;
+    const s=sysSolve(p);
+    if(Math.abs(s.TC-s.T)>0.02*s.T) continue;                        // rounding keeps the torques balanced within 2%
+    if(Math.abs(s.MB-s.MC)<0.05*s.M) continue;                       // critical section is clear
+    const L=s.q, ok=syLen(L.dirA,L.dA/2,L.d,syRoomA(L))>=6&&syLen(L.dirB,L.dB/2,L.d,syRoomB(L))>=6
+      &&L.a>=0.75*L.dA+2&&L.b>=0.45*(L.dA+L.dB)+2&&L.c>=(L.dirB==="-z"?0.9:0.6)*L.dB+3;  // labels and pulleys clear of each other
+    if(!ok) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function sysStatement(p,s){
+  const F=p.us?"lbf":"N", u=p.us?"in":"mm", su=p.us?"kpsi":"MPa";
+  return `<p>The shaft shown runs in bearings at <i>A</i> and <i>D</i>, which act as simple supports, and carries pulleys at <i>B</i> and <i>C</i>. The forces on the pulleys are the belt tensions: at <i>B</i> (${fmt(p.dB)} ${u} diameter) ${fmt(p.B1)} and ${fmt(p.B2)} ${F}, pulling ${SY_DIRTEXT[p.dirB]}; at <i>C</i> (${fmt(p.dC)} ${u} diameter) ${fmt(p.C1)} and ${fmt(p.C2)} ${F}, pulling ${SY_DIRTEXT[p.dirC]}. The spans are <i>AB</i> = ${fmt(p.a)}, <i>BC</i> = ${fmt(p.b)} and <i>CD</i> = ${fmt(p.c)} ${u}.</p>
+  <p>The shaft is ${s.m[0]} steel (S<sub>y</sub> = ${fmt(p.us?s.m[2]:s.m[1])} ${su}). With a design factor of ${fmt(p.n,1)}, find the bearing reactions, the resultant bending moments at <i>B</i> and <i>C</i>, the critical section, and the minimum shaft diameter to avoid yielding by the conservative maximum-shear-stress theory and by the distortion-energy theory.</p>`;
+}
+function sysSolution(p,s){
+  const F=p.us?"lbf":"N", M=p.us?"lbf·in":"N·m", mc=v=>p.us?fmt(v,0):fmt(v/1000,1), u=p.us?"in":"mm", d=p.us?3:1;
+  const planes=[[1,"xy"],[2,"xz"]].filter(([k])=>Math.abs(s.FB[k])+Math.abs(s.FC[k])>0);
+  const row=x=>`√(${mc(Math.abs(s.Mk(1,x)))}² + ${mc(Math.abs(s.Mk(2,x)))}²)`;
+  return `<h3>1. Torque</h3>
+  <p><span class="eq">T = (${fmt(p.B1)} − ${fmt(p.B2)})(${fmt(p.dB/2,p.us?1:1)}) = ${mc(s.T)} ${M}</span>; at <i>C</i>, (${fmt(p.C1)} − ${fmt(p.C2)})(${fmt(p.dC/2,1)}) = ${mc(s.TC)} ${M}, which balances it. The torque acts on segment <i>BC</i>.</p>
+  <h3>2. Reactions</h3>
+  <p>The net belt force is ${fmt(p.B1+p.B2)} ${F} at <i>B</i> and ${fmt(p.C1+p.C2)} ${F} at <i>C</i>. Each plane is a simply supported beam.</p>
+  <table><tr><th>Plane</th><th>R<sub>A</sub> (${F})</th><th>R<sub>D</sub> (${F})</th><th>M at B (${M})</th><th>M at C (${M})</th></tr>
+  ${planes.map(([k,n])=>`<tr><td>${n}</td><td>${fmt(Math.abs(s.RA[k]),1)}</td><td>${fmt(Math.abs(s.RD[k]),1)}</td><td>${mc(Math.abs(s.Mk(k,s.xB)))}</td><td>${mc(Math.abs(s.Mk(k,s.xC)))}</td></tr>`).join("")}
+  <tr><td><b>Resultant</b></td><td><b>${fmt(s.RAm,1)}</b></td><td><b>${fmt(s.RDm,1)}</b></td><td><b>${mc(s.MB)}</b></td><td><b>${mc(s.MC)}</b></td></tr></table>
+  <p><span class="eq">M<sub>B</sub> = ${row(s.xB)} = ${mc(s.MB)} ${M}</span>&nbsp; <span class="eq">M<sub>C</sub> = ${row(s.xC)} = ${mc(s.MC)} ${M}</span></p>
+  <p class="final">The critical section is at ${s.crit}: M = ${mc(s.M)} ${M}, with T = ${mc(s.T)} ${M}.</p>
+  <h3>3. Diameter</h3>
+  <p>At the surface, σ = 32M/(πd³) and τ = 16T/(πd³). Maximum shear stress, with n = S<sub>y</sub>/(2τ<sub>max</sub>): <span class="eq">d = [32n√(M² + T²)/(πS<sub>y</sub>)]<sup>1/3</sup></span>. Distortion energy, with n = S<sub>y</sub>/σ′: <span class="eq">d = [32n√(M² + ¾T²)/(πS<sub>y</sub>)]<sup>1/3</sup></span>.</p>
+  <p class="final">d<sub>MSS</sub> = ${fmt(s.dMSS,d)} ${u}; d<sub>DE</sub> = ${fmt(s.dDE,d)} ${u}.</p>
+  <p class="note">MSS is the conservative choice and always gives the larger diameter; the next standard size up would be selected in practice.</p>`;
+}
+
+const add2=(a,b)=>[a[0]+b[0],a[1]+b[1]];
+// ===== shared helpers for the problem types below
+const SF_MAT=[["AISI 1006 CD",280,330,41,48],["AISI 1015 HR",190,340,27.5,50],["AISI 1018 CD",370,440,54,64],["AISI 1020 CD",390,470,57,68],
+  ["AISI 1030 HR",260,470,37.5,68],["AISI 1035 CD",460,550,67,80],["AISI 1040 HR",290,520,42,76],["AISI 1050 CD",580,690,84,100]];
+const gF=v=>v.toFixed(1);
+const gL=(x1,y1,x2,y2,attr)=>`<line x1="${gF(x1)}" y1="${gF(y1)}" x2="${gF(x2)}" y2="${gF(y2)}" ${attr}/>`;
+const gT=(x,y,t,attr="")=>`<text x="${gF(x)}" y="${gF(y)}" ${attr}>${t}</text>`;
+const gI=v=>`<tspan font-style="italic">${v}</tspan>`;
+const gSub=(a,b)=>`${gI(a)}<tspan baseline-shift="sub" font-size="13">${b}</tspan>`;
+const G_AR=`stroke="#aa1e28" stroke-width="3" marker-end="url(#g-ar)"`, G_DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#g-dm)" marker-end="url(#g-dm)"`;
+const G_EXT=`stroke="#999" stroke-width="0.8"`, G_CL=`stroke="#888" stroke-width="0.9" stroke-dasharray="10 3 2 3"`, G_PART=`fill="#eec878" stroke="#7d5014" stroke-width="1.8"`;
+function gSvg(vb,body,maxh=380){return `<svg viewBox="${vb}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="18" style="max-height:${maxh}px">
+  <defs><marker id="g-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+  <marker id="g-ax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker>
+  <marker id="g-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  <pattern id="g-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#c9d5e2"/><line x1="0" y1="0" x2="0" y2="7" stroke="#28405a" stroke-width="1"/></pattern></defs>${body}</svg>`}
+function gMatTable(rows,us,cols){return `<table><tr><th>Material</th>${cols.map(c=>`<th>${c} (${us?"kpsi":"MPa"})</th>`).join("")}</tr>${rows.map(r=>`<tr><td>${r[0]}</td>${r.slice(1).map(v=>`<td>${fmt(v,1)}</td>`).join("")}</tr>`).join("")}</table>`}
+const gSF=us=>SF_MAT.map(m=>[m[0],us?m[3]:m[1],us?m[4]:m[2]]);
+
+// ===== ductile Coulomb-Mohr (different yield strengths in tension and compression)
+const DC_MAT=[["Q&T alloy steel",1620,1965,235,285],["Wrought alloy A",414,517,60,75],["Ductile cast iron",276,360,40,52],
+  ["Extruded magnesium alloy",200,140,29,20.3],["Titanium alloy",830,900,120,130]];
+const DC_REG=["σA ≥ σB ≥ 0","σA ≥ 0 ≥ σB","0 ≥ σA ≥ σB"];
+function dcSolve(p){
+  const m=DC_MAT[p.mat], St=p.us?m[3]:m[1], Sc=p.us?m[4]:m[2], {sx,sy,t}=p, c=(sx+sy)/2, R=Math.hypot((sx-sy)/2,t), A=c+R, B=c-R;
+  let n,reg; if(B>=0){n=St/A;reg=0} else if(A<=0){n=-Sc/B;reg=2} else {n=1/(A/St-B/Sc);reg=1}
+  return {m,St,Sc,c,R,A,B,n,reg};
+}
+function dcGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<20000;k++){
+    const us=r()<0.4, mat=Math.floor(r()*DC_MAT.length), m=DC_MAT[mat], S=Math.min(us?m[3]:m[1],us?m[4]:m[2]), st=us?1:5;
+    const lim=Math.round(0.6*S/st), v=()=>pick(r,range(-lim,lim,1))*st, want=Math.floor(r()*3);
+    const p={us,mat,sx:v(),sy:v(),t:r()<0.5?0:v()}; if(r()<0.25){if(r()<0.5)p.sx=0;else p.sy=0}
+    if(!p.sx&&!p.sy&&!p.t) continue;
+    const s=dcSolve(p); if(s.reg!==want) continue;
+    const mx=Math.max(Math.abs(s.A),Math.abs(s.B)); if(Math.min(Math.abs(s.A),Math.abs(s.B))<0.04*mx) continue;
+    if(s.n<1.2||s.n>5) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function dcStatement(p,s){
+  const u=p.us?"kpsi":"MPa", parts=[];
+  if(p.sx) parts.push(`σ<sub><i>x</i></sub> = ${fmt(p.sx)} ${u}`); if(p.sy) parts.push(`σ<sub><i>y</i></sub> = ${fmt(p.sy)} ${u}`); if(p.t) parts.push(`τ<sub><i>xy</i></sub> = ${fmt(p.t)} ${u}`);
+  return `<p>A part made of a ductile ${s.m[0].toLowerCase()} has different yield strengths in tension and compression. At the critical point the state of plane stress is ${parts.join(", ")}${parts.length<3?" (the components not listed are zero)":""}, as shown on the stress element.</p>
+  <p>Using the ductile Coulomb-Mohr theory and the strengths below, find the principal stresses σ<sub><i>A</i></sub> ≥ σ<sub><i>B</i></sub> and the factor of safety, and identify the region of the σ<sub><i>A</i></sub>–σ<sub><i>B</i></sub> plane that applies.</p>
+  ${gMatTable(DC_MAT.map(m=>[m[0],p.us?m[3]:m[1],p.us?m[4]:m[2]]),p.us,["S<sub>yt</sub>","S<sub>yc</sub>"])}`;
+}
+function dcPlot(p,s){
+  const St=s.St, Sc=s.Sc, K=170/Math.max(St,Sc), P=(a,b)=>[a*K,-b*K], pt=q=>gF(q[0])+","+gF(q[1]);
+  const poly=[P(St,St),P(St,0),P(0,-Sc),P(-Sc,-Sc),P(-Sc,0),P(0,St)], X=P(s.A,s.B), E=P(s.A*s.n,s.B*s.n), ext=Math.max(St,Sc)*K;
+  const ax=`stroke="#222" stroke-width="1.2" marker-end="url(#g-ax)"`;
+  let g=`<polygon points="${poly.map(pt).join(" ")}" fill="#f6e3b8" stroke="#7d5014" stroke-width="1.6"/>`;
+  g+=gL(-ext-25,0,ext+40,0,ax)+gL(0,ext+25,0,-ext-40,ax)+gL(...P(-1.1*Sc,-1.1*Sc),...P(1.1*St,1.1*St),`stroke="#999" stroke-dasharray="5 4"`);
+  g+=gT(ext+46,6,`σ<tspan baseline-shift="sub" font-size="12">${gI("A")}</tspan>`)+gT(6,-ext-46,`σ<tspan baseline-shift="sub" font-size="12">${gI("B")}</tspan>`);
+  g+=gT(St*K+4,-6,gSub("S","yt"),`class="halo"`)+gT(8,Sc*K+6,`−${gSub("S","yc")}`,`class="halo"`);
+  g+=gL(0,0,E[0],E[1],`stroke="#aa1e28" stroke-width="2"`)+`<circle cx="${gF(X[0])}" cy="${gF(X[1])}" r="4" fill="#aa1e28"/><circle cx="${gF(E[0])}" cy="${gF(E[1])}" r="5" fill="#fff" stroke="#aa1e28" stroke-width="2"/>`;
+  const a=Math.atan2(E[1],E[0]); g+=gT(E[0]+30*Math.cos(a),E[1]+30*Math.sin(a)+6,`n = ${fmt(s.n,2)}`,`text-anchor="middle" fill="#aa1e28" font-size="15" class="halo"`);
+  return `<div style="max-width:460px">${gSvg(`${gF(-ext-50)} ${gF(-ext-70)} ${gF(2*ext+120)} ${gF(2*ext+110)}`,g,420)}</div>`;
+}
+function dcSolution(p,s){
+  const u=p.us?"kpsi":"MPa", d=p.us?2:1, A=fmt(s.A,d), B=fmt(s.B,d);
+  const f=s.reg===0?`n = S<sub>yt</sub>/σ<sub>A</sub> = ${fmt(s.St,1)}/${A}`:s.reg===2?`n = −S<sub>yc</sub>/σ<sub>B</sub> = −${fmt(s.Sc,1)}/(${B})`
+    :`1/n = σ<sub>A</sub>/S<sub>yt</sub> − σ<sub>B</sub>/S<sub>yc</sub> = ${A}/${fmt(s.St,1)} − (${B})/${fmt(s.Sc,1)}`;
+  return `<h3>1. Principal stresses</h3><p><span class="eq">σ<sub>A,B</sub> = ${fmt(s.c,d)} ± ${fmt(s.R,d)}</span></p>
+  <p class="final">σ<sub>A</sub> = ${A} ${u}, σ<sub>B</sub> = ${B} ${u}; region: ${DC_REG[s.reg]}</p>
+  <h3>2. Ductile Coulomb-Mohr</h3><p>${s.m[0]}: S<sub>yt</sub> = ${fmt(s.St,1)} ${u}, S<sub>yc</sub> = ${fmt(s.Sc,1)} ${u}. <span class="eq">${f}</span></p>
+  <p class="final">n = ${fmt(s.n,2)}</p><h3>3. Failure locus and load line</h3>${dcPlot(p,s)}
+  <p class="note">The ductile Coulomb-Mohr locus has the same shape as the brittle one, with yield strengths in place of ultimate strengths.</p>`;
+}
+
+// ===== round bar with transverse force, axial force and torque: DE at the top (A) and side (B) of the wall section
+function abSolve(p){
+  const m=SF_MAT[p.mat], Sy=p.us?m[3]*1000:m[1], d=p.d, k=p.us?1:1;     // SI: N, mm, N·mm -> MPa; US: lbf, in, lbf·in -> psi
+  const T=p.us?p.T:p.T*1000, Ar=Math.PI*d*d/4, sb=32*p.F*p.L/(Math.PI*d**3), sa=p.P/Ar, tt=16*T/(Math.PI*d**3), tv=4*p.F/(3*Ar);
+  const sA=sb+sa, tA=tt, sB=sa, tB=tt+tv, vA=Math.hypot(sA,Math.sqrt(3)*tA), vB=Math.hypot(sB,Math.sqrt(3)*tB);
+  const c=p.us?1/1000:1;                                                // report kpsi or MPa
+  return {m,Sy,Ar,sb,sa,tt,tv,sA:sA*c,tA:tA*c,sB:sB*c,tB:tB*c,vA:vA*c,vB:vB*c,nA:Sy/vA,nB:Sy/vB,crit:Sy/vA<=Sy/vB?"A":"B"};
+}
+function abGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4, p={us,mat:Math.floor(r()*SF_MAT.length)};
+    if(us){p.d=pick(r,range(0.375,1.25,0.125));p.L=pick(r,range(2,8,0.5));p.F=pick(r,range(20,400,10));p.P=pick(r,range(200,4000,100));p.T=pick(r,range(100,2500,50))}
+    else {p.d=pick(r,range(10,30,1));p.L=pick(r,range(50,200,10));p.F=pick(r,range(100,2000,50));p.P=pick(r,range(1000,20000,500));p.T=pick(r,range(10,250,5))}
+    const s=abSolve(p);
+    if(Math.min(s.nA,s.nB)<1.2||Math.min(s.nA,s.nB)>5) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function abStatement(p,s){
+  const u=p.us?["in","lbf","lbf·in"]:["mm","N","N·m"];
+  return `<p>The ${fmt(p.d,p.us?3:0)} ${u[0]} diameter ${s.m[0]} steel bar is fixed to the wall and loaded at its free end, ${fmt(p.L,p.us?1:0)} ${u[0]} from the wall, by a downward force <i>F</i> = ${fmt(p.F)} ${u[1]}, an axial tensile force <i>P</i> = ${fmt(p.P)} ${u[1]} and a torque <i>T</i> = ${fmt(p.T)} ${u[2]}, as shown. Points <i>A</i> (top) and <i>B</i> (front, on the neutral axis of bending) lie on the surface at the wall.</p>
+  <p>Using the distortion-energy theory, find the von Mises stress and the factor of safety at <i>A</i> and at <i>B</i>. Include the transverse shear stress at <i>B</i>.</p>${gMatTable(gSF(p.us).map(r=>[r[0],r[1]]),p.us,["S<sub>y</sub>"])}`;
+}
+function abFigure(p,s){
+  const ex=[1,-0.36], ey=[0,1], ez=[-0.62,-0.34], K=1, L=420, R=34, P=(x,y,z)=>[K*(x*ex[0]+y*ey[0]+z*ez[0]),-K*(x*ex[1]+y*ey[1]+z*ez[1])];
+  const pt=q=>gF(q[0])+","+gF(q[1]), poly=(a,attr)=>`<polygon points="${a.map(pt).join(" ")}" ${attr}/>`, c=Math.PI/180;
+  // silhouette angles of a cylinder along x for this projection
+  const q=t=>[R*Math.cos(t*c),R*Math.sin(t*c)];
+  let best=[0,0],bv=-1e9,bw=1e9; for(let t=0;t<360;t+=0.5){const s=P(0,...q(t));const v=s[0]*ex[1]-s[1]*ex[0];if(v>bv){bv=v;best[0]=t}if(v<bw){bw=v;best[1]=t}}
+  const [t1,t2]=best;
+  let g=poly([P(0,-90,-90),P(0,90,-90),P(0,90,90),P(0,-90,90)],`fill="#b9c8d8" stroke="#28405a" stroke-width="1.5"`)+poly([P(-24,-90,90),P(0,-90,90),P(0,90,90),P(-24,90,90)],`fill="url(#g-hatch)" stroke="#28405a" stroke-width="1.5"`);
+  g+=poly([P(0,...q(t1)),P(L,...q(t1)),P(L,...q(t2)),P(0,...q(t2))],`fill="#d4b06a"`)+poly([P(0,...q(115)),P(L,...q(115)),P(L,...q(70)),P(0,...q(70))],`fill="#eec878"`);
+  g+=gL(...P(0,...q(t1)),...P(L,...q(t1)),`stroke="#7d5014" stroke-width="1.6"`)+gL(...P(0,...q(t2)),...P(L,...q(t2)),`stroke="#7d5014" stroke-width="1.6"`);
+  const e=[];for(let t=0;t<=360;t+=10)e.push(P(L,...q(t))); g+=poly(e,`fill="#f6dda6" stroke="#7d5014" stroke-width="1.6"`);
+  g+=gL(...P(-30,0,0),...P(L+150,0,0),G_CL);
+  // loads at the free end
+  g+=gL(...P(L,R+90,0),...P(L,R+4,0),G_AR)+gT(...add2(P(L,R+90,0),[8,4]),gI("F"),`fill="#aa1e28"`);
+  g+=gL(...P(L+8,0,0),...P(L+110,0,0),G_AR)+gT(...add2(P(L+110,0,0),[6,20]),gI("P"),`fill="#aa1e28"`);
+  const arc=[];for(let t=-60;t<=210;t+=6)arc.push(P(L+60,...[1.7*R*Math.cos(t*c),1.7*R*Math.sin(t*c)]));
+  g+=`<polyline points="${arc.map(pt).join(" ")}" fill="none" stroke="#aa1e28" stroke-width="2.6" marker-end="url(#g-ar)"/>`+gT(...add2(P(L+60,1.7*R,0),[8,-8]),gI("T"),`fill="#aa1e28"`);
+  // points A and B
+  const A=P(6,R,0), B=P(6,0,R); g+=`<circle cx="${gF(A[0])}" cy="${gF(A[1])}" r="4.5" fill="#222"/><circle cx="${gF(B[0])}" cy="${gF(B[1])}" r="4.5" fill="#222"/>`;
+  g+=gT(A[0]+8,A[1]-10,gI("A"),`class="halo"`)+gT(B[0]-4,B[1]+24,gI("B"),`class="halo" text-anchor="end"`);
+  // axes and dimension
+  g+=gL(...P(-60,-100,95),...P(-60,-40,95),`stroke="#222" stroke-width="1.3" marker-end="url(#g-ax)"`)+gL(...P(-60,-100,95),...P(0,-100,95),`stroke="#222" stroke-width="1.3" marker-end="url(#g-ax)"`)+gL(...P(-60,-100,95),...P(-60,-100,150),`stroke="#222" stroke-width="1.3" marker-end="url(#g-ax)"`);
+  g+=gT(...add2(P(-60,-40,95),[-4,-6]),gI("y"),`text-anchor="middle"`)+gT(...add2(P(0,-100,95),[6,4]),gI("x"))+gT(...add2(P(-60,-100,150),[-10,8]),gI("z"),`text-anchor="end"`);
+  const yd=-R-60; g+=gL(...P(0,-R-4,0),...P(0,yd-10,0),G_EXT)+gL(...P(L,-R-4,0),...P(L,yd-10,0),G_EXT)+gL(...P(0,yd,0),...P(L,yd,0),G_DIM)+gT(...add2(P(L/2,yd,0),[0,22]),`${fmt(p.L,p.us?1:0)} ${p.us?"in":"mm"}`,`text-anchor="middle" class="halo"`);
+  g+=gL(...P(0.72*L,-R*0.7,R*0.7),...P(0.8*L,-R-40,R+40),`stroke="#222" stroke-width="0.9"`)+gT(...add2(P(0.8*L,-R-40,R+40),[0,20]),`${fmt(p.d,p.us?3:0)} ${p.us?"in":"mm"} dia.`,`text-anchor="middle" class="halo"`);
+  return gSvg("-170 -215 790 470",g,420);
+}
+function abSolution(p,s){
+  const u=p.us?"kpsi":"MPa", d=p.us?2:1, c=p.us?1/1000:1, M=p.us?`${fmt(p.F*p.L)} lbf·in`:`${fmt(p.F*p.L/1000,1)} N·m`;
+  return `<h3>1. Stress components at the wall</h3>
+  <p>Bending moment at the wall: M = FL = ${M}. Section properties use d = ${fmt(p.d,p.us?3:0)} ${p.us?"in":"mm"}, A = ${fmt(s.Ar,p.us?4:1)} ${p.us?"in²":"mm²"}.</p>
+  <table><tr><th>Component</th><th>Formula</th><th>Value (${u})</th></tr>
+  <tr><td>Bending</td><td>32M/(πd³)</td><td>${fmt(s.sb*c,d)}</td></tr><tr><td>Axial</td><td>4P/(πd²)</td><td>${fmt(s.sa*c,d)}</td></tr>
+  <tr><td>Torsion</td><td>16T/(πd³)</td><td>${fmt(s.tt*c,d)}</td></tr><tr><td>Transverse shear (max)</td><td>4V/(3A)</td><td>${fmt(s.tv*c,d)}</td></tr></table>
+  <h3>2. Point A (top)</h3><p>Bending and axial stresses add; the transverse shear stress is zero at the top: σ = ${fmt(s.sA,d)} ${u}, τ = ${fmt(s.tA,d)} ${u}.</p>
+  <p><span class="eq">σ′ = √(σ² + 3τ²) = ${fmt(s.vA,d)} ${u}</span>&nbsp; <span class="eq">n<sub>A</sub> = S<sub>y</sub>/σ′ = ${fmt(s.nA,2)}</span></p>
+  <h3>3. Point B (front, neutral axis)</h3><p>Only the axial stress acts normally. With F down and T as drawn, the torsional and transverse shear stresses at B act in the same direction and add: σ = ${fmt(s.sB,d)} ${u}, τ = ${fmt(s.tB,d)} ${u}.</p>
+  <p><span class="eq">σ′ = ${fmt(s.vB,d)} ${u}</span>&nbsp; <span class="eq">n<sub>B</sub> = ${fmt(s.nB,2)}</span></p>
+  <p class="final">n<sub>A</sub> = ${fmt(s.nA,2)}, n<sub>B</sub> = ${fmt(s.nB,2)}</p>
+  <p class="note">Point B, on the neutral axis, escapes the bending stress but carries the largest transverse shear; for a lever arm longer than about one diameter the bending stress at A dominates.</p>`;
+}
+// ===== shaft transmitting power: diameter for a factor of safety (pure torsion)
+function pwSolve(p){
+  const m=SF_MAT[p.mat], Sy=p.us?m[3]*1000:m[1], w=2*Math.PI*p.N/60;
+  const T=p.us?p.H*550*12/w:p.H*1000/w*1000;                       // lbf·in or N·mm
+  const dM=(32*p.n*T/(Math.PI*Sy))**(1/3), dD=(16*Math.sqrt(3)*p.n*T/(Math.PI*Sy))**(1/3);
+  return {m,Sy,w,T,Tr:p.us?T:T/1000,dM,dD};
+}
+function pwGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<2000;k++){
+    const us=r()<0.4, p={us,mat:Math.floor(r()*SF_MAT.length),N:pick(r,[300,450,600,720,900,1150,1200,1450,1750,1800,2400,3000,3600]),n:pick(r,[1.5,2,2.5,3,4])};
+    p.H=us?pick(r,[1,2,3,5,7.5,10,15,20,25,30,40,50,60,75,100]):pick(r,[0.75,1.1,1.5,2.2,3,4,5.5,7.5,11,15,18.5,22,30,37,45,55,75]);
+    const s=pwSolve(p); if(us?(s.dM<0.25||s.dM>3):(s.dM<6||s.dM>75)) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function pwStatement(p,s){
+  return `<p>An ${s.m[0]} steel shaft is to transmit ${fmt(p.H,p.H%1?2:0)} ${p.us?"hp":"kW"} while rotating at ${fmt(p.N)} rev/min. Bending and axial loads are negligible.</p>
+  <p>Find the torque, and the minimum shaft diameter for a factor of safety of ${fmt(p.n,1)} against yielding by the maximum-shear-stress theory and by the distortion-energy theory.</p>${gMatTable(gSF(p.us).map(r=>[r[0],r[1]]),p.us,["S<sub>y</sub>"])}`;
+}
+function pwFigure(p,s){
+  const pt=q=>gF(q[0])+","+gF(q[1]);
+  let g=`<rect x="40" y="88" width="420" height="44" rx="3" ${G_PART}/>`+`<ellipse cx="460" cy="110" rx="9" ry="22" fill="#f6dda6" stroke="#7d5014" stroke-width="1.6"/>`+gL(10,110,500,110,G_CL);
+  const arc=(cx,dir)=>{const a=[];for(let t=-70;t<=200;t+=6){const tt=dir>0?t:180-t;a.push([cx+14*Math.cos(tt*Math.PI/180),110-46*Math.sin(tt*Math.PI/180)])}return `<polyline points="${a.map(pt).join(" ")}" fill="none" stroke="#aa1e28" stroke-width="2.6" marker-end="url(#g-ar)"/>`};
+  g+=arc(70,1)+arc(430,-1)+gT(70,48,gI("T"),`fill="#aa1e28" text-anchor="middle"`)+gT(430,48,gI("T"),`fill="#aa1e28" text-anchor="middle"`);
+  g+=gL(250,132,280,178,`stroke="#222" stroke-width="0.9"`)+gT(284,192,gI("d"));
+  g+=gT(250,232,`${fmt(p.H,p.H%1?2:0)} ${p.us?"hp":"kW"} at ${fmt(p.N)} rev/min`,`text-anchor="middle"`);
+  return gSvg("0 20 520 230",g,260);
+}
+function pwSolution(p,s){
+  const u=p.us?"in":"mm", Tu=p.us?"lbf·in":"N·m", su=p.us?"psi":"MPa";
+  return `<h3>1. Torque</h3><p><span class="eq">ω = 2πN/60 = ${fmt(s.w,2)} rad/s</span>&nbsp; <span class="eq">T = H/ω = ${p.us?`${fmt(p.H,2)}(550)(12)/${fmt(s.w,2)}`:`${fmt(p.H*1000)}/${fmt(s.w,2)}`} = ${fmt(s.Tr,p.us?0:1)} ${Tu}</span></p>
+  <h3>2. Maximum shear stress</h3><p>τ<sub>max</sub> = 16T/(πd³) and n = S<sub>y</sub>/(2τ<sub>max</sub>), so <span class="eq">d = [32nT/(πS<sub>y</sub>)]<sup>1/3</sup></span> with S<sub>y</sub> = ${fmt(s.Sy)} ${su}.</p>
+  <p class="final">T = ${fmt(s.Tr,p.us?0:1)} ${Tu}; d<sub>MSS</sub> = ${fmt(s.dM,p.us?3:1)} ${u}</p>
+  <h3>3. Distortion energy</h3><p>For pure torsion σ′ = √3 τ, so <span class="eq">d = [16√3 nT/(πS<sub>y</sub>)]<sup>1/3</sup></span>.</p>
+  <p class="final">d<sub>DE</sub> = ${fmt(s.dD,p.us?3:1)} ${u}</p><p class="note">d<sub>MSS</sub>/d<sub>DE</sub> = (2/√3)<sup>1/3</sup> = 1.049 for pure torsion, whatever the numbers.</p>`;
+}
+
+// ===== thin-walled spherical pressure vessel: yield and burst pressure
+function svSolve(p){
+  const m=SF_MAT[p.mat], Sy=p.us?m[3]*1000:m[1], Su=p.us?m[4]*1000:m[2], k=4*p.t/p.D;
+  const py=k*Sy, pb=k*Su; return {m,Sy,Su,py,pb,n:py/p.pw,sw:p.pw/k};
+}
+function svGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<2000;k++){
+    const us=r()<0.5, p={us,mat:Math.floor(r()*SF_MAT.length)};
+    if(us){p.t=pick(r,[0.0598,0.0747,0.0897,0.1046,0.125,0.1875,0.25]);p.D=pick(r,range(10,60,2));p.pw=pick(r,range(50,1500,25))}
+    else {p.t=pick(r,[1.5,2,2.5,3,4,5,6,8]);p.D=pick(r,range(250,1500,50));p.pw=pick(r,[0.4,0.5,0.6,0.8,1,1.2,1.5,2,2.5,3,4,5,6])}
+    const s=svSolve(p); if(s.n<1.5||s.n>6||p.D/p.t<40) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function svStatement(p,s){
+  const u=p.us?"in":"mm", pu=p.us?"psi":"MPa";
+  return `<p>A spherical pressure vessel of mean diameter ${fmt(p.D)} ${u} is formed from ${s.m[0]} sheet steel ${fmt(p.t,p.us?4:1)} ${u} thick. Treat it as thin-walled: the membrane stress is σ = pd/(4t) in every direction in the wall, and the radial stress is negligible.</p>
+  <p>Using the distortion-energy theory, find the pressure that initiates yielding and estimate the bursting pressure. Then find the factor of safety against yielding at a working pressure of ${fmt(p.pw,p.us?0:1)} ${pu}.</p>
+  ${gMatTable(gSF(p.us),p.us,["S<sub>y</sub>","S<sub>ut</sub>"])}`;
+}
+function svFigure(p,s){
+  let g=`<circle cx="0" cy="0" r="120" fill="#eec878" stroke="#7d5014" stroke-width="1.8"/><circle cx="0" cy="0" r="111" fill="#fff" stroke="#7d5014" stroke-width="1.4"/>`;
+  for(let a=0;a<360;a+=30){const c=Math.cos(a*Math.PI/180),s2=Math.sin(a*Math.PI/180);g+=gL(40*c,40*s2,106*c,106*s2,`stroke="#aa1e28" stroke-width="2" marker-end="url(#g-ar)"`)}
+  g+=gT(0,6,gI("p"),`text-anchor="middle" fill="#aa1e28" class="halo"`)+gL(-115.5,0,115.5,0,G_CL);
+  g+=gL(-115.5,-130,-115.5,-150,G_EXT)+gL(115.5,-130,115.5,-150,G_EXT)+gL(-115.5,-142,115.5,-142,G_DIM)+gT(0,-150,`${fmt(p.D)} ${p.us?"in":"mm"} mean dia.`,`text-anchor="middle" class="halo"`);
+  g+=gL(150,60,118,30,`stroke="#222" stroke-width="0.9"`)+gT(154,66,`${gI("t")} = ${fmt(p.t,p.us?4:1)} ${p.us?"in":"mm"}`);
+  return gSvg("-180 -185 440 330",g,320);
+}
+function svSolution(p,s){
+  const pu=p.us?"psi":"MPa", su=p.us?"psi":"MPa", d=p.us?0:2;
+  return `<h3>1. Stress state</h3><p>The wall carries equal biaxial tension σ<sub>1</sub> = σ<sub>2</sub> = σ = pd/(4t), with σ<sub>3</sub> ≈ 0. Then <span class="eq">σ′ = √(σ² − σ·σ + σ²) = σ</span>.</p>
+  <h3>2. Yield and burst</h3><p><span class="eq">p<sub>y</sub> = 4tS<sub>y</sub>/d = 4(${fmt(p.t,p.us?4:1)})(${fmt(s.Sy)})/${fmt(p.D)}</span>&nbsp; <span class="eq">p<sub>b</sub> = 4tS<sub>ut</sub>/d</span></p>
+  <p class="final">p<sub>y</sub> = ${fmt(s.py,d)} ${pu}; p<sub>b</sub> ≈ ${fmt(s.pb,d)} ${pu}</p>
+  <h3>3. Working pressure</h3><p>At ${fmt(p.pw,p.us?0:1)} ${pu}, σ = ${fmt(s.sw,p.us?0:1)} ${su}: <span class="eq">n = S<sub>y</sub>/σ′ = p<sub>y</sub>/p</span>.</p><p class="final">n = ${fmt(s.n,2)}</p>
+  <p class="note">The bursting estimate assumes the wall fails when the membrane stress reaches S<sub>ut</sub>; it ignores thinning of the wall before rupture.</p>`;
+}
+
+// ===== thin-walled cylinder with end closures: factor of safety at a set pressure
+const CV_MAT=[["2024-T3 aluminum",317,46],["6061-T6 aluminum",276,40],["5052-H32 aluminum",193,28],["3003-H14 aluminum",145,21],["AISI 1020 CD steel",390,57],["304 stainless, annealed",207,30]];
+function cvSolve(p){
+  const m=CV_MAT[p.mat], Sy=p.us?m[2]*1000:m[1], di=p.D-2*p.t, st=p.p*(di+p.t)/(2*p.t), sl=p.p*di/(4*p.t);
+  const vm=Math.sqrt(st*st-st*sl+sl*sl); return {m,Sy,di,st,sl,vm,n:Sy/vm};
+}
+function cvGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<2000;k++){
+    const us=r()<0.5, p={us,mat:Math.floor(r()*CV_MAT.length)};
+    if(us){p.D=pick(r,range(1,8,0.25));p.t=pick(r,[0.035,0.049,0.058,0.065,0.083,0.095,0.12,0.134]);p.p=pick(r,range(100,2000,25))}
+    else {p.D=pick(r,range(25,200,5));p.t=pick(r,[0.8,1,1.2,1.5,2,2.5,3,4]);p.p=pick(r,range(0.5,15,0.25))}
+    if(p.D/p.t<20) continue;
+    const s=cvSolve(p); if(s.n<1.3||s.n>6) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function cvStatement(p,s){
+  const u=p.us?"in":"mm", pu=p.us?"psi":"MPa";
+  return `<p>A light pressure vessel is made of ${s.m[0]} tubing with suitable end closures. The tube is ${fmt(p.D,2)} ${u} OD with a ${fmt(p.t,p.us?3:1)} ${u} wall, and the pressure-relief valve is set at ${fmt(p.p,p.us?0:2)} ${pu}. Use the thin-wall stresses σ<sub><i>t</i></sub> = <i>p</i>(<i>d<sub>i</sub></i> + <i>t</i>)/(2<i>t</i>) and σ<sub><i>l</i></sub> = <i>pd<sub>i</sub></i>/(4<i>t</i>), and neglect the radial stress.</p>
+  <p>Find the tangential and longitudinal stresses, the von Mises stress and the factor of safety by the distortion-energy theory.</p>
+  ${gMatTable(CV_MAT.map(m=>[m[0],p.us?m[2]:m[1]]),p.us,["S<sub>y</sub>"])}`;
+}
+function cvFigure(p,s){
+  const u=p.us?"in":"mm";
+  let g=`<rect x="60" y="40" width="360" height="140" fill="#eec878" stroke="#7d5014" stroke-width="1.8"/><rect x="60" y="52" width="360" height="116" fill="#fff" stroke="#7d5014" stroke-width="1.4"/>`;
+  g+=`<path d="M60,40 Q20,110 60,180 L72,168 Q40,110 72,52 Z" fill="#d4b06a" stroke="#7d5014" stroke-width="1.6"/><path d="M420,40 Q460,110 420,180 L408,168 Q440,110 408,52 Z" fill="#d4b06a" stroke="#7d5014" stroke-width="1.6"/>`;
+  for(let x=110;x<=370;x+=52) g+=gL(x,96,x,57,`stroke="#aa1e28" stroke-width="2" marker-end="url(#g-ar)"`)+gL(x,124,x,163,`stroke="#aa1e28" stroke-width="2" marker-end="url(#g-ar)"`);
+  g+=gT(240,116,gI("p"),`text-anchor="middle" fill="#aa1e28" class="halo"`)+gL(0,110,480,110,G_CL);
+  g+=gL(440,40,500,40,G_EXT)+gL(440,180,500,180,G_EXT)+gL(490,40,490,180,G_DIM)+gT(498,116,`${fmt(p.D,2)} ${u} OD`);
+  g+=gL(200,30,214,46,`stroke="#222" stroke-width="0.9"`)+gT(150,24,`${gI("t")} = ${fmt(p.t,p.us?3:1)} ${u}`);
+  return gSvg("0 0 600 210",g,240);
+}
+function cvSolution(p,s){
+  const u=p.us?"psi":"MPa", d=p.us?0:1;
+  return `<h3>1. Thin-wall stresses</h3><p>d<sub>i</sub> = d<sub>o</sub> − 2t = ${fmt(s.di,p.us?3:1)} ${p.us?"in":"mm"}.</p>
+  <p><span class="eq">σ<sub>t</sub> = p(d<sub>i</sub> + t)/(2t) = ${fmt(s.st,d)} ${u}</span>&nbsp; <span class="eq">σ<sub>l</sub> = pd<sub>i</sub>/(4t) = ${fmt(s.sl,d)} ${u}</span></p>
+  <h3>2. Distortion energy</h3><p><span class="eq">σ′ = √(σ<sub>t</sub>² − σ<sub>t</sub>σ<sub>l</sub> + σ<sub>l</sub>²) = ${fmt(s.vm,d)} ${u}</span>&nbsp; <span class="eq">n = S<sub>y</sub>/σ′ = ${fmt(s.Sy)}/${fmt(s.vm,d)}</span></p>
+  <p class="final">σ<sub>t</sub> = ${fmt(s.st,d)} ${u}, σ<sub>l</sub> = ${fmt(s.sl,d)} ${u}, σ′ = ${fmt(s.vm,d)} ${u}; n = ${fmt(s.n,2)}</p>
+  <p class="note">σ<sub>l</sub> is close to σ<sub>t</sub>/2, which makes σ′ ≈ (√3/2)σ<sub>t</sub>: the end closures lower the von Mises stress below the hoop stress.</p>`;
+}
+// ===== rotating ring: speed that causes yielding (ductile steel) or fracture (gray cast iron)
+const RR_MAT=[["AISI 1020 hot-forged steel",210,7850,0.292,"y"],["AISI 1040 HR steel",290,7850,0.292,"y"],["AISI 1050 CD steel",580,7850,0.292,"y"],
+  ["ASTM 30 gray cast iron",214,7200,0.26,"u"],["ASTM 40 gray cast iron",293,7200,0.26,"u"]];
+function rrStress(ri,ro,nu,r){const k=(3+nu)/8;return {t:k*(ri*ri+ro*ro+ri*ri*ro*ro/(r*r)-(1+3*nu)/(3+nu)*r*r),r:k*(ri*ri+ro*ro-ri*ri*ro*ro/(r*r)-r*r)}}  // per unit rho*omega^2
+function rrSolve(p){
+  const m=RR_MAT[p.mat], ri=p.ID/2000, ro=p.OD/2000, nu=m[3], rho=m[2], S=m[1]*1e6, q=rrStress(ri,ro,nu,ri);
+  const crit=m[4]==="y"?q.t:q.t;                                   // inner surface: sigma_r = 0, so sigma' = sigma_t; brittle: n = Sut/sigma_A
+  const w=Math.sqrt(S/(rho*crit)), rpm=w*60/(2*Math.PI), rm=Math.sqrt(ri*ro), qm=rrStress(ri,ro,nu,rm);
+  return {m,ri,ro,nu,rho,q,w,rpm,rm:rm*1000,srm:rho*w*w*qm.r/1e6,stI:S/1e6};
+}
+function rrGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<2000;k++){
+    const p={mat:Math.floor(r()*RR_MAT.length),ID:pick(r,range(50,400,10))}; p.OD=Math.round(p.ID*(1.25+1.5*r())/10)*10;
+    if(p.OD-p.ID<20||p.OD>800) continue;
+    return {p,s:rrSolve(p)};
+  }
+}
+function rrStatement(p,s){
+  const y=s.m[4]==="y";
+  return `<p>A ring of ${s.m[0]} has a ${fmt(p.ID)} mm inside diameter and a ${fmt(p.OD)} mm outside diameter, and rotates about its axis. Treat it as a thin rotating disk in plane stress, with</p>
+  <p><span class="eq">σ<sub>t</sub> = ρω²(3 + ν)/8 · [r<sub>i</sub>² + r<sub>o</sub>² + r<sub>i</sub>²r<sub>o</sub>²/r² − (1 + 3ν)r²/(3 + ν)]</span>&nbsp; <span class="eq">σ<sub>r</sub> = ρω²(3 + ν)/8 · [r<sub>i</sub>² + r<sub>o</sub>² − r<sub>i</sub>²r<sub>o</sub>²/r² − r²]</span></p>
+  <p>Take ρ = ${fmt(s.rho)} kg/m³, ν = ${fmt(s.nu,3)} and ${y?`S<sub>y</sub>`:`S<sub>ut</sub>`} = ${fmt(s.m[1])} MPa. ${y?"Using the distortion-energy theory, find the speed in rev/min that would cause the ring to yield.":"Using the modified-Mohr theory, find the speed in rev/min that would cause the ring to fracture."} At that speed, find the largest radial stress and the radius at which it occurs.</p>`;
+}
+function rrFigure(p,s){
+  const Ro=120, Ri=Ro*p.ID/p.OD, pt=q=>gF(q[0])+","+gF(q[1]);
+  let g=`<path d="M${Ro},0 A${Ro},${Ro} 0 1,0 ${-Ro},0 A${Ro},${Ro} 0 1,0 ${Ro},0 Z M${gF(Ri)},0 A${gF(Ri)},${gF(Ri)} 0 1,1 ${gF(-Ri)},0 A${gF(Ri)},${gF(Ri)} 0 1,1 ${gF(Ri)},0 Z" ${G_PART} fill-rule="evenodd"/>`;
+  g+=gL(-Ro-20,0,Ro+20,0,G_CL)+gL(0,-Ro-20,0,Ro+20,G_CL);
+  const a=[];for(let t=200;t<=320;t+=5)a.push([Ro*0.45*Math.cos(t*Math.PI/180)*0+ (Ri*0.55)*Math.cos(t*Math.PI/180),(Ri*0.55)*Math.sin(t*Math.PI/180)]);
+  g+=`<polyline points="${a.map(pt).join(" ")}" fill="none" stroke="#aa1e28" stroke-width="2.6" marker-end="url(#g-ar)"/>`+gT(0,Ri*0.55+22,gI("ω"),`text-anchor="middle" fill="#aa1e28"`);
+  g+=gL(-Ro,8,-Ro,Ro+46,G_EXT)+gL(Ro,8,Ro,Ro+46,G_EXT)+gL(-Ro,Ro+38,Ro,Ro+38,G_DIM)+gT(0,Ro+32,`${fmt(p.OD)} OD`,`text-anchor="middle" class="halo"`);
+  g+=gL(-Ri,-8,-Ri,-Ro-40,G_EXT)+gL(Ri,-8,Ri,-Ro-40,G_EXT)+gL(-Ri,-Ro-32,Ri,-Ro-32,G_DIM)+gT(0,-Ro-38,`${fmt(p.ID)} ID`,`text-anchor="middle" class="halo"`);
+  g+=gT(Ro+30,Ro+60,"Dimensions in mm",`text-anchor="end" font-size="15"`);
+  return gSvg(`${-Ro-60} ${-Ro-70} ${2*Ro+120} ${2*Ro+150}`,g,360);
+}
+function rrSolution(p,s){
+  const y=s.m[4]==="y";
+  return `<h3>1. Critical point</h3><p>σ<sub>t</sub> is largest at the inner surface, where σ<sub>r</sub> = 0. ${y?"The von Mises stress there is σ′ = σ<sub>t</sub>, and it is the largest anywhere in the ring.":"Both principal stresses are ≥ 0 there, so the modified-Mohr theory gives n = S<sub>ut</sub>/σ<sub>t</sub>."}</p>
+  <p>At r = r<sub>i</sub> = ${fmt(s.ri*1000,1)} mm: <span class="eq">σ<sub>t</sub> = ρω² × ${s.q.t.toExponential(4)} m²</span></p>
+  <h3>2. Speed</h3><p><span class="eq">ω = √[${y?"S<sub>y</sub>":"S<sub>ut</sub>"}/(ρ × ${s.q.t.toExponential(4)})] = ${fmt(s.w,1)} rad/s</span></p>
+  <p class="final">N = 60ω/(2π) = ${fmt(s.rpm,0)} rev/min</p>
+  <h3>3. Largest radial stress</h3><p>dσ<sub>r</sub>/dr = 0 gives r = √(r<sub>i</sub>r<sub>o</sub>) = ${fmt(s.rm,1)} mm, where at this speed</p>
+  <p class="final">σ<sub>r,max</sub> = ${fmt(s.srm,1)} MPa at r = ${fmt(s.rm,1)} mm</p>`;
+}
+
+// ===== shrink fit of two steel cylinders: pressure and von Mises stresses at the fit surface
+function sfSolve(p){
+  const E=207e3, R=p.R, ri=p.ri, ro=p.ro, d=p.delta/2;             // radial interference
+  const pr=E*d/R*((ro*ro-R*R)*(R*R-ri*ri))/(2*R*R*(ro*ro-ri*ri));
+  const oT=pr*(ro*ro+R*R)/(ro*ro-R*R), oR=-pr, iT=ri>0?-pr*(R*R+ri*ri)/(R*R-ri*ri):-pr, iR=-pr;
+  const vm=(a,b)=>Math.sqrt(a*a-a*b+b*b);
+  return {E,p:pr,oT,oR,iT,iR,vo:vm(oT,oR),vi:vm(iT,iR),no:p.Sy/vm(oT,oR),ni:p.Sy/vm(iT,iR)};
+}
+function sfGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const R=pick(r,range(10,60,5)), p={R,solid:r()<0.3,ro:R+pick(r,range(5,50,2.5)),delta:pick(r,range(0.01,0.12,0.005)),Sy:pick(r,[260,290,370,390,460,490,580])};
+    p.ri=p.solid?0:Math.max(2.5,R-pick(r,range(4,R*0.8,2)));
+    if(!p.solid&&R-p.ri<4) continue;
+    const s=sfSolve(p); if(Math.min(s.no,s.ni)<1.2||Math.min(s.no,s.ni)>6) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function sfStatement(p,s){
+  return `<p>${p.solid?`A solid steel shaft of nominal diameter ${fmt(2*p.R)} mm`:`A steel tube, ${fmt(2*p.ri,1)} mm ID by ${fmt(2*p.R)} mm nominal OD,`} is shrink-fitted into a steel collar of ${fmt(2*p.ro,1)} mm OD. The diametral interference is ${fmt(p.delta,3)} mm. Take <i>E</i> = 207 GPa for both members, plane stress (no axial stress), and <i>S<sub>y</sub></i> = ${p.Sy} MPa for both.</p>
+  <p>Find the shrink-fit pressure, the von Mises stress at the fit surface in the outer member and in the inner member, and the smaller of the two factors of safety by the distortion-energy theory.</p>`;
+}
+function sfFigure(p,s){
+  const Ro=120, K=Ro/p.ro, R=p.R*K, ri=p.ri*K;
+  const ann=(a,b,fill)=>`<path d="M${gF(a)},0 A${gF(a)},${gF(a)} 0 1,0 ${gF(-a)},0 A${gF(a)},${gF(a)} 0 1,0 ${gF(a)},0 Z${b>0?` M${gF(b)},0 A${gF(b)},${gF(b)} 0 1,1 ${gF(-b)},0 A${gF(b)},${gF(b)} 0 1,1 ${gF(b)},0 Z`:""}" fill="${fill}" fill-rule="evenodd" stroke="#7d5014" stroke-width="1.6"/>`;
+  let g=ann(Ro,R,"#eec878")+ann(R,ri,"#b9c8d8")+gL(-Ro-18,0,Ro+18,0,G_CL)+gL(0,-Ro-18,0,Ro+18,G_CL);
+  g+=gL(-Ro,8,-Ro,Ro+46,G_EXT)+gL(Ro,8,Ro,Ro+46,G_EXT)+gL(-Ro,Ro+38,Ro,Ro+38,G_DIM)+gT(0,Ro+32,`${fmt(2*p.ro,1)} OD`,`text-anchor="middle" class="halo"`);
+  const a=-Math.PI/4; g+=gL(0,0,R*Math.cos(a),R*Math.sin(a),`stroke="#222" stroke-width="0.9" marker-end="url(#g-dm)"`)+gT(R*Math.cos(a)+8,R*Math.sin(a)-4,`${fmt(2*p.R)} nominal dia.`,`class="halo"`);
+  if(!p.solid) g+=gL(-ri,-6,-ri,-Ro-40,G_EXT)+gL(ri,-6,ri,-Ro-40,G_EXT)+gL(-ri,-Ro-32,ri,-Ro-32,G_DIM)+gT(0,-Ro-38,`${fmt(2*p.ri,1)} ID`,`text-anchor="middle" class="halo"`);
+  g+=gT(Ro+150,Ro+62,`Dimensions in mm; interference ${fmt(p.delta,3)} on diameter`,`text-anchor="end" font-size="15"`);
+  return gSvg(`${-Ro-60} ${-Ro-70} ${2*Ro+230} ${2*Ro+150}`,g,360);
+}
+function sfSolution(p,s){
+  const ri=p.ri, R=p.R, ro=p.ro;
+  return `<h3>1. Pressure</h3><p>Radial interference δ = ${fmt(p.delta/2,4)} mm. For two members of the same material,</p>
+  <p><span class="eq">p = (Eδ/R)·(r<sub>o</sub>² − R²)(R² − r<sub>i</sub>²)/[2R²(r<sub>o</sub>² − r<sub>i</sub>²)]</span> with R = ${fmt(R,1)}, r<sub>o</sub> = ${fmt(ro,2)}, r<sub>i</sub> = ${fmt(ri,2)} mm.</p>
+  <p class="final">p = ${fmt(s.p,2)} MPa</p>
+  <h3>2. Outer member at r = R</h3><p><span class="eq">σ<sub>t</sub> = p(r<sub>o</sub>² + R²)/(r<sub>o</sub>² − R²) = ${fmt(s.oT,2)} MPa</span>, σ<sub>r</sub> = −p = ${fmt(s.oR,2)} MPa. <span class="eq">σ′ = √(σ<sub>t</sub>² − σ<sub>t</sub>σ<sub>r</sub> + σ<sub>r</sub>²) = ${fmt(s.vo,2)} MPa</span></p>
+  <h3>3. Inner member at r = R</h3><p>${p.solid?"Solid shaft: σ<sub>t</sub> = σ<sub>r</sub> = −p everywhere, so σ′ = p.":`<span class="eq">σ<sub>t</sub> = −p(R² + r<sub>i</sub>²)/(R² − r<sub>i</sub>²) = ${fmt(s.iT,2)} MPa</span>, σ<sub>r</sub> = −p.`} <span class="eq">σ′ = ${fmt(s.vi,2)} MPa</span></p>
+  <p class="final">σ′<sub>outer</sub> = ${fmt(s.vo,1)} MPa, σ′<sub>inner</sub> = ${fmt(s.vi,1)} MPa; n = S<sub>y</sub>/max σ′ = ${fmt(Math.min(s.no,s.ni),2)} (${s.no<s.ni?"outer":"inner"} member)</p>`;
+}
+
+// ===== center-cracked plate in tension: net-section yielding versus crack growth
+function crSolve(p){
+  const a=p.c/2, beta=Math.sqrt(1/Math.cos(Math.PI*a/p.w)), Fy=p.Sy*(p.w-p.c)*p.t/1000;
+  const sc=p.K/(beta*Math.sqrt(Math.PI*a/1000)), Fc=sc*p.w*p.t/1000;
+  return {a,beta,Fy,sc,Fc,gov:Fy<Fc?"Net-section yielding":"Crack growth (fracture)"};
+}
+function crGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const p={w:pick(r,range(60,300,10)),t:pick(r,range(4,25,1)),K:pick(r,[25,30,40,50,60,70,80,100,120]),Sy:pick(r,[350,450,600,750,950,1100,1300])};
+    p.c=pick(r,range(4,0.5*p.w,2)); if(p.c/p.w>0.5) continue;
+    const s=crSolve(p); if(Math.abs(s.Fy-s.Fc)<0.08*Math.min(s.Fy,s.Fc)) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function crStatement(p,s){
+  return `<p>A steel plate ${fmt(p.w)} mm wide and ${fmt(p.t)} mm thick is loaded in tension along its length by a force <i>F</i>. It contains a central through-crack of length 2<i>a</i> = ${fmt(p.c)} mm, perpendicular to the load. The material has <i>K</i><sub>Ic</sub> = ${p.K} MPa·√m and <i>S<sub>y</sub></i> = ${p.Sy} MPa. Use <i>K</i><sub>I</sub> = βσ√(π<i>a</i>) with σ = <i>F</i>/(<i>wt</i>) and β = [sec(π<i>a</i>/<i>w</i>)]<sup>1/2</sup>.</p>
+  <p>Find the largest load before the net section yields, the largest load before uncontrolled crack growth, and which mode limits the plate.</p>`;
+}
+function crFigure(p,s){
+  const W=200, H=260, k=W/p.w, c=p.c*k;
+  let g=`<rect x="${-W/2}" y="${-H/2}" width="${W}" height="${H}" ${G_PART}/>`+`<path d="M${gF(-c/2)},0 Q0,-3 ${gF(c/2)},0 Q0,3 ${gF(-c/2)},0 Z" fill="#222"/>`;
+  for(const x of [-70,-35,0,35,70]) g+=gL(x,-H/2-6,x,-H/2-46,G_AR)+gL(x,H/2+6,x,H/2+46,G_AR);
+  g+=gT(92,-H/2-30,gI("F"),`fill="#aa1e28"`)+gT(92,H/2+40,gI("F"),`fill="#aa1e28"`);
+  g+=gL(-W/2,H/2+8,-W/2,H/2+70,G_EXT)+gL(W/2,H/2+8,W/2,H/2+70,G_EXT)+gL(-W/2,H/2+62,W/2,H/2+62,G_DIM)+gT(0,H/2+86,`${fmt(p.w)}`,`text-anchor="middle" class="halo"`);
+  g+=gL(-c/2,-4,-c/2,-40,G_EXT)+gL(c/2,-4,c/2,-40,G_EXT)+gL(-c/2-30,-34,-c/2,-34,`stroke="#222" stroke-width="0.9" marker-end="url(#g-dm)"`)+gL(c/2+30,-34,c/2,-34,`stroke="#222" stroke-width="0.9" marker-end="url(#g-dm)"`)+gT(c/2+34,-44,`2${gI("a")} = ${fmt(p.c)}`,`class="halo"`);
+  g+=gT(W/2+16,0,`${gI("t")} = ${fmt(p.t)}`)+gT(W/2+16,H/2+40,"Dimensions in mm",`font-size="15"`);
+  return gSvg(`${-W/2-60} ${-H/2-60} ${W+250} ${H+160}`,g,380);
+}
+function crSolution(p,s){
+  return `<h3>1. Net-section yielding</h3><p><span class="eq">F<sub>y</sub> = S<sub>y</sub>(w − 2a)t = ${p.Sy}(${fmt(p.w)} − ${fmt(p.c)})(${fmt(p.t)}) N</span></p><p class="final">F<sub>y</sub> = ${fmt(s.Fy,1)} kN</p>
+  <h3>2. Crack growth</h3><p>a = ${fmt(s.a,1)} mm, a/w = ${fmt(s.a/p.w,4)}: <span class="eq">β = [sec(πa/w)]<sup>1/2</sup> = ${fmt(s.beta,4)}</span></p>
+  <p><span class="eq">σ<sub>c</sub> = K<sub>Ic</sub>/(β√(πa)) = ${p.K}/(${fmt(s.beta,4)}√(π × ${fmt(s.a/1000,4)})) = ${fmt(s.sc,1)} MPa</span>&nbsp; <span class="eq">F<sub>c</sub> = σ<sub>c</sub>wt</span></p>
+  <p class="final">β = ${fmt(s.beta,4)}; F<sub>c</sub> = ${fmt(s.Fc,1)} kN</p>
+  <h3>3. Limiting mode</h3><p class="final">${s.gov} limits the plate, at ${fmt(Math.min(s.Fy,s.Fc),1)} kN.</p>
+  <p class="note">σ in K<sub>I</sub> is the gross-section stress F/(wt); net-section yielding uses the area that remains beside the crack.</p>`;
+}
+
+// ===== template registry: each entry has the same interface
+const TEMPLATES={
+  "de-mss":{ name:"Ductile material, plane stress: distortion energy and maximum shear stress",
+    generate:dmGenerate, figure:dmFigure, solution:dmSolution, statement:dmStatement,
+    fields:[{id:"A",label:"σ<sub>A</sub> (with sign)",unit:"",signed:true},{id:"B",label:"σ<sub>B</sub> (with sign)",unit:"",signed:true},
+      {id:"vm",label:"von Mises stress σ′",unit:""},{id:"nDE",label:"Factor of safety, DE",unit:""},{id:"nMSS",label:"Factor of safety, MSS",unit:""}],
+    truth:s=>({A:s.A,B:s.B,vm:s.vm,nDE:s.nDE,nMSS:s.nMSS}),
+    note:"Stresses in the units of the problem, tension positive."
+  },
+  "de-locus":{ name:"Distortion energy: factor of safety, failure locus and load line",
+    generate:dlGenerate, figure:dmFigure, solution:dlSolution, statement:dlStatement,
+    fields:[{id:"A",label:"σ<sub>A</sub> (with sign)",unit:"",signed:true},{id:"B",label:"σ<sub>B</sub> (with sign)",unit:"",signed:true},
+      {id:"vm",label:"von Mises stress σ′",unit:""},{id:"n",label:"Factor of safety n",unit:""},
+      {id:"reg",label:"Region of the σ<sub>A</sub>–σ<sub>B</sub> plane containing the load line",unit:"",choices:["First quadrant (both tensile)","Fourth quadrant (opposite signs)","Third quadrant (both compressive)"]}],
+    truth:s=>({A:s.A,B:s.B,vm:s.vm,n:s.nDE,reg:dlRegion(s)}),
+    note:"Stresses in the units of the problem, tension positive."
+  },
+  "brittle-mohr":{ name:"Brittle material: Coulomb-Mohr and modified-Mohr factors of safety",
+    generate:bmGenerate, figure:dmFigure, solution:bmSolution, statement:bmStatement,
+    fields:[{id:"A",label:"σ<sub>A</sub> (with sign)",unit:"",signed:true},{id:"B",label:"σ<sub>B</sub> (with sign)",unit:"",signed:true},
+      {id:"nB",label:"Factor of safety, BCM",unit:""},{id:"nM",label:"Factor of safety, MM",unit:""},
+      {id:"br",label:"Modified-Mohr case",unit:"",choices:BM_BR}],
+    truth:s=>({A:s.A,B:s.B,nB:s.nB,nM:s.nM,br:BM_BR[s.br]}),
+    note:"Stresses in the units of the problem, tension positive."
+  },
+  "tube-pressure":{ name:"Thick-walled tube under pressure: distortion-energy yield pressure",
+    generate:tpGenerate, figure:tpFigure, solution:tpSolution, statement:tpStatement,
+    fields:[{id:"ki",label:"von Mises stress per unit pressure, inner surface",unit:""},{id:"ko",label:"von Mises stress per unit pressure, outer surface",unit:""},
+      {id:"pY",label:"Pressure that causes yielding",unit:""}],
+    truth:s=>({ki:s.ki,ko:s.ko,pY:s.pY}),
+    note:"Pressure in the stress units of the table (MPa or kpsi)."
+  },
+  "pulley-shaft":{ name:"Pulley shaft sized against yielding: MSS and DE diameters",
+    generate:sysGenerate, figure:syFigure, solution:sysSolution, statement:sysStatement,
+    get fields(){ const us=cur&&cur.p.us, F=us?"lbf":"N", M=us?"lbf·in":"N·m", u=us?"in":"mm";
+      return [{id:"RA",label:"Resultant reaction at A",unit:F},{id:"RD",label:"Resultant reaction at D",unit:F},
+      {id:"MB",label:"Resultant moment at B",unit:M},{id:"MC",label:"Resultant moment at C",unit:M},
+      {id:"crit",label:"Critical section",unit:"",choices:["B","C"]},{id:"dM",label:"Minimum diameter, MSS",unit:u},{id:"dD",label:"Minimum diameter, DE",unit:u}] },
+    truth:s=>{const us=cur&&cur.p.us, k=us?1:1/1000;return {RA:s.RAm,RD:s.RDm,MB:s.MB*k,MC:s.MC*k,crit:s.crit,dM:s.dMSS,dD:s.dDE}},
+    note:"Moments in the units shown; diameters before rounding to a standard size."
+  },
+  "ductile-cm":{ name:"Ductile Coulomb-Mohr: unequal tensile and compressive yield strengths",
+    generate:dcGenerate, figure:dmFigure, solution:dcSolution, statement:dcStatement,
+    fields:[{id:"A",label:"σ<sub>A</sub> (with sign)",unit:"",signed:true},{id:"B",label:"σ<sub>B</sub> (with sign)",unit:"",signed:true},
+      {id:"n",label:"Factor of safety",unit:""},{id:"reg",label:"Region of the σ<sub>A</sub>–σ<sub>B</sub> plane",unit:"",choices:DC_REG}],
+    truth:s=>({A:s.A,B:s.B,n:s.n,reg:DC_REG[s.reg]}),
+    note:"Stresses in the units of the problem, tension positive."
+  },
+  "bar-ab":{ name:"Bar with bending, axial load and torque: DE factor of safety at two points",
+    generate:abGenerate, figure:abFigure, solution:abSolution, statement:abStatement,
+    get fields(){const u=cur&&cur.p.us?"kpsi":"MPa";return [{id:"vA",label:"von Mises stress at A",unit:u},{id:"nA",label:"Factor of safety at A",unit:""},
+      {id:"vB",label:"von Mises stress at B",unit:u},{id:"nB",label:"Factor of safety at B",unit:""}]},
+    truth:s=>({vA:s.vA,nA:s.nA,vB:s.vB,nB:s.nB}),
+    note:"Include the transverse shear stress at B."
+  },
+  "power-shaft":{ name:"Shaft transmitting power: diameter by MSS and DE",
+    generate:pwGenerate, figure:pwFigure, solution:pwSolution, statement:pwStatement,
+    get fields(){const us=cur&&cur.p.us;return [{id:"T",label:"Torque",unit:us?"lbf·in":"N·m"},{id:"dM",label:"Minimum diameter, MSS",unit:us?"in":"mm"},{id:"dD",label:"Minimum diameter, DE",unit:us?"in":"mm"}]},
+    truth:s=>({T:s.Tr,dM:s.dM,dD:s.dD}),
+    note:"Diameters before rounding to a standard size."
+  },
+  "sphere-vessel":{ name:"Thin spherical pressure vessel: yield and burst pressure",
+    generate:svGenerate, figure:svFigure, solution:svSolution, statement:svStatement,
+    get fields(){const u=cur&&cur.p.us?"psi":"MPa";return [{id:"py",label:"Pressure that initiates yielding",unit:u},{id:"pb",label:"Bursting pressure",unit:u},{id:"n",label:"Factor of safety at the working pressure",unit:""}]},
+    truth:s=>({py:s.py,pb:s.pb,n:s.n}),
+    note:"Thin-wall membrane stresses; radial stress neglected."
+  },
+  "thin-cylinder":{ name:"Thin cylinder with end closures: DE factor of safety",
+    generate:cvGenerate, figure:cvFigure, solution:cvSolution, statement:cvStatement,
+    get fields(){const u=cur&&cur.p.us?"psi":"MPa";return [{id:"st",label:"Tangential stress σ<sub>t</sub>",unit:u},{id:"sl",label:"Longitudinal stress σ<sub>l</sub>",unit:u},
+      {id:"vm",label:"von Mises stress",unit:u},{id:"n",label:"Factor of safety",unit:""}]},
+    truth:s=>({st:s.st,sl:s.sl,vm:s.vm,n:s.n}),
+    note:"Use the thin-wall formulas given in the statement."
+  },
+  "ring-speed":{ name:"Rotating ring: speed at yielding or fracture (SI)",
+    generate:rrGenerate, figure:rrFigure, solution:rrSolution, statement:rrStatement,
+    fields:[{id:"rpm",label:"Speed at yielding or fracture",unit:"rev/min"},{id:"srm",label:"Largest radial stress at that speed",unit:"MPa"},{id:"rm",label:"Radius of the largest radial stress",unit:"mm"}],
+    truth:s=>({rpm:s.rpm,srm:s.srm,rm:s.rm}),
+    note:"Plane-stress rotating-disk equations as given."
+  },
+  "shrink-fit":{ name:"Shrink fit: pressure and von Mises stresses at the fit (SI)",
+    generate:sfGenerate, figure:sfFigure, solution:sfSolution, statement:sfStatement,
+    fields:[{id:"p",label:"Shrink-fit pressure",unit:"MPa"},{id:"vo",label:"von Mises stress, outer member at the fit",unit:"MPa"},
+      {id:"vi",label:"von Mises stress, inner member at the fit",unit:"MPa"},{id:"n",label:"Smaller factor of safety (DE)",unit:""}],
+    truth:s=>({p:s.p,vo:s.vo,vi:s.vi,n:Math.min(s.no,s.ni)}),
+    note:"Same material for both members; plane stress."
+  },
+  "crack-plate":{ name:"Center-cracked plate: net-section yielding versus crack growth (SI)",
+    generate:crGenerate, figure:crFigure, solution:crSolution, statement:crStatement,
+    fields:[{id:"Fy",label:"Load at net-section yielding",unit:"kN"},{id:"beta",label:"Geometry factor β",unit:""},{id:"Fc",label:"Load at uncontrolled crack growth",unit:"kN"},
+      {id:"gov",label:"Limiting mode",unit:"",choices:["Net-section yielding","Crack growth (fracture)"]}],
+    truth:s=>({Fy:s.Fy,beta:s.beta,Fc:s.Fc,gov:s.gov}),
+    note:"The stress in K_I is the gross-section stress F/(wt)."
+  }
+};
+
+// ===== page
+let curKey="beam-tee", cur=null;
+const $=id=>document.getElementById(id);
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key];
+  cur=T.generate(seed); const {p,s}=cur;
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
+  $("fig").innerHTML=T.figure(p,s);
+  $("statement").innerHTML=T.statement(p,s);
+  const fields=T.fields.filter(f=>!(f.skip&&f.skip(p)));
+  $("answers").innerHTML=fields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :f.expr?`<input id="in-${f.id}" type="text" class="expr" spellcheck="false" autocomplete="off">`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent=(T.symbolic?"Answers are checked for algebraic equivalence. ":"Answers within 2% are accepted. ")+T.note;
+  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
+  $("solBtn").textContent="Show solution";
+}
+
+function check(){
+  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const scale=Math.max(...Object.values(truth).filter(v=>typeof v==="number").map(Math.abs));
+  T.fields.filter(f=>!(f.skip&&f.skip(cur.p))).forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    if(f.expr){const r=exprEquivalent(raw,f);el.textContent=r.ok?"Correct":r.msg?"Cannot read: "+r.msg:"Not yet";el.className="mark "+(r.ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scale:0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+const newSeed=()=>1+Math.floor(Math.random()*999999);
+$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
+$("typeSel").onchange=e=>render(e.target.value,newSeed());
+$("newBtn").onclick=()=>render(curKey,newSeed());
+$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+$("checkBtn").onclick=check;
+$("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+(function(){
+  const m=/^#([a-z-]+)-(\d+)$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
+  else render(Object.keys(TEMPLATES)[0],newSeed());
+})();
+
+
+</script>
+</body>
+</html>

@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shaft Analysis Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --beam:#f7e2c4; --beamline:#78461a; --load:#aa1e28; --sec:#cde1cd; --secline:#1e5a32;
+    --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  .tag{display:inline-block;font-family:system-ui,sans-serif;font-size:.78rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 9px;margin-left:6px}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .answers input.expr{width:19em;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<header>
+  <h1>Shaft Analysis Problem Generator</h1>
+  <div class="sub">Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem.</div>
+</header>
+<main>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+function fmt(v,d=0){if(Math.abs(v)<0.5*10**-d)v=0;return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+// ===== shared helpers for the problem types below
+const SF_MAT=[["AISI 1006 CD",280,330,41,48],["AISI 1015 HR",190,340,27.5,50],["AISI 1018 CD",370,440,54,64],["AISI 1020 CD",390,470,57,68],
+  ["AISI 1030 HR",260,470,37.5,68],["AISI 1035 CD",460,550,67,80],["AISI 1040 HR",290,520,42,76],["AISI 1050 CD",580,690,84,100]];
+const gF=v=>v.toFixed(1);
+const gL=(x1,y1,x2,y2,attr)=>`<line x1="${gF(x1)}" y1="${gF(y1)}" x2="${gF(x2)}" y2="${gF(y2)}" ${attr}/>`;
+const gT=(x,y,t,attr="")=>`<text x="${gF(x)}" y="${gF(y)}" ${attr}>${t}</text>`;
+const gI=v=>`<tspan font-style="italic">${v}</tspan>`;
+const gSub=(a,b)=>`${gI(a)}<tspan baseline-shift="sub" font-size="13">${b}</tspan>`;
+const G_AR=`stroke="#aa1e28" stroke-width="3" marker-end="url(#g-ar)"`, G_DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#g-dm)" marker-end="url(#g-dm)"`;
+const G_EXT=`stroke="#999" stroke-width="0.8"`, G_CL=`stroke="#888" stroke-width="0.9" stroke-dasharray="10 3 2 3"`, G_PART=`fill="#eec878" stroke="#7d5014" stroke-width="1.8"`;
+function gSvg(vb,body,maxh=380){return `<svg viewBox="${vb}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="18" style="max-height:${maxh}px">
+  <defs><marker id="g-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+  <marker id="g-ax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker>
+  <marker id="g-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  <pattern id="g-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#c9d5e2"/><line x1="0" y1="0" x2="0" y2="7" stroke="#28405a" stroke-width="1"/></pattern></defs>${body}</svg>`}
+function gMatTable(rows,us,cols){return `<table><tr><th>Material</th>${cols.map(c=>`<th>${c} (${us?"kpsi":"MPa"})</th>`).join("")}</tr>${rows.map(r=>`<tr><td>${r[0]}</td>${r.slice(1).map(v=>`<td>${fmt(v,1)}</td>`).join("")}</tr>`).join("")}</table>`}
+const gSF=us=>SF_MAT.map(m=>[m[0],us?m[3]:m[1],us?m[4]:m[2]]);
+
+// ===== shared fatigue relations (Marin factors, S-N line, criteria)
+const FA_SURF={"Ground":[1.34,1.58,-0.085],"Machined or cold-drawn":[2.70,4.51,-0.265],"Hot-rolled":[14.4,57.7,-0.718],"As-forged":[39.9,272,-0.995]};
+const FA_REL={"50":1,"90":0.897,"95":0.868,"99":0.814,"99.9":0.753};
+const FA_KC={"Bending":1,"Axial":0.85,"Torsion":0.59};
+function faSe0(Sut,us){return us?(Sut<=200?0.5*Sut:100):(Sut<=1400?0.5*Sut:700)}
+function faKa(surf,Sut,us){const c=FA_SURF[surf];return (us?c[0]:c[1])*Sut**c[2]}
+function faKb(d,us){return us?(d<=2?(d/0.3)**-0.107:0.91*d**-0.157):(d<=51?(d/7.62)**-0.107:1.51*d**-0.157)}
+function faF(Sut,us){const s=Math.min(200,us?Sut:Sut/6.894757);return s<70?0.9:Math.round((1.06-2.8e-3*s+6.9e-6*s*s)*100)/100}
+function faAB(Sut,Se,f){return {a:(f*Sut)**2/Se,b:-Math.log10(f*Sut/Se)/3}}
+function faGood(sa,sm,Se,Sut){return 1/(sa/Se+sm/Sut)}
+function faGerb(sa,sm,Se,Sut){if(sm<=0)return Se/sa;return 0.5*(Sut/sm)**2*(sa/Se)*(-1+Math.sqrt(1+(2*sm*Se/(Sut*sa))**2))}
+function faAsme(sa,sm,Se,Sy){return 1/Math.sqrt((sa/Se)**2+(sm/Sy)**2)}
+const faU=us=>us?"kpsi":"MPa";
+function faSNplot(Sut,Se,f,mark){                                  // log-log S-N sketch, optional marked point [N,S]
+  const X=N=>40+(Math.log10(N)-0)*68, Y=S=>250-200*(Math.log10(S)-Math.log10(0.6*Se))/(Math.log10(1.1*Sut)-Math.log10(0.6*Se));
+  let g=gL(40,250,40,30,`stroke="#222" stroke-width="1.3" marker-end="url(#g-ax)"`)+gL(40,250,500,250,`stroke="#222" stroke-width="1.3" marker-end="url(#g-ax)"`);
+  for(let e=0;e<=7;e++){g+=gL(X(10**e),250,X(10**e),255,`stroke="#222"`)+gT(X(10**e),272,`10<tspan baseline-shift="super" font-size="11">${e}</tspan>`,`text-anchor="middle" font-size="14"`)}
+  g+=`<polyline points="${gF(X(1))},${gF(Y(Sut))} ${gF(X(1e3))},${gF(Y(f*Sut))} ${gF(X(1e6))},${gF(Y(Se))} ${gF(X(1e7))},${gF(Y(Se))}" fill="none" stroke="#7d5014" stroke-width="2.4"/>`;
+  g+=gL(40,Y(f*Sut),X(1e3),Y(f*Sut),`stroke="#999" stroke-dasharray="4 3"`)+gL(40,Y(Se),X(1e6),Y(Se),`stroke="#999" stroke-dasharray="4 3"`);
+  g+=gT(34,Y(Sut)+5,gSub("S","ut"),`text-anchor="end" font-size="15"`)+gT(34,Y(f*Sut)+5,`${gI("f")}${gSub("S","ut")}`,`text-anchor="end" font-size="15"`)+gT(34,Y(Se)+5,gSub("S","e"),`text-anchor="end" font-size="15"`);
+  if(mark) g+=`<circle cx="${gF(X(mark[0]))}" cy="${gF(Y(mark[1]))}" r="5" fill="#aa1e28"/>`;
+  g+=gT(500,292,`Cycles ${gI("N")}`,`text-anchor="end" font-size="15"`)+gT(48,26,`Fatigue strength ${gI("S")}<tspan baseline-shift="sub" font-size="12">f</tspan> (log scale)`,`font-size="15"`);
+  return gSvg("-30 0 560 305",g,300);
+}
+
+// ===== 1. shaft diameter from DE-Goodman, DE-Gerber, DE-ASME elliptic and DE-Soderberg
+function ddSolve(p){const c=p.us?1:1000, A=Math.sqrt(4*(p.Kf*p.Ma*c)**2+3*(p.Kfs*p.Ta*c)**2), B=Math.sqrt(4*(p.Kf*p.Mm*c)**2+3*(p.Kfs*p.Tm*c)**2), n=p.n, Se=p.Se*(p.us?1000:1), Su=p.Su*(p.us?1000:1), Sy=p.Sy*(p.us?1000:1);
+  const dG=(16*n/Math.PI*(A/Se+B/Su))**(1/3), dS=(16*n/Math.PI*(A/Se+B/Sy))**(1/3), dR=(8*n*A/(Math.PI*Se)*(1+Math.sqrt(1+(2*B*Se/(A*Su))**2)))**(1/3);
+  const dE=(16*n/Math.PI*Math.sqrt(4*(p.Kf*p.Ma*c/Se)**2+3*(p.Kfs*p.Ta*c/Se)**2+4*(p.Kf*p.Mm*c/Sy)**2+3*(p.Kfs*p.Tm*c/Sy)**2))**(1/3);
+  return {A,B,dG,dS,dR,dE}}
+function ddGenerate(seed){const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){const us=r()<0.4,st=us?1:5,Su=us?pick(r,range(60,180,5)):pick(r,range(400,1200,25)),p={us,Su,Sy:Math.round(Su*(0.6+0.3*r())/st)*st,Se:Math.round(Su*(0.25+0.15*r())/st)*st,
+      Kf:pick(r,[1.5,1.7,1.9,2.0,2.2,2.5]),Kfs:pick(r,[1.3,1.5,1.6,1.8,2.0]),n:pick(r,[1.5,2,2.5,3])};
+    const v=()=>us?pick(r,range(0,6000,100)):pick(r,range(0,600,5)); p.Ma=v();p.Ta=r()<0.6?0:v();p.Mm=r()<0.6?0:v();p.Tm=v();
+    if(!p.Ma&&!p.Ta) continue; if(!p.Mm&&!p.Tm) continue;
+    const s=ddSolve(p); if(us?(s.dG<0.4||s.dG>4):(s.dG<10||s.dG>100)) continue; return {p,s}}}
+function ddStatement(p,s){const M=p.us?"lbf·in":"N·m",u=p.us?"kpsi":"MPa";
+  return `<p>At a critical shoulder, a rotating shaft carries M<sub>a</sub> = ${fmt(p.Ma)} ${M}, T<sub>a</sub> = ${fmt(p.Ta)} ${M}, M<sub>m</sub> = ${fmt(p.Mm)} ${M} and T<sub>m</sub> = ${fmt(p.Tm)} ${M}. For the shaft, S<sub>ut</sub> = ${fmt(p.Su)} ${u}, S<sub>y</sub> = ${fmt(p.Sy)} ${u}, and a fully corrected endurance limit S<sub>e</sub> = ${fmt(p.Se)} ${u} is assumed. Let K<sub>f</sub> = ${p.Kf} and K<sub>fs</sub> = ${p.Kfs}.</p>
+  <p>With a design factor of ${fmt(p.n,1)}, find the minimum acceptable diameter using the DE-Goodman, DE-Gerber, DE-ASME elliptic and DE-Soderberg criteria.</p>`}
+function ddFigure(p,s){let g=`<rect x="60" y="80" width="200" height="56" ${G_PART}/><rect x="260" y="92" width="200" height="32" ${G_PART}/>`+gL(30,108,490,108,G_CL);
+  g+=`<path d="M258,80 Q262,92 268,92" fill="none" stroke="#aa1e28" stroke-width="0"/>`+`<circle cx="262" cy="92" r="9" fill="none" stroke="#28405a" stroke-width="1.4" stroke-dasharray="3 2"/>`+gT(275,76,"critical shoulder",`font-size="15"`);
+  g+=`<path d="M40,60 A30,40 0 0,0 40,156" fill="none" stroke="#aa1e28" stroke-width="2.6" marker-end="url(#g-ar)"/><path d="M480,156 A30,40 0 0,0 480,60" fill="none" stroke="#aa1e28" stroke-width="2.6" marker-end="url(#g-ar)"/>`+gT(20,50,gI("M"),`fill="#aa1e28"`)+gT(488,50,gI("M"),`fill="#aa1e28"`);
+  g+=`<path d="M150,62 A12,30 0 1,0 150,154" fill="none" stroke="#28405a" stroke-width="2.4" marker-end="url(#g-ar)"/>`+gT(150,186,gI("T"),`text-anchor="middle" fill="#28405a"`)+gL(360,124,380,160,`stroke="#222" stroke-width="0.9"`)+gT(384,172,gI("d"));
+  return gSvg("0 30 520 170",g,220)}
+function ddSolution(p,s){const L=p.us?"in":"mm",d=p.us?3:1;
+  return `<h3>1. Combined moments</h3><p>With moments in ${p.us?"lbf·in":"N·mm"}: <span class="eq">A = √[4(K<sub>f</sub>M<sub>a</sub>)² + 3(K<sub>fs</sub>T<sub>a</sub>)²] = ${fmt(s.A)}</span>&nbsp; <span class="eq">B = √[4(K<sub>f</sub>M<sub>m</sub>)² + 3(K<sub>fs</sub>T<sub>m</sub>)²] = ${fmt(s.B)}</span></p>
+  <h3>2. Diameters</h3><table><tr><th>Criterion</th><th>Formula</th><th>d (${L})</th></tr>
+  <tr><td>DE-Goodman</td><td>[(16n/π)(A/S<sub>e</sub> + B/S<sub>ut</sub>)]<sup>1/3</sup></td><td>${fmt(s.dG,d)}</td></tr>
+  <tr><td>DE-Gerber</td><td>{(8nA/(πS<sub>e</sub>))[1 + √(1 + (2BS<sub>e</sub>/(AS<sub>ut</sub>))²)]}<sup>1/3</sup></td><td>${fmt(s.dR,d)}</td></tr>
+  <tr><td>DE-ASME elliptic</td><td>{(16n/π)[4(K<sub>f</sub>M<sub>a</sub>/S<sub>e</sub>)² + 3(K<sub>fs</sub>T<sub>a</sub>/S<sub>e</sub>)² + 4(K<sub>f</sub>M<sub>m</sub>/S<sub>y</sub>)² + 3(K<sub>fs</sub>T<sub>m</sub>/S<sub>y</sub>)²]<sup>1/2</sup>}<sup>1/3</sup></td><td>${fmt(s.dE,d)}</td></tr>
+  <tr><td>DE-Soderberg</td><td>[(16n/π)(A/S<sub>e</sub> + B/S<sub>y</sub>)]<sup>1/3</sup></td><td>${fmt(s.dS,d)}</td></tr></table>
+  <p class="note">Soderberg is the most conservative, then Goodman; Gerber is the least conservative. The ASME ellipse usually falls between Goodman and Gerber.</p>`}
+
+// ===== 2. fatigue and yield check at a shaft shoulder (Marin factors computed)
+const SC_MAT=[["AISI 1018 CD",440,370,64,54],["AISI 1020 CD",470,390,68,57],["AISI 1030 HR",470,260,68,37.5],["AISI 1035 CD",550,460,80,67],["AISI 1040 CD",590,490,85,71],["AISI 1050 CD",690,580,100,84]];
+function scSolve(p){const m=SC_MAT[p.mat],Su=p.us?m[3]:m[1],Sy=p.us?m[4]:m[2],S0=faSe0(Su,p.us),ka=faKa("Machined or cold-drawn",Su,p.us),kb=faKb(p.d,p.us),Se=ka*kb*S0;
+  const Kf=1+p.q*(p.Kt-1),Kfs=1+p.qs*(p.Kts-1),c=p.us?1/1000:1000, K=p.us?1:1;
+  const z=Math.PI*p.d**3, sa=Kf*32*p.Ma*(p.us?1:1000)/z/(p.us?1000:1), sm=Kf*32*p.Mm*(p.us?1:1000)/z/(p.us?1000:1), ta=Kfs*16*p.Ta*(p.us?1:1000)/z/(p.us?1000:1), tm=Kfs*16*p.Tm*(p.us?1:1000)/z/(p.us?1000:1);
+  const va=Math.hypot(sa,Math.sqrt(3)*ta), vm=Math.hypot(sm,Math.sqrt(3)*tm), vx=Math.hypot(sa+sm,Math.sqrt(3)*(ta+tm));
+  return {m,Su,Sy,S0,ka,kb,Se,Kf,Kfs,sa,sm,ta,tm,va,vm,vx,nG:faGood(va,vm,Se,Su),nA:faAsme(va,vm,Se,Sy),nR:faGerb(va,vm,Se,Su),ny:Sy/vx}}
+function scGenerate(seed){const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){const us=r()<0.4,p={us,mat:Math.floor(r()*SC_MAT.length),Kt:pick(r,[1.6,1.8,2.0,2.2,2.5,2.7]),Kts:pick(r,[1.4,1.5,1.7,2.0,2.2]),q:pick(r,[0.75,0.8,0.85,0.9]),qs:pick(r,[0.8,0.85,0.9,0.95])};
+    p.d=us?pick(r,range(0.75,2.5,0.125)):pick(r,range(20,60,5));const v=()=>us?pick(r,range(200,8000,100)):pick(r,range(20,900,10));
+    p.Ma=v();p.Mm=0;p.Ta=0;p.Tm=v();if(r()<0.3){p.Ta=Math.round(p.Tm*0.2/(us?10:1))*(us?10:1)}
+    const s=scSolve(p); if(s.nG<1.1||s.nG>4) continue; return {p,s}}}
+function scStatement(p,s){const L=p.us?"in":"mm",M=p.us?"lbf·in":"N·m";
+  return `<p>A rotating ${s.m[0]} steel shaft, machined all over, is ${fmt(p.d,p.us?3:0)} ${L} in diameter at a shoulder fillet where it carries a completely reversed bending moment of ${fmt(p.Ma)} ${M} (from rotation) and a torque with steady part ${fmt(p.Tm)} ${M}${p.Ta?` and alternating part ${fmt(p.Ta)} ${M}`:""}. At the fillet K<sub>t</sub> = ${p.Kt}, K<sub>ts</sub> = ${p.Kts}, and the notch sensitivities are q = ${p.q} and q<sub>shear</sub> = ${p.qs}.</p>
+  <p>Using S′<sub>e</sub> = 0.5S<sub>ut</sub> with the machined surface factor and the rotating-bending size factor, find the endurance limit, the von Mises alternating and mean stresses, the fatigue factors of safety by DE-Goodman and DE-ASME elliptic, and the yield factor of safety.</p>
+  ${gMatTable(SC_MAT.map(m=>[m[0],p.us?m[3]:m[1],p.us?m[4]:m[2]]),p.us,["S<sub>ut</sub>","S<sub>y</sub>"])}`}
+function scFigure(p,s){let g=`<rect x="60" y="70" width="220" height="80" ${G_PART}/><rect x="280" y="86" width="220" height="48" ${G_PART}/>`+gL(30,110,530,110,G_CL);
+  g+=`<path d="M280,86 Q280,78 270,70" fill="none" stroke="#7d5014" stroke-width="1.8"/>`+gL(282,84,320,40,`stroke="#222" stroke-width="0.9"`)+gT(324,38,`fillet: ${gSub("K","t")} = ${p.Kt}, ${gSub("K","ts")} = ${p.Kts}`,`font-size="15"`);
+  g+=gL(380,134,400,170,`stroke="#222" stroke-width="0.9"`)+gT(404,182,`${gI("d")} = ${fmt(p.d,p.us?3:0)} ${p.us?"in":"mm"}`,`font-size="15"`);
+  g+=gT(120,190,`${gSub("M","a")} = ${fmt(p.Ma)} ${p.us?"lbf·in":"N·m"} (rotating),  ${gSub("T","m")} = ${fmt(p.Tm)}${p.Ta?`, ${gSub("T","a")} = ${fmt(p.Ta)}`:""}`,`font-size="15"`);
+  return gSvg("0 20 600 185",g,220)}
+function scSolution(p,s){const u=faU(p.us),d=p.us?2:1;
+  return `<h3>1. Endurance limit</h3><p><span class="eq">S′<sub>e</sub> = ${fmt(s.S0,d)} ${u}</span>&nbsp; <span class="eq">k<sub>a</sub> = ${fmt(s.ka,4)}</span>&nbsp; <span class="eq">k<sub>b</sub> = ${fmt(s.kb,4)}</span>&nbsp; <span class="eq">S<sub>e</sub> = ${fmt(s.Se,d)} ${u}</span></p>
+  <h3>2. Stresses</h3><p><span class="eq">K<sub>f</sub> = ${fmt(s.Kf,3)}</span>&nbsp; <span class="eq">K<sub>fs</sub> = ${fmt(s.Kfs,3)}</span>&nbsp; <span class="eq">σ<sub>a</sub> = K<sub>f</sub>32M<sub>a</sub>/(πd³) = ${fmt(s.sa,d)}</span>&nbsp; <span class="eq">τ<sub>m</sub> = K<sub>fs</sub>16T<sub>m</sub>/(πd³) = ${fmt(s.tm,d)}</span>${p.Ta?`&nbsp; <span class="eq">τ<sub>a</sub> = ${fmt(s.ta,d)}</span>`:""}</p>
+  <p><span class="eq">σ′<sub>a</sub> = √(σ<sub>a</sub>² + 3τ<sub>a</sub>²) = ${fmt(s.va,d)} ${u}</span>&nbsp; <span class="eq">σ′<sub>m</sub> = √(σ<sub>m</sub>² + 3τ<sub>m</sub>²) = ${fmt(s.vm,d)} ${u}</span></p>
+  <h3>3. Factors of safety</h3><p>Yield: <span class="eq">σ′<sub>max</sub> = √[(σ<sub>a</sub> + σ<sub>m</sub>)² + 3(τ<sub>a</sub> + τ<sub>m</sub>)²] = ${fmt(s.vx,d)} ${u}</span>.</p>
+  <p class="final">S<sub>e</sub> = ${fmt(s.Se,d)} ${u}; n<sub>Goodman</sub> = ${fmt(s.nG,2)}, n<sub>ASME</sub> = ${fmt(s.nA,2)}, n<sub>y</sub> = ${fmt(s.ny,2)}</p>`}
+
+// ===== 3. first critical speed of a uniform simply supported shaft; scaling
+function csSolve2(p){const E=207e9,rho=7850,d=p.d/1000,L=p.L/1000,I=Math.PI*d**4/64,A=Math.PI*d*d/4, w=(Math.PI/L)**2*Math.sqrt(E*I/(rho*A)), N=w*60/(2*Math.PI);
+  return {w,N,dNew:p.d*p.k,Nmodel:N/p.s}}
+function cvGenerate2(seed){const r=mulberry32(seed),p={d:pick(r,range(10,80,5)),L:pick(r,range(300,2000,50)),k:pick(r,[1.5,2,2.5,3]),s:pick(r,[0.25,0.5,2,3])};return {p,s:csSolve2(p)}}
+function cvStatement2(p,s){return `<p>A uniform solid steel shaft, ${fmt(p.d)} mm in diameter, is ${fmt(p.L)} mm long between bearings that act as simple supports. Take E = 207 GPa and ρ = 7850 kg/m³, and neglect the masses of any attached parts.</p>
+  <p>(a) Find the lowest critical speed in rev/min. (b) To raise the critical speed by a factor of ${p.k}, keeping the length, what diameter is needed? (c) A ${p.s<1?`${p.s===0.5?"half":"quarter"}-size`:`${p.s}-times-size`} geometrically similar model of the original shaft has what critical speed?</p>`}
+function cvFigure2(p,s){let g=`<rect x="60" y="94" width="400" height="22" ${G_PART}/>`+gL(30,105,490,105,G_CL);
+  for(const x of [60,460]) g+=`<path d="M${x},118 l-14,24 l28,0 z" fill="#b9c8d8" stroke="#28405a" stroke-width="1.5"/>`;
+  g+=`<path d="M60,105 Q260,165 460,105" fill="none" stroke="#aa1e28" stroke-width="1.6" stroke-dasharray="6 4"/>`+gT(260,170,"first mode shape",`text-anchor="middle" fill="#aa1e28" font-size="15"`);
+  g+=gL(60,90,60,52,G_EXT)+gL(460,90,460,52,G_EXT)+gL(60,60,460,60,G_DIM)+gT(260,54,`${fmt(p.L)} mm`,`text-anchor="middle" class="halo"`)+gL(300,94,320,74,`stroke="#222" stroke-width="0.9"`)+gT(324,72,`${fmt(p.d)} mm dia.`,`font-size="15"`);
+  return gSvg("0 30 520 160",g,200)}
+function cvSolution2(p,s){return `<h3>1. Critical speed</h3><p><span class="eq">ω<sub>1</sub> = (π/L)²√(EI/(ρA)) = (π/L)²(d/4)√(E/ρ)</span>, since I/A = d²/16.</p>
+  <p class="final">(a) ω<sub>1</sub> = ${fmt(s.w,1)} rad/s; N = ${fmt(s.N)} rev/min</p>
+  <h3>2. Scaling</h3><p>ω<sub>1</sub> ∝ d/L²: at fixed length the speed is proportional to d, so the diameter scales by ${p.k}.</p><p class="final">(b) d = ${fmt(s.dNew,1)} mm</p>
+  <p>For a geometrically similar model scaled by s, d → sd and L → sL, so ω<sub>1</sub> ∝ s/s² = 1/s.</p><p class="final">(c) N<sub>model</sub> = ${fmt(s.Nmodel)} rev/min</p>`}
+// ===== 4. critical speed with two attached masses: Rayleigh and Dunkerley (uniform steel shaft)
+function rlSolve(p){const E=207e9,rho=7850,g=9.81,d=p.d/1000,L=p.L/1000,I=Math.PI*d**4/64,A=Math.PI*d*d/4,EI=E*I;
+  const y=(x,a,W)=>{const b=L-a;return x<=a?W*b*x*(L*L-b*b-x*x)/(6*EI*L):W*a*(L-x)*(2*L*x-x*x-a*a)/(6*EI*L)};   // simple-beam deflection, point load W at a
+  const W=[p.m1*g,p.m2*g], a=[p.a1/1000,p.a2/1000], Y=[0,1].map(i=>y(a[i],a[0],W[0])+y(a[i],a[1],W[1]));
+  const wL=Math.sqrt(g*(W[0]*Y[0]+W[1]*Y[1])/(W[0]*Y[0]**2+W[1]*Y[1]**2)), wS=(Math.PI/L)**2*Math.sqrt(EI/(rho*A)), wC=1/Math.sqrt(1/wL**2+1/wS**2), rpm=w=>w*60/(2*Math.PI);
+  return {EI,Y,wL,wS,wC,NL:rpm(wL),NS:rpm(wS),NC:rpm(wC)}}
+function rlGenerate(seed){const r=mulberry32(seed);
+  for(let k=0;k<2000;k++){const p={d:pick(r,range(20,60,5)),L:pick(r,range(400,1200,50)),m1:pick(r,range(2,40,1)),m2:pick(r,range(2,40,1))};
+    p.a1=Math.round(p.L*(0.15+0.3*r())/5)*5;p.a2=Math.round(p.L*(0.55+0.3*r())/5)*5; if(p.a2-p.a1<0.15*p.L) continue;
+    return {p,s:rlSolve(p)}}}
+function rlStatement(p,s){return `<p>A uniform solid steel shaft, ${fmt(p.d)} mm in diameter, runs in bearings ${fmt(p.L)} mm apart (simple supports). It carries a ${fmt(p.m1)} kg gear ${fmt(p.a1)} mm from the left bearing and a ${fmt(p.m2)} kg gear ${fmt(p.a2)} mm from the left bearing. Take E = 207 GPa, ρ = 7850 kg/m³ and g = 9.81 m/s².</p>
+  <p>Estimate (a) the first critical speed due to the gears alone by Rayleigh's method, (b) the first critical speed of the shaft alone, and (c) the critical speed of the combination by Dunkerley's equation. Give speeds in rev/min.</p>`}
+function rlFigure(p,s){const X=x=>60+400*x/p.L;let g=`<rect x="60" y="100" width="400" height="16" ${G_PART}/>`+gL(30,108,490,108,G_CL);
+  for(const x of [60,460]) g+=`<path d="M${x},118 l-14,24 l28,0 z" fill="#b9c8d8" stroke="#28405a" stroke-width="1.5"/>`;
+  const gear=(x,m)=>{const h=30+Math.min(50,m*1.4);return `<rect x="${gF(X(x)-8)}" y="${gF(108-h/2)}" width="16" height="${gF(h)}" fill="#c9a865" stroke="#7d5014" stroke-width="1.5"/>`};
+  g+=gear(p.a1,p.m1)+gear(p.a2,p.m2)+gT(X(p.a1),48,`${fmt(p.m1)} kg`,`text-anchor="middle"`)+gT(X(p.a2),48,`${fmt(p.m2)} kg`,`text-anchor="middle"`);
+  g+=gL(60,150,60,214,G_EXT)+gL(X(p.a1),140,X(p.a1),190,G_EXT)+gL(X(p.a2),140,X(p.a2),202,G_EXT)+gL(460,150,460,214,G_EXT);
+  g+=gL(60,182,X(p.a1),182,G_DIM)+gT((60+X(p.a1))/2,176,fmt(p.a1),`text-anchor="middle" font-size="15" class="halo"`)+gL(60,196,X(p.a2),196,G_DIM)+gT((X(p.a1)+X(p.a2))/2,192,fmt(p.a2),`text-anchor="middle" font-size="15" class="halo"`)+gL(60,210,460,210,G_DIM)+gT(380,206,fmt(p.L),`text-anchor="middle" font-size="15" class="halo"`);
+  g+=gT(490,236,`${fmt(p.d)} mm dia.; dimensions in mm`,`text-anchor="end" font-size="14"`);return gSvg("0 26 520 220",g,240)}
+function rlSolution(p,s){const um=v=>fmt(v*1e6,2);
+  return `<h3>1. Static deflections under the gear weights</h3><p>Superpose the simple-beam point-load deflections (EI = ${fmt(s.EI,1)} N·m²): y<sub>1</sub> = ${um(s.Y[0])} μm, y<sub>2</sub> = ${um(s.Y[1])} μm.</p>
+  <h3>2. Rayleigh</h3><p><span class="eq">ω = √[gΣW<sub>i</sub>y<sub>i</sub>/ΣW<sub>i</sub>y<sub>i</sub>²]</span></p><p class="final">(a) ω = ${fmt(s.wL,1)} rad/s; N = ${fmt(s.NL)} rev/min</p>
+  <h3>3. Shaft alone</h3><p><span class="eq">ω<sub>s</sub> = (π/L)²√(EI/(ρA))</span></p><p class="final">(b) N<sub>s</sub> = ${fmt(s.NS)} rev/min</p>
+  <h3>4. Dunkerley</h3><p><span class="eq">1/ω<sub>c</sub>² = 1/ω² + 1/ω<sub>s</sub>²</span></p><p class="final">(c) N<sub>c</sub> = ${fmt(s.NC)} rev/min</p><p class="note">Dunkerley's estimate is always below each separate estimate.</p>`}
+
+// ===== 5. square key: length from shear and from bearing (crushing)
+function kySolve(p){const F=p.T*(p.us?1:1000)/(p.d/2), Ss=0.577*p.Sy*(p.us?1000:1), Sy=p.Sy*(p.us?1000:1), ls=F*p.n/(Ss*p.w), lb=2*F*p.n/(Sy*p.w);
+  return {F,Ss,ls,lb,gov:ls>=lb?"Shear":"Bearing (crushing)",l:Math.max(ls,lb)}}
+function kyGenerate(seed){const r=mulberry32(seed);
+  for(let k=0;k<2000;k++){const us=r()<0.5,p={us,n:pick(r,[1.1,1.25,1.5,2,2.5])};
+    if(us){p.d=pick(r,range(0.75,3,0.125));p.w=p.d<=0.875?0.1875:p.d<=1.25?0.25:p.d<=1.375?0.3125:p.d<=1.75?0.375:p.d<=2.25?0.5:p.d<=2.75?0.625:0.75;p.T=pick(r,range(500,20000,250));p.Sy=pick(r,[47,54,57,64,71])}
+    else {p.d=pick(r,range(20,80,2));p.w=p.d<=22?6:p.d<=30?8:p.d<=38?10:p.d<=44?12:p.d<=50?14:p.d<=58?16:p.d<=65?18:22;p.T=pick(r,range(50,2500,25));p.Sy=pick(r,[320,370,390,440,490])}
+    const s=kySolve(p); const rl=s.l/p.d; if(rl<0.4||rl>1.6) continue; return {p,s}}}
+function kyStatement(p,s){const L=p.us?"in":"mm",u=p.us?"kpsi":"MPa";
+  return `<p>A gear is keyed to a ${fmt(p.d,p.us?3:0)} ${L} diameter shaft that transmits a torque of ${fmt(p.T)} ${p.us?"lbf·in":"N·m"}. A square key ${fmt(p.w,p.us?4:0)} ${L} wide is used, made of steel with S<sub>y</sub> = ${p.Sy} ${u}. Use S<sub>sy</sub> = 0.577S<sub>y</sub>, assume the key force acts at the shaft surface, and take half the key height for bearing.</p>
+  <p>With a factor of safety of ${p.n}, find the force on the key, the length required for shear and the length required for bearing (crushing).</p>`}
+function kyFigure(p,s){const R=90,w=26;let g=`<circle cx="0" cy="0" r="${R}" ${G_PART}/><rect x="${-w/2}" y="${-R-w/2}" width="${w}" height="${w}" fill="#b9c8d8" stroke="#28405a" stroke-width="1.6"/>`;
+  g+=`<path d="M${-R-22},-60 A110,110 0 0,1 -60,${-R-22}" fill="none" stroke="#aa1e28" stroke-width="2.6" marker-end="url(#g-ar)"/>`+gT(-R-30,-80,gI("T"),`fill="#aa1e28" text-anchor="end"`);
+  g+=gL(w/2+2,-R,w/2+60,-R-40,`stroke="#222" stroke-width="0.9"`)+gT(w/2+64,-R-44,`square key ${fmt(p.w,p.us?4:0)} ${p.us?"in":"mm"}`,`font-size="15"`);
+  g+=gL(-R,8,-R,R+34,G_EXT)+gL(R,8,R,R+34,G_EXT)+gL(-R,R+26,R,R+26,G_DIM)+gT(0,R+20,`${fmt(p.d,p.us?3:0)} ${p.us?"in":"mm"}`,`text-anchor="middle" class="halo"`);
+  return gSvg(`${-R-90} ${-R-80} ${2*R+240} ${2*R+130}`,g,280)}
+function kySolution(p,s){const L=p.us?"in":"mm",F=p.us?"lbf":"N",d=p.us?3:1;
+  return `<h3>1. Force</h3><p><span class="eq">F = T/(d/2) = ${fmt(s.F)} ${F}</span></p>
+  <h3>2. Shear across the key width</h3><p><span class="eq">τ = F/(wl) = S<sub>sy</sub>/n ⇒ l = Fn/(0.577S<sub>y</sub>w)</span></p><p class="final">l<sub>shear</sub> = ${fmt(s.ls,d)} ${L}</p>
+  <h3>3. Bearing on half the key height</h3><p><span class="eq">σ = F/(wl/2) = S<sub>y</sub>/n ⇒ l = 2Fn/(S<sub>y</sub>w)</span></p><p class="final">l<sub>bearing</sub> = ${fmt(s.lb,d)} ${L}</p>
+  <p class="final">The key must be at least ${fmt(s.l,d)} ${L} long.</p><p class="note">For a square key, 2/S<sub>y</sub> > 1/(0.577S<sub>y</sub>), so bearing governs whenever key and shaft share the same S<sub>y</sub>.</p>`}
+
+// ===== 6. ISO limits and fits (hole basis)
+const FT_R=[[6,10],[10,18],[18,30],[30,50],[50,80],[80,120],[120,180]];
+const FT_IT={6:[9,11,13,16,19,22,25],7:[15,18,21,25,30,35,40],8:[22,27,33,39,46,54,63],9:[36,43,52,62,74,87,100]};
+const FT_DEV={d:[-40,-50,-65,-80,-100,-120,-145],f:[-13,-16,-20,-25,-30,-36,-43],g:[-5,-6,-7,-9,-10,-12,-14],h:[0,0,0,0,0,0,0],k:[1,1,2,2,2,3,3],n:[10,12,15,17,20,23,27],p:[15,18,22,26,32,37,43]};
+const FT_FITS=[["Free running","H9/d9",9,"d",9],["Close running","H8/f7",8,"f",7],["Sliding","H7/g6",7,"g",6],["Locational clearance","H7/h6",7,"h",6],["Locational transition","H7/k6",7,"k",6],["Locational transition","H7/n6",7,"n",6],["Locational interference","H7/p6",7,"p",6]];
+function ftSolve(p){const i=FT_R.findIndex(([a,b])=>p.D>a&&p.D<=b), F=FT_FITS[p.fit], ITh=FT_IT[F[2]][i], ITs=FT_IT[F[4]][i], dev=FT_DEV[F[3]][i];
+  const Hmin=p.D, Hmax=p.D+ITh/1000;                                  // hole basis: lower deviation 0
+  const up="dfgh".includes(F[3]), fl=up?dev-ITs:dev, fu=up?dev:dev+ITs;  // d to h: fundamental deviation is the upper one; k, n, p: the lower one
+  const smin=p.D+fl/1000, smax=p.D+fu/1000;
+  return {i,F,ITh,ITs,dev,Hmin,Hmax,smin,smax,cmax:Hmax-smin,cmin:Hmin-smax}}
+function ftGenerate(seed){const r=mulberry32(seed),p={fit:Math.floor(r()*FT_FITS.length),D:pick(r,[8,10,12,15,16,20,22,25,30,35,40,45,50,55,60,70,75,80,90,100,110,120,140,150,160])};return {p,s:ftSolve(p)}}
+function ftStatement(p,s){const i=s.i, rng=`${FT_R[i][0]}–${FT_R[i][1]}`;
+  return `<p>A ${fmt(p.D)} mm basic-size ${s.F[0].toLowerCase()} fit, ${s.F[1]}, is required (hole basis). Using the data below for the ${rng} mm diameter range, find the maximum and minimum hole diameters, the maximum and minimum shaft diameters, and the largest and smallest clearance (negative values are interference).</p>
+  <table><tr><th>Quantity (${rng} mm)</th><th>μm</th></tr><tr><td>IT${s.F[2]}</td><td>${s.ITh}</td></tr>${s.F[4]!==s.F[2]?`<tr><td>IT${s.F[4]}</td><td>${s.ITs}</td></tr>`:""}<tr><td>Fundamental deviation of shaft ${s.F[3]}</td><td>${s.dev>0?"+":""}${s.dev} (${"dfgh".includes(s.F[3])?"upper":"lower"} deviation)</td></tr><tr><td>Fundamental deviation of hole H</td><td>0 (lower deviation)</td></tr></table>`}
+function ftFigure(p,s){const sc=1.4,Y=v=>120-v*sc, zh=[0,s.ITh], zs=[(s.smin-p.D)*1000,(s.smax-p.D)*1000];
+  let g=gL(40,120,480,120,`stroke="#222" stroke-width="1.4"`)+gT(476,114,"zero line (basic size)",`font-size="14" text-anchor="end"`);
+  g+=`<rect x="140" y="${gF(Y(zh[1]))}" width="90" height="${gF((zh[1]-zh[0])*sc)}" fill="#b9c8d8" stroke="#28405a" stroke-width="1.5"/>`+gT(185,Y(zh[1])-8,"hole H",`text-anchor="middle" font-size="15"`);
+  g+=`<rect x="290" y="${gF(Y(zs[1]))}" width="90" height="${gF((zs[1]-zs[0])*sc)}" fill="#eec878" stroke="#7d5014" stroke-width="1.5"/>`+gT(335,zs[0]<0?Y(zs[0])+20:Y(zs[1])-8,`shaft ${s.F[3]}`,`text-anchor="middle" font-size="15"`);
+  g+=gT(470,232,"Tolerance zones (schematic)",`text-anchor="end" font-size="14"`);
+  const lo=Math.min(0,zs[0]),hi=Math.max(zh[1],zs[1]);return gSvg(`20 ${gF(Y(hi)-40)} 480 ${gF((hi-lo)*sc+110)}`,g,260)}
+function ftSolution(p,s){const f=v=>v.toFixed(3);
+  return `<h3>1. Hole (H: lower deviation 0)</h3><p><span class="eq">D<sub>min</sub> = ${fmt(p.D)} mm</span>&nbsp; <span class="eq">D<sub>max</sub> = D + IT${s.F[2]} = ${f(s.Hmax)} mm</span></p>
+  <h3>2. Shaft (${s.F[3]})</h3><p>${"dfgh".includes(s.F[3])?`The fundamental deviation ${s.dev} μm is the upper deviation; the lower deviation is ${s.dev} − ${s.ITs} = ${s.dev-s.ITs} μm.`:`The fundamental deviation +${s.dev} μm is the lower deviation; the upper deviation is ${s.dev} + ${s.ITs} = ${s.dev+s.ITs} μm.`}</p>
+  <p class="final">Hole ${f(s.Hmin)} to ${f(s.Hmax)} mm; shaft ${f(s.smin)} to ${f(s.smax)} mm</p>
+  <h3>3. Clearance</h3><p><span class="eq">c<sub>max</sub> = D<sub>max</sub> − d<sub>min</sub> = ${(s.cmax*1000).toFixed(0)} μm</span>&nbsp; <span class="eq">c<sub>min</sub> = D<sub>min</sub> − d<sub>max</sub> = ${(s.cmin*1000).toFixed(0)} μm</span></p>
+  <p class="final">Clearance from ${(s.cmin*1000).toFixed(0)} to ${(s.cmax*1000).toFixed(0)} μm${s.cmin<0?" (negative: interference)":""}</p>`}
+
+// ===== 7. press fit of a hub on a solid shaft: pressure range, yield at assembly, torque capacity
+function pfSolve(p){const E=207e3,d=p.d,D=p.do, k=E/(2*d)*(1-(d/D)**2), pmin=k*p.imin/1000, pmax=k*p.imax/1000;
+  const hubT=pmax*(D*D+d*d)/(D*D-d*d), vh=Math.sqrt(hubT**2+hubT*pmax+pmax**2), vs=pmax;
+  const T=Math.PI/2*p.f*pmin*p.l*d*d/1000;                          // N·m (MPa·mm³ = N·mm)
+  return {k,pmin,pmax,hubT,vh,vs,nh:p.Syh/vh,ns:p.Sys/vs,T}}
+function pfGenerate(seed){const r=mulberry32(seed);
+  for(let k=0;k<2000;k++){const p={d:pick(r,range(20,80,5)),f:pick(r,[0.12,0.15,0.2,0.25]),Syh:pick(r,[390,490,600,700]),Sys:pick(r,[370,390,460,490])};
+    p.do=Math.round(p.d*(1.5+0.8*r())/5)*5;p.l=Math.round(p.d*(1+0.8*r())/5)*5;p.imin=pick(r,range(10,60,2));p.imax=p.imin+pick(r,range(15,50,1));
+    const s=pfSolve(p); if(Math.min(s.nh,s.ns)<1.1) continue; return {p,s}}}
+function pfStatement(p,s){return `<p>A steel gear hub, ${fmt(p.do)} mm OD and ${fmt(p.l)} mm long, is press-fitted onto a solid steel shaft of ${fmt(p.d)} mm nominal diameter. With the tolerances specified, the diametral interference ranges from ${p.imin} to ${p.imax} μm. Take E = 207 GPa for both, plane stress, S<sub>y</sub> = ${p.Syh} MPa for the hub and ${p.Sys} MPa for the shaft, and a coefficient of friction of ${p.f}.</p>
+  <p>Find the minimum and maximum interface pressures, the worst-case static factors of safety against yielding at assembly for the hub and the shaft (distortion energy), and the largest torque the joint can be expected to transmit without slipping.</p>`}
+function pfFigure(p,s){const R=110,ri=R*p.d/p.do;let g=`<circle cx="0" cy="0" r="${R}" fill="#eec878" stroke="#7d5014" stroke-width="1.8"/><circle cx="0" cy="0" r="${gF(ri)}" fill="#b9c8d8" stroke="#28405a" stroke-width="1.6"/>`+gL(-R-18,0,R+18,0,G_CL)+gL(0,-R-18,0,R+18,G_CL);
+  g+=gL(-R,8,-R,R+40,G_EXT)+gL(R,8,R,R+40,G_EXT)+gL(-R,R+32,R,R+32,G_DIM)+gT(0,R+26,`${fmt(p.do)} OD`,`text-anchor="middle" class="halo"`);
+  g+=gL(0,0,ri*0.707,-ri*0.707,`stroke="#222" stroke-width="0.9" marker-end="url(#g-dm)"`)+gT(ri*0.707+8,-ri*0.707-6,`${fmt(p.d)} shaft`,`class="halo"`);
+  g+=gT(R+20,-R+10,"hub",`font-size="15"`)+gT(R+150,R+62,`Dimensions in mm; hub length ${fmt(p.l)}`,`text-anchor="end" font-size="14"`);
+  return gSvg(`${-R-50} ${-R-40} ${2*R+220} ${2*R+120}`,g,300)}
+function pfSolution(p,s){return `<h3>1. Pressure</h3><p>For a solid shaft and a hub of the same material, <span class="eq">p = (Eδ/(2d))[1 − (d/d<sub>o</sub>)²]</span> with δ the diametral interference.</p>
+  <p class="final">p<sub>min</sub> = ${fmt(s.pmin,1)} MPa (δ = ${p.imin} μm), p<sub>max</sub> = ${fmt(s.pmax,1)} MPa (δ = ${p.imax} μm)</p>
+  <h3>2. Yield at assembly (worst case, p<sub>max</sub>)</h3><p>Hub bore: <span class="eq">σ<sub>t</sub> = p(d<sub>o</sub>² + d²)/(d<sub>o</sub>² − d²) = ${fmt(s.hubT,1)} MPa</span>, σ<sub>r</sub> = −p; <span class="eq">σ′ = ${fmt(s.vh,1)} MPa</span>. Solid shaft: σ<sub>t</sub> = σ<sub>r</sub> = −p, so σ′ = p.</p>
+  <p class="final">n<sub>hub</sub> = ${fmt(s.nh,2)}, n<sub>shaft</sub> = ${fmt(s.ns,2)}</p>
+  <h3>3. Torque capacity (p<sub>min</sub>)</h3><p><span class="eq">T = (π/2)fpld²</span></p><p class="final">T = ${fmt(s.T,1)} N·m</p>`}
+const add2=(a,b)=>[a[0]+b[0],a[1]+b[1]];
+// ===== template registry: each entry has the same interface
+const TEMPLATES={
+  "de-diameter":{ name:"Shaft diameter: DE-Goodman, DE-Gerber, DE-ASME elliptic, DE-Soderberg",
+    generate:ddGenerate, figure:ddFigure, solution:ddSolution, statement:ddStatement,
+    get fields(){const u=cur&&cur.p.us?"in":"mm";return [{id:"dG",label:"d, DE-Goodman",unit:u},{id:"dR",label:"d, DE-Gerber",unit:u},{id:"dE",label:"d, DE-ASME elliptic",unit:u},{id:"dS",label:"d, DE-Soderberg",unit:u}]},
+    truth:s=>({dG:s.dG,dR:s.dR,dE:s.dE,dS:s.dS}), note:"Diameters before rounding to a standard size." },
+  "shoulder-check":{ name:"Fatigue and yield check at a shaft shoulder",
+    generate:scGenerate, figure:scFigure, solution:scSolution, statement:scStatement,
+    get fields(){const u=cur&&cur.p.us?"kpsi":"MPa";return [{id:"Se",label:"Endurance limit S<sub>e</sub>",unit:u},{id:"va",label:"σ′<sub>a</sub>",unit:u},{id:"vm",label:"σ′<sub>m</sub>",unit:u},
+      {id:"nG",label:"n, DE-Goodman",unit:""},{id:"nA",label:"n, DE-ASME elliptic",unit:""},{id:"ny",label:"Yield factor of safety",unit:""}]},
+    truth:s=>({Se:s.Se,va:s.va,vm:s.vm,nG:s.nG,nA:s.nA,ny:s.ny}), note:"Stresses in the units of the problem." },
+  "critical-speed":{ name:"Critical speed of a uniform shaft and scaling (SI)",
+    generate:cvGenerate2, figure:cvFigure2, solution:cvSolution2, statement:cvStatement2,
+    fields:[{id:"N",label:"(a) First critical speed",unit:"rev/min"},{id:"dNew",label:"(b) New diameter",unit:"mm"},{id:"Nmodel",label:"(c) Critical speed of the model",unit:"rev/min"}],
+    truth:s=>({N:s.N,dNew:s.dNew,Nmodel:s.Nmodel}), note:"Simply supported, uniform solid steel shaft." },
+  "rayleigh":{ name:"Critical speed with two gears: Rayleigh and Dunkerley (SI)",
+    generate:rlGenerate, figure:rlFigure, solution:rlSolution, statement:rlStatement,
+    fields:[{id:"NL",label:"(a) Gears alone, Rayleigh",unit:"rev/min"},{id:"NS",label:"(b) Shaft alone",unit:"rev/min"},{id:"NC",label:"(c) Combination, Dunkerley",unit:"rev/min"}],
+    truth:s=>({NL:s.NL,NS:s.NS,NC:s.NC}), note:"Speeds within 2% are accepted." },
+  "square-key":{ name:"Square key: length for shear and for bearing",
+    generate:kyGenerate, figure:kyFigure, solution:kySolution, statement:kyStatement,
+    get fields(){const us=cur&&cur.p.us;return [{id:"F",label:"Force on the key",unit:us?"lbf":"N"},{id:"ls",label:"Length for shear",unit:us?"in":"mm"},{id:"lb",label:"Length for bearing",unit:us?"in":"mm"}]},
+    truth:s=>({F:s.F,ls:s.ls,lb:s.lb}), note:"Force at the shaft surface; bearing on half the key height." },
+  "iso-fit":{ name:"ISO limits and fits: hole and shaft limits, clearance (SI)",
+    generate:ftGenerate, figure:ftFigure, solution:ftSolution, statement:ftStatement,
+    fields:[{id:"Hmax",label:"Maximum hole diameter",unit:"mm",tolAbs:0.0005},{id:"smin",label:"Minimum shaft diameter",unit:"mm",tolAbs:0.0005},{id:"smax",label:"Maximum shaft diameter",unit:"mm",tolAbs:0.0005},
+      {id:"cmax",label:"Largest clearance",unit:"μm",signed:true,tolAbs:0.6},{id:"cmin",label:"Smallest clearance (negative = interference)",unit:"μm",signed:true,tolAbs:0.6}],
+    truth:s=>({Hmax:s.Hmax,smin:s.smin,smax:s.smax,cmax:s.cmax*1000,cmin:s.cmin*1000}), note:"Diameters to 0.001 mm; clearances in μm." },
+  "press-fit":{ name:"Press-fitted hub: pressure, yield at assembly, torque capacity (SI)",
+    generate:pfGenerate, figure:pfFigure, solution:pfSolution, statement:pfStatement,
+    fields:[{id:"pmin",label:"Minimum pressure",unit:"MPa"},{id:"pmax",label:"Maximum pressure",unit:"MPa"},{id:"nh",label:"Factor of safety, hub",unit:""},{id:"ns",label:"Factor of safety, shaft",unit:""},{id:"T",label:"Torque without slipping",unit:"N·m"}],
+    truth:s=>({pmin:s.pmin,pmax:s.pmax,nh:s.nh,ns:s.ns,T:s.T}), note:"Same E for hub and shaft; plane stress." }
+};
+
+// ===== page
+let curKey="beam-tee", cur=null;
+const $=id=>document.getElementById(id);
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key];
+  cur=T.generate(seed); const {p,s}=cur;
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
+  $("fig").innerHTML=T.figure(p,s);
+  $("statement").innerHTML=T.statement(p,s);
+  const fields=T.fields.filter(f=>!(f.skip&&f.skip(p)));
+  $("answers").innerHTML=fields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :f.expr?`<input id="in-${f.id}" type="text" class="expr" spellcheck="false" autocomplete="off">`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent=(T.symbolic?"Answers are checked for algebraic equivalence. ":"Answers within 2% are accepted. ")+T.note;
+  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
+  $("solBtn").textContent="Show solution";
+}
+
+function check(){
+  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const scale=Math.max(...Object.values(truth).filter(v=>typeof v==="number").map(Math.abs));
+  T.fields.filter(f=>!(f.skip&&f.skip(cur.p))).forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    if(f.expr){const r=exprEquivalent(raw,f);el.textContent=r.ok?"Correct":r.msg?"Cannot read: "+r.msg:"Not yet";el.className="mark "+(r.ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scale:0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+const newSeed=()=>1+Math.floor(Math.random()*999999);
+$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
+$("typeSel").onchange=e=>render(e.target.value,newSeed());
+$("newBtn").onclick=()=>render(curKey,newSeed());
+$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+$("checkBtn").onclick=check;
+$("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+(function(){
+  const m=/^#([a-z-]+)-(\d+)$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
+  else render(Object.keys(TEMPLATES)[0],newSeed());
+})();
+
+
+</script>
+</body>
+</html>

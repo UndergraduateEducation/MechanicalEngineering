@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Machine Design: Problem Generator</title>
+<style>
+  :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#fff;--accent:#1e5a32;--part:#eec878;--partline:#7d5014}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 Georgia,"Times New Roman",serif}
+  header,main,footer{max-width:900px;margin:0 auto;padding:0 24px}
+  header{padding-top:42px;padding-bottom:6px;border-bottom:3px solid var(--part)}
+  h1{font-size:2rem;font-weight:600;margin:0 0 .3em}
+  .lede{color:var(--muted);margin:0 0 1.2em;max-width:46em}
+  .card{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--part);border-radius:10px;padding:18px 22px;margin:22px 0}
+  .head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .num{font-family:system-ui,sans-serif;font-weight:700;color:var(--partline);font-size:1.1rem}
+  h2{font-size:1.3rem;font-weight:600;margin:0}
+  h2 a{color:var(--ink);text-decoration:none} h2 a:hover{color:var(--accent)}
+  .card p{margin:.5em 0}
+  .btn{display:inline-block;font-family:system-ui,sans-serif;font-size:.9rem;background:var(--accent);color:#fff;text-decoration:none;border-radius:7px;padding:7px 16px}
+  .btn:hover{filter:brightness(1.1)}
+  .how{font-size:.95rem;color:var(--muted)}
+  footer{padding:18px 24px 40px;color:var(--muted);font-family:system-ui,sans-serif;font-size:.8rem}
+</style>
+</head>
+<body>
+<header>
+  <h1>Machine Design: Problem Generator</h1>
+  <p class="lede">Practice problems for an undergraduate machine design course, generated on demand. Each problem is a fresh variant of a classic textbook exercise, with its own numbers, geometry and figure, an answer checker, and a worked solution.</p>
+</header>
+<main>
+  <section class="how">
+    <h2 style="font-size:1.1rem">How to use</h2>
+    <p>Choose a chapter, pick a problem type, and press <b>New problem</b>. Enter your answers and press <b>Check answers</b>; numerical answers within 2% are accepted. Show the solution when you are done. The synthesis page works differently: enter a design and press <b>Evaluate design</b> to see whether it meets every requirement. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">1</span><h2><a href="BasicsAndMaterialsProblemGenerator.html">Basics and Materials</a></h2></div>
+    <p>Unit conversions, cost breakeven, design factors and preferred sizes, statistics of test data, stress-strength interference, tolerance stacks, hardness, and material selection.</p>
+    <p class="go"><a class="btn" href="BasicsAndMaterialsProblemGenerator.html">Open the basics and materials generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">2</span><h2><a href="LoadsAndStressesProblemGenerator.html">Loads and Stresses</a></h2></div>
+    <p>Beams, shafts and cranks under combined loading; curved beams; frames and pins; Mohr's circle; strain gauges; composite sections.</p>
+    <p class="go"><a class="btn" href="LoadsAndStressesProblemGenerator.html">Open the loads and stresses generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">3</span><h2><a href="DeflectionAnalysisProblemGenerator.html">Deflection Analysis</a></h2></div>
+    <p>Superposition, beam and member selection, torsion springs, Castigliano's theorem for bars, hooks and rings, and closed-form symbolic results.</p>
+    <p class="go"><a class="btn" href="DeflectionAnalysisProblemGenerator.html">Open the deflection analysis generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">4</span><h2><a href="StaticFailuresProblemGenerator.html">Failures Resulting from Static Loading</a></h2></div>
+    <p>Distortion-energy and maximum-shear-stress theories, failure loci, brittle Coulomb-Mohr and modified-Mohr theories, pressurized tubes, and shaft sizing.</p>
+    <p class="go"><a class="btn" href="StaticFailuresProblemGenerator.html">Open the failures generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">5</span><h2><a href="FatigueFailuresProblemGenerator.html">Fatigue Failure Resulting from Variable Loading</a></h2></div>
+    <p>S-N lines and Marin factors, fluctuating-stress criteria (modified Goodman, Gerber, ASME-elliptic), notches, combined loading, finite-life sizing, and cumulative damage.</p>
+    <p class="go"><a class="btn" href="FatigueFailuresProblemGenerator.html">Open the fatigue generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">6</span><h2><a href="ShaftAnalysisProblemGenerator.html">Shaft Analysis</a></h2></div>
+    <p>Shaft diameters by the DE fatigue criteria, fatigue checks at shoulders, critical speeds, keys, ISO limits and fits, and press-fitted hubs.</p>
+    <p class="go"><a class="btn" href="ShaftAnalysisProblemGenerator.html">Open the shaft analysis generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">7</span><h2><a href="ShaftSynthesisProblemGenerator.html">Shaft Synthesis</a></h2></div>
+    <p>Open-ended design of a two-gear countershaft. You choose the material, diameters and fillets; the page checks whether your design meets the fatigue, yield, slope and deflection requirements.</p>
+    <p class="go"><a class="btn" href="ShaftSynthesisProblemGenerator.html">Open the shaft synthesis generator</a></p>
+  </section>
+</main>
+<footer>The problems are for practice. Answers and solutions are computed in the page itself.</footer>
+</body>
+</html>

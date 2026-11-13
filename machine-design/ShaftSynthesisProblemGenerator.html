@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shaft Synthesis Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --beam:#f7e2c4; --beamline:#78461a; --load:#aa1e28; --sec:#cde1cd; --secline:#1e5a32;
+    --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  .tag{display:inline-block;font-family:system-ui,sans-serif;font-size:.78rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 9px;margin-left:6px}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .answers input.expr{width:19em;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+  .dz{grid-template-columns:auto auto 1fr}
+  .dz input{width:7em}
+  #results,#loads{display:none}
+  #results h3,#loads h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  .verdict{font-family:system-ui,sans-serif;font-weight:600;padding:10px 14px;border-radius:8px}
+  .verdict.ok{background:#e6f2e9;color:var(--ok)} .verdict.bad{background:#f8e7e5;color:var(--bad)}
+  .statement ul{margin:.3em 0 .5em 1.2em;padding:0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Shaft Synthesis Problem Generator</h1>
+  <div class="sub">Each seed sets the requirements for a two-gear countershaft. Enter a design and the page checks it for fatigue, yield, slopes and deflections. Many designs pass; aim for a light one.</div>
+</header>
+<main>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card">
+    <div class="bar" style="margin-bottom:10px"><button class="ghost" id="loadBtn2">Show loads</button><span class="note">Work out the forces, reactions and moments first, then compare.</span></div>
+    <div id="loads"></div>
+  </div>
+  <div class="card">
+    <div id="design"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="evalBtn">Evaluate design</button>
+      <button class="ghost" id="feasBtn">Show one passing design</button>
+      <span class="note" id="dzNote"></span>
+    </div>
+  </div>
+  <div class="card" id="results"></div>
+</main>
+<script>
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+function fmt(v,d=0){if(Math.abs(v)<0.5*10**-d)v=0;return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+// ===== shared helpers for the problem types below
+const SF_MAT=[["AISI 1006 CD",280,330,41,48],["AISI 1015 HR",190,340,27.5,50],["AISI 1018 CD",370,440,54,64],["AISI 1020 CD",390,470,57,68],
+  ["AISI 1030 HR",260,470,37.5,68],["AISI 1035 CD",460,550,67,80],["AISI 1040 HR",290,520,42,76],["AISI 1050 CD",580,690,84,100]];
+const gF=v=>v.toFixed(1);
+const gL=(x1,y1,x2,y2,attr)=>`<line x1="${gF(x1)}" y1="${gF(y1)}" x2="${gF(x2)}" y2="${gF(y2)}" ${attr}/>`;
+const gT=(x,y,t,attr="")=>`<text x="${gF(x)}" y="${gF(y)}" ${attr}>${t}</text>`;
+const gI=v=>`<tspan font-style="italic">${v}</tspan>`;
+const gSub=(a,b)=>`${gI(a)}<tspan baseline-shift="sub" font-size="13">${b}</tspan>`;
+const G_AR=`stroke="#aa1e28" stroke-width="3" marker-end="url(#g-ar)"`, G_DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#g-dm)" marker-end="url(#g-dm)"`;
+const G_EXT=`stroke="#999" stroke-width="0.8"`, G_CL=`stroke="#888" stroke-width="0.9" stroke-dasharray="10 3 2 3"`, G_PART=`fill="#eec878" stroke="#7d5014" stroke-width="1.8"`;
+function gSvg(vb,body,maxh=380){return `<svg viewBox="${vb}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="18" style="max-height:${maxh}px">
+  <defs><marker id="g-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+  <marker id="g-ax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker>
+  <marker id="g-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  <pattern id="g-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#c9d5e2"/><line x1="0" y1="0" x2="0" y2="7" stroke="#28405a" stroke-width="1"/></pattern></defs>${body}</svg>`}
+function gMatTable(rows,us,cols){return `<table><tr><th>Material</th>${cols.map(c=>`<th>${c} (${us?"kpsi":"MPa"})</th>`).join("")}</tr>${rows.map(r=>`<tr><td>${r[0]}</td>${r.slice(1).map(v=>`<td>${fmt(v,1)}</td>`).join("")}</tr>`).join("")}</table>`}
+const gSF=us=>SF_MAT.map(m=>[m[0],us?m[3]:m[1],us?m[4]:m[2]]);
+
+// ===== shared fatigue relations (Marin factors, S-N line, criteria)
+const FA_SURF={"Ground":[1.34,1.58,-0.085],"Machined or cold-drawn":[2.70,4.51,-0.265],"Hot-rolled":[14.4,57.7,-0.718],"As-forged":[39.9,272,-0.995]};
+const FA_REL={"50":1,"90":0.897,"95":0.868,"99":0.814,"99.9":0.753};
+const FA_KC={"Bending":1,"Axial":0.85,"Torsion":0.59};
+function faSe0(Sut,us){return us?(Sut<=200?0.5*Sut:100):(Sut<=1400?0.5*Sut:700)}
+function faKa(surf,Sut,us){const c=FA_SURF[surf];return (us?c[0]:c[1])*Sut**c[2]}
+function faKb(d,us){return us?(d<=2?(d/0.3)**-0.107:0.91*d**-0.157):(d<=51?(d/7.62)**-0.107:1.51*d**-0.157)}
+function faF(Sut,us){const s=Math.min(200,us?Sut:Sut/6.894757);return s<70?0.9:Math.round((1.06-2.8e-3*s+6.9e-6*s*s)*100)/100}
+function faAB(Sut,Se,f){return {a:(f*Sut)**2/Se,b:-Math.log10(f*Sut/Se)/3}}
+function faGood(sa,sm,Se,Sut){return 1/(sa/Se+sm/Sut)}
+function faGerb(sa,sm,Se,Sut){if(sm<=0)return Se/sa;return 0.5*(Sut/sm)**2*(sa/Se)*(-1+Math.sqrt(1+(2*sm*Se/(Sut*sa))**2))}
+function faAsme(sa,sm,Se,Sy){return 1/Math.sqrt((sa/Se)**2+(sm/Sy)**2)}
+const faU=us=>us?"kpsi":"MPa";
+
+// ===== shaft synthesis: two-gear countershaft design checker
+const SY_MAT=[["AISI 1018 CD",440,370,64,54],["AISI 1020 CD",470,390,68,57],["AISI 1035 CD",550,460,80,67],
+  ["AISI 1040 CD",590,490,85,71],["AISI 1050 CD",690,580,100,84],["AISI 4140 Q&T 1200°F",758,655,110,95]];
+const SY_KEY={Kt:2.14,Kts:3.0,rd:0.02};
+const SY_FK=[["rA","dA","d1","Bearing shoulder A",false],["r1","d1","dc","Gear 1 shoulder",true],["r2","d2","dc","Gear 2 shoulder",true],["rB","dB","d2","Bearing shoulder B",false]];
+const syRbMax=p=>p.us?0.04:1;
+// shoulder fillet Kt (bending) and Kts (torsion), Peterson curve fits as given by Roark; h = (D - d)/2
+function syKt(D,d,r,tor){const h=(D-d)/2,x=h/r,q=Math.sqrt(x),t=2*h/D;let C;
+  if(tor)C=[0.905+0.783*q-0.075*x,-0.437-1.969*q+0.553*x,1.557+1.073*q-0.578*x,-1.061+0.171*q+0.086*x];
+  else if(x<=2)C=[0.947+1.206*q-0.131*x,0.022-3.405*q+0.915*x,0.869+1.777*q-0.555*x,-0.810+0.422*q-0.260*x];
+  else C=[1.232+0.832*q-0.008*x,-3.813+0.968*q-0.260*x,7.423-4.868*q+0.869*x,-3.839+3.070*q-0.600*x];
+  return C[0]+C[1]*t+C[2]*t*t+C[3]*t**3}
+// Neuber notch sensitivity; Sut in kpsi, r in inches
+function syQ(Sut,r,tor){const a=tor?0.190-2.51e-3*Sut+1.35e-5*Sut**2-2.67e-8*Sut**3:0.246-3.08e-3*Sut+1.51e-5*Sut**2-2.67e-8*Sut**3;return 1/(1+a/Math.sqrt(r))}
+const SY_CRIT={Goodman:"DE-Goodman",Gerber:"DE-Gerber",ASME:"DE-ASME elliptic"};
+const SY_BRG={ball:["deep-groove ball",0.001],roller:["cylindrical roller",0.0008]};
+
+function syGenerate(seed){const r=mulberry32(seed), us=r()<0.5;
+  const p={us,crit:pick(r,Object.keys(SY_CRIT)),brg:pick(r,Object.keys(SY_BRG)),nd:pick(r,[1.5,1.8,2])};
+  if(us){p.L=pick(r,range(12,20,0.5));p.bw=pick(r,[0.625,0.75,0.875]);p.w=pick(r,[1.25,1.5,1.75,2]);
+    p.x1=+(Math.round((p.bw+0.5+p.w/2+r()*0.12*p.L)*4)/4).toFixed(2);
+    p.x2=+(Math.round((p.L-p.bw-0.5-p.w/2-r()*0.12*p.L)*4)/4).toFixed(2);
+    p.D1=pick(r,range(10,16,1));p.D2=pick(r,range(4,6.5,0.5));p.P=pick(r,range(10,40,5));p.n=pick(r,range(400,1800,100));
+    p.T=63025*p.P/p.n; p.E=30e6; p.yg=0.005; p.rho=0.282}
+  else{p.L=pick(r,range(300,500,10));p.bw=pick(r,[16,18,20,22]);p.w=pick(r,[30,35,40,45,50]);
+    p.x1=Math.round(p.bw+12+p.w/2+r()*0.12*p.L);p.x2=Math.round(p.L-p.bw-12-p.w/2-r()*0.12*p.L);
+    p.D1=pick(r,range(250,400,25));p.D2=pick(r,range(100,160,10));p.P=pick(r,range(5,30,2.5));p.n=pick(r,range(400,1800,100));
+    p.T=9549*p.P/p.n*1000; p.E=207000; p.yg=0.13; p.rho=7.85e-6}
+  p.tb=SY_BRG[p.brg][1]; p.tg=0.0005;
+  p.xA=p.bw/2; p.xB=p.L-p.bw/2; p.a1=p.bw; p.b1=p.x1+p.w/2; p.b2=p.x2-p.w/2; p.a2=p.L-p.bw;
+  const tf=Math.tan(20*Math.PI/180);
+  p.Wt1=2*p.T/p.D1; p.Wr1=p.Wt1*tf; p.Wt2=2*p.T/p.D2; p.Wr2=p.Wt2*tf;
+  // loads on the shaft: y plane (radial, down), z plane (tangential)
+  p.Py=[[p.x1,-p.Wr1],[p.x2,-p.Wr2]]; p.Pz=[[p.x1,p.Wt1],[p.x2,-p.Wt2]];
+  return {p,s:syLoads(p)};
+}
+function syReact(p,P){const S=p.xB-p.xA;let RB=-P.reduce((a,[x,f])=>a+f*(x-p.xA),0)/S;const RA=-P.reduce((a,[,f])=>a+f,0)-RB;return [RA,RB]}
+function syM(p,P,R,x){if(x<=p.xA||x>=p.xB)return 0;let m=R[0]*(x-p.xA);for(const [xi,f] of P)if(xi<x)m+=f*(x-xi);return m}
+function syLoads(p){const Ry=syReact(p,p.Py), Rz=syReact(p,p.Pz);
+  const My=x=>syM(p,p.Py,Ry,x), Mz=x=>syM(p,p.Pz,Rz,x), M=x=>Math.hypot(My(x),Mz(x));
+  return {Ry,Rz,My,Mz,M}}
+
+// stations: [name, x, side-diameter key (smaller), larger key, type, torque?]
+function syStations(p){return [
+  ["Bearing shoulder A",p.a1,"dA","d1","bA",false],["Keyseat, gear 1",p.x1,"d1",null,"key",true],["Gear 1 shoulder",p.b1,"d1","dc","g1",true],
+  ["Gear 2 shoulder",p.b2,"d2","dc","g2",true],["Keyseat, gear 2",p.x2,"d2",null,"key",true],["Bearing shoulder B",p.a2,"dB","d2","bB",false]]}
+function syDiaAt(p,D,x){return x<p.a1?D.dA:x<p.b1?D.d1:x<p.b2?D.dc:x<p.a2?D.d2:D.dB}
+
+// deflection by double integration of M/EI with y = 0 at both bearing centers
+function syDeflect(p,s,D,N=6000){const h=p.L/N, xs=[],ky=[],kz=[];
+  for(let i=0;i<=N;i++){const x=i*h, d=syDiaAt(p,D,Math.min(x,p.L-1e-9)), EI=p.E*Math.PI*d**4/64;xs.push(x);ky.push(s.My(x)/EI);kz.push(s.Mz(x)/EI)}
+  function solve(k){const F1=[0],F2=[0];for(let i=1;i<=N;i++){F1.push(F1[i-1]+0.5*h*(k[i]+k[i-1]))}
+    for(let i=1;i<=N;i++){F2.push(F2[i-1]+0.5*h*(F1[i]+F1[i-1]))}
+    const at=(A,x)=>{const t=x/h,i=Math.min(N-1,Math.floor(t)),f=t-i;return A[i]*(1-f)+A[i+1]*f};
+    const c1=-(at(F2,p.xB)-at(F2,p.xA))/(p.xB-p.xA), c0=-at(F2,p.xA)-c1*p.xA;
+    return {th:x=>c1+at(F1,x),y:x=>c0+c1*x+at(F2,x)}}
+  const Y=solve(ky),Z=solve(kz), th=x=>Math.hypot(Y.th(x),Z.th(x)), y=x=>Math.hypot(Y.y(x),Z.y(x));
+  return [["Bearing A",p.xA,th(p.xA),p.tb,null,null],["Gear 1",p.x1,th(p.x1),p.tg,y(p.x1),p.yg],
+          ["Gear 2",p.x2,th(p.x2),p.tg,y(p.x2),p.yg],["Bearing B",p.xB,th(p.xB),p.tb,null,null]]}
+
+function syEvaluate(p,s,dz){const us=p.us, m=SY_MAT[dz.mat], Sut=us?m[3]:m[1], Sy=us?m[4]:m[2], c=us?1000:1;
+  const ka=faKa("Machined or cold-drawn",Sut,us), S0=faSe0(Sut,us);
+  const geo=[], sb=k=>k==="dc"?"d<sub>c</sub>":"d<sub>"+k.slice(1)+"</sub>";
+  const pairs=[["dA","d1","Bearing shoulder A"],["d1","dc","Gear 1 shoulder"],["d2","dc","Gear 2 shoulder"],["dB","d2","Bearing shoulder B"]];
+  for(const [a,b,n] of pairs){const r=dz.D[b]/dz.D[a];geo.push([n,`${sb(b)}/${sb(a)} = ${fmt(r,3)}`,r>=1.05-1e-9&&r<=1.5+1e-9])}
+  const rb=syRbMax(p), du=p.us?3:2, uu=p.us?"in":"mm";
+  for(const [rk,a,b,n,gear] of SY_FK){const r=dz.r[rk], h=(dz.D[b]-dz.D[a])/2, lo=gear?h/4:h/20, hi=gear?h:Math.min(h,rb);
+    geo.push([n+" fillet",`r = ${fmt(r,du)} ${uu}; allowed ${fmt(lo,du)} to ${fmt(hi,du)} ${uu}`,h>0&&r>=lo-1e-9&&r<=hi+1e-9])}
+  const geoOK=geo.every(g=>g[2]), Sk=us?Sut:Sut/6.894757, rin=v=>us?v:v/25.4;
+  const typR={bA:"rA",g1:"r1",g2:"r2",bB:"rB"};
+  const st=syStations(p).map(([name,x,dk,Dk,typ,tq])=>{const d=dz.D[dk];let f;
+    if(typ==="key"){const r=SY_KEY.rd*d;f={Kt:SY_KEY.Kt,Kts:SY_KEY.Kts,r}}
+    else{const r=dz.r[typR[typ]],D=dz.D[Dk];f=geoOK?{Kt:syKt(D,d,r,false),Kts:syKt(D,d,r,true),r}:{Kt:NaN,Kts:NaN,r}}
+    const q=syQ(Sk,rin(f.r),false), qs=syQ(Sk,rin(f.r),true);
+    const Kf=1+q*(f.Kt-1), Kfs=1+qs*(f.Kts-1), M=s.M(x), T=tq?p.T:0;
+    const kb=faKb(d,us), Se=ka*kb*S0;
+    const sa=Kf*32*M/(Math.PI*d**3)/c, tm=Kfs*16*T/(Math.PI*d**3)/c, sm=Math.sqrt(3)*tm;
+    const nf=sm<=1e-12?Se/sa:p.crit==="Goodman"?faGood(sa,sm,Se,Sut):p.crit==="Gerber"?faGerb(sa,sm,Se,Sut):faAsme(sa,sm,Se,Sy);
+    const smax=Math.sqrt(sa**2+3*tm**2), ny=Sy/smax;
+    return {name,x,d,r:f.r,M,T,Kt:f.Kt,Kts:f.Kts,q,qs,Kf,Kfs,kb,Se,sa,sm,nf,ny,pass:nf>=p.nd-1e-9&&ny>=p.nd-1e-9}});
+  const df=syDeflect(p,s,dz.D).map(([name,x,th,thl,y,yl])=>({name,x,th,thl,y,yl,pass:th<=thl&&(y===null||y<=yl)}));
+  const L=[[0,p.a1,"dA"],[p.a1,p.b1,"d1"],[p.b1,p.b2,"dc"],[p.b2,p.a2,"d2"],[p.a2,p.L,"dB"]];
+  const mass=L.reduce((a,[x0,x1,k])=>a+Math.PI*dz.D[k]**2/4*(x1-x0),0)*p.rho;
+  const pass=geo.every(g=>g[2])&&st.every(t=>t.pass)&&df.every(t=>t.pass);
+  return {Sut,Sy,ka,S0,geo,st,df,mass,pass}}
+
+// one passing design: dc swept upward, d1 = d2 = dc/1.2, dA = dB = d1/1.2, largest allowed fillets, lightest material
+function syFeasible(p,s){const step=p.us?1/16:1, rd=v=>Math.round(v/step)*step;let best=null;
+  for(let mi=0;mi<SY_MAT.length;mi++){for(let dc=rd(p.us?0.75:20);dc<=(p.us?10:250);dc+=step){
+      const d1=rd(dc/1.2), dA=rd(d1/1.2), rs=p.us?0.005:0.1, fl=v=>Math.floor(v/rs+1e-9)*rs, rg=+fl((dc-d1)/2).toFixed(3), rbr=+fl(Math.min((d1-dA)/2,syRbMax(p))).toFixed(3);
+      const dz={mat:mi,D:{dA,d1,dc,d2:d1,dB:dA},r:{rA:rbr,r1:rg,r2:rg,rB:rbr}};
+      const e=syEvaluate(p,s,dz); if(e.pass){if(!best||e.mass<best.e.mass-1e-9)best={dz,e};break}}}
+  return best}
+
+// ----- figure: schematic layout; radial scale exaggerated
+function syFigure(p,D){const X0=70,W=600,X=x=>X0+W*x/p.L, CY=170;
+  const dd=D||{dA:1,d1:1.2,dc:1.44,d2:1.2,dB:1}, mx=Math.max(dd.dA,dd.d1,dd.dc,dd.d2,dd.dB), R=v=>46*v/mx;
+  const seg=[[0,p.a1,"dA"],[p.a1,p.b1,"d1"],[p.b1,p.b2,"dc"],[p.b2,p.a2,"d2"],[p.a2,p.L,"dB"]];
+  let g=gL(X0-25,CY,X0+W+25,CY,G_CL);
+  for(const [a,b,k] of seg){g+=`<rect x="${gF(X(a))}" y="${gF(CY-R(dd[k]))}" width="${gF(X(b)-X(a))}" height="${gF(2*R(dd[k]))}" ${G_PART}/>`}
+  const vis={dA:[0,p.a1],d1:[p.a1,p.x1-p.w/2],dc:[p.b1,p.b2],d2:[p.x2+p.w/2,p.a2],dB:[p.a2,p.L]};
+  for(const [,,k] of seg){const lab=k==="dc"?gSub("d","c"):gSub("d",k.slice(1)),[a,b]=vis[k];g+=gT((X(a)+X(b))/2,CY+6,lab,`text-anchor="middle" font-size="16" class="halo"`)}
+  // bearings
+  for(const xc of [p.xA,p.xB]){const hw=(X(p.bw)-X(0))/2, r0=R(xc<p.L/2?dd.dA:dd.dB);
+    for(const sgn of [-1,1]){const y0=sgn<0?CY-r0-22:CY+r0;g+=`<rect x="${gF(X(xc)-hw)}" y="${gF(y0)}" width="${gF(2*hw)}" height="22" fill="#d6dde6" stroke="#28405a" stroke-width="1.4"/>`+
+      gL(X(xc)-hw,y0,X(xc)+hw,y0+22,`stroke="#28405a" stroke-width="1"`)+gL(X(xc)-hw,y0+22,X(xc)+hw,y0,`stroke="#28405a" stroke-width="1"`)}}
+  g+=gT(X(p.xA),CY-R(dd.dA)-30,"A",`text-anchor="middle" font-size="16"`)+gT(X(p.xB),CY-R(dd.dB)-30,"B",`text-anchor="middle" font-size="16"`);
+  // gears
+  const gh=[p.D1>=p.D2?92:64,p.D1>=p.D2?64:92];
+  [[p.x1,gh[0],"Gear 1",p.D1],[p.x2,gh[1],"Gear 2",p.D2]].forEach(([xc,h,lab])=>{const hw=(X(p.w)-X(0))/2;
+    g+=`<rect x="${gF(X(xc)-hw)}" y="${gF(CY-h)}" width="${gF(2*hw)}" height="${gF(2*h)}" fill="#cde1cd" fill-opacity="0.75" stroke="#1e5a32" stroke-width="1.6"/>`+
+      gL(X(xc),CY-h-6,X(xc),CY+h+6,G_CL)+gT(X(xc),CY-h-10,lab,`text-anchor="middle" font-size="16"`)});
+  // dimensions from the left end
+  const u=p.us?"in":"mm", dfx=v=>fmt(v,p.us?2:0);
+  const dims=[[p.x1,`${gI("x")}<tspan baseline-shift="sub" font-size="12">1</tspan> = ${dfx(p.x1)}`],[p.x2,`${gI("x")}<tspan baseline-shift="sub" font-size="12">2</tspan> = ${dfx(p.x2)}`],[p.L,`${gI("L")} = ${dfx(p.L)} ${u}`]];
+  dims.forEach(([x,t],i)=>{const y=CY+110+i*26;g+=gL(X(0),y,X(x),y,G_DIM)+gT((X(0)+X(x))/2,y-5,t,`text-anchor="middle" font-size="15" class="halo"`)});
+  g+=gL(X(0),CY+50,X(0),CY+110+2*26+6,G_EXT)+gL(X(p.x1),CY+98,X(p.x1),CY+116,G_EXT)+gL(X(p.x2),CY+98,X(p.x2),CY+142,G_EXT)+gL(X(p.L),CY+50,X(p.L),CY+168,G_EXT);
+  // axes
+  const ax=X0+W+10;g+=gL(ax-30,60,ax-30,22,`stroke="#222" stroke-width="1.2" marker-end="url(#g-ax)"`)+gL(ax-30,60,ax+8,60,`stroke="#222" stroke-width="1.2" marker-end="url(#g-ax)"`)+
+    gT(ax-30,16,gI("y"),`text-anchor="middle" font-size="15"`)+gT(ax+16,65,gI("x"),`font-size="15"`)+`<circle cx="${ax-30}" cy="60" r="4" fill="none" stroke="#222"/><circle cx="${ax-30}" cy="60" r="1.2" fill="#222"/>`+gT(ax-44,78,gI("z"),`font-size="15"`);
+  return gSvg("20 0 720 345",g,360)}
+
+// ===== page
+let cur=null;
+const $=id=>document.getElementById(id);
+const DKEYS=["dA","d1","dc","d2","dB"], DLAB={dA:"d<sub>A</sub>",d1:"d<sub>1</sub>",dc:"d<sub>c</sub>",d2:"d<sub>2</sub>",dB:"d<sub>B</sub>"};
+
+function syStatement(p){const u=p.us?"in":"mm", su=faU(p.us), dfx=v=>fmt(v,p.us?3:0), pw=p.us?`${fmt(p.P,0)} hp`:`${fmt(p.P,1)} kW`;
+  const yg=p.us?`${p.yg} in`:`${p.yg} mm`;
+  return `<p>The countershaft shown carries two spur gears with 20° pressure angle and runs in two ${SY_BRG[p.brg][0]} bearings, each ${dfx(p.bw)} ${u} wide, at its ends. Gear 1 (pitch diameter ${dfx(p.D1)} ${u}) receives ${pw} at ${fmt(p.n)} rev/min and gear 2 (pitch diameter ${dfx(p.D2)} ${u}) delivers it. Both meshes are at the top of the shaft, so both radial forces act in −<i>y</i>; the tangential force on gear 1 acts in +<i>z</i> and that on gear 2 in −<i>z</i>.</p>
+  <p>The axial layout is fixed. Both gears have a face width of ${dfx(p.w)} ${u} and are centered at <i>x</i><sub>1</sub> and <i>x</i><sub>2</sub>. Gear 1 seats against a shoulder at its right face (<i>x</i> = ${dfx(p.b1)} ${u}) and gear 2 against a shoulder at its left face (<i>x</i> = ${dfx(p.b2)} ${u}). The bearings seat against shoulders at <i>x</i> = ${dfx(p.a1)} and ${dfx(p.a2)} ${u}, and each bearing acts as a simple support at its center. Each gear is keyed with an end-milled keyseat at its center.</p>
+  <p><b>Design task.</b> Choose a cold-drawn or heat-treated steel from the table, the five diameters ${DKEYS.map(k=>DLAB[k]).join(", ")}, and the fillet radius at each of the four shoulders so that the shaft meets every requirement below. Aim for a light shaft.</p>
+  <ul>
+    <li>Infinite life with a factor of safety of at least ${p.nd} at every critical location by the ${SY_CRIT[p.crit]} criterion, and a first-cycle yield factor of at least ${p.nd} by von Mises.</li>
+    <li>Slope at each bearing no more than ${p.tb} rad. Slope at each gear no more than ${p.tg} rad and transverse deflection at each gear no more than ${yg} (treat the mating shafts as rigid).</li>
+    <li>Each shoulder steps up by a diameter ratio between 1.05 and 1.5, so that d<sub>A</sub> &lt; d<sub>1</sub> &lt; d<sub>c</sub> and d<sub>B</sub> &lt; d<sub>2</sub> &lt; d<sub>c</sub>.</li>
+  </ul>
+  <p><b>Assumptions.</b> Machined surface; k<sub>c</sub> = k<sub>d</sub> = k<sub>e</sub> = 1; K<sub>fsm</sub> = K<sub>fs</sub>. Find K<sub>t</sub> and K<sub>ts</sub> at each shoulder from the stepped-shaft charts (the checker uses the Peterson curve fits given by Roark) and the notch sensitivities from the Neuber equation. The bending moment is fully reversed by rotation and the torque is steady. A bearing-shoulder fillet may not exceed the bearing corner radius of ${p.us?"0.04 in":"1 mm"}, nor the shoulder height h = (D − d)/2. A gear bore is chamfered, so a gear-shoulder fillet may be as large as h; it must be at least h/4, the lower limit of the torsion chart. The end-mill keyseats have r/d = 0.02. E = ${p.us?"30 Mpsi":"207 GPa"}; ${p.us?"steel weighs 0.282 lbm/in³":"ρ = 7850 kg/m³"}.</p>
+  <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">${gMatTable(SY_MAT.map(m=>[m[0],p.us?m[3]:m[1],p.us?m[4]:m[2]]),p.us,["S<sub>ut</sub>","S<sub>y</sub>"])}
+  <table><tr><th>Stress raiser</th><th>K<sub>t</sub></th><th>K<sub>ts</sub></th></tr>
+  <tr><td>End-mill keyseat, r/d = 0.02</td><td>2.14</td><td>3.0</td></tr></table></div>`}
+
+function syDesignForm(p){const u=p.us?"in":"mm";
+  return `<div class="answers dz">
+  <label for="dz-mat">Material</label><span><select id="dz-mat">${SY_MAT.map((m,i)=>`<option value="${i}">${m[0]}</option>`).join("")}</select></span><span></span>
+  ${DKEYS.map(k=>`<label for="dz-${k}">${DLAB[k]}</label><span><input id="dz-${k}" type="text" inputmode="decimal"> <span class="note">${u}</span></span><span></span>`).join("")}
+  ${SY_FK.map(([k,,,l])=>`<label for="dz-${k}">${l} fillet r</label><span><input id="dz-${k}" type="text" inputmode="decimal"> <span class="note">${u}</span></span><span></span>`).join("")}
+  </div>`}
+
+function syRead(){const D={};for(const k of DKEYS){const v=parseFloat($("dz-"+k).value.replace(/,/g,""));if(!(v>0))return {err:`Enter a positive value for ${k}.`};D[k]=v}
+  const r={};for(const [k,,,l] of SY_FK){const v=parseFloat($("dz-"+k).value.replace(/,/g,""));if(!(v>0))return {err:`Enter a positive fillet radius for ${l}.`};r[k]=v}
+  return {mat:+$("dz-mat").value,D,r}}
+function syFill(dz){$("dz-mat").value=dz.mat;for(const k of DKEYS)$("dz-"+k).value=cur.p.us?+dz.D[k].toFixed(4):dz.D[k];for(const [k] of SY_FK)$("dz-"+k).value=dz.r[k]}
+
+const fz=(v,d)=>isFinite(v)?fmt(v,d):"–";
+const syMark=ok=>`<span class="mark ${ok?"ok":"bad"}">${ok?"Pass":"Fail"}</span>`;
+function syResults(p,e,dz){const u=p.us?"in":"mm", su=faU(p.us), Mu=p.us?"lbf·in":"N·m", mc=p.us?1:1/1000, dl=p.us?3:1, mu=p.us?"lbm":"kg";
+  let h=`<div class="verdict ${e.pass?"ok":"bad"}">${e.pass?"This design meets every requirement.":"This design does not yet meet every requirement."} Shaft mass ${fmt(e.mass,2)} ${mu}.</div>`;
+  h+=`<h3>Geometry</h3><table><tr><th>Check</th><th>Value</th><th></th></tr>${e.geo.map(([n,t,ok])=>`<tr><td>${n}</td><td>${t}</td><td>${syMark(ok)}</td></tr>`).join("")}</table>`;
+  h+=`<h3>Fatigue and yield</h3>${e.geo.slice(4).every(g=>g[2])?"":`<p class="note">A fillet radius is outside its allowed range, so the stress concentration factors are not evaluated.</p>`}<p class="note">${SY_MAT[dz.mat][0]}: S<sub>ut</sub> = ${fmt(e.Sut,p.us?0:0)} ${su}, S<sub>y</sub> = ${fmt(e.Sy)} ${su}, k<sub>a</sub> = ${fmt(e.ka,3)}, S′<sub>e</sub> = ${fmt(e.S0,1)} ${su}. Required n = ${p.nd}.</p>
+  <div style="overflow-x:auto"><table><tr><th>Location</th><th>x (${u})</th><th>d (${u})</th><th>M (${Mu})</th><th>T (${Mu})</th><th>r (${u})</th><th>K<sub>t</sub></th><th>K<sub>ts</sub></th><th>q</th><th>q<sub>s</sub></th><th>K<sub>f</sub></th><th>K<sub>fs</sub></th><th>S<sub>e</sub> (${su})</th><th>σ′<sub>a</sub> (${su})</th><th>σ′<sub>m</sub> (${su})</th><th>n<sub>f</sub></th><th>n<sub>y</sub></th><th></th></tr>
+  ${e.st.map(t=>`<tr><td>${t.name}</td><td>${fmt(t.x,p.us?3:1)}</td><td>${fmt(t.d,p.us?3:1)}</td><td>${fmt(t.M*mc,p.us?0:1)}</td><td>${fmt(t.T*mc,p.us?0:1)}</td><td>${fmt(t.r,p.us?3:2)}</td><td>${fz(t.Kt,2)}</td><td>${fz(t.Kts,2)}</td><td>${fmt(t.q,2)}</td><td>${fmt(t.qs,2)}</td><td>${fz(t.Kf,2)}</td><td>${fz(t.Kfs,2)}</td><td>${fmt(t.Se,1)}</td><td>${fz(t.sa,1)}</td><td>${fz(t.sm,1)}</td><td>${fz(t.nf,2)}</td><td>${fz(t.ny,2)}</td><td>${syMark(t.pass)}</td></tr>`).join("")}</table></div>`;
+  h+=`<h3>Slopes and deflections</h3><table><tr><th>Location</th><th>Slope (rad)</th><th>Limit</th><th>Deflection (${u})</th><th>Limit</th><th></th></tr>
+  ${e.df.map(t=>`<tr><td>${t.name}</td><td>${t.th.toFixed(5)}</td><td>${t.thl}</td><td>${t.y===null?"":t.y.toFixed(4)}</td><td>${t.yl===null?"":t.yl}</td><td>${syMark(t.pass)}</td></tr>`).join("")}</table>
+  <p class="note">Slopes and deflections are the resultants of the <i>xy</i> and <i>xz</i> planes, found by integrating M/(EI) twice along the stepped shaft with zero deflection at the bearing centers.</p>`;
+  return h}
+
+function syLoadsHTML(p,s){const F=p.us?"lbf":"N", Mu=p.us?"lbf·in":"N·m", mc=p.us?1:1/1000, d=p.us?1:0, dx=v=>fmt(v,p.us?3:1);
+  const rows=syStations(p).map(([n,x,,,,tq])=>`<tr><td>${n}</td><td>${dx(x)}</td><td>${fmt(s.My(x)*mc,p.us?0:1)}</td><td>${fmt(s.Mz(x)*mc,p.us?0:1)}</td><td>${fmt(s.M(x)*mc,p.us?0:1)}</td><td>${fmt(tq?p.T*mc:0,p.us?0:1)}</td></tr>`).join("");
+  return `<h3>Gear forces</h3><p><span class="eq">T = ${p.us?"63 025 H/n":"9549 P/n"} = ${fmt(p.T*mc,1)} ${Mu}</span>, <span class="eq">W<sub>t</sub> = 2T/D</span>, <span class="eq">W<sub>r</sub> = W<sub>t</sub> tan 20°</span></p>
+  <table><tr><th></th><th>W<sub>t</sub> (${F})</th><th>W<sub>r</sub> (${F})</th></tr><tr><td>Gear 1</td><td>${fmt(p.Wt1,d)}</td><td>${fmt(p.Wr1,d)}</td></tr><tr><td>Gear 2</td><td>${fmt(p.Wt2,d)}</td><td>${fmt(p.Wr2,d)}</td></tr></table>
+  <h3>Bearing reactions</h3><table><tr><th></th><th>R<sub>y</sub> (${F})</th><th>R<sub>z</sub> (${F})</th></tr><tr><td>A</td><td>${fmt(s.Ry[0],d)}</td><td>${fmt(s.Rz[0],d)}</td></tr><tr><td>B</td><td>${fmt(s.Ry[1],d)}</td><td>${fmt(s.Rz[1],d)}</td></tr></table>
+  <h3>Moments and torque at the critical locations</h3><table><tr><th>Location</th><th>x (${p.us?"in":"mm"})</th><th>M<sub>xy</sub> (${Mu})</th><th>M<sub>xz</sub> (${Mu})</th><th>M (${Mu})</th><th>T (${Mu})</th></tr>${rows}</table>
+  <p class="note">M is the resultant of the two planes. The torque is carried only between the gears.</p>`}
+
+function render(seed){cur=syGenerate(seed);const {p,s}=cur;
+  $("seedIn").value=seed; try{history.replaceState(null,"","#countershaft-"+seed)}catch(e){}
+  $("fig").innerHTML=syFigure(p,null); $("statement").innerHTML=syStatement(p);
+  $("design").innerHTML=syDesignForm(p); $("results").innerHTML=""; $("results").style.display="none";
+  $("dzNote").textContent=""; const L=$("loads"); L.style.display="none"; L.innerHTML=syLoadsHTML(p,s); $("loadBtn2").textContent="Show loads";
+}
+function evaluate(){const dz=syRead();if(dz.err){$("dzNote").textContent=dz.err;return}
+  $("dzNote").textContent="";const e=syEvaluate(cur.p,cur.s,dz);
+  $("fig").innerHTML=syFigure(cur.p,dz.D);const R=$("results");R.innerHTML=syResults(cur.p,e,dz);R.style.display="block"}
+function feasible(){const f=syFeasible(cur.p,cur.s);if(!f){$("dzNote").textContent="No design was found within the search range.";return}
+  syFill(f.dz);evaluate();$("dzNote").innerHTML="This is one passing design (d<sub>1</sub> = d<sub>2</sub> ≈ d<sub>c</sub>/1.2, d<sub>A</sub> = d<sub>B</sub> ≈ d<sub>1</sub>/1.2, the largest allowed fillets, lightest of the listed steels). It is not the only answer, and a lighter one may exist."}
+
+const newSeed=()=>1+Math.floor(Math.random()*999999);
+$("newBtn").onclick=()=>render(newSeed());
+$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(v)};
+$("evalBtn").onclick=evaluate; $("feasBtn").onclick=feasible;
+$("loadBtn2").onclick=e=>{const s=$("loads"),show=s.style.display!=="block";s.style.display=show?"block":"none";e.target.textContent=show?"Hide loads":"Show loads"};
+(function(){const m=/^#countershaft-(\d+)$/.exec(location.hash);render(m?parseInt(m[1],10):newSeed())})();
+</script>
+</body>
+</html>

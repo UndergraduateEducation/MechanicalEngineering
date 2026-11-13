@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Basics and Materials Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --beam:#f7e2c4; --beamline:#78461a; --load:#aa1e28; --sec:#cde1cd; --secline:#1e5a32;
+    --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  .tag{display:inline-block;font-family:system-ui,sans-serif;font-size:.78rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 9px;margin-left:6px}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .answers input.expr{width:19em;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<header>
+  <h1>Basics and Materials Problem Generator</h1>
+  <div class="sub">Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem.</div>
+</header>
+<main>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+function fmt(v,d=0){if(Math.abs(v)<0.5*10**-d)v=0;return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+// ===== shared helpers for the problem types below
+const SF_MAT=[["AISI 1006 CD",280,330,41,48],["AISI 1015 HR",190,340,27.5,50],["AISI 1018 CD",370,440,54,64],["AISI 1020 CD",390,470,57,68],
+  ["AISI 1030 HR",260,470,37.5,68],["AISI 1035 CD",460,550,67,80],["AISI 1040 HR",290,520,42,76],["AISI 1050 CD",580,690,84,100]];
+const gF=v=>v.toFixed(1);
+const gL=(x1,y1,x2,y2,attr)=>`<line x1="${gF(x1)}" y1="${gF(y1)}" x2="${gF(x2)}" y2="${gF(y2)}" ${attr}/>`;
+const gT=(x,y,t,attr="")=>`<text x="${gF(x)}" y="${gF(y)}" ${attr}>${t}</text>`;
+const gI=v=>`<tspan font-style="italic">${v}</tspan>`;
+const gSub=(a,b)=>`${gI(a)}<tspan baseline-shift="sub" font-size="13">${b}</tspan>`;
+const G_AR=`stroke="#aa1e28" stroke-width="3" marker-end="url(#g-ar)"`, G_DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#g-dm)" marker-end="url(#g-dm)"`;
+const G_EXT=`stroke="#999" stroke-width="0.8"`, G_CL=`stroke="#888" stroke-width="0.9" stroke-dasharray="10 3 2 3"`, G_PART=`fill="#eec878" stroke="#7d5014" stroke-width="1.8"`;
+function gSvg(vb,body,maxh=380){return `<svg viewBox="${vb}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="18" style="max-height:${maxh}px">
+  <defs><marker id="g-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+  <marker id="g-ax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker>
+  <marker id="g-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  <pattern id="g-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#c9d5e2"/><line x1="0" y1="0" x2="0" y2="7" stroke="#28405a" stroke-width="1"/></pattern></defs>${body}</svg>`}
+function gMatTable(rows,us,cols){return `<table><tr><th>Material</th>${cols.map(c=>`<th>${c} (${us?"kpsi":"MPa"})</th>`).join("")}</tr>${rows.map(r=>`<tr><td>${r[0]}</td>${r.slice(1).map(v=>`<td>${fmt(v,1)}</td>`).join("")}</tr>`).join("")}</table>`}
+const gSF=us=>SF_MAT.map(m=>[m[0],us?m[3]:m[1],us?m[4]:m[2]]);
+
+// ===== shared: normal distribution
+function nPhi(z){const t=1/(1+0.2316419*Math.abs(z)), d=0.3989422804*Math.exp(-z*z/2),
+  q=d*t*(0.31938153+t*(-0.356563782+t*(1.781477937+t*(-1.821255978+t*1.330274429))));return z>0?1-q:q}
+function nInv(p){let a=-9,b=9;for(let i=0;i<90;i++){const m=(a+b)/2;if(nPhi(m)<p)a=m;else b=m}return (a+b)/2}
+const rnd=(r,a,b,s)=>pick(r,range(a,b,s));
+const f3=v=>fmt(v,3), f4=v=>fmt(v,4);
+
+// ===== 1. unit conversions
+const UC_SI=[["A stress","σ",[50,400,10],"MPa","kpsi",v=>v/6.894757],["A force","F",[0.5,20,0.5],"kN","lbf",v=>v*1000/4.448222],
+  ["A moment","M",[20,800,10],"N·m","lbf·in",v=>v/0.1129848],["An area","A",[100,5000,100],"mm²","in²",v=>v/645.16],
+  ["A second moment of area","I",[50,2000,50],"cm⁴","in⁴",v=>v/41.62314],["A modulus of elasticity","E",[70,210,5],"GPa","Mpsi",v=>v/6.894757],
+  ["A speed","v",[20,150,5],"km/h","mi/h",v=>v/1.609344],["A volume","V",[0.5,5,0.5],"liter","in³",v=>v*61.02374]];
+const UC_US=[["A length","l",[2,30,1],"ft","m",v=>v*0.3048],["A stress","σ",[10,150,5],"kpsi","MPa",v=>v*6.894757],
+  ["A pressure","p",[5,200,5],"psi","kPa",v=>v*6.894757],["A section modulus","Z",[0.5,30,0.5],"in³","cm³",v=>v*16.387064],
+  ["A unit weight","w",[0.05,2,0.05],"lbf/in","N/m",v=>v*175.1268],["A deflection","δ",[0.001,0.05,0.001],"in","mm",v=>v*25.4],
+  ["A velocity","v",[200,3000,100],"ft/min","m/s",v=>v*0.00508],["A volume","V",[100,3000,50],"in³","liter",v=>v*0.016387064]];
+function ucGenerate(seed){const r=mulberry32(seed), si=r()<0.5, L=si?UC_SI:UC_US, idx=[...L.keys()];
+  for(let i=idx.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]]}
+  const items=idx.slice(0,4).sort((a,b)=>a-b).map(i=>{const q=L[i];return {q,v:rnd(r,...q[2])}});
+  return {p:{si,items},s:{ans:items.map(it=>it.q[5](it.v))}}}
+
+// ===== 2. breakeven between two manufacturing methods
+function beGenerate(seed){const r=mulberry32(seed);
+  const p={a:rnd(r,5,40,5),b2:rnd(r,0.4,1.5,0.1),dl:pick(r,[0,0,0.1,0.2]),e:pick(r,[0.002,0.004,0.005,0.008,0.01])};
+  p.b1=+(p.b2+p.dl).toFixed(2); p.c=p.a+rnd(r,20,120,10);
+  const P=(-p.dl+Math.sqrt(p.dl**2+4*p.e*(p.c-p.a)))/(2*p.e);return {p,s:{P,C:p.a+p.b1*P}}}
+
+// ===== 3. design factor from uncertainties
+const DF_LOAD={axial:["an axial force P","σ = 4P/(πd²)",2],bending:["a bending moment M","σ = 32M/(πd³)",3],torsion:["a torque T","τ = 16T/(πd³)",3]};
+function dfGenerate(seed){const r=mulberry32(seed),p={ld:pick(r,Object.keys(DF_LOAD)),uP:rnd(r,5,25,1),ud:rnd(r,1,6,0.5),uS:rnd(r,5,20,1)};
+  const k=DF_LOAD[p.ld][2];return {p,s:{nd:(1+p.uP/100)/((1-p.uS/100)*(1-p.ud/100)**k),k}}}
+
+// ===== 4. minimum diameter, preferred size, factor of safety
+const RD_IN=[[1/16,"1/16"],[3/32,"3/32"],[1/8,"1/8"],[5/32,"5/32"],[3/16,"3/16"],[1/4,"1/4"],[5/16,"5/16"],[3/8,"3/8"],[7/16,"7/16"],[1/2,"1/2"],[9/16,"9/16"],[5/8,"5/8"],[11/16,"11/16"],[3/4,"3/4"],[7/8,"7/8"],
+  [1,"1"],[1.25,"1 1/4"],[1.5,"1 1/2"],[1.75,"1 3/4"],[2,"2"],[2.25,"2 1/4"],[2.5,"2 1/2"],[2.75,"2 3/4"],[3,"3"]];
+const RD_MM=[1,1.2,1.5,2,2.5,3,4,5,6,8,10,12,16,20,25,30,40,50,60,80,100];
+function rdGenerate(seed){const r=mulberry32(seed);
+  for(;;){const us=r()<0.5, tor=r()<0.4;
+    const p={us,tor,M:us?rnd(r,200,4000,50):rnd(r,20,600,10),S:us?rnd(r,20,80,5):rnd(r,150,550,10),nd:pick(r,[1.5,2,2.5,3,3.5])};
+    const c=p.us?1000:1000, Sall=p.S*(us?1000:1)/p.nd, Mx=p.M*(us?1:1000), k=tor?16:32;
+    const dmin=Math.cbrt(k*Mx/(Math.PI*Sall)), list=us?RD_IN.map(x=>x[0]):RD_MM, i=list.findIndex(v=>v>=dmin);
+    if(i<0||list[i]/dmin<1.01)continue;
+    const dsel=list[i], n=p.S*(us?1000:1)*Math.PI*dsel**3/(k*Mx);
+    return {p,s:{dmin,dsel,n,lab:us?RD_IN[i][1]:String(dsel)}}}}
+
+// ===== 5. grouped data: mean, standard deviation, normal prediction
+const GS_CTX=[{what:"fatigue life L",sym:"L",svg:gI("L"),unit:"kcycles",mu:[80,200,5],h:10,b:"below"},
+  {what:"ultimate tensile strength S<sub>ut</sub>",sym:"S<sub>ut</sub>",svg:gSub("S","ut"),unit:"kpsi",mu:[60,200,2],h:4,b:"exceed"},
+  {what:"0.2 percent offset yield strength S<sub>y</sub>",sym:"S<sub>y</sub>",svg:gSub("S","y"),unit:"kpsi",mu:[40,120,1],h:2,b:"exceed"}];
+function gsGenerate(seed){const r=mulberry32(seed), ctx=pick(r,GS_CTX), h=ctx.h*pick(r,[1,1.5,2]);
+  const mu=rnd(r,...ctx.mu), sg=h*(1.4+r()*1.4), N=pick(r,range(50,200,10)), lo=Math.round((mu-2.6*sg)/h)*h, k=Math.round(5.2*sg/h)+1;
+  const x=[],f=[];for(let i=0;i<k;i++){const xm=lo+i*h;if(xm<=0)continue;
+    const fi=Math.max(0,Math.round(N*(nPhi((xm+h/2-mu)/sg)-nPhi((xm-h/2-mu)/sg))+(r()-0.5)*2.2));x.push(+xm.toFixed(2));f.push(fi)}
+  while(f[0]===0){f.shift();x.shift()}while(f[f.length-1]===0){f.pop();x.pop()}
+  const n=f.reduce((a,b)=>a+b,0), m=x.reduce((a,v,i)=>a+v*f[i],0)/n, s=Math.sqrt((x.reduce((a,v,i)=>a+v*v*f[i],0)-n*m*m)/(n-1));
+  const p={ctx,x,f,h};let ans;
+  if(ctx.b==="below"){p.x0=+(m-pick(r,[0.5,1,1.5])*s).toFixed(0);p.x0=Math.round(p.x0/(h/2))*(h/2);const z=(p.x0-m)/s;ans={z,b:n*nPhi(z)}}
+  else{p.R=pick(r,[90,95,99]);const z=nInv(1-p.R/100);ans={z,b:m+z*s}}
+  return {p,s:{n,m,s,...ans}}}
+
+// ===== 6. stress-strength interference (normal-normal)
+function siGenerate(seed){const r=mulberry32(seed), axial=r()<0.5;
+  if(axial){const p={axial,S:rnd(r,60,120,0.5),sS:0,P:rnd(r,20,100,5),sP:0,nd:pick(r,[1.2,1.3,1.4,1.5,1.6])};
+    p.sS=+(p.S*(0.05+r()*0.05)).toFixed(2);p.sP=+(p.P*(0.05+r()*0.06)).toFixed(1);
+    const CS=p.sS/p.S,CP=p.sP/p.P,z=-(p.nd-1)/Math.sqrt(p.nd**2*CS**2+CP**2);
+    return {p,s:{CS,CP,z,R:1-nPhi(z),d:Math.sqrt(4*p.P*p.nd/(Math.PI*p.S))}}}
+  const p={axial,S:rnd(r,180,420,2),sS:0,T:rnd(r,0.5,3,0.1),sT:0,R:pick(r,[0.95,0.99,0.999])};
+  p.sS=+(p.S*(0.05+r()*0.04)).toFixed(1);p.sT=Math.round(p.T*1000*(0.05+r()*0.06));
+  const CS=p.sS/p.S,CT=p.sT/(p.T*1000),z=nInv(1-p.R),z2=z*z, nd=(1+Math.sqrt(1-(1-z2*CS**2)*(1-z2*CT**2)))/(1-z2*CS**2);
+  return {p,s:{CS,CT,z,nd,d:Math.cbrt(16*p.T*1e6*nd/(Math.PI*p.S))}}}
+
+// ===== 7. tolerance stack: blocks in a groove
+function tsGenerate(seed){const r=mulberry32(seed), nb=pick(r,[2,3,3,4]), lab="ABCD";
+  const blk=[];for(let i=0;i<nb;i++)blk.push({n:lab[i],a:rnd(r,0.5,3,0.125),t:pick(r,[0.001,0.002,0.003,0.004,0.005])});
+  const sa=blk.reduce((s,b)=>s+b.a,0), wn=rnd(r,0.010,0.050,0.005), td=pick(r,[0.005,0.008,0.010,0.012]);
+  const p={blk,D:+(sa+wn).toFixed(3),td,wmin:pick(r,[0.005,0.010,0.015,0.020])};
+  const tw=td+blk.reduce((s,b)=>s+b.t,0), w=p.D-sa;return {p,s:{sa,w,tw,Dreq:p.wmin+tw+sa}}}
+
+// ===== 8. hardness and strength
+function hbGenerate(seed){const r=mulberry32(seed), ci=r()<0.4, us=r()<0.5, base=ci?rnd(r,150,250,1):rnd(r,150,380,1);
+  const v=[];for(let i=0;i<10;i++)v.push(base+Math.round((r()+r()+r()-1.5)*6));v.sort((a,b)=>a-b);
+  const n=v.length, mH=v.reduce((a,b)=>a+b,0)/n, sH=Math.sqrt(v.reduce((a,b)=>a+(b-mH)**2,0)/(n-1));
+  const [k,c]=ci?(us?[0.23,-12.5]:[1.58,-86]):(us?[0.5,0]:[3.4,0]);
+  return {p:{ci,us,v},s:{mH,sH,k,c,m:k*mH+c,s:k*sH}}}
+function hbList(v){const o=[];v.forEach(x=>{const l=o[o.length-1];if(l&&l[0]===x)l[1]++;else o.push([x,1])});return o.map(([x,c])=>c>1?`${x}(${c})`:x).join(", ")}
+
+// ===== 9. material selection for an axially loaded rod
+const MS_MAT=[["1020 HR",30,30,0.282,0.27],["1020 CD",57,30,0.282,0.30],["1040 Q&T 800°F",80,30,0.282,0.35],
+  ["4140 Q&T 800°F",165,30,0.282,0.80],["Aluminum 2024-T3",50,10.4,0.098,1.10],["Titanium Ti-6Al-4V",120,16.5,0.160,7.00]];
+function msSolve(p){const res=p.m.map(m=>{const A=p.F*1000*p.nd/(m[1]*1000), W=A*p.l*12*m[3];
+    return {name:m[0],A,d:Math.sqrt(4*A/Math.PI),W,C:W*m[5],dl:p.F*1000*p.l*12/(A*m[2]*1e6)}});
+  const best=k=>res.reduce((a,b)=>b[k]<a[k]?b:a);
+  return {res,bd:best("d"),bW:best("W"),bC:best("C"),bdl:best("dl")}}
+function msGenerate(seed){const r=mulberry32(seed);
+  for(;;){const idx=[0,1,2,3,4,5];for(let i=5;i>0;i--){const j=Math.floor(r()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]]}
+    const m=idx.slice(0,4).sort((a,b)=>a-b).map(i=>{const q=MS_MAT[i].slice();q.push(+(q[4]*(0.8+r()*0.45)).toFixed(2));return q});
+    const p={m,F:rnd(r,20,150,5),l:rnd(r,2,10,0.5),nd:pick(r,[1,1.5,2])}, s=msSolve(p);
+    const sep=k=>{const v=s.res.map(x=>x[k]).sort((a,b)=>a-b);return v[1]/v[0]>1.04};
+    if(sep("d")&&sep("W")&&sep("C")&&sep("dl"))return {p,s}}}
+
+// ----- figures
+function rdFigure(p){const tor=p.tor;let g=`<rect x="120" y="80" width="300" height="50" ${G_PART}/><ellipse cx="420" cy="105" rx="10" ry="25" fill="#eec878" stroke="#7d5014" stroke-width="1.8"/>`+gL(90,105,460,105,G_CL);
+  const arc=(cx,dir)=>tor?`<path d="M ${cx} 65 A 14 42 0 1 ${dir>0?1:0} ${cx} 145" fill="none" ${G_AR}/>`:`<path d="M ${cx+dir*22} 60 A 40 40 0 0 ${dir>0?0:1} ${cx+dir*22} 150" fill="none" ${G_AR}/>`;
+  g+=arc(100,-1)+arc(440,1);const L=tor?"T":"M";
+  g+=gT(70,60,gI(L),`text-anchor="middle"`)+gT(470,60,gI(L),`text-anchor="middle"`)+gL(270,140,270,170,G_EXT)+gT(270,188,`diameter ${gI("d")}`,`text-anchor="middle" font-size="16"`);
+  return gSvg("20 30 500 170",g,230)}
+function gsFigure(p){const W=520,H=210,X0=60,Y0=240, fm=Math.max(...p.f), bw=W/p.x.length, Y=f=>Y0-H*f/fm;
+  let g=gL(X0,Y0,X0+W+10,Y0,`stroke="#222" stroke-width="1.2"`)+gL(X0,Y0,X0,Y0-H-15,`stroke="#222" stroke-width="1.2"`);
+  p.f.forEach((f,i)=>{const x=X0+i*bw;g+=`<rect x="${gF(x+1)}" y="${gF(Y(f))}" width="${gF(bw-2)}" height="${gF(Y0-Y(f))}" fill="#cde1cd" stroke="#1e5a32" stroke-width="1.2"/>`+
+    gT(x+bw/2,Y0+18,fmt(p.x[i],p.h%1?1:0),`text-anchor="middle" font-size="12"`)+(f?gT(x+bw/2,Y(f)-5,f,`text-anchor="middle" font-size="12"`):"")});
+  g+=gT(X0+W/2,Y0+40,`${p.ctx.svg}, class midpoint (${p.ctx.unit})`,`text-anchor="middle" font-size="15"`)+gT(X0-14,Y0-H/2,gI("f"),`text-anchor="middle" font-size="15"`);
+  return gSvg("20 0 600 290",g,300)}
+function siFigure(){const X0=40,Y0=200,pdf=(x,m,s)=>Math.exp(-(((x-m)/s)**2)/2);
+  const curve=(m,s,a)=>{let d="";for(let x=X0;x<=X0+520;x+=4)d+=`${d?"L":"M"}${x},${gF(Y0-150*a*pdf(x,m,s))} `;return d};
+  let g=gL(X0,Y0,X0+530,Y0,`stroke="#222" stroke-width="1.2" marker-end="url(#g-ax)"`);
+  let sh="";for(let x=250;x<=340;x+=3){const y=Math.min(pdf(x,200,45),0.85*pdf(x,370,55));sh+=`${sh?"L":"M"}${x},${gF(Y0-150*y)} `}
+  g+=`<path d="${sh}L340,${Y0} L250,${Y0} Z" fill="#aa1e28" fill-opacity="0.25"/>`;
+  g+=`<path d="${curve(200,45,1)}" fill="none" stroke="#28405a" stroke-width="2.2"/><path d="${curve(370,55,0.85)}" fill="none" stroke="#7d5014" stroke-width="2.2"/>`;
+  g+=gL(200,Y0,200,Y0-150,`stroke="#28405a" stroke-dasharray="4 3"`)+gL(370,Y0,370,Y0-127,`stroke="#7d5014" stroke-dasharray="4 3"`);
+  g+=gT(200,Y0+20,`${gI("μ")}<tspan baseline-shift="sub" font-size="12">σ</tspan>`,`text-anchor="middle" font-size="16"`)+gT(370,Y0+20,`${gI("μ")}<tspan baseline-shift="sub" font-size="12">S</tspan>`,`text-anchor="middle" font-size="16"`);
+  g+=gT(130,60,"Stress",`fill="#28405a" font-size="16"`)+gT(420,80,"Strength",`fill="#7d5014" font-size="16"`)+gT(300,Y0+20,"overlap",`text-anchor="middle" font-size="13" fill="#aa1e28"`);
+  return gSvg("20 30 570 200",g,240)}
+function tsFigure(p){const sa=p.blk.reduce((s,b)=>s+b.a,0), sc=440/(sa+0.35), X0=70, Yb=170, H=60;
+  let g=`<path d="M 40 ${Yb-H-30} L ${X0} ${Yb-H-30} L ${X0} ${Yb} L ${X0+sc*(sa+0.35)} ${Yb} L ${X0+sc*(sa+0.35)} ${Yb-H-30} L ${X0+sc*(sa+0.35)+30} ${Yb-H-30} L ${X0+sc*(sa+0.35)+30} ${Yb+30} L 40 ${Yb+30} Z" fill="url(#g-hatch)" stroke="#28405a" stroke-width="1.6"/>`;
+  let x=X0+sc*0.35;g+=gT(X0+sc*0.175,Yb-H/2+5,gI("w"),`text-anchor="middle" font-size="16"`);
+  p.blk.forEach(b=>{g+=`<rect x="${gF(x)}" y="${Yb-H}" width="${gF(b.a*sc)}" height="${H}" ${G_PART}/>`+gT(x+b.a*sc/2,Yb-H/2+6,b.n,`text-anchor="middle"`);x+=b.a*sc});
+  const xr=X0+sc*(sa+0.35);g+=gL(X0,Yb-H-55,xr,Yb-H-55,G_DIM)+gL(X0,Yb-H-30,X0,Yb-H-62,G_EXT)+gL(xr,Yb-H-30,xr,Yb-H-62,G_EXT)+gT((X0+xr)/2,Yb-H-62,gI("D"),`text-anchor="middle"`)+gT((X0+xr)/2,Yb+52,"Groove block",`text-anchor="middle" font-size="15"`);
+  return gSvg("20 30 560 200",g,240)}
+function msFigure(p){let g=`<rect x="120" y="90" width="320" height="30" ${G_PART}/>`+gL(90,105,500,105,G_CL)+`<rect x="90" y="60" width="30" height="90" fill="url(#g-hatch)" stroke="#28405a" stroke-width="1.4"/>`;
+  g+=gL(442,105,510,105,G_AR)+gT(520,111,gI("F"))+gL(120,160,440,160,G_DIM)+gL(120,124,120,168,G_EXT)+gL(440,124,440,168,G_EXT)+gT(280,154,`${gI("l")} = ${fmt(p.l,1)} ft`,`text-anchor="middle" font-size="16" class="halo"`);
+  return gSvg("60 45 500 135",g,200)}
+
+// ===== template registry: each entry has the same interface
+const TEMPLATES={
+  "units":{ name:"Unit conversions (SI and ips)",
+    generate:ucGenerate, figure:()=>"",
+    statement:p=>`<p>Convert the following to ${p.si?"ips":"SI"} units, in the units named in each answer box.</p><ol type="a">${p.items.map(it=>`<li>${it.q[0]}, ${gI(it.q[1])} = ${fmt(it.v,it.v<0.1?3:it.v<10?2:0)} ${it.q[3]}</li>`).join("")}</ol>`,
+    get fields(){return cur?cur.p.items.map((it,i)=>({id:"q"+i,label:`(${"abcd"[i]}) ${gI(it.q[1])}`,unit:it.q[4]})):[]},
+    truth:s=>Object.fromEntries(s.ans.map((v,i)=>["q"+i,v])),
+    solution:(p,s)=>`<h3>Conversion factors</h3><table><tr><th>Quantity</th><th>Given</th><th>Result</th></tr>${p.items.map((it,i)=>`<tr><td>${it.q[0]}</td><td>${fmt(it.v,it.v<0.1?3:it.v<10?2:0)} ${it.q[3]}</td><td>${fmt(s.ans[i],s.ans[i]<1?4:s.ans[i]<100?3:1)} ${it.q[4]}</td></tr>`).join("")}</table>
+      <p>Exact factors used: 1 in = 25.4 mm, 1 lbf = 4.448 222 N, 1 psi = 6894.757 Pa, 1 mi = 1.609 344 km.</p>`,
+    note:"" },
+  "breakeven":{ name:"Breakeven point between two manufacturing methods",
+    generate:beGenerate, figure:()=>"",
+    statement:p=>`<p>The costs to manufacture a part by methods A and B are estimated by <span class="eq">C<sub>A</sub> = ${p.a} + ${p.b1}P</span> and <span class="eq">C<sub>B</sub> = ${p.c} + ${p.b2}P − ${p.e}P²</span>, where the cost C is in dollars and P is the number of parts. Estimate the breakeven point and the cost at that point.</p>`,
+    fields:[{id:"P",label:"Breakeven quantity P",unit:"parts"},{id:"C",label:"Cost at breakeven",unit:"$"}],
+    truth:s=>({P:s.P,C:s.C}),
+    solution:(p,s)=>`<h3>Breakeven</h3><p>Set C<sub>A</sub> = C<sub>B</sub>: <span class="eq">${p.e}P²${p.dl?` + ${fmt(p.dl,1)}P`:""} − ${p.c-p.a} = 0</span>.</p>
+      <p>The positive root is <span class="eq">P = ${fmt(s.P,1)}</span> parts, so about ${fmt(Math.ceil(s.P))} parts, and <span class="eq">C = ${p.a} + ${p.b1}(${fmt(s.P,1)}) = $${fmt(s.C,2)}</span>. Beyond this quantity method B is cheaper.</p>`,
+    note:"Report P before rounding to a whole part." },
+  "design-factor":{ name:"Minimum design factor from uncertainties",
+    generate:dfGenerate, figure:()=>"",
+    statement:p=>`<p>A solid round part of diameter d is loaded by ${DF_LOAD[p.ld][0]}, which causes a stress <span class="eq">${DF_LOAD[p.ld][1]}</span>. The load is known within ±${p.uP} percent, the diameter within ±${p.ud} percent, and the strength within ±${p.uS} percent. Determine the minimum design factor that guarantees the part will not fail.</p>`,
+    fields:[{id:"nd",label:"Minimum design factor n<sub>d</sub>",unit:""}], truth:s=>({nd:s.nd}),
+    solution:(p,s)=>`<h3>Worst case</h3><p>The largest stress occurs with the largest load and the smallest diameter, and the smallest strength must still exceed it. Since the stress varies as 1/d<sup>${s.k}</sup>,</p>
+      <p><span class="eq">n<sub>d</sub> = (1 + ${p.uP/100}) / [(1 − ${p.uS/100})(1 − ${p.ud/100})<sup>${s.k}</sup>] = ${fmt(s.nd,3)}</span></p>`,
+    note:"" },
+  "rod-diameter":{ name:"Minimum diameter, preferred size, factor of safety",
+    generate:rdGenerate, figure:rdFigure,
+    statement:p=>{const u=p.us?"lbf·in":"N·m",su=p.us?"kpsi":"MPa";return `<p>A solid circular rod of diameter d is subjected to ${p.tor?`a torque T = ${fmt(p.M)} ${u}, inducing a shear stress <span class="eq">τ = 16T/(πd³)</span>. The material has a shear strength of ${p.S} ${su}`:`a bending moment M = ${fmt(p.M)} ${u}, inducing a stress <span class="eq">σ = 32M/(πd³)</span>. The material has a strength of ${p.S} ${su}`}. Using a design factor of ${p.nd}, determine the minimum diameter of the rod. Select the next larger preferred size and determine the resulting factor of safety.</p>
+      <p>Preferred sizes (${p.us?"in":"mm"}): ${p.us?RD_IN.map(x=>x[1]).join(", "):RD_MM.join(", ")}.</p>`},
+    get fields(){const u=cur&&cur.p.us?"in":"mm";return [{id:"dmin",label:"Minimum diameter",unit:u},{id:"dsel",label:"Preferred diameter",unit:u},{id:"n",label:"Factor of safety",unit:""}]},
+    truth:s=>({dmin:s.dmin,dsel:s.dsel,n:s.n}),
+    solution:(p,s)=>{const u=p.us?"in":"mm",L=p.tor?"T":"M",k=p.tor?16:32;return `<h3>1. Minimum diameter</h3><p>The allowable stress is S/n<sub>d</sub> = ${fmt(p.S/p.nd,2)} ${p.us?"kpsi":"MPa"}.</p>
+      <p><span class="eq">d = [${k}${L}n<sub>d</sub>/(πS)]<sup>1/3</sup> = ${fmt(s.dmin,p.us?4:2)} ${u}</span></p>
+      <h3>2. Preferred size and factor of safety</h3><p>The next larger preferred size is <b>${s.lab} ${u}</b>.</p><p><span class="eq">n = πSd³/(${k}${L}) = ${fmt(s.n,2)}</span></p>`},
+    note:"Enter the preferred diameter as a decimal number." },
+  "grouped-stats":{ name:"Grouped test data: mean, standard deviation, normal prediction",
+    generate:gsGenerate, figure:gsFigure,
+    statement:(p,s)=>{const c=p.ctx;return `<p>A series of tests on ${s.n} specimens gave the following ${c.what}, where ${c.sym} is the class midpoint in ${c.unit} and f is the class frequency.</p>
+      <div style="overflow-x:auto"><table><tr><td>${c.sym}</td>${p.x.map(v=>`<td>${fmt(v,p.h%1?1:0)}</td>`).join("")}</tr><tr><td>f</td>${p.f.map(v=>`<td>${v}</td>`).join("")}</tr></table></div>
+      <p>(a) Estimate the mean and standard deviation of the population. (b) Presuming the distribution is normal, ${c.b==="below"?`how many of the ${s.n} specimens are predicted to fail at less than ${fmt(p.x0,1)} ${c.unit}?`:`what value of ${c.sym} is exceeded by ${p.R} percent of the population?`}</p>`},
+    get fields(){const c=cur&&cur.p.ctx;return [{id:"m",label:"(a) Mean",unit:c?c.unit:""},{id:"s",label:"(a) Standard deviation",unit:c?c.unit:""},
+      {id:"b",label:c&&c.b==="below"?"(b) Number predicted":"(b) Value exceeded",unit:c&&c.b==="below"?"specimens":c?c.unit:""}]},
+    truth:s=>({m:s.m,s:s.s,b:s.b}),
+    solution:(p,s)=>{const c=p.ctx;return `<h3>(a) Sample statistics</h3><p><span class="eq">x̄ = Σfx/N = ${fmt(s.m,2)} ${c.unit}</span>, <span class="eq">s = √[(Σfx² − Nx̄²)/(N − 1)] = ${fmt(s.s,2)} ${c.unit}</span>, with N = ${s.n}.</p>
+      <h3>(b) Normal prediction</h3>${c.b==="below"?`<p><span class="eq">z = (${fmt(p.x0,1)} − ${fmt(s.m,2)})/${fmt(s.s,2)} = ${fmt(s.z,3)}</span>, Φ(z) = ${fmt(nPhi(s.z),4)}.</p><p>Number predicted: ${s.n}(${fmt(nPhi(s.z),4)}) = <b>${fmt(s.b,1)}</b> specimens.</p>`
+        :`<p>The value exceeded by ${p.R} percent has Φ(z) = ${fmt(1-p.R/100,2)}, so z = ${fmt(s.z,3)}.</p><p><span class="eq">x = x̄ + zs = ${fmt(s.m,2)} + (${fmt(s.z,3)})(${fmt(s.s,2)}) = ${fmt(s.b,2)} ${c.unit}</span></p>`}`},
+    note:"Use the sample standard deviation (divide by N − 1)." },
+  "interference":{ name:"Stress-strength interference: reliability and design factor",
+    generate:siGenerate, figure:siFigure,
+    statement:p=>p.axial?`<p>A round cold-drawn steel rod has a mean yield strength <span class="eq">S<sub>y</sub> = ${p.S} kpsi</span> with a standard deviation of ${p.sS} kpsi. The rod carries a mean static axial load <span class="eq">P = ${p.P} kip</span> with a standard deviation of ${p.sP} kip. Assuming the strength and load have normal distributions, determine the reliability against yielding for a design factor of ${p.nd}, and the corresponding rod diameter.</p>`
+      :`<p>A round cold-drawn steel rod carries a mean torque <span class="eq">T = ${fmt(p.T,1)} kN·m</span> with a standard deviation of ${p.sT} N·m. The material has a mean shear yield strength <span class="eq">S<sub>sy</sub> = ${p.S} MPa</span> with a standard deviation of ${p.sS} MPa. The maximum shear stress is <span class="eq">τ = 16T/(πd³)</span>. Assuming the strength and load have normal distributions, determine the design factor that corresponds to a reliability of ${p.R} against yielding, and the corresponding diameter.</p>`,
+    get fields(){return cur&&cur.p.axial?[{id:"z",label:"z",unit:"",signed:true},{id:"R",label:"Reliability R",unit:"",tolAbs:0.001},{id:"d",label:"Diameter d",unit:"in"}]:[{id:"nd",label:"Design factor n<sub>d</sub>",unit:""},{id:"d",label:"Diameter d",unit:"mm"}]},
+    truth:s=>s.R!==undefined?{z:s.z,R:s.R,d:s.d}:{nd:s.nd,d:s.d},
+    solution:(p,s)=>p.axial?`<h3>1. Coefficients of variation</h3><p><span class="eq">C<sub>S</sub> = ${p.sS}/${p.S} = ${fmt(s.CS,4)}</span>, <span class="eq">C<sub>σ</sub> = C<sub>P</sub> = ${p.sP}/${p.P} = ${fmt(s.CP,4)}</span>. The stress is proportional to the load, so it has the same coefficient of variation.</p>
+      <h3>2. Reliability</h3><p><span class="eq">z = −(n<sub>d</sub> − 1)/√(n<sub>d</sub>²C<sub>S</sub>² + C<sub>σ</sub>²) = ${fmt(s.z,3)}</span>, so <span class="eq">R = 1 − Φ(z) = ${fmt(s.R,4)}</span>.</p>
+      <h3>3. Diameter</h3><p>The mean stress is S<sub>y</sub>/n<sub>d</sub>, so <span class="eq">d = √[4Pn<sub>d</sub>/(πS<sub>y</sub>)] = ${fmt(s.d,3)} in</span>.</p>`
+      :`<h3>1. Coefficients of variation</h3><p><span class="eq">C<sub>S</sub> = ${p.sS}/${p.S} = ${fmt(s.CS,4)}</span>, <span class="eq">C<sub>τ</sub> = C<sub>T</sub> = ${p.sT}/${fmt(p.T*1000)} = ${fmt(s.CT,4)}</span>.</p>
+      <h3>2. Design factor</h3><p>For R = ${p.R}, z = ${fmt(s.z,3)}. Then</p><p><span class="eq">n<sub>d</sub> = [1 + √(1 − (1 − z²C<sub>S</sub>²)(1 − z²C<sub>τ</sub>²))]/(1 − z²C<sub>S</sub>²) = ${fmt(s.nd,3)}</span></p>
+      <h3>3. Diameter</h3><p><span class="eq">d = [16Tn<sub>d</sub>/(πS<sub>sy</sub>)]<sup>1/3</sup> = ${fmt(s.d,1)} mm</span></p>`,
+    note:"Reliability is accepted within ±0.001." },
+  "tolerance-stack":{ name:"Tolerance stack: gap between blocks in a groove",
+    generate:tsGenerate, figure:tsFigure,
+    statement:p=>`<p>Blocks ${p.blk.map(b=>b.n).join(", ")} sit in a groove of width D, leaving a gap w, as shown. The dimensions are</p>
+      <p>${p.blk.map(b=>`<span class="eq">${b.n.toLowerCase()} = ${f3(b.a)} ± ${f3(b.t)} in</span>`).join(" ")} <span class="eq">D = ${f3(p.D)} ± ${f3(p.td)} in</span></p>
+      <p>(a) Determine the mean gap w̄ and its bilateral tolerance t<sub>w</sub>. (b) Determine the mean groove width D̄ that ensures w ≥ ${f3(p.wmin)} in, keeping the same tolerances.</p>`,
+    fields:[{id:"w",label:"(a) Mean gap w̄",unit:"in"},{id:"tw",label:"(a) Tolerance t<sub>w</sub>",unit:"in"},{id:"D",label:"(b) Mean groove width D̄",unit:"in"}],
+    truth:s=>({w:s.w,tw:s.tw,D:s.Dreq}),
+    solution:(p,s)=>`<h3>(a) Gap</h3><p><span class="eq">w̄ = D̄ − Σā = ${f3(p.D)} − ${f3(s.sa)} = ${f3(s.w)} in</span></p>
+      <p>For a worst-case stack the tolerances add: <span class="eq">t<sub>w</sub> = t<sub>D</sub> + Σt = ${f3(s.tw)} in</span>, so w = ${f3(s.w)} ± ${f3(s.tw)} in and w<sub>min</sub> = ${f3(s.w-s.tw)} in.</p>
+      <h3>(b) Required groove width</h3><p>Require <span class="eq">w̄ − t<sub>w</sub> = ${f3(p.wmin)}</span>, so w̄ = ${f3(p.wmin+s.tw)} in and <span class="eq">D̄ = ${f3(p.wmin+s.tw)} + ${f3(s.sa)} = ${f3(s.Dreq)} in</span>.</p>`,
+    note:"Worst-case (absolute) tolerancing." },
+  "hardness":{ name:"Strength from Brinell hardness: sample mean and standard deviation",
+    generate:hbGenerate, figure:()=>"",
+    statement:p=>`<p>Brinell hardness tests on a random sample of ${p.v.length} ${p.ci?"gray cast iron":"steel"} parts gave HB values of ${hbList(p.v)}, where a number in parentheses is the count of that value. Estimate the mean and standard deviation of the ultimate strength in ${p.us?"kpsi":"MPa"}.</p>`,
+    get fields(){const u=cur&&cur.p.us?"kpsi":"MPa";return [{id:"m",label:"Mean S<sub>ut</sub>",unit:u},{id:"s",label:"Standard deviation of S<sub>ut</sub>",unit:u}]},
+    truth:s=>({m:s.m,s:s.s}),
+    solution:(p,s)=>{const u=p.us?"kpsi":"MPa";return `<h3>1. Hardness statistics</h3><p><span class="eq">H̄<sub>B</sub> = ${fmt(s.mH,2)}</span>, <span class="eq">s<sub>HB</sub> = ${fmt(s.sH,3)}</span> (sample standard deviation).</p>
+      <h3>2. Strength</h3><p>For ${p.ci?"cast iron":"steel"}, <span class="eq">S<sub>ut</sub> = ${s.k}H<sub>B</sub>${s.c?` − ${-s.c}`:""} ${u}</span>. The relation is linear, so</p>
+      <p><span class="eq">S̄<sub>ut</sub> = ${s.k}(${fmt(s.mH,2)})${s.c?` − ${-s.c}`:""} = ${fmt(s.m,1)} ${u}</span>, <span class="eq">s<sub>Sut</sub> = ${s.k}(${fmt(s.sH,3)}) = ${fmt(s.s,2)} ${u}</span></p>`},
+    note:"" },
+  "material-selection":{ name:"Material selection for an axially loaded rod",
+    generate:msGenerate, figure:msFigure,
+    statement:p=>`<p>A round rod ${fmt(p.l,1)} ft long must support an axial tensile load of ${p.F} kip without yielding${p.nd>1?`, with a design factor of ${p.nd}`:""}. The candidate materials are listed below, with costs per pound of round stock. Select a material for each design goal: (a) minimum diameter, (b) minimum weight, (c) minimum cost, (d) minimum axial deflection. Each rod is sized to the smallest diameter that meets the strength requirement.</p>
+      <table><tr><th>Material</th><th>S<sub>y</sub> (kpsi)</th><th>E (Mpsi)</th><th>w (lbf/in³)</th><th>Cost ($/lbf)</th></tr>${p.m.map(m=>`<tr><td>${m[0]}</td><td>${m[1]}</td><td>${m[2]}</td><td>${m[3]}</td><td>${fmt(m[5],2)}</td></tr>`).join("")}</table>`,
+    get fields(){const ch=cur?cur.p.m.map(m=>m[0]):[];return [{id:"cd",label:"(a) Minimum diameter",choices:ch},{id:"cW",label:"(b) Minimum weight",choices:ch},{id:"cC",label:"(c) Minimum cost",choices:ch},{id:"cdl",label:"(d) Minimum deflection",choices:ch},
+      {id:"d",label:"Diameter for (a)",unit:"in"},{id:"W",label:"Weight for (b)",unit:"lbf"}]},
+    truth:s=>({cd:s.bd.name,cW:s.bW.name,cC:s.bC.name,cdl:s.bdl.name,d:s.bd.d,W:s.bW.W}),
+    solution:(p,s)=>`<h3>Sizing each rod</h3><p>Area <span class="eq">A = Fn<sub>d</sub>/S<sub>y</sub></span>, weight <span class="eq">W = Alw</span>, cost = W × (cost per lbf), deflection <span class="eq">δ = Fl/(AE) = S<sub>y</sub>l/(n<sub>d</sub>E)</span>.</p>
+      <table><tr><th>Material</th><th>d (in)</th><th>W (lbf)</th><th>Cost ($)</th><th>δ (in)</th></tr>${s.res.map(x=>`<tr><td>${x.name}</td><td>${fmt(x.d,3)}</td><td>${fmt(x.W,2)}</td><td>${fmt(x.C,2)}</td><td>${fmt(x.dl,4)}</td></tr>`).join("")}</table>
+      <p>(a) ${s.bd.name}: highest S<sub>y</sub>. (b) ${s.bW.name}: highest S<sub>y</sub>/w. (c) ${s.bC.name}: lowest (cost × w)/S<sub>y</sub>. (d) ${s.bdl.name}: lowest S<sub>y</sub>/E, because a weaker material needs a larger area at the same load.</p>`,
+    note:"" }
+};
+// ===== page
+let curKey="units", cur=null;
+const $=id=>document.getElementById(id);
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key];
+  cur=T.generate(seed); const {p,s}=cur;
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
+  const fh=T.figure(p,s); $("fig").innerHTML=fh; $("fig").parentElement.style.display=fh?"":"none";
+  $("statement").innerHTML=T.statement(p,s);
+  const fields=T.fields.filter(f=>!(f.skip&&f.skip(p)));
+  $("answers").innerHTML=fields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :f.expr?`<input id="in-${f.id}" type="text" class="expr" spellcheck="false" autocomplete="off">`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent=(T.symbolic?"Answers are checked for algebraic equivalence. ":"Answers within 2% are accepted. ")+T.note;
+  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
+  $("solBtn").textContent="Show solution";
+}
+
+function check(){
+  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const scale=Math.max(...Object.values(truth).filter(v=>typeof v==="number").map(Math.abs));
+  T.fields.filter(f=>!(f.skip&&f.skip(cur.p))).forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    if(f.expr){const r=exprEquivalent(raw,f);el.textContent=r.ok?"Correct":r.msg?"Cannot read: "+r.msg:"Not yet";el.className="mark "+(r.ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scale:0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+const newSeed=()=>1+Math.floor(Math.random()*999999);
+$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
+$("typeSel").onchange=e=>render(e.target.value,newSeed());
+$("newBtn").onclick=()=>render(curKey,newSeed());
+$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+$("checkBtn").onclick=check;
+$("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+(function(){
+  const m=/^#([a-z-]+)-(\d+)$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
+  else render(Object.keys(TEMPLATES)[0],newSeed());
+})();
+
+</script>
+</body>
+</html>

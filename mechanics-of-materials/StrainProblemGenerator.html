@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strain Problem Generator</title>
+<style>
+  :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#ffffff;--accent:#1e5a32;--ok:#1e7a3c;--bad:#b3261e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  .sub a{color:var(--accent)}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .answers input{width:8em}
+  .mark{font-weight:600;min-width:7em}.mark.ok{color:var(--ok)}.mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mechanics of Materials: Strain Problem Generator</h1>
+  <div class="sub">Axial deformation, generalized Hooke's law, statically indeterminate members, and thermal stress. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem. <a href="index.html">All chapters</a></div>
+</header>
+<main>
+  <div class="card bar"><label for="typeSel">Problem type</label><select id="typeSel"></select></div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+// ===== common helpers: seeded random numbers, number formatting, SVG drawing
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+function fmt(v,d=0){return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+function sig(v,n=3){if(v===0)return "0";const e=Math.floor(Math.log10(Math.abs(v)));return fmt(+v.toPrecision(n),Math.min(20,Math.max(0,n-1-e)))}
+const FR={0.25:"¼",0.375:"⅜",0.5:"½",0.625:"⅝",0.75:"¾",0.875:"⅞",1:"1",1.25:"1¼",1.5:"1½"};
+const dstr=v=>FR[v]||String(v);
+const C={fill:"#f7e2c4",ln:"#78461a",load:"#aa1e28",dim:"#5b6470",ink:"#1f2328",green:"#1e5a32",light:"#cde1cd",steel:"#dfe4ea",steelln:"#46505c"};
+const TX=(x,y,s,o={})=>`<text x="${x}" y="${y}" text-anchor="${o.a||"middle"}" font-size="${o.s||14}" fill="${o.c||C.ink}" font-family="Georgia,serif"${o.i?' font-style="italic"':""}>${s}</text>`;
+const LN=(x1,y1,x2,y2,o={})=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"${o.d?` stroke-dasharray="${o.d}"`:""}${o.cap?' stroke-linecap="round"':""}/>`;
+function AR(x1,y1,x2,y2,c=C.load,w=2.2){const a=Math.atan2(y2-y1,x2-x1),h=11,s=0.4;
+  const p=(da)=>`${(x2-h*Math.cos(a+da)).toFixed(1)},${(y2-h*Math.sin(a+da)).toFixed(1)}`;
+  return LN(x1,y1,x2-6*Math.cos(a),y2-6*Math.sin(a),{c,w})+`<polygon points="${x2.toFixed(1)},${y2.toFixed(1)} ${p(s)} ${p(-s)}" fill="${c}"/>`}
+const RC=(x,y,w,h,o={})=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${o.f||C.fill}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"/>`;
+const CI=(x,y,r,o={})=>`<circle cx="${x}" cy="${y}" r="${r}" fill="${o.f||"#fff"}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"/>`;
+function DIMH(x1,x2,y,label,o={}){const up=o.up?-6:16;
+  return LN(x1,y,x2,y,{c:C.dim,w:1})+LN(x1,y-5,x1,y+5,{c:C.dim,w:1})+LN(x2,y-5,x2,y+5,{c:C.dim,w:1})+TX((x1+x2)/2,y+up,label,{s:13,c:C.dim})}
+function DIMV(x,y1,y2,label,o={}){const dx=o.left?-8:8;
+  return LN(x,y1,x,y2,{c:C.dim,w:1})+LN(x-5,y1,x+5,y1,{c:C.dim,w:1})+LN(x-5,y2,x+5,y2,{c:C.dim,w:1})+TX(x+dx,(y1+y2)/2+4,label,{s:13,c:C.dim,a:o.left?"end":"start"})}
+function HATCH(x,y,w,h){let s=RC(x,y,w,h,{f:"#eceae4",c:C.ln,w:1});
+  for(let i=-h;i<w;i+=8){const xa=Math.max(x,x+i),ya=y+(xa-(x+i)),xb=Math.min(x+w,x+i+h),yb=y+(xb-(x+i));s+=LN(xa,ya,xb,yb,{c:"#9a8f80",w:.8})}return s}
+const SVG=(w,h,b)=>`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" role="img">${b}</svg>`;
+const sub=(a,b)=>`${a}<sub>${b}</sub>`;
+const iv=s=>`<i>${s}</i>`;
+
+// ===== 1. stepped bar: axial force diagram and normal stress in each segment
+const NODES="ABCDEFGHIJKLMNOP";
+function sbGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,n=pick(r,[3,3,4]),A=[],Ls=[],F=[];
+    for(let i=0;i<n;i++){
+      A.push(pick(r,us?[0.8,1.0,1.2,1.5,1.6,1.8,2.0,2.5]:[300,400,500,600,800,1000,1200]));
+      Ls.push(pick(r,us?[1.0,1.2,1.5,1.6,1.8,2.0]:[0.8,1.0,1.2,1.5,2.0]));
+      F.push(pick(r,us?range(1000,9000,500):range(5000,40000,1000))*pick(r,[1,-1]));
+    }
+    F.push(-F.reduce((a,b)=>a+b,0));                       // the bar is in equilibrium
+    const lo=us?1000:5000;
+    if(Math.abs(F[n])<lo||Math.max(...F.map(Math.abs))>(us?16000:70000)) continue;
+    const N=[];let c=0;for(let i=0;i<n;i++){c+=F[i];N.push(-c)}
+    if(N.some(v=>Math.abs(v)<lo/2)||!(N.some(v=>v>0)&&N.some(v=>v<0))) continue;
+    const sg=N.map((v,i)=>v/A[i]),m=sg.map(Math.abs),mx=Math.max(...m),imax=m.indexOf(mx);
+    if(m.some((v,i)=>i!==imax&&v>0.9*mx)) continue;
+    return {p:{us,n,A,Ls,F},s:{N,sg,imax,smax:mx}};
+  }
+  throw new Error("no valid problem");
+}
+const sbSeg=i=>NODES[i]+NODES[i+1];
+function sbFmtF(p,v){return p.us?`${fmt(Math.abs(v))} lb`:`${fmt(Math.abs(v)/1000)} kN`}
+function sbFigure(p){
+  const x0=90,W=580,tot=p.Ls.reduce((a,b)=>a+b,0),maxA=Math.max(...p.A),yc=165;let x=x0,b="";
+  const xs=[x0];p.Ls.forEach(l=>{x+=W*l/tot;xs.push(x)});
+  p.A.forEach((a,i)=>{const h=36+54*Math.sqrt(a/maxA);
+    b+=RC(xs[i],yc-h/2,xs[i+1]-xs[i],h)+TX((xs[i]+xs[i+1])/2,yc+5,`${fmt(a,p.us?1:0)} ${p.us?"in.²":"mm²"}`,{s:13})
+      +DIMH(xs[i],xs[i+1],262,`${fmt(p.Ls[i],1)} ${p.us?"ft":"m"}`)});
+  p.F.forEach((f,i)=>{const X=xs[i],d=f>0?1:-1;
+    b+=LN(X,84,X,yc-50,{c:C.dim,w:1,d:"3 3"})+AR(X,84,X+d*58,84)+TX(X+d*29,72,sbFmtF(p,f),{s:13,c:C.load})
+      +TX(X,yc+75,NODES[i],{s:15,i:1})});
+  return SVG(760,290,b);
+}
+function sbStatement(p){
+  const F=p.F.map((f,i)=>`${iv(NODES[i])}: ${sbFmtF(p,f)} to the ${f>0?"right":"left"}`).join("; ");
+  return `<p>The stepped bar ${NODES[0]}${NODES[p.n]} below consists of ${p.n} cylindrical segments with different cross-sectional areas and lengths, as shown. The bar is in equilibrium under the axial loads ${F}.</p>
+  <p>Find the normal stress in each segment (tension positive, compression negative), and identify the segment with the largest stress magnitude.</p>`;
+}
+function sbSolution(p,s){
+  const u=p.us?"lb":"N",su=p.us?"psi":"MPa";let h="<h3>1. Axial force in each segment</h3><p>Cut the bar inside a segment and write ΣF<sub>x</sub> = 0 for the part to the left of the cut. With tension positive, the axial force equals minus the sum of the external loads (positive to the right) to the left of the cut.</p><table><tr><th>Segment</th><th>N ("+u+")</th><th>A ("+(p.us?"in.²":"mm²")+")</th><th>σ = N/A ("+su+")</th></tr>";
+  s.N.forEach((n,i)=>{h+=`<tr><td>${sbSeg(i)}</td><td>${fmt(n)} (${n>0?"T":"C"})</td><td>${fmt(p.A[i],p.us?1:0)}</td><td>${sig(s.sg[i])} (${n>0?"T":"C"})</td></tr>`});
+  h+=`</table><p class="note">The segment lengths and the material do not enter the stress calculation.</p><h3>2. Largest stress</h3><p class="final">Segment ${sbSeg(s.imax)}, with |σ| = ${sig(s.smax)} ${su}.</p>`;
+  return h;
+}
+const SB={name:"Stepped bar: axial force and normal stress in each segment",
+  generate:sbGenerate,figure:sbFigure,statement:sbStatement,solution:sbSolution,
+  fields:(p,s)=>[...p.A.map((_,i)=>({id:"s"+i,label:`Stress in segment ${sbSeg(i)} (signed, tension +)`,unit:p.us?"psi":"MPa",signed:true})),
+    {id:"imax",label:"Segment with the largest |σ|",unit:"",choices:p.A.map((_,i)=>sbSeg(i))}],
+  truth:(p,s)=>{const o={imax:sbSeg(s.imax)};s.sg.forEach((v,i)=>o["s"+i]=v);return o},
+  note:"Enter signed stresses; tension is positive."};
+
+// ===== 2. two bars meeting at a pin that carries a weight: forces and the safe weight
+function tbGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,al=pick(r,range(25,65,5)),be=pick(r,range(25,65,5));
+    if(al+be<60||al+be>120) continue;
+    const A=[pick(r,us?range(0.2,1.0,0.1):[200,300,400,500,600,800]),pick(r,us?range(0.2,1.0,0.1):[200,300,400,500,600,800])];
+    const sw=[pick(r,us?range(12,24,2):range(80,160,10)),pick(r,us?range(12,24,2):range(80,160,10))];
+    const p={us,al,be,A,sw},s=tbSolve(p);
+    if(Math.abs(s.W[0]-s.W[1])<0.1*Math.min(...s.W)) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function tbSolve(p){
+  const a=p.al*Math.PI/180,b=p.be*Math.PI/180,D=Math.sin(a+b);
+  const k=[Math.cos(b)/D,Math.cos(a)/D];                    // P_AB/W and P_AC/W
+  const cap=p.A.map((A,i)=>p.sw[i]*A/(p.us?1:1000));          // kips (ksi·in.²), or kN (MPa·mm² = N)
+  const W=cap.map((c,i)=>c/k[i]),Ws=Math.min(...W);
+  return {k,cap,W,Ws,gov:W[0]<W[1]?"AB":"AC"};
+}
+function tbFigure(p){
+  const Ax=380,Ay=205,Lp=165,a=p.al*Math.PI/180,b=p.be*Math.PI/180;
+  const Bx=Ax-Lp*Math.cos(a),By=Ay-Lp*Math.sin(a),Cx=Ax+Lp*Math.cos(b),Cy=Ay-Lp*Math.sin(b);
+  const arc=(cx,cy,ang,left)=>{const r=34,x2=cx+(left?-1:1)*r*Math.cos(ang),y2=cy+r*Math.sin(ang);
+    return LN(cx,cy,cx+(left?-1:1)*(r+14),cy,{c:C.dim,w:1,d:"3 3"})+`<path d="M ${cx+(left?-r:r)} ${cy} A ${r} ${r} 0 0 ${left?0:1} ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="${C.dim}" stroke-width="1.2"/>`};
+  const wl=(cx,cy,ang,left)=>{const r=56;return [cx+(left?-1:1)*r*Math.cos(ang/2),cy+r*Math.sin(ang/2)+5]};
+  const [al_x,al_y]=wl(Bx,By,a,false),[be_x,be_y]=wl(Cx,Cy,b,true);
+  let s=HATCH(Bx-22,By-24,44,24)+HATCH(Cx-22,Cy-24,44,24)
+   +LN(Bx,By,Ax,Ay,{w:6,cap:1})+LN(Cx,Cy,Ax,Ay,{w:6,cap:1})+CI(Bx,By,5)+CI(Cx,Cy,5)+CI(Ax,Ay,6,{f:"#fff"})
+   +arc(Bx,By,a,false)+arc(Cx,Cy,b,true)
+   +TX(al_x+4,al_y,"α",{s:15,i:1,c:C.dim})+TX(be_x-4,be_y,"β",{s:15,i:1,c:C.dim})
+   +AR(Ax,Ay,Ax,Ay+70)+TX(Ax+16,Ay+60,"W",{s:16,i:1,c:C.load,a:"start"})
+   +TX(Bx-30,By+5,"B",{s:15,i:1,a:"end"})+TX(Cx+30,Cy+5,"C",{s:15,i:1,a:"start"})+TX(Ax-14,Ay+22,"A",{s:15,i:1,a:"end"})
+   +TX((Bx+Ax)/2-6,(By+Ay)/2+30,`AB`,{s:13,c:C.dim})+TX((Cx+Ax)/2+6,(Cy+Ay)/2+30,`AC`,{s:13,c:C.dim});
+  return SVG(760,290,s);
+}
+function tbStatement(p){
+  const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Wu=p.us?"kips":"kN";
+  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. The cross-sectional areas are ${fmt(p.A[0],p.us?1:0)} ${u} (${iv("AB")}) and ${fmt(p.A[1],p.us?1:0)} ${u} (${iv("AC")}); the working stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
+  <p>Express the bar forces as multiples of ${iv("W")}, then find the largest weight each bar can carry and the largest weight that can be hung safely.</p>`;
+}
+function tbSolution(p,s){
+  const Wu=p.us?"kips":"kN",Fu=p.us?"kips":"kN";
+  return `<h3>1. Equilibrium of pin A</h3><p>Both bars are two-force members; assume both in tension.</p>
+  <p class="eq">ΣF<sub>x</sub> = 0: P<sub>AC</sub> cos β − P<sub>AB</sub> cos α = 0</p><br><p class="eq">ΣF<sub>y</sub> = 0: P<sub>AB</sub> sin α + P<sub>AC</sub> sin β − W = 0</p>
+  <p>Solving, P<sub>AB</sub> = W cos β / sin(α+β) = ${sig(s.k[0],4)} W and P<sub>AC</sub> = W cos α / sin(α+β) = ${sig(s.k[1],4)} W.</p>
+  <h3>2. Weight limited by each bar</h3>
+  <p>Bar AB: P<sub>AB</sub> = σ<sub>w</sub>A = ${sig(s.cap[0])} ${Fu}, so W = ${sig(s.cap[0])}/${sig(s.k[0],4)} = ${sig(s.W[0])} ${Wu}.</p>
+  <p>Bar AC: P<sub>AC</sub> = σ<sub>w</sub>A = ${sig(s.cap[1])} ${Fu}, so W = ${sig(s.cap[1])}/${sig(s.k[1],4)} = ${sig(s.W[1])} ${Wu}.</p>
+  <h3>3. Safe weight</h3><p class="final">W<sub>safe</sub> = ${sig(s.Ws)} ${Wu}, governed by bar ${s.gov}. The larger value must be discarded because it would overstress the other bar.</p>`;
+}
+const TB={name:"Two bars supporting a weight: bar forces and safe load",
+  generate:tbGenerate,figure:tbFigure,statement:tbStatement,solution:tbSolution,
+  fields:(p,s)=>[{id:"kAB",label:"P_AB / W",unit:""},{id:"kAC",label:"P_AC / W",unit:""},
+    {id:"W1",label:"Largest W allowed by bar AB",unit:p.us?"kips":"kN"},{id:"W2",label:"Largest W allowed by bar AC",unit:p.us?"kips":"kN"},
+    {id:"Ws",label:"Largest safe W",unit:p.us?"kips":"kN"},{id:"gov",label:"Governing bar",unit:"",choices:["AB","AC"]}],
+  truth:(p,s)=>({kAB:s.k[0],kAC:s.k[1],W1:s.W[0],W2:s.W[1],Ws:s.Ws,gov:s.gov}),
+  note:"Answers within 2% are accepted."};
+
+// ===== 3. Warren truss: member stresses and required area (method of joints, solved numerically)
+function trSolve(p){
+  const n=p.n,nodes=[];
+  for(let i=0;i<=n;i++)nodes.push([i*p.a,0]);
+  for(let i=0;i<n;i++)nodes.push([(i+0.5)*p.a,p.h]);
+  const T=j=>n+1+j,mem=[];
+  for(let i=0;i<n;i++)mem.push([i,i+1]);
+  for(let i=0;i<n-1;i++)mem.push([T(i),T(i+1)]);
+  for(let i=0;i<n;i++){mem.push([i,T(i)]);mem.push([T(i),i+1])}
+  const m=mem.length,N=nodes.length,K=m+3,M=Array.from({length:2*N},()=>new Array(K+1).fill(0));
+  mem.forEach(([i,j],k)=>{const dx=nodes[j][0]-nodes[i][0],dy=nodes[j][1]-nodes[i][1],L=Math.hypot(dx,dy);
+    M[2*i][k]+=dx/L;M[2*i+1][k]+=dy/L;M[2*j][k]-=dx/L;M[2*j+1][k]-=dy/L});
+  M[0][m]=1;M[1][m+1]=1;M[2*n+1][m+2]=1;                    // pin at node 0, roller at node n
+  p.loads.forEach(([j,f])=>{M[2*j+1][K]-=-f});                // downward load f: -f in y; move to right side
+  for(let c=0;c<K;c++){let pv=c;for(let r=c+1;r<2*N;r++)if(Math.abs(M[r][c])>Math.abs(M[pv][c]))pv=r;
+    [M[c],M[pv]]=[M[pv],M[c]];for(let r=0;r<2*N;r++)if(r!==c){const f=M[r][c]/M[c][c];if(f)for(let q=c;q<=K;q++)M[r][q]-=f*M[c][q]}}
+  const x=[];for(let c=0;c<K;c++)x.push(M[c][K]/M[c][c]);
+  return {nodes,mem,F:x.slice(0,m),R:x.slice(m)};
+}
+function trGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,n=pick(r,[3,4,4]),a=pick(r,us?[6,8,10]:[3,4,5]),h=pick(r,us?[6,8,9,12]:[3,4,5]);
+    const cand=[];for(let j=1;j<n;j++)cand.push(j);const top=[];for(let j=0;j<n;j++)top.push(n+1+j);
+    const nl=pick(r,[2,3]),pickN=[...cand,...top];const chosen=new Set();while(chosen.size<nl)chosen.add(pick(r,pickN));
+    const loads=[...chosen].map(j=>[j,pick(r,us?range(5,30,5):range(20,120,10))]);
+    const p={us,n,a,h,loads,A:pick(r,us?[1.2,1.8,2.4,3.0]:[800,1000,1200,1400,1800])};
+    const sol=trSolve(p);
+    if(Math.abs(sol.R[1])<1e-9&&Math.abs(sol.R[2])<1e-9) continue;
+    const F=sol.F,mx=Math.max(...F.map(Math.abs)),m=sol.mem.length;
+    // members asked: one top chord, one bottom chord, one diagonal
+    const bot=[...Array(n).keys()],tp=[...Array(n-1).keys()].map(i=>n+i),dg=[...Array(2*n).keys()].map(i=>n+(n-1)+i);
+    const ok=a=>a.filter(i=>Math.abs(F[i])>0.12*mx);
+    const B=ok(bot),Tt=ok(tp),D=ok(dg);if(!B.length||!Tt.length||!D.length) continue;
+    const ask=[pick(r,D),pick(r,Tt),pick(r,B)];
+    const sw=[pick(r,us?[16,18,20,24]:[100,120,140,160]),0];sw[1]=Math.round(sw[0]*pick(r,[0.5,0.6,0.7])/(us?2:10))*(us?2:10);
+    if(sw[1]<=0) continue;
+    p.ask=ask;p.sw=sw;
+    const s={sol,ask,R:sol.R};
+    const Fa=ask.map(i=>F[i]);
+    s.sg=Fa.map(f=>f*1000/p.A);                              // kN or kips → MPa (SI), or ksi (US: kips/in²)
+    if(us)s.sg=Fa.map(f=>f/p.A);
+    const f0=Fa[0];s.Areq=Math.abs(f0)*(us?1:1000)/(f0>0?sw[0]:sw[1]);
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function trMemName(sol,k,p){const [i,j]=sol.mem[k];return NODES[i]+NODES[j]}
+function trFigure(p,s){
+  const sol=s.sol,n=p.n,sc=Math.min(600/(n*p.a),150/p.h),x0=100+(600-n*p.a*sc)/2,y0=230;
+  const P=([x,y])=>[x0+x*sc,y0-y*sc];let b="";
+  sol.mem.forEach(([i,j],k)=>{const [x1,y1]=P(sol.nodes[i]),[x2,y2]=P(sol.nodes[j]),hl=p.ask.includes(k);
+    b+=LN(x1,y1,x2,y2,{c:hl?C.green:C.ln,w:hl?5:3.5,cap:1})});
+  sol.nodes.forEach((nd,j)=>{const [x,y]=P(nd);b+=CI(x,y,4.5)+TX(x+15,y+(j<=n?((j===0||j===n)?42:24):-10),NODES[j],{s:14,i:1})});
+  const [ax,ay]=P(sol.nodes[0]),[bx,by]=P(sol.nodes[n]);
+  b+=`<polygon points="${ax},${ay+4} ${ax-12},${ay+22} ${ax+12},${ay+22}" fill="#eceae4" stroke="${C.ln}"/>`+CI(bx,by+12,8,{f:"#eceae4"})+LN(bx-14,by+22,bx+14,by+22);
+  p.loads.forEach(([j,f])=>{const [x,y]=P(sol.nodes[j]);const top=j>n;
+    b+=top?AR(x,y-52,x,y-5)+TX(x,y-58,`${f} ${p.us?"kips":"kN"}`,{s:13,c:C.load}):AR(x,y+6,x,y+52)+TX(x,y+70,`${f} ${p.us?"kips":"kN"}`,{s:13,c:C.load})});
+  const u=p.us?"ft":"m";
+  b+=DIMH(P(sol.nodes[0])[0],P(sol.nodes[1])[0],y0+96,`${p.a} ${u}`)+DIMV(x0-26,y0,y0-p.h*sc,`${p.h} ${u}`,{left:1});
+  return SVG(760,350,b);
+}
+function trStatement(p,s){
+  const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
+  const nm=k=>trMemName(s.sol,k,p),ld=p.loads.map(([j,f])=>`${f} ${Fu} at ${iv(NODES[j])}`).join(", ");
+  return `<p>The Warren truss shown has ${p.n} equal panels, each ${p.a} ${p.us?"ft":"m"} wide, and a height of ${p.h} ${p.us?"ft":"m"}. It is pinned at ${iv("A")} and supported by a roller at ${iv(NODES[p.n])}. Downward loads act at the joints: ${ld}. All members have the cross-sectional area ${fmt(p.A,p.us?1:0)} ${u}; member weights are neglected.</p>
+  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the working stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
+}
+function trSolution(p,s){
+  const sol=s.sol,Fu=p.us?"kips":"kN",su=p.us?"ksi":"MPa";
+  let h=`<h3>1. Reactions</h3><p>From the equilibrium of the whole truss: A<sub>x</sub> = ${sig(sol.R[0])} ${Fu}, A<sub>y</sub> = ${sig(sol.R[1])} ${Fu}, and the roller reaction at ${NODES[p.n]} is ${sig(sol.R[2])} ${Fu}.</p>
+  <h3>2. Member forces (method of joints, tension positive)</h3><table><tr><th>Member</th><th>Force (${Fu})</th><th></th></tr>`;
+  sol.mem.forEach((_,k)=>{h+=`<tr><td>${trMemName(sol,k,p)}</td><td>${sig(sol.F[k])}</td><td>${Math.abs(sol.F[k])<1e-6?"zero":sol.F[k]>0?"T":"C"}</td></tr>`});
+  h+=`</table><p class="note">Any member can also be found directly with the method of sections: cut through the member and two others, and take moments about the intersection of those two.</p><h3>3. Stresses in the highlighted members</h3><p>σ = N/A with A = ${fmt(p.A,p.us?1:0)} ${p.us?"in.²":"mm²"}.</p><table><tr><th>Member</th><th>N (${Fu})</th><th>σ (${su})</th></tr>`;
+  p.ask.forEach((k,i)=>{h+=`<tr><td>${trMemName(sol,k,p)}</td><td>${sig(sol.F[k])}</td><td>${sig(s.sg[i])}</td></tr>`});
+  const f0=sol.F[p.ask[0]];
+  h+=`</table><h3>4. Required area of member ${trMemName(sol,p.ask[0],p)}</h3><p>The member is in ${f0>0?"tension":"compression"}, so σ<sub>w</sub> = ${f0>0?p.sw[0]:p.sw[1]} ${su} governs: A = |N|/σ<sub>w</sub> = <span class="final">${sig(s.Areq)} ${p.us?"in.²":"mm²"}</span>.</p>`;
+  return h;
+}
+const TR={name:"Warren truss: member stresses by joints or sections",
+  generate:trGenerate,figure:trFigure,statement:trStatement,solution:trSolution,
+  fields:(p,s)=>[...p.ask.map((k,i)=>({id:"s"+i,label:`Stress in member ${trMemName(s.sol,k,p)} (signed, tension +)`,unit:p.us?"ksi":"MPa",signed:true})),
+    {id:"A",label:`Smallest area of member ${trMemName(s.sol,p.ask[0],p)}`,unit:p.us?"in.²":"mm²"},
+    {id:"Ry",label:`Vertical reaction at ${NODES[p.n]}`,unit:p.us?"kips":"kN"}],
+  truth:(p,s)=>({s0:s.sg[0],s1:s.sg[1],s2:s.sg[2],A:s.Areq,Ry:s.R[2]}),
+  note:"Enter signed stresses; tension is positive."};
+
+// ===== Chapter 2 helpers: units and materials
+// base units: SI N, mm, MPa; US kips, in., ksi
+const UU=us=>us?{f:1,F:"kips",lb:12,Lb:"ft",L:"in.",A:"in.²",S:"ksi",E:"×10⁶ psi",dT:"°F"}
+                :{f:1/1000,F:"kN",lb:1000,Lb:"m",L:"mm",A:"mm²",S:"MPa",E:"GPa",dT:"°C"};
+const MAT={steel:{n:"steel",E:[200000,29000],nu:0.30,a:[11.7e-6,6.5e-6]},
+  aluminum:{n:"aluminum",E:[70000,10000],nu:0.33,a:[23.0e-6,12.8e-6]},
+  bronze:{n:"bronze",E:[83000,12000],nu:0.34,a:[19.0e-6,10.5e-6]},
+  copper:{n:"copper",E:[120000,17000],nu:0.33,a:[16.8e-6,9.3e-6]}};
+const Em=(m,us)=>MAT[m].E[us?1:0], Am=(m,us)=>MAT[m].a[us?1:0];
+const Estr=(m,us)=>`${fmt(Em(m,us)/1000,us?0:0)} ${UU(us).E}`;
+const astr=(m,us)=>`${fmt(Am(m,us)*1e6,1)} × 10⁻⁶/${UU(us).dT}`;
+const cap=s=>s[0].toUpperCase()+s.slice(1);
+const fF=(v,us)=>sig(v*UU(us).f,3), dL=(v,us)=>sig(v/UU(us).lb,3);
+const PLs=["steel","aluminum","bronze","copper"];
+// drawing helpers for rigid bars, ceilings, rods
+const CEIL=(x1,x2,y)=>HATCH(x1,y-16,x2-x1,16);
+const WALL=(x,y1,y2,left=true)=>HATCH(left?x-18:x,y1,18,y2-y1);
+const RIGID=(x1,x2,y,h=14)=>RC(x1,y-h/2,x2-x1,h,{f:"#c9ced6",c:C.steelln});
+const ROD=(x,y1,y2,lab,o={})=>LN(x,y1,x,y2,{c:o.c||C.steelln,w:o.w||4})+(lab?TX(x+10,(y1+y2)/2+4,lab,{s:13,c:C.dim,a:"start"}):"");
+const PIN=(x,y)=>CI(x,y,6,{f:"#fff"});
+
+// ===== 1. tension test: E, nu, G from measured elongation and diameter change
+function ttGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,m=pick(r,PLs),d=pick(r,us?[0.5,0.505,0.6,0.75]:[10,12,12.5,14,16,20]),L0=pick(r,us?[2,4]:[50,100]);
+    const P=pick(r,us?range(2,20,0.5):range(5,60,1).map(v=>v*1000));
+    const A=Math.PI*d*d/4,s=P/A,E=Em(m,us),lim=(m==="steel"?0.6:0.45)*(us?36:250)*(m==="steel"?1:0.8);
+    if(s<0.25*lim||s>lim) continue;
+    const dl=+(s/E*L0).toPrecision(3),dd=+(MAT[m].nu*s/E*d).toPrecision(3);
+    const eps=dl/L0,Ec=s/eps,nu=dd/d/eps;
+    return {p:{us,m,d,L0,P,dl,dd},s:{A,sg:s,eps,E:Ec,nu,G:Ec/(2*(1+nu))}};
+  }
+  throw new Error("no valid problem");
+}
+function ttFigure(p){
+  const u=UU(p.us);let b="";
+  b+=RC(110,95,110,90,{f:C.steel,c:C.steelln})+RC(540,95,110,90,{f:C.steel,c:C.steelln})
+   +`<path d="M220 115 Q245 122 260 122 L500 122 Q515 122 540 115 L540 165 Q515 158 500 158 L260 158 Q245 158 220 165 Z" fill="${C.steel}" stroke="${C.steelln}" stroke-width="1.5"/>`
+   +LN(300,112,300,168,{c:C.green,w:2})+LN(460,112,460,168,{c:C.green,w:2})
+   +DIMH(300,460,200,`L₀ = ${p.L0} ${u.L} (gauge length)`)+DIMV(380,122,158,`d = ${p.d} ${u.L}`)
+   +AR(110,140,40,140)+AR(650,140,720,140)+TX(60,128,"P",{s:16,i:1,c:C.load})+TX(700,128,"P",{s:16,i:1,c:C.load});
+  return SVG(760,230,b);
+}
+function ttStatement(p){
+  const u=UU(p.us);
+  return `<p>A round ${MAT[p.m].n} test specimen of diameter ${p.d} ${u.L} has gauge marks ${p.L0} ${u.L} apart. Under an axial tensile load P = ${fF(p.P,p.us)} ${u.F}, which keeps the material in its elastic range, the gauge length increases by ${p.dl} ${u.L} and the diameter decreases by ${p.dd} ${u.L}.</p>
+  <p>Find the normal stress, the axial strain, the modulus of elasticity, Poisson's ratio, and the shear modulus of the material.</p>`;
+}
+function ttSolution(p,s){
+  const u=UU(p.us);
+  return `<h3>1. Stress and strain</h3><p>A = πd²/4 = ${sig(s.A,4)} ${u.A}, σ = P/A = ${sig(s.sg)} ${u.S}, ε = δ/L₀ = ${p.dl}/${p.L0} = ${sig(s.eps*1e6)} × 10⁻⁶.</p>
+  <h3>2. Elastic constants</h3><p class="eq">E = σ/ε = ${sig(s.E/1000)} ${u.E}</p><br>
+  <p class="eq">ε<sub>lat</sub> = −Δd/d = −${sig(p.dd/p.d)}, ν = −ε<sub>lat</sub>/ε = ${sig(s.nu)}</p><br>
+  <p class="eq">G = E/[2(1+ν)] = ${sig(s.G/1000)} ${u.E}</p>`;
+}
+const TT={name:"Tension test: modulus of elasticity, Poisson's ratio, shear modulus",
+  generate:ttGenerate,figure:ttFigure,statement:ttStatement,solution:ttSolution,
+  fields:p=>{const u=UU(p.us);return [{id:"sg",label:"Normal stress",unit:u.S},{id:"eps",label:"Axial strain",unit:"× 10⁻⁶"},
+    {id:"E",label:"Modulus of elasticity",unit:u.E},{id:"nu",label:"Poisson's ratio",unit:""},{id:"G",label:"Shear modulus",unit:u.E}]},
+  truth:(p,s)=>({sg:s.sg,eps:s.eps*1e6,E:s.E/1000,nu:s.nu,G:s.G/1000}),note:"Answers within 2% are accepted."};
+
+// ===== 2. compound bar: change in length of each segment
+function cbGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,n=pick(r,[2,3,3]),u=UU(us),A=[],Ls=[],F=[],M=[];
+    for(let i=0;i<n;i++){
+      M.push(pick(r,PLs));A.push(pick(r,us?[0.5,0.75,1.0,1.25,1.5,2.0]:[200,300,400,500,600,800,1000]));
+      Ls.push(pick(r,us?[1,1.5,2,2.5,3,4]:[0.5,0.8,1.0,1.2,1.5,2.0])*u.lb);
+      F.push(pick(r,us?range(2,20,1):range(10,80,5).map(v=>v*1000))*pick(r,[1,-1]));
+    }
+    if(new Set(M).size<2) continue;
+    F.push(-F.reduce((a,b)=>a+b,0));
+    const lo=us?2:10000;
+    if(Math.abs(F[n])<lo||Math.max(...F.map(Math.abs))>(us?40:200000)) continue;
+    const N=[];let c=0;for(let i=0;i<n;i++){c+=F[i];N.push(-c)}
+    if(N.some(v=>Math.abs(v)<lo/2)) continue;
+    const sg=N.map((v,i)=>v/A[i]);
+    if(sg.some((v,i)=>Math.abs(v)>(M[i]==="steel"?(us?30:200):(us?18:120)))) continue;
+    const d=N.map((v,i)=>v*Ls[i]/(A[i]*Em(M[i],us))),tot=d.reduce((a,b)=>a+b,0);
+    if(Math.abs(tot)<0.15*Math.max(...d.map(Math.abs))) continue;
+    return {p:{us,n,A,Ls,F,M},s:{N,sg,d,tot}};
+  }
+  throw new Error("no valid problem");
+}
+function cbFigure(p){
+  const u=UU(p.us),x0=90,W=580,tot=p.Ls.reduce((a,b)=>a+b,0),maxA=Math.max(...p.A),yc=165,fill={steel:"#dfe4ea",aluminum:"#eef1f4",bronze:"#ecd3a6",copper:"#e9b996"};
+  let x=x0,b="";const xs=[x0];p.Ls.forEach(l=>{x+=W*l/tot;xs.push(x)});
+  p.A.forEach((a,i)=>{const h=36+54*Math.sqrt(a/maxA);
+    b+=RC(xs[i],yc-h/2,xs[i+1]-xs[i],h,{f:fill[p.M[i]],c:C.steelln})+TX((xs[i]+xs[i+1])/2,yc-2,cap(MAT[p.M[i]].n),{s:13})
+     +TX((xs[i]+xs[i+1])/2,yc+15,`${fmt(a,p.us?2:0)} ${u.A}`,{s:12,c:C.dim})+DIMH(xs[i],xs[i+1],262,`${dL(p.Ls[i],p.us)} ${u.Lb}`)});
+  p.F.forEach((f,i)=>{const X=xs[i],d=f>0?1:-1;
+    b+=LN(X,84,X,yc-50,{c:C.dim,w:1,d:"3 3"})+AR(X,84,X+d*58,84)+TX(X+d*29,72,`${fF(Math.abs(f),p.us)} ${u.F}`,{s:13,c:C.load})+TX(X,yc+75,NODES[i],{s:15,i:1})});
+  return SVG(760,290,b);
+}
+function cbStatement(p){
+  const u=UU(p.us),F=p.F.map((f,i)=>`${fF(Math.abs(f),p.us)} ${u.F} ${f>0?"to the right":"to the left"} at ${iv(NODES[i])}`).join("; ");
+  const mats=[...new Set(p.M)].map(m=>`${Estr(m,p.us)} for ${MAT[m].n}`).join(", ");
+  return `<p>The compound bar ${NODES[0]}${NODES[p.n]} is made of ${p.n} segments with the materials, cross-sectional areas, and lengths shown. It carries the axial loads ${F}. Use E = ${mats}.</p>
+  <p>Find the change in length of each segment (elongation positive) and the change in length of the whole bar.</p>`;
+}
+function cbSolution(p,s){
+  const u=UU(p.us);let h=`<h3>1. Axial forces</h3><p>From free-body diagrams of the part of the bar to the left of a cut in each segment (tension positive):</p><table><tr><th>Segment</th><th>N (${u.F})</th><th>L (${u.L})</th><th>A (${u.A})</th><th>E (${u.E})</th><th>δ = NL/(EA) (${u.L})</th></tr>`;
+  s.N.forEach((n,i)=>{h+=`<tr><td>${sbSeg(i)}</td><td>${fF(n,p.us)}</td><td>${sig(p.Ls[i],4)}</td><td>${fmt(p.A[i],p.us?2:0)}</td><td>${fmt(Em(p.M[i],p.us)/1000)}</td><td>${sig(s.d[i])}</td></tr>`});
+  return h+`</table><h3>2. Change in length of the bar</h3><p class="final">δ = Σδᵢ = ${sig(s.tot)} ${u.L} (${s.tot>0?"elongation":"shortening"}).</p>`;
+}
+const CB={name:"Compound bar: change in length of each segment",
+  generate:cbGenerate,figure:cbFigure,statement:cbStatement,solution:cbSolution,
+  fields:p=>[...p.A.map((_,i)=>({id:"d"+i,label:`Change in length of ${sbSeg(i)} (signed)`,unit:UU(p.us).L,signed:true})),
+    {id:"tot",label:"Change in length of the bar (signed)",unit:UU(p.us).L,signed:true}],
+  truth:(p,s)=>{const o={tot:s.tot};s.d.forEach((v,i)=>o["d"+i]=v);return o},note:"Elongation is positive, shortening negative."};
+
+// ===== 3. rigid bar on a pin and one rod: displacement and safe load
+function rbGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=UU(us),m=pick(r,["steel","aluminum","bronze"]);
+    const a=pick(r,us?[2,3,4,5]:[0.6,0.8,1.0,1.2,1.5])*u.lb,c=pick(r,us?[1.5,2,3,4,5,6,7,8]:[0.4,0.6,0.8,1.0,1.2,1.5,1.8,2.0,2.4])*u.lb;
+    if(Math.abs(c-a)<0.1*a) continue;
+    const Lr=pick(r,us?[3,4,5,6]:[1.0,1.5,2.0,2.5])*u.lb,A=pick(r,us?[0.2,0.25,0.3,0.4,0.5]:[100,150,200,250,300,400]);
+    const P=pick(r,us?range(1,10,0.5):range(5,40,1).map(v=>v*1000));
+    const F=P*c/a,sg=F/A;if(sg>(us?25:160)||sg<(us?6:40)) continue;
+    const E=Em(m,us),dr=F*Lr/(E*A),dD=dr*c/a;
+    const sw=pick(r,us?[15,18,20,24]:[100,120,140,160]);
+    const Ps=sw*A*a/c;
+    const da=+((dD/P)*Ps*pick(r,[0.75,0.85,1.2,1.35])).toPrecision(2),Pd=da/(dD/P);
+    if(Math.abs(Pd/Ps-1)<0.1) continue;
+    return {p:{us,m,a,c,Lr,A,P,sw,da},s:{F,sg,dr,dD,Ps,Pd,Pm:Math.min(Ps,Pd),gov:Ps<Pd?"Stress in the rod":"Displacement of D"}};
+  }
+  throw new Error("no valid problem");
+}
+function rbFigure(p){
+  const u=UU(p.us),mx=Math.max(p.a,p.c),sc=430/mx,x0=150,y=230,xB=x0+p.a*sc,xD=x0+p.c*sc,yT=70;
+  let b=WALL(x0,y-50,y+50)+CEIL(xB-50,xB+50,yT)+RIGID(x0,x0+mx*sc+25,y)+ROD(xB,yT,y-7,"",{})+PIN(x0,y)+PIN(xB,y-7)
+   +AR(xD,y-80,xD,y-8)+TX(xD+10,y-58,`P = ${fF(p.P,p.us)} ${u.F}`,{s:13,c:C.load,a:"start"})
+   +TX(x0-26,y+28,"A",{s:15,i:1})+TX(xB+14,y+28,"B",{s:15,i:1})+TX(xD+6,y+28,"D",{s:15,i:1})
+   +TX(xB+12,(yT+y)/2,`${cap(MAT[p.m].n)} rod`,{s:13,c:C.dim,a:"start"})+DIMV(xB-40,yT,y-7,`${dL(p.Lr,p.us)} ${u.Lb}`,{left:1})
+   +DIMH(x0,xB,y+52,`${dL(p.a,p.us)} ${u.Lb}`)+DIMH(x0,xD,y+86,`${dL(p.c,p.us)} ${u.Lb}`);
+  return SVG(760,340,b);
+}
+function rbStatement(p){
+  const u=UU(p.us);
+  return `<p>The rigid bar ${iv("AD")} is supported by a pin at ${iv("A")} and by the vertical ${MAT[p.m].n} rod at ${iv("B")}, of cross-sectional area ${fmt(p.A,p.us?2:0)} ${u.A} and length ${dL(p.Lr,p.us)} ${u.Lb}. The bar is horizontal before the load P = ${fF(p.P,p.us)} ${u.F} is applied at ${iv("D")}. Use E = ${Estr(p.m,p.us)}; neglect the weight of the bar.</p>
+  <p>Find the force and stress in the rod, its elongation, and the vertical displacement of ${iv("D")}. Then find the largest load P if the working stress for the rod is ${p.sw} ${u.S} and the displacement of ${iv("D")} must not exceed ${p.da} ${u.L}.</p>`;
+}
+function rbSolution(p,s){
+  const u=UU(p.us);
+  return `<h3>1. Rod force</h3><p>ΣM<sub>A</sub> = 0: F·AB = P·AD, so F = ${fF(s.F,p.us)} ${u.F} and σ = F/A = ${sig(s.sg)} ${u.S}.</p>
+  <h3>2. Displacements</h3><p>δ<sub>rod</sub> = FL/(EA) = ${sig(s.dr)} ${u.L}. The rigid bar rotates about A, so displacements are proportional to the distance from A:</p>
+  <p class="eq">δ<sub>D</sub> = δ<sub>rod</sub>·AD/AB = ${sig(s.dD)} ${u.L} (downward)</p>
+  <h3>3. Largest load</h3><p>Both quantities are proportional to P. Stress limit: P = ${fF(s.Ps,p.us)} ${u.F}. Displacement limit: P = ${fF(s.Pd,p.us)} ${u.F}.</p>
+  <p class="final">P<sub>max</sub> = ${fF(s.Pm,p.us)} ${u.F}, governed by: ${s.gov.toLowerCase()}.</p>`;
+}
+const RB={name:"Rigid bar on a pin and a rod: displacement and safe load",
+  generate:rbGenerate,figure:rbFigure,statement:rbStatement,solution:rbSolution,
+  fields:p=>{const u=UU(p.us);return [{id:"sg",label:"Stress in the rod",unit:u.S},{id:"dr",label:"Elongation of the rod",unit:u.L},
+    {id:"dD",label:"Vertical displacement of D",unit:u.L},{id:"Pm",label:"Largest load P",unit:u.F},
+    {id:"gov",label:"Governing criterion",unit:"",choices:["Stress in the rod","Displacement of D"]}]},
+  truth:(p,s)=>({sg:s.sg,dr:s.dr,dD:s.dD,Pm:s.Pm*UU(p.us).f,gov:s.gov}),note:"Answers within 2% are accepted."};
+
+// ===== 4. generalized Hooke's law: strains and dimension changes of a block
+function ghGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,m=pick(r,PLs),dims=us?[2,3,4,5,6,8]:[50,75,100,150,200];
+    const a=pick(r,dims),b=pick(r,dims),c=pick(r,dims);
+    const sv=()=>pick(r,us?range(2,20,1):range(10,140,10))*pick(r,[1,-1]);
+    const sx=sv(),sy=sv(),sz=r()<0.5?0:sv();
+    const E=Em(m,us),nu=MAT[m].nu,ex=(sx-nu*(sy+sz))/E,ey=(sy-nu*(sx+sz))/E,ez=(sz-nu*(sx+sy))/E;
+    if([ex,ey,ez].some(e=>Math.abs(e)<2e-5)) continue;
+    const V=a*b*c,dV=V*(ex+ey+ez);if(Math.abs(ex+ey+ez)<2e-5) continue;
+    return {p:{us,m,a,b,c,sx,sy,sz},s:{ex,ey,ez,da:ex*a,db:ey*b,dc:ez*c,dV}};
+  }
+  throw new Error("no valid problem");
+}
+function ghFigure(p){
+  const ox=300,oy=250,X=170,Y=110,dz=[80,-55];
+  const P=(x,y,z)=>[ox+x*X+z*dz[0],oy-y*Y+z*dz[1]];
+  const poly=(pts,f)=>`<polygon points="${pts.map(q=>q.map(v=>v.toFixed(1)).join(",")).join(" ")}" fill="${f}" stroke="${C.steelln}" stroke-width="1.5"/>`;
+  let b=poly([P(0,0,0),P(1,0,0),P(1,1,0),P(0,1,0)],"#e3e8ee")+poly([P(1,0,0),P(1,0,1),P(1,1,1),P(1,1,0)],"#d2d9e1")+poly([P(0,1,0),P(1,1,0),P(1,1,1),P(0,1,1)],"#eef1f4");
+  const u=UU(p.us),lab=(v,n)=>`σ<tspan baseline-shift="sub" font-size="10">${n}</tspan> = ${fmt(Math.abs(v))} ${u.S}`;
+  const arr=(c,dir,v,n,lx,ly)=>{if(!v)return "";const t=v>0;const[x,y]=c;const L=54;const s=t?AR(x,y,x+dir[0]*L,y+dir[1]*L):AR(x+dir[0]*L,y+dir[1]*L,x,y);
+    return s+TX(x+dir[0]*L+lx,y+dir[1]*L+ly,lab(v,n),{s:13,c:C.load,a:lx<0?"end":"start"})};
+  b+=arr(P(1,0.5,0.5),[1,0],p.sx,"x",8,5)+arr(P(0.5,1,0.5),[0,-1],p.sy,"y",10,0)+arr(P(0.5,0.5,0),[-0.8,0.55],p.sz,"z",8,20);
+  const [ax,ay]=P(0,0,0),[bx,by]=P(1,0,0),[cx,cy]=P(1,0,1);
+  b+=DIMH(ax,bx,ay+28,`a = ${p.a} ${u.L}`)+DIMV(ax-24,oy,oy-Y,`b = ${p.b} ${u.L}`,{left:1})+TX((bx+cx)/2+30,(by+cy)/2+18,`c = ${p.c} ${u.L}`,{s:13,c:C.dim,a:"start"})
+   +AR(70,330,120,330,C.dim,1.4)+TX(126,334,"x",{s:13,i:1,c:C.dim,a:"start"})+AR(70,330,70,280,C.dim,1.4)+TX(70,272,"y",{s:13,i:1,c:C.dim})+AR(70,330,40,350,C.dim,1.4)+TX(32,362,"z",{s:13,i:1,c:C.dim});
+  return SVG(760,370,b);
+}
+function ghStatement(p){
+  const u=UU(p.us),st=(v,n)=>`${sub("σ",n)} = ${fmt(v)} ${u.S}`;
+  return `<p>A ${MAT[p.m].n} block with sides a = ${p.a} ${u.L} (along x), b = ${p.b} ${u.L} (along y), and c = ${p.c} ${u.L} (along z) is subjected to uniform normal stresses ${st(p.sx,"x")}, ${st(p.sy,"y")}, and ${st(p.sz,"z")} (tension positive). Use E = ${Estr(p.m,p.us)} and ν = ${MAT[p.m].nu}.</p>
+  <p>Find the three normal strains, the changes in the dimensions a, b, and c, and the change in volume of the block.</p>`;
+}
+function ghSolution(p,s){
+  const u=UU(p.us),nu=MAT[p.m].nu,E=Em(p.m,p.us);
+  return `<h3>1. Generalized Hooke's law</h3><p class="eq">ε<sub>x</sub> = [σ<sub>x</sub> − ν(σ<sub>y</sub> + σ<sub>z</sub>)]/E = ${sig(s.ex*1e6)} × 10⁻⁶</p><br>
+  <p class="eq">ε<sub>y</sub> = [σ<sub>y</sub> − ν(σ<sub>x</sub> + σ<sub>z</sub>)]/E = ${sig(s.ey*1e6)} × 10⁻⁶</p><br>
+  <p class="eq">ε<sub>z</sub> = [σ<sub>z</sub> − ν(σ<sub>x</sub> + σ<sub>y</sub>)]/E = ${sig(s.ez*1e6)} × 10⁻⁶</p>
+  <h3>2. Changes in dimensions</h3><p>Δa = ε<sub>x</sub>a = ${sig(s.da)} ${u.L}, Δb = ε<sub>y</sub>b = ${sig(s.db)} ${u.L}, Δc = ε<sub>z</sub>c = ${sig(s.dc)} ${u.L}.</p>
+  <h3>3. Change in volume</h3><p>For small strains, ΔV = (ε<sub>x</sub> + ε<sub>y</sub> + ε<sub>z</sub>)V with V = ${fmt(p.a*p.b*p.c)} ${u.L}³:</p><p class="final">ΔV = ${sig(s.dV)} ${u.L}³</p>`;
+}
+const GH={name:"Generalized Hooke's law: strains and dimension changes of a block",
+  generate:ghGenerate,figure:ghFigure,statement:ghStatement,solution:ghSolution,
+  fields:p=>{const u=UU(p.us);return [{id:"ex",label:"εx (signed)",unit:"× 10⁻⁶",signed:true},{id:"ey",label:"εy (signed)",unit:"× 10⁻⁶",signed:true},{id:"ez",label:"εz (signed)",unit:"× 10⁻⁶",signed:true},
+    {id:"da",label:"Change in a (signed)",unit:u.L,signed:true},{id:"db",label:"Change in b (signed)",unit:u.L,signed:true},{id:"dc",label:"Change in c (signed)",unit:u.L,signed:true},
+    {id:"dV",label:"Change in volume (signed)",unit:u.L+"³",signed:true}]},
+  truth:(p,s)=>({ex:s.ex*1e6,ey:s.ey*1e6,ez:s.ez*1e6,da:s.da,db:s.db,dc:s.dc,dV:s.dV}),note:"Enter signed values; an increase is positive."};
+
+// ===== 5. laterally confined block or rod
+function cfGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,hole=r()<0.5;
+    if(hole){
+      // rubber rod in a rigid, lubricated hole; US base lb, in., psi for this case
+      const d=pick(r,us?[1,1.5,2,2.5]:[25,30,40,50,60]),L=pick(r,us?[3,4,5,6]:[80,100,120,150,200]),E=pick(r,us?[3000,4500,6000]:[20,30,40]),nu=pick(r,[0.45,0.46,0.48]);
+      const P=pick(r,us?range(200,2000,100):range(1,10,0.5).map(v=>v*1000)),A=Math.PI*d*d/4,sa=-P/A;
+      if(Math.abs(sa)/E>0.1||Math.abs(sa)/E<0.02) continue;
+      const sl=nu/(1-nu)*sa,dl=(sa-2*nu*sl)/E*L,dfree=sa/E*L;
+      return {p:{us,hole,d,L,E,nu,P},s:{sl,dl,dfree,sa}};
+    }
+    const m=pick(r,["aluminum","copper","bronze"]),a=pick(r,us?[1,1.5,2,2.5]:[25,40,50,60,75]),b=pick(r,us?[1,1.5,2,3]:[25,40,50,75]),L=pick(r,us?[3,4,5,6]:[75,100,150,200]);
+    const P=pick(r,us?range(10,80,5):range(50,400,10).map(v=>v*1000)),E=Em(m,us),nu=MAT[m].nu,sy=-P/(a*b);
+    if(Math.abs(sy)>(us?20:140)||Math.abs(sy)<(us?4:30)) continue;
+    const sx=nu*sy,dl=(sy-nu*sx)/E*L,db=-nu*(sx+sy)/E*b;
+    return {p:{us,hole,m,a,b,L,P},s:{sx,sy,dl,db,dfree:sy/E*L}};
+  }
+  throw new Error("no valid problem");
+}
+const cfU=p=>p.hole&&p.us?{F:"lb",f:1,L:"in.",S:"psi"}:p.us?{F:"kips",f:1,L:"in.",S:"ksi"}:{F:"kN",f:1/1000,L:"mm",S:"MPa"};
+function cfFigure(p){
+  const u=cfU(p);let b="";
+  if(p.hole){
+    const w=Math.min(150,Math.max(70,p.d*(p.us?60:2.4))),h=170,x=380;
+    b=HATCH(x-w/2-40,90,40,h+20)+HATCH(x+w/2,90,40,h+20)+HATCH(x-w/2-40,90+h,w+80,20)
+     +RC(x-w/2,90+40,w,h-40,{f:"#5f6670",c:"#2b2f35"})+RC(x-w/2-6,90+20,w+12,20,{f:C.steel,c:C.steelln})
+     +AR(x,30,x,108)+TX(x+12,60,`P = ${sig(p.P*u.f,3)} ${u.F}`,{s:14,c:C.load,a:"start"})
+     +DIMH(x-w/2,x+w/2,300,`d = ${p.d} ${u.L}`)+DIMV(x+w/2+60,130,90+h,`L = ${p.L} ${u.L}`)+TX(x-w/2-50,170,"rigid, lubricated walls",{s:13,c:C.dim,a:"end"})
+     +TX(x,200,"rubber",{s:13,c:"#fff"});
+    return SVG(760,320,b);
+  }
+  const w=150,h=170,x=380;
+  b=HATCH(x-w/2-40,90,40,h+20)+HATCH(x+w/2,90,40,h+20)+HATCH(x-w/2-40,90+h,w+80,20)
+   +RC(x-w/2,130,w,h-40,{f:"#e3e8ee",c:C.steelln})+RC(x-w/2-6,110,w+12,20,{f:C.steel,c:C.steelln})
+   +AR(x,30,x,108)+TX(x+12,60,`P = ${sig(p.P*u.f,3)} ${u.F}`,{s:14,c:C.load,a:"start"})
+   +DIMH(x-w/2,x+w/2,300,`a = ${p.a} ${u.L} (x)`)+DIMV(x+w/2+60,130,90+h,`L = ${p.L} ${u.L} (y)`)
+   +TX(x-w/2-50,170,"rigid, lubricated walls",{s:13,c:C.dim,a:"end"})+TX(x,200,`depth b = ${p.b} ${u.L} (z)`,{s:13,c:C.dim});
+  return SVG(760,320,b);
+}
+function cfStatement(p){
+  const u=cfU(p);
+  if(p.hole) return `<p>A rubber rod of diameter ${p.d} ${u.L} and length ${p.L} ${u.L} is placed in a hole with rigid, lubricated walls; there is no clearance between the rod and the wall. A compressive load P = ${sig(p.P*u.f,3)} ${u.F} is applied through a rigid plate. Use E = ${p.E} ${u.S} and ν = ${p.nu} for rubber.</p>
+  <p>Find the pressure between the rod and the wall, the change in length of the rod, and the change in length the rod would have without the wall.</p>`;
+  return `<p>A ${MAT[p.m].n} block of width a = ${p.a} ${u.L}, depth b = ${p.b} ${u.L}, and height L = ${p.L} ${u.L} fits without clearance in a slot with rigid, lubricated walls that prevent expansion in the x direction only; the faces normal to z are free. A compressive load P = ${sig(p.P*u.f,3)} ${u.F} is applied to the top through a rigid plate. Use E = ${Estr(p.m,p.us)} and ν = ${MAT[p.m].nu}.</p>
+  <p>Find the stress σ<sub>x</sub> exerted by the walls, the change in the height L, and the change in the depth b.</p>`;
+}
+function cfSolution(p,s){
+  const u=cfU(p);
+  if(p.hole) return `<h3>1. Axial stress</h3><p>The lubricated walls carry no axial force, so σ<sub>a</sub> = −P/A = ${sig(s.sa)} ${u.S}.</p>
+  <h3>2. Lateral stress</h3><p>The walls prevent radial strain: ε<sub>r</sub> = [σ<sub>r</sub> − ν(σ<sub>r</sub> + σ<sub>a</sub>)]/E = 0, so</p><p class="eq">σ<sub>r</sub> = νσ<sub>a</sub>/(1 − ν) = ${sig(s.sl)} ${u.S}</p>
+  <h3>3. Change in length</h3><p class="eq">δ = [σ<sub>a</sub> − 2νσ<sub>r</sub>]L/E = ${sig(s.dl)} ${u.L}</p><p>Without the wall, δ = σ<sub>a</sub>L/E = ${sig(s.dfree)} ${u.L}; the confinement reduces the shortening.</p>`;
+  return `<h3>1. Stresses</h3><p>σ<sub>y</sub> = −P/(ab) = ${sig(s.sy)} ${u.S}, σ<sub>z</sub> = 0, and ε<sub>x</sub> = 0 gives σ<sub>x</sub> − νσ<sub>y</sub> = 0:</p><p class="eq">σ<sub>x</sub> = νσ<sub>y</sub> = ${sig(s.sx)} ${u.S}</p>
+  <h3>2. Deformations</h3><p class="eq">ΔL = ε<sub>y</sub>L = (σ<sub>y</sub> − νσ<sub>x</sub>)L/E = ${sig(s.dl)} ${u.L}</p><br><p class="eq">Δb = ε<sub>z</sub>b = −ν(σ<sub>x</sub> + σ<sub>y</sub>)b/E = ${sig(s.db)} ${u.L}</p>`;
+}
+const CF={name:"Laterally confined block or rod: wall stress and deformation",
+  generate:cfGenerate,figure:cfFigure,statement:cfStatement,solution:cfSolution,
+  fields:p=>{const u=cfU(p);return p.hole?[{id:"sl",label:"Radial stress at the wall (signed)",unit:u.S,signed:true},{id:"dl",label:"Change in length (signed)",unit:u.L,signed:true},{id:"df",label:"Change in length without the wall (signed)",unit:u.L,signed:true}]
+    :[{id:"sx",label:"σx from the walls (signed)",unit:u.S,signed:true},{id:"dl",label:"Change in height L (signed)",unit:u.L,signed:true},{id:"db",label:"Change in depth b (signed)",unit:u.L,signed:true}]},
+  truth:(p,s)=>p.hole?{sl:s.sl,dl:s.dl,df:s.dfree}:{sx:s.sx,dl:s.dl,db:s.db},note:"Enter signed values; tension and increases are positive."};
+
+// ===== 6. rubber shear mount
+function smGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,a=pick(r,us?[4,5,6,8]:[100,120,150,200]),b=pick(r,us?[4,6,8,9,10]:[100,150,200,250]),t=pick(r,us?[0.75,1,1.25,1.5,1.75,2]:[20,25,30,40,50]);
+    const E=pick(r,us?[400,500,600,750]:[2.5,3,3.5,4,5]),nu=pick(r,[0.45,0.48,0.49]),P=pick(r,us?range(400,3000,100):range(1,12,0.5).map(v=>v*1000));
+    const G=E/(2*(1+nu)),tau=P/2/(a*b),g=tau/G;
+    if(g<0.05||g>0.4) continue;
+    return {p:{us,a,b,t,E,nu,P},s:{G,tau,g,d:g*t}};
+  }
+  throw new Error("no valid problem");
+}
+const smU=p=>p.us?{F:"lb",f:1,L:"in.",S:"psi"}:{F:"kN",f:1/1000,L:"mm",S:"MPa"};
+function smFigure(p){
+  const u=smU(p);
+  let b=RC(180,90,400,24,{f:C.steel,c:C.steelln})+RC(200,114,360,44,{f:"#5f6670",c:"#2b2f35"})+RC(180,158,440,24,{f:C.steel,c:C.steelln})
+   +RC(200,182,360,44,{f:"#5f6670",c:"#2b2f35"})+RC(180,226,400,24,{f:C.steel,c:C.steelln})
+   +HATCH(140,80,40,180)+AR(620,170,700,170)+TX(660,196,`P = ${sig(p.P*u.f,3)} ${u.F}`,{s:13,c:C.load})
+   +DIMV(590,114,158,`t = ${p.t} ${u.L}`)+DIMH(200,560,262,`${p.a} ${u.L}`)+TX(380,140,"rubber",{s:13,c:"#fff"})+TX(380,208,"rubber",{s:13,c:"#fff"})
+   +TX(380,315,`Each pad: ${p.a} × ${p.b} ${u.L} bonded area (${p.b} ${u.L} into the page)`,{s:13,c:C.dim});
+  return SVG(760,330,b);
+}
+function smStatement(p){
+  const u=smU(p);
+  return `<p>Two rubber pads, each ${p.t} ${u.L} thick, are bonded to three steel plates to form the shear mount shown. Each pad has a bonded area of ${p.a} × ${p.b} ${u.L}. The outer plates are fixed, and the load P = ${sig(p.P*u.f,3)} ${u.F} is applied to the middle plate. Use E = ${p.E} ${u.S} and ν = ${p.nu} for rubber, and consider the deformation of the rubber only.</p>
+  <p>Find the shear modulus of the rubber, the shear stress and shear strain in each pad, and the displacement of the middle plate.</p>`;
+}
+function smSolution(p,s){
+  const u=smU(p);
+  return `<h3>1. Shear modulus</h3><p class="eq">G = E/[2(1+ν)] = ${sig(s.G)} ${u.S}</p>
+  <h3>2. Stress and strain</h3><p>Each pad carries P/2 over its bonded area: τ = (P/2)/(${p.a}·${p.b}) = ${sig(s.tau)} ${u.S}, γ = τ/G = ${sig(s.g)} rad.</p>
+  <h3>3. Displacement</h3><p class="final">δ = γt = ${sig(s.d)} ${u.L}</p>`;
+}
+const SM={name:"Rubber shear mount: shear strain and displacement",
+  generate:smGenerate,figure:smFigure,statement:smStatement,solution:smSolution,
+  fields:p=>{const u=smU(p);return [{id:"G",label:"Shear modulus",unit:u.S},{id:"tau",label:"Shear stress",unit:u.S},{id:"g",label:"Shear strain",unit:"rad"},{id:"d",label:"Displacement of the middle plate",unit:u.L}]},
+  truth:(p,s)=>({G:s.G,tau:s.tau,g:s.g,d:s.d}),note:"Answers within 2% are accepted."};
+
+// ===== 7. reinforced concrete post: equal strains in steel and concrete
+function rcGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=UU(us),b=pick(r,us?[8,10,12,14,16]:[200,250,300,350,400]),As=pick(r,us?[0.44,0.6,0.79,1.0,1.27]:[200,300,400,500,600,800]);
+    const Ec=pick(r,us?[3000,3600,4000,4500]:[14000,20000,25000,30000]),Es=us?29000:200000,L=pick(r,us?[6,8,10,12]:[1.5,2,2.5,3,4])*u.lb;
+    const P=pick(r,us?range(50,500,10):range(300,2500,50).map(v=>v*1000)),sst=pick(r,us?[18,20,22,24]:[120,140,160,180]),sco=pick(r,us?[0.9,1.2,1.5,1.8,2.0]:[6,8,10,12,14]);
+    const n=Es/Ec,Ast=4*As,Aco=b*b-Ast,scoP=P/(Aco+n*Ast),sstP=n*scoP;
+    if(sstP>0.95*sst||scoP>0.95*sco||scoP<0.3*sco) continue;
+    const Pst=sst/n*(Aco+n*Ast),Pco=sco*(Aco+n*Ast);if(Math.abs(Pst/Pco-1)<0.1) continue;
+    return {p:{us,b,As,Ec,Es,L,P,sst,sco},s:{n,Ast,Aco,sco:scoP,sst:sstP,d:scoP*L/Ec,Pst,Pco,Pm:Math.min(Pst,Pco),gov:Pst<Pco?"Steel":"Concrete"}};
+  }
+  throw new Error("no valid problem");
+}
+function rcFigure(p){
+  const u=UU(p.us);let b="";
+  b+=RC(120,60,110,230,{f:"#e6e3dc",c:"#6b665c"})+HATCH(80,290,190,18)+AR(175,10,175,58)+TX(190,32,`P = ${fF(p.P,p.us)} ${u.F}`,{s:13,c:C.load,a:"start"})
+   +DIMV(250,60,290,`L = ${dL(p.L,p.us)} ${u.Lb}`);
+  [146,204].forEach(x=>{b+=LN(x,64,x,286,{c:C.steelln,w:2,d:"6 3"})});
+  const x0=470,y0=90,w=180;
+  b+=RC(x0,y0,w,w,{f:"#e6e3dc",c:"#6b665c"});
+  [[0.2,0.2],[0.8,0.2],[0.2,0.8],[0.8,0.8]].forEach(([a,c])=>{b+=CI(x0+a*w,y0+c*w,9,{f:"#5f6670",c:"#2b2f35"})});
+  b+=DIMH(x0,x0+w,y0+w+26,`${p.b} ${u.L}`)+DIMV(x0+w+20,y0,y0+w,`${p.b} ${u.L}`)+TX(x0+w/2,y0-16,`4 steel bars, ${p.As} ${u.A} each`,{s:13,c:C.dim})
+   +TX(175,325,"Elevation",{s:13,c:C.dim})+TX(x0+w/2,325,"Cross section",{s:13,c:C.dim});
+  return SVG(760,340,b);
+}
+function rcStatement(p){
+  const u=UU(p.us);
+  return `<p>A concrete post with a square cross section ${p.b} × ${p.b} ${u.L} and length ${dL(p.L,p.us)} ${u.Lb} is reinforced axially with four symmetrically placed steel bars, each of cross-sectional area ${p.As} ${u.A}. It carries the axial compressive load P = ${fF(p.P,p.us)} ${u.F} through a rigid cap. The moduli of elasticity are ${fmt(p.Es/1000)} ${u.E} for steel and ${fmt(p.Ec/1000,1)} ${u.E} for concrete.</p>
+  <p>Find the compressive stresses in the steel and in the concrete and the shortening of the post. Then find the largest safe load if the working stresses are ${p.sst} ${u.S} for steel and ${p.sco} ${u.S} for concrete.</p>`;
+}
+function rcSolution(p,s){
+  const u=UU(p.us);
+  return `<h3>1. Equilibrium and compatibility</h3><p>Equilibrium: σ<sub>st</sub>A<sub>st</sub> + σ<sub>co</sub>A<sub>co</sub> = P, with A<sub>st</sub> = ${sig(s.Ast,4)} ${u.A} and A<sub>co</sub> = ${p.b}² − A<sub>st</sub> = ${sig(s.Aco,4)} ${u.A}.</p>
+  <p>Compatibility: both materials shorten equally, so σ<sub>st</sub>/E<sub>st</sub> = σ<sub>co</sub>/E<sub>co</sub>, or σ<sub>st</sub> = nσ<sub>co</sub> with n = E<sub>st</sub>/E<sub>co</sub> = ${sig(s.n,4)}.</p>
+  <h3>2. Stresses and shortening</h3><p class="eq">σ<sub>co</sub> = P/(A<sub>co</sub> + nA<sub>st</sub>) = ${sig(s.sco)} ${u.S}, σ<sub>st</sub> = ${sig(s.sst)} ${u.S}</p><p>δ = σ<sub>co</sub>L/E<sub>co</sub> = ${sig(s.d)} ${u.L}.</p>
+  <h3>3. Safe load</h3><p>The stresses must satisfy σ<sub>st</sub> = nσ<sub>co</sub>, so the working stresses cannot both be reached. Steel limit: P = (σ<sub>st,w</sub>/n)(A<sub>co</sub> + nA<sub>st</sub>) = ${fF(s.Pst,p.us)} ${u.F}. Concrete limit: P = σ<sub>co,w</sub>(A<sub>co</sub> + nA<sub>st</sub>) = ${fF(s.Pco,p.us)} ${u.F}.</p>
+  <p class="final">P<sub>max</sub> = ${fF(s.Pm,p.us)} ${u.F}, governed by the ${s.gov.toLowerCase()}.</p>`;
+}
+const RCP={name:"Reinforced concrete post: stresses and safe load (indeterminate)",
+  generate:rcGenerate,figure:rcFigure,statement:rcStatement,solution:rcSolution,
+  fields:p=>{const u=UU(p.us);return [{id:"sst",label:"Compressive stress in steel",unit:u.S},{id:"sco",label:"Compressive stress in concrete",unit:u.S},
+    {id:"d",label:"Shortening of the post",unit:u.L},{id:"Pm",label:"Largest safe load",unit:u.F},{id:"gov",label:"Governing material",unit:"",choices:["Steel","Concrete"]}]},
+  truth:(p,s)=>({sst:s.sst,sco:s.sco,d:s.d,Pm:s.Pm*UU(p.us).f,gov:s.gov}),note:"Answers within 2% are accepted."};
+
+// ===== 8. rod inside a tube, rod initially longer by a gap
+function rtGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=UU(us),pr=pick(r,[["copper","aluminum"],["aluminum","steel"],["bronze","steel"],["steel","bronze"],["copper","steel"]]);
+    const Ar=pick(r,us?[1,1.5,2,2.5]:[600,800,1000,1200,1500]),At=pick(r,us?[1.5,2,2.5,3,4]:[900,1200,1500,2000,2500]),L=pick(r,us?[10,12,15,18,20]:[250,300,400,500]);
+    const gap=pick(r,us?[0.003,0.004,0.005,0.006,0.008]:[0.08,0.10,0.12,0.15,0.20]),Er=Em(pr[0],us),Et=Em(pr[1],us),kr=Er*Ar/L,kt=Et*At/L,P1=kr*gap;
+    const sar=pick(r,us?[15,18,20,24]:[100,120,140,160]),sat=pick(r,us?[10,12,15,18]:[70,80,100,120]);
+    const P=Math.round(P1*pick(r,[1.5,2,2.5,3])/(us?5:5000))*(us?5:5000);if(P<=1.1*P1) continue;
+    const dt=(P-kr*gap)/(kr+kt),Pr=kr*(dt+gap),Pt=kt*dt,sr=Pr/Ar,st=Pt/At;
+    if(sr>0.95*sar||st>0.95*sat) continue;
+    const PrA=sar*Ar,Pa=PrA<=P1?PrA:PrA+kt*(PrA/kr-gap),PtA=sat*At,Pb=PtA+kr*(PtA/kt+gap);
+    if(Math.abs(Pa/Pb-1)<0.1) continue;
+    return {p:{us,pr,Ar,At,L,gap,P,sar,sat},s:{kr,kt,P1,dt,sr,st,Pa,Pb,Pm:Math.min(Pa,Pb),gov:Pa<Pb?"Rod":"Tube"}};
+  }
+  throw new Error("no valid problem");
+}
+function rtFigure(p){
+  const u=UU(p.us),g=14;let b=HATCH(200,290,360,18);
+  b+=RC(240,110,70,180,{f:"#eef1f4",c:C.steelln})+RC(450,110,70,180,{f:"#eef1f4",c:C.steelln})+RC(310,110-g,140,180+g,{f:"#ecd3a6",c:C.ln})
+   +RC(220,110-g-18,320,18,{f:C.steel,c:C.steelln})+AR(380,20,380,110-g-20)+TX(394,48,`P = ${fF(p.P,p.us)} ${u.F}`,{s:13,c:C.load,a:"start"})
+   +TX(275,205,"tube",{s:13,c:C.dim})+TX(485,205,"tube",{s:13,c:C.dim})+TX(380,205,"rod",{s:13,c:C.dim})
+   +LN(520,110,600,110,{c:C.dim,w:1,d:"3 3"})+LN(450,110-g,600,110-g,{c:C.dim,w:1,d:"3 3"})+TX(606,110-g/2+4,`Δ = ${p.gap} ${u.L}`,{s:13,c:C.dim,a:"start"})
+   +DIMV(200,110,290,`L = ${p.L} ${u.L}`,{left:1})+TX(200,90,"rigid plate",{s:13,c:C.dim,a:"end"});
+  return SVG(760,320,b);
+}
+function rtStatement(p){
+  const u=UU(p.us);
+  return `<p>A ${MAT[p.pr[0]].n} rod is placed inside a ${MAT[p.pr[1]].n} tube; both rest on a rigid base. The tube has length L = ${p.L} ${u.L}, and the rod is longer than the tube by Δ = ${p.gap} ${u.L}. The load P = ${fF(p.P,p.us)} ${u.F} is applied to a rigid bearing plate on top of the rod. The cross-sectional areas are ${p.Ar} ${u.A} for the rod and ${p.At} ${u.A} for the tube. Use E = ${Estr(p.pr[0],p.us)} for ${MAT[p.pr[0]].n} and ${Estr(p.pr[1],p.us)} for ${MAT[p.pr[1]].n}; take the rod length as L in the deformation formulas.</p>
+  <p>Find the load at which the plate first touches the tube, the compressive stresses in the rod and the tube under P, and the largest safe load if the working stresses are ${p.sar} ${u.S} for the rod and ${p.sat} ${u.S} for the tube.</p>`;
+}
+function rtSolution(p,s){
+  const u=UU(p.us);
+  return `<h3>1. Closing the gap</h3><p>The rod alone must shorten by Δ: P₁ = ΔE<sub>r</sub>A<sub>r</sub>/L = ${fF(s.P1,p.us)} ${u.F}. Since P > P₁, both members carry load.</p>
+  <h3>2. Equilibrium and compatibility</h3><p>P<sub>r</sub> + P<sub>t</sub> = P and δ<sub>r</sub> = δ<sub>t</sub> + Δ, with δ = P L/(EA). Let k = EA/L: k<sub>r</sub> = ${sig(s.kr*UU(p.us).f)} and k<sub>t</sub> = ${sig(s.kt*UU(p.us).f)} ${u.F}/${u.L}.</p>
+  <p class="eq">δ<sub>t</sub> = (P − k<sub>r</sub>Δ)/(k<sub>r</sub> + k<sub>t</sub>) = ${sig(s.dt)} ${u.L}</p>
+  <p>σ<sub>r</sub> = k<sub>r</sub>(δ<sub>t</sub> + Δ)/A<sub>r</sub> = ${sig(s.sr)} ${u.S}; σ<sub>t</sub> = k<sub>t</sub>δ<sub>t</sub>/A<sub>t</sub> = ${sig(s.st)} ${u.S}.</p>
+  <h3>3. Safe load</h3><p>Rod at its working stress: P = ${fF(s.Pa,p.us)} ${u.F}. Tube at its working stress: P<sub>t</sub> = σ<sub>w</sub>A<sub>t</sub>, δ<sub>t</sub> = P<sub>t</sub>/k<sub>t</sub>, P = P<sub>t</sub> + k<sub>r</sub>(δ<sub>t</sub> + Δ) = ${fF(s.Pb,p.us)} ${u.F}.</p>
+  <p class="final">P<sub>max</sub> = ${fF(s.Pm,p.us)} ${u.F}, governed by the ${s.gov.toLowerCase()}.</p>`;
+}
+const RT={name:"Rod inside a tube with an initial gap (indeterminate)",
+  generate:rtGenerate,figure:rtFigure,statement:rtStatement,solution:rtSolution,
+  fields:p=>{const u=UU(p.us);return [{id:"P1",label:"Load to close the gap",unit:u.F},{id:"sr",label:"Compressive stress in the rod",unit:u.S},{id:"st",label:"Compressive stress in the tube",unit:u.S},
+    {id:"Pm",label:"Largest safe load",unit:u.F},{id:"gov",label:"Governing member",unit:"",choices:["Rod","Tube"]}]},
+  truth:(p,s)=>({P1:s.P1*UU(p.us).f,sr:s.sr,st:s.st,Pm:s.Pm*UU(p.us).f,gov:s.gov}),note:"Answers within 2% are accepted."};
+
+// ===== 9. bar between two walls with a load at an interior point
+function bwGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=UU(us),M=[pick(r,PLs),pick(r,PLs)],A=[pick(r,us?[0.5,0.75,1,1.5,2]:[300,400,600,800,1000]),pick(r,us?[0.5,0.75,1,1.5,2]:[300,400,600,800,1000])];
+    const L=[pick(r,us?[1,1.5,2,3,4]:[0.4,0.6,0.8,1.0,1.5])*u.lb,pick(r,us?[1,1.5,2,3,4]:[0.4,0.6,0.8,1.0,1.5])*u.lb],P=pick(r,us?range(5,40,1):range(20,200,5).map(v=>v*1000));
+    const k1=Em(M[0],us)*A[0]/L[0],k2=Em(M[1],us)*A[1]/L[1],uB=P/(k1+k2),N1=k1*uB,N2=-k2*uB,s1=N1/A[0],s2=N2/A[1];
+    if(Math.max(Math.abs(s1),Math.abs(s2))>(us?24:160)||Math.min(Math.abs(s1),Math.abs(s2))<(us?2:15)) continue;
+    if(M[0]===M[1]&&A[0]===A[1]&&L[0]===L[1]) continue;
+    return {p:{us,M,A,L,P},s:{k1,k2,uB,RA:N1,RC:-N2,s1,s2}};
+  }
+  throw new Error("no valid problem");
+}
+function bwFigure(p){
+  const u=UU(p.us),x0=110,W=540,sc=W/(p.L[0]+p.L[1]),xB=x0+p.L[0]*sc,yc=150,mx=Math.max(...p.A),fill={steel:"#dfe4ea",aluminum:"#eef1f4",bronze:"#ecd3a6",copper:"#e9b996"};
+  const h=i=>34+46*Math.sqrt(p.A[i]/mx);
+  let b=WALL(x0,70,230)+WALL(x0+W,70,230,false)+RC(x0,yc-h(0)/2,xB-x0,h(0),{f:fill[p.M[0]],c:C.steelln})+RC(xB,yc-h(1)/2,x0+W-xB,h(1),{f:fill[p.M[1]],c:C.steelln});
+  b+=TX((x0+xB)/2,yc-2,cap(MAT[p.M[0]].n),{s:13})+TX((x0+xB)/2,yc+15,`${p.A[0]} ${u.A}`,{s:12,c:C.dim})+TX((xB+x0+W)/2,yc-2,cap(MAT[p.M[1]].n),{s:13})+TX((xB+x0+W)/2,yc+15,`${p.A[1]} ${u.A}`,{s:12,c:C.dim})
+   +LN(xB,60,xB,yc-40,{c:C.dim,w:1,d:"3 3"})+AR(xB,60,xB+70,60)+TX(xB+35,48,`P = ${fF(p.P,p.us)} ${u.F}`,{s:13,c:C.load})
+   +TX(x0+12,250,"A",{s:15,i:1})+TX(xB,250,"B",{s:15,i:1})+TX(x0+W-12,250,"C",{s:15,i:1})
+   +DIMH(x0,xB,275,`${dL(p.L[0],p.us)} ${u.Lb}`)+DIMH(xB,x0+W,275,`${dL(p.L[1],p.us)} ${u.Lb}`);
+  return SVG(760,300,b);
+}
+function bwStatement(p){
+  const u=UU(p.us),mats=[...new Set(p.M)].map(m=>`${Estr(m,p.us)} for ${MAT[m].n}`).join(" and ");
+  return `<p>The bar ${iv("ABC")} is attached to unyielding supports at ${iv("A")} and ${iv("C")} and is stress-free before the axial load P = ${fF(p.P,p.us)} ${u.F} is applied at ${iv("B")}, toward ${iv("C")}. Segment ${iv("AB")} is ${MAT[p.M[0]].n} and segment ${iv("BC")} is ${MAT[p.M[1]].n}; areas and lengths are shown. Use E = ${mats}.</p>
+  <p>Find the reactions at ${iv("A")} and ${iv("C")}, the stress in each segment, and the displacement of ${iv("B")}.</p>`;
+}
+function bwSolution(p,s){
+  const u=UU(p.us);
+  return `<h3>1. Equilibrium</h3><p>With reactions R<sub>A</sub> and R<sub>C</sub> acting toward the left: R<sub>A</sub> + R<sub>C</sub> = P. One equation for two unknowns, so the bar is statically indeterminate.</p>
+  <h3>2. Compatibility</h3><p>The total length does not change: segment AB stretches by the displacement u<sub>B</sub> and segment BC shortens by the same amount. With k = EA/L for each segment (k<sub>AB</sub> = ${sig(s.k1*UU(p.us).f)}, k<sub>BC</sub> = ${sig(s.k2*UU(p.us).f)} ${u.F}/${u.L}):</p>
+  <p class="eq">u<sub>B</sub> = P/(k<sub>AB</sub> + k<sub>BC</sub>) = ${sig(s.uB)} ${u.L}</p>
+  <h3>3. Reactions and stresses</h3><p>R<sub>A</sub> = k<sub>AB</sub>u<sub>B</sub> = ${fF(s.RA,p.us)} ${u.F}; R<sub>C</sub> = k<sub>BC</sub>u<sub>B</sub> = ${fF(s.RC,p.us)} ${u.F}.</p>
+  <p>σ<sub>AB</sub> = ${sig(s.s1)} ${u.S} (T); σ<sub>BC</sub> = ${sig(s.s2)} ${u.S} (C).</p>`;
+}
+const BW={name:"Bar between two walls with an interior load (indeterminate)",
+  generate:bwGenerate,figure:bwFigure,statement:bwStatement,solution:bwSolution,
+  fields:p=>{const u=UU(p.us);return [{id:"RA",label:"Reaction at A (magnitude)",unit:u.F},{id:"RC",label:"Reaction at C (magnitude)",unit:u.F},
+    {id:"s1",label:"Stress in AB (signed, tension +)",unit:u.S,signed:true},{id:"s2",label:"Stress in BC (signed, tension +)",unit:u.S,signed:true},{id:"uB",label:"Displacement of B",unit:u.L}]},
+  truth:(p,s)=>({RA:s.RA*UU(p.us).f,RC:s.RC*UU(p.us).f,s1:s.s1,s2:s.s2,uB:s.uB}),note:"Answers within 2% are accepted; tension is positive."};
+
+// ===== 10. rigid bar on a pin and two rods
+function r2Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=UU(us),M=[pick(r,PLs),pick(r,PLs)],xs=us?[2,3,4,5,6,7,8]:[0.5,0.8,1.0,1.2,1.5,1.8,2.0,2.5];
+    const b=pick(r,xs)*u.lb,c=pick(r,xs)*u.lb,d=pick(r,xs)*u.lb;if(!(b<c)||Math.abs(d-b)<1e-9||Math.abs(d-c)<1e-9) continue;
+    const A=[pick(r,us?[0.25,0.4,0.5,0.75,1]:[150,200,300,400,500]),pick(r,us?[0.25,0.4,0.5,0.75,1]:[150,200,300,400,500])];
+    const L=[pick(r,us?[3,4,5,6]:[1,1.5,2,2.5])*u.lb,pick(r,us?[3,4,5,6]:[1,1.5,2,2.5])*u.lb],P=pick(r,us?range(4,40,1):range(20,200,5).map(v=>v*1000));
+    const kB=Em(M[0],us)*A[0]/L[0],kC=Em(M[1],us)*A[1]/L[1],th=P*d/(kB*b*b+kC*c*c),FB=kB*th*b,FC=kC*th*c,sB=FB/A[0],sC=FC/A[1];
+    if(Math.max(sB,sC)>(us?24:160)||Math.min(sB,sC)<(us?3:20)) continue;
+    const sw=[pick(r,us?[14,16,18,20]:[90,100,120,140]),pick(r,us?[14,16,18,20]:[90,100,120,140])];
+    const PB=P*sw[0]/sB,PC=P*sw[1]/sC;if(Math.abs(PB/PC-1)<0.1) continue;
+    return {p:{us,M,b,c,d,A,L,P,sw},s:{kB,kC,th,FB,FC,sB,sC,dD:th*d,PB,PC,Pm:Math.min(PB,PC),gov:PB<PC?"Rod at B":"Rod at C"}};
+  }
+  throw new Error("no valid problem");
+}
+function r2Figure(p){
+  const u=UU(p.us),mx=Math.max(p.c,p.d),sc=450/mx,x0=130,y=240,xB=x0+p.b*sc,xC=x0+p.c*sc,xD=x0+p.d*sc,Lm=Math.max(...p.L),hs=150/Lm;
+  const yB=y-p.L[0]*hs,yC=y-p.L[1]*hs;
+  let b=WALL(x0,y-50,y+50)+CEIL(xB-40,xB+40,yB)+CEIL(xC-40,xC+40,yC)+RIGID(x0,x0+mx*sc+25,y)+ROD(xB,yB,y-7)+ROD(xC,yC,y-7)+PIN(x0,y)+PIN(xB,y-7)+PIN(xC,y-7)
+   +TX(xB-8,(yB+y)/2,`${cap(MAT[p.M[0]].n)}, ${p.A[0]} ${u.A}`,{s:12,c:C.dim,a:"end"})+TX(xB-8,(yB+y)/2+15,`L = ${dL(p.L[0],p.us)} ${u.Lb}`,{s:12,c:C.dim,a:"end"})
+   +TX(xC+8,(yC+y)/2,`${cap(MAT[p.M[1]].n)}, ${p.A[1]} ${u.A}`,{s:12,c:C.dim,a:"start"})+TX(xC+8,(yC+y)/2+15,`L = ${dL(p.L[1],p.us)} ${u.Lb}`,{s:12,c:C.dim,a:"start"})
+   +AR(xD,y,xD,y+70)+TX(xD+8,y+64,`P = ${fF(p.P,p.us)} ${u.F}`,{s:13,c:C.load,a:"start"})
+   +TX(x0-26,y+28,"A",{s:15,i:1})+TX(xB-12,y+26,"B",{s:15,i:1})+TX(xC-12,y+26,"C",{s:15,i:1})+TX(xD-12,y+26,"D",{s:15,i:1})
+   +DIMH(x0,xB,y+96,`${dL(p.b,p.us)} ${u.Lb}`)+DIMH(x0,xC,y+124,`${dL(p.c,p.us)} ${u.Lb}`)+DIMH(x0,xD,y+152,`${dL(p.d,p.us)} ${u.Lb}`);
+  return SVG(760,y+175,b);
+}
+function r2Statement(p){
+  const u=UU(p.us),mats=[...new Set(p.M)].map(m=>`${Estr(m,p.us)} for ${MAT[m].n}`).join(" and ");
+  return `<p>The rigid bar ${iv("AD")} of negligible weight is supported by a pin at ${iv("A")} and by two vertical rods attached at ${iv("B")} and ${iv("C")}. The bar is horizontal and the rods are stress-free before the load P = ${fF(p.P,p.us)} ${u.F} is applied at ${iv("D")}. Distances from ${iv("A")}, rod materials, areas, and lengths are shown. Use E = ${mats}.</p>
+  <p>Find the stress in each rod and the vertical displacement of ${iv("D")}. Then find the largest load P if the working stresses are ${p.sw[0]} ${u.S} for the rod at ${iv("B")} and ${p.sw[1]} ${u.S} for the rod at ${iv("C")}.</p>`;
+}
+function r2Solution(p,s){
+  const u=UU(p.us),f=UU(p.us).f;
+  return `<h3>1. Equilibrium</h3><p>ΣM<sub>A</sub> = 0: F<sub>B</sub>·AB + F<sub>C</sub>·AC = P·AD. Two unknown rod forces and one useful equation.</p>
+  <h3>2. Compatibility</h3><p>The bar rotates through a small angle θ about A, so the rods stretch by δ<sub>B</sub> = θ·AB and δ<sub>C</sub> = θ·AC. With F = kδ and k = EA/L (k<sub>B</sub> = ${sig(s.kB*f)}, k<sub>C</sub> = ${sig(s.kC*f)} ${u.F}/${u.L}):</p>
+  <p class="eq">θ = P·AD / (k<sub>B</sub>AB² + k<sub>C</sub>AC²) = ${sig(s.th)} rad</p>
+  <h3>3. Rod stresses and displacement</h3><p>F<sub>B</sub> = k<sub>B</sub>θ·AB = ${fF(s.FB,p.us)} ${u.F}, σ<sub>B</sub> = ${sig(s.sB)} ${u.S}; F<sub>C</sub> = k<sub>C</sub>θ·AC = ${fF(s.FC,p.us)} ${u.F}, σ<sub>C</sub> = ${sig(s.sC)} ${u.S}.</p>
+  <p>δ<sub>D</sub> = θ·AD = ${sig(s.dD)} ${u.L} (downward).</p>
+  <h3>4. Largest load</h3><p>The stresses are proportional to P. Rod B: P = ${fF(s.PB,p.us)} ${u.F}; rod C: P = ${fF(s.PC,p.us)} ${u.F}.</p><p class="final">P<sub>max</sub> = ${fF(s.Pm,p.us)} ${u.F}, governed by the ${s.gov.toLowerCase()}.</p>`;
+}
+const R2={name:"Rigid bar on a pin and two rods (indeterminate)",
+  generate:r2Generate,figure:r2Figure,statement:r2Statement,solution:r2Solution,
+  fields:p=>{const u=UU(p.us);return [{id:"sB",label:"Stress in the rod at B",unit:u.S},{id:"sC",label:"Stress in the rod at C",unit:u.S},{id:"dD",label:"Vertical displacement of D",unit:u.L},
+    {id:"Pm",label:"Largest load P",unit:u.F},{id:"gov",label:"Governing rod",unit:"",choices:["Rod at B","Rod at C"]}]},
+  truth:(p,s)=>({sB:s.sB,sC:s.sC,dD:s.dD,Pm:s.Pm*UU(p.us).f,gov:s.gov}),note:"Answers within 2% are accepted."};
+
+// ===== 11. thermal stress in a rod with a gap at one wall
+function tgGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=UU(us),m=pick(r,PLs),L=pick(r,us?[3,4,5,6,8,10]:[1,1.5,2,2.5,3])*u.lb,A=pick(r,us?[0.5,0.75,1,1.5,2]:[300,500,800,1000,1200]);
+    const gap=pick(r,us?[0.005,0.01,0.015,0.02]:[0.1,0.2,0.3,0.5]),dT=pick(r,us?range(40,200,10):range(20,100,5)),a=Am(m,us),E=Em(m,us);
+    const dTc=gap/(a*L);if(dT<1.2*dTc) continue;
+    const sg=-E*(a*dT-gap/L);if(Math.abs(sg)>(us?24:160)||Math.abs(sg)<(us?3:20)) continue;
+    return {p:{us,m,L,A,gap,dT},s:{dTc,sg,F:-sg*A}};
+  }
+  throw new Error("no valid problem");
+}
+function tgFigure(p){
+  const u=UU(p.us);
+  let b=WALL(120,90,210)+WALL(640,90,210,false)+RC(120,130,500,40,{f:"#dfe4ea",c:C.steelln})
+   +LN(620,125,620,92,{c:C.dim,w:1})+TX(630,80,`gap Δ = ${p.gap} ${u.L}`,{s:13,c:C.dim})+DIMH(120,620,240,`L = ${dL(p.L,p.us)} ${u.Lb}`)
+   +TX(370,155,`${cap(MAT[p.m].n)}, A = ${p.A} ${u.A}`,{s:13});
+  return SVG(760,270,b);
+}
+function tgStatement(p){
+  const u=UU(p.us);
+  return `<p>A ${MAT[p.m].n} rod of length ${dL(p.L,p.us)} ${u.Lb} and cross-sectional area ${p.A} ${u.A} is attached to the wall at the left. At the reference temperature there is a gap Δ = ${p.gap} ${u.L} between its right end and the right wall. Both walls are rigid. Use E = ${Estr(p.m,p.us)} and α = ${astr(p.m,p.us)}.</p>
+  <p>Find the temperature rise at which the gap closes. Then, for a temperature rise of ${p.dT} ${u.dT}, find the stress in the rod and the force on each wall.</p>`;
+}
+function tgSolution(p,s){
+  const u=UU(p.us);
+  return `<h3>1. Closing the gap</h3><p>Free thermal expansion αΔT·L equals Δ when ΔT = Δ/(αL) = ${sig(s.dTc)} ${u.dT}.</p>
+  <h3>2. Stress after closure</h3><p>Compatibility: the free expansion minus the shortening caused by the wall force P equals the gap,</p>
+  <p class="eq">αΔT·L − PL/(EA) = Δ</p><p>so σ = −P/A = −E(αΔT − Δ/L) = <span class="final">${sig(s.sg)} ${u.S}</span> (compression), and the wall force is P = ${fF(s.F,p.us)} ${u.F}.</p>`;
+}
+const TG={name:"Thermal stress: rod with a gap at a rigid wall",
+  generate:tgGenerate,figure:tgFigure,statement:tgStatement,solution:tgSolution,
+  fields:p=>{const u=UU(p.us);return [{id:"dTc",label:"Temperature rise that closes the gap",unit:u.dT},{id:"sg",label:"Stress in the rod (signed, tension +)",unit:u.S,signed:true},{id:"F",label:"Force on each wall",unit:u.F}]},
+  truth:(p,s)=>({dTc:s.dTc,sg:s.sg,F:s.F*UU(p.us).f}),note:"Answers within 2% are accepted; compression is negative."};
+
+// ===== 12. compound bar between walls, temperature change
+function tcGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=UU(us),M=[pick(r,PLs),pick(r,PLs)];if(M[0]===M[1]) continue;
+    const A=[pick(r,us?[0.5,0.75,1,1.5,2,3]:[300,500,800,1000,1500,2000]),pick(r,us?[0.5,0.75,1,1.5,2,3]:[300,500,800,1000,1500,2000])];
+    const L=[pick(r,us?[1,1.5,2,3,4]:[0.3,0.5,0.8,1.0,1.2])*u.lb,pick(r,us?[1,1.5,2,3,4]:[0.3,0.5,0.8,1.0,1.2])*u.lb],dT=pick(r,us?range(30,120,10):range(15,60,5))*pick(r,[1,-1]);
+    const f=L.map((l,i)=>l/(Em(M[i],us)*A[i])),free=(Am(M[0],us)*L[0]+Am(M[1],us)*L[1])*dT,P=-free/(f[0]+f[1]),s1=P/A[0],s2=P/A[1];
+    if(Math.max(Math.abs(s1),Math.abs(s2))>(us?24:160)||Math.min(Math.abs(s1),Math.abs(s2))<(us?2:15)) continue;
+    const uB=Am(M[0],us)*L[0]*dT+P*f[0];if(Math.abs(uB)<0.05*Math.abs(Am(M[0],us)*L[0]*dT)) continue;
+    return {p:{us,M,A,L,dT},s:{f,free,P,s1,s2,uB}};
+  }
+  throw new Error("no valid problem");
+}
+function tcFigure(p){
+  const u=UU(p.us),x0=110,W=540,sc=W/(p.L[0]+p.L[1]),xB=x0+p.L[0]*sc,yc=150,mx=Math.max(...p.A),fill={steel:"#dfe4ea",aluminum:"#eef1f4",bronze:"#ecd3a6",copper:"#e9b996"};
+  const h=i=>34+46*Math.sqrt(p.A[i]/mx);
+  let b=WALL(x0,70,230)+WALL(x0+W,70,230,false)+RC(x0,yc-h(0)/2,xB-x0,h(0),{f:fill[p.M[0]],c:C.steelln})+RC(xB,yc-h(1)/2,x0+W-xB,h(1),{f:fill[p.M[1]],c:C.steelln});
+  b+=TX((x0+xB)/2,yc-2,cap(MAT[p.M[0]].n),{s:13})+TX((x0+xB)/2,yc+15,`${p.A[0]} ${u.A}`,{s:12,c:C.dim})+TX((xB+x0+W)/2,yc-2,cap(MAT[p.M[1]].n),{s:13})+TX((xB+x0+W)/2,yc+15,`${p.A[1]} ${u.A}`,{s:12,c:C.dim})
+   +TX(x0+12,250,"A",{s:15,i:1})+TX(xB,250,"B",{s:15,i:1})+TX(x0+W-12,250,"C",{s:15,i:1})
+   +DIMH(x0,xB,275,`${dL(p.L[0],p.us)} ${u.Lb}`)+DIMH(xB,x0+W,275,`${dL(p.L[1],p.us)} ${u.Lb}`);
+  return SVG(760,300,b);
+}
+function tcStatement(p){
+  const u=UU(p.us),mt=m=>`${MAT[m].n}: E = ${Estr(m,p.us)}, α = ${astr(m,p.us)}`;
+  return `<p>The compound bar ${iv("ABC")} is firmly attached to unyielding supports and is stress-free at the reference temperature. Segment ${iv("AB")} is ${MAT[p.M[0]].n} and segment ${iv("BC")} is ${MAT[p.M[1]].n}; areas and lengths are shown. Use ${mt(p.M[0])}; ${mt(p.M[1])}.</p>
+  <p>The temperature ${p.dT>0?"rises":"drops"} by ${Math.abs(p.dT)} ${u.dT}. Find the stress in each segment and the displacement of the junction ${iv("B")} (positive toward ${iv("C")}).</p>`;
+}
+function tcSolution(p,s){
+  const u=UU(p.us);
+  return `<h3>1. Compatibility</h3><p>Remove the wall at C and let the bar change length freely: δ<sub>T</sub> = (α<sub>AB</sub>L<sub>AB</sub> + α<sub>BC</sub>L<sub>BC</sub>)ΔT = ${sig(s.free)} ${u.L}. The axial force P (same in both segments, tension positive) must restore the original length:</p>
+  <p class="eq">δ<sub>T</sub> + P(L<sub>AB</sub>/(E<sub>AB</sub>A<sub>AB</sub>) + L<sub>BC</sub>/(E<sub>BC</sub>A<sub>BC</sub>)) = 0</p>
+  <p>so P = ${fF(s.P,p.us)} ${u.F} (${s.P>0?"tension":"compression"}).</p>
+  <h3>2. Stresses</h3><p>σ<sub>AB</sub> = P/A<sub>AB</sub> = ${sig(s.s1)} ${u.S}; σ<sub>BC</sub> = P/A<sub>BC</sub> = ${sig(s.s2)} ${u.S}.</p>
+  <h3>3. Displacement of B</h3><p>It equals the change in length of AB, thermal plus mechanical:</p><p class="eq">u<sub>B</sub> = α<sub>AB</sub>L<sub>AB</sub>ΔT + PL<sub>AB</sub>/(E<sub>AB</sub>A<sub>AB</sub>) = ${sig(s.uB)} ${u.L}</p>`;
+}
+const TC={name:"Thermal stress: compound bar between rigid walls",
+  generate:tcGenerate,figure:tcFigure,statement:tcStatement,solution:tcSolution,
+  fields:p=>{const u=UU(p.us);return [{id:"s1",label:"Stress in AB (signed, tension +)",unit:u.S,signed:true},{id:"s2",label:"Stress in BC (signed, tension +)",unit:u.S,signed:true},{id:"uB",label:"Displacement of B (signed, toward C +)",unit:u.L,signed:true}]},
+  truth:(p,s)=>({s1:s.s1,s2:s.s2,uB:s.uB}),note:"Enter signed values; tension is positive."};
+
+// ===== 13. rigid block on three rods, load and temperature change
+function b3Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=UU(us),m1="steel",m2=pick(r,["bronze","aluminum","copper"]);
+    const A1=pick(r,us?[0.5,0.75,1]:[300,400,500,600]),A2=pick(r,us?[1,1.5,2,2.5]:[600,800,1000,1200,1500]);
+    const L1=pick(r,us?[2,2.5,3,4]:[0.6,0.8,1.0,1.2])*u.lb,L2=pick(r,us?[2,2.5,3,4]:[0.6,0.8,1.0,1.2])*u.lb;
+    const W=pick(r,us?range(6,40,2):range(30,200,10).map(v=>v*1000)),dT=pick(r,us?range(20,120,10):range(10,60,5));
+    const f1=L1/(Em(m1,us)*A1),f2=L2/(Em(m2,us)*A2),a1=Am(m1,us),a2=Am(m2,us);
+    const P1=(W*f2+(a2*L2-a1*L1)*dT)/(f1+2*f2),P2=W-2*P1;
+    if(P1<=0.15*W||P2<=0.1*W) continue;
+    const dT0=(W/2)*f1/(a2*L2-a1*L1);if(!(dT0>dT*1.1)) continue;
+    const s1=P1/A1,s2=P2/A2;if(Math.max(s1,s2)>(us?24:160)) continue;
+    return {p:{us,m1,m2,A1,A2,L1,L2,W,dT},s:{f1,f2,P1,P2,s1,s2,dT0}};
+  }
+  throw new Error("no valid problem");
+}
+function b3Figure(p){
+  const u=UU(p.us),Lm=Math.max(p.L1,p.L2),hs=150/Lm,yb=220,y1=yb-p.L1*hs,y2=yb-p.L2*hs,xs=[220,380,540];
+  let b=CEIL(180,260,y1)+CEIL(500,580,y1)+CEIL(340,420,y2)+ROD(xs[0],y1,yb,"")+ROD(xs[2],y1,yb,"")+ROD(xs[1],y2,yb,"",{c:"#a0703a",w:6})
+   +RC(170,yb,420,46,{f:"#c9ced6",c:C.steelln})+TX(380,yb+28,`W = ${fF(p.W,p.us)} ${u.F}`,{s:14})
+   +TX(xs[0]-10,(y1+yb)/2,`${cap(MAT[p.m1].n)}`,{s:12,c:C.dim,a:"end"})+TX(xs[0]-10,(y1+yb)/2+15,`${p.A1} ${u.A}`,{s:12,c:C.dim,a:"end"})
+   +TX(xs[2]+10,(y1+yb)/2,`${cap(MAT[p.m1].n)}`,{s:12,c:C.dim,a:"start"})+TX(xs[2]+10,(y1+yb)/2+15,`${p.A1} ${u.A}`,{s:12,c:C.dim,a:"start"})
+   +TX(xs[1]+10,(y2+yb)/2,`${cap(MAT[p.m2].n)}`,{s:12,c:C.dim,a:"start"})+TX(xs[1]+10,(y2+yb)/2+15,`${p.A2} ${u.A}`,{s:12,c:C.dim,a:"start"})
+   +DIMV(140,y1,yb,`${dL(p.L1,p.us)} ${u.Lb}`,{left:1})+DIMV(640,y2,yb,`${dL(p.L2,p.us)} ${u.Lb}`);
+  return SVG(760,300,b);
+}
+function b3Statement(p){
+  const u=UU(p.us),mt=m=>`${MAT[m].n}: E = ${Estr(m,p.us)}, α = ${astr(m,p.us)}`;
+  return `<p>A homogeneous rigid block of weight W = ${fF(p.W,p.us)} ${u.F} is supported by three symmetrically placed vertical rods: two ${MAT[p.m1].n} rods of length ${dL(p.L1,p.us)} ${u.Lb} and a central ${MAT[p.m2].n} rod of length ${dL(p.L2,p.us)} ${u.Lb}. The lower ends of the rods were at the same level before the block was attached. Areas are shown. Use ${mt(p.m1)}; ${mt(p.m2)}.</p>
+  <p>After the block is attached, the temperature of all rods rises by ${p.dT} ${u.dT}. Find the stress in each rod. Then find the temperature rise at which the entire weight is carried by the ${MAT[p.m1].n} rods.</p>`;
+}
+function b3Solution(p,s){
+  const u=UU(p.us);
+  return `<h3>1. Equilibrium</h3><p>By symmetry the two ${MAT[p.m1].n} rods carry equal forces P₁: 2P₁ + P₂ = W.</p>
+  <h3>2. Compatibility</h3><p>The block stays level, so all rods elongate equally:</p>
+  <p class="eq">P₁L₁/(E₁A₁) + α₁ΔT·L₁ = P₂L₂/(E₂A₂) + α₂ΔT·L₂</p>
+  <p>Substituting P₂ = W − 2P₁: P₁ = [W·f₂ + (α₂L₂ − α₁L₁)ΔT]/(f₁ + 2f₂), with f = L/(EA). This gives P₁ = ${fF(s.P1,p.us)} ${u.F} and P₂ = ${fF(s.P2,p.us)} ${u.F}.</p>
+  <h3>3. Stresses</h3><p>σ<sub>${MAT[p.m1].n}</sub> = ${sig(s.s1)} ${u.S}; σ<sub>${MAT[p.m2].n}</sub> = ${sig(s.s2)} ${u.S} (both tension).</p>
+  <h3>4. Central rod unloaded</h3><p>Set P₂ = 0 and P₁ = W/2 in the compatibility equation: ΔT = (W/2)f₁/(α₂L₂ − α₁L₁) = <span class="final">${sig(s.dT0)} ${u.dT}</span>.</p>`;
+}
+const B3={name:"Rigid block on three rods: load and temperature (indeterminate)",
+  generate:b3Generate,figure:b3Figure,statement:b3Statement,solution:b3Solution,
+  fields:p=>{const u=UU(p.us);return [{id:"s1",label:`Stress in each ${MAT[p.m1].n} rod`,unit:u.S},{id:"s2",label:`Stress in the ${MAT[p.m2].n} rod`,unit:u.S},{id:"dT0",label:"Temperature rise that unloads the central rod",unit:u.dT}]},
+  truth:(p,s)=>({s1:s.s1,s2:s.s2,dT0:s.dT0}),note:"Answers within 2% are accepted."};
+
+const TEMPLATES={
+  "tension-test":TT,"compound-bar":CB,"rigid-bar-rod":RB,"hooke-law":GH,"confined":CF,"shear-mount":SM,
+  "rc-post":RCP,"rod-in-tube":RT,"bar-walls":BW,"rigid-bar-two-rods":R2,"thermal-gap":TG,"thermal-compound":TC,"block-three-rods":B3};
+
+const $=id=>document.getElementById(id);
+let curKey,curSeed,cur;
+function render(key,seed){
+  curKey=key;curSeed=seed;const T=TEMPLATES[key];cur=T.generate(seed);const {p,s}=cur;
+  $("typeSel").value=key;$("seedIn").value=seed;history.replaceState(null,"","#"+key+"-"+seed);
+  $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=T.statement(p,s);
+  $("answers").innerHTML=T.fields(p,s).map(f=>f.choices
+    ?`<label>${f.label}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
+    :`<label>${f.label}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
+  $("ansNote").textContent=T.note||"";$("solution").innerHTML=T.solution(p,s);
+  $("solution").style.display="none";$("solBtn").textContent="Show solution";
+}
+function check(){
+  const T=TEMPLATES[curKey],{p,s}=cur,tr=T.truth(p,s);
+  T.fields(p,s).forEach(f=>{
+    const el=$("m_"+f.id),raw=$("a_"+f.id).value.trim();let ok=false;
+    if(f.choices)ok=raw===tr[f.id];
+    else{const v=parseFloat(raw.replace(/,/g,"")),t=tr[f.id];
+      if(isFinite(v)) ok=f.signed?Math.abs(v-t)<=0.02*Math.abs(t)+1e-9:Math.abs(Math.abs(v)-Math.abs(t))<=0.02*Math.abs(t)+1e-9;
+      if(isFinite(v)&&f.signed&&Math.abs(v)>0&&Math.sign(v)!==Math.sign(t)) ok=false}
+    el.textContent=raw===""?"":ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");
+  });
+}
+const newSeed=()=>1+Math.floor(Math.random()*999999);
+$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
+$("typeSel").onchange=e=>render(e.target.value,newSeed());
+$("newBtn").onclick=()=>render(curKey,newSeed());
+$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+$("checkBtn").onclick=check;
+$("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+(function(){const m=/^#([a-z0-9-]+?)-(\d+)$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]])render(m[1],parseInt(m[2],10));else render(Object.keys(TEMPLATES)[0],newSeed())})();
+
+</script>
+</body>
+</html>

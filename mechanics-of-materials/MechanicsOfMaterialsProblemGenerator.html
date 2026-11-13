@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mechanics of Materials: Problem Generator</title>
+<style>
+  :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#ffffff;--accent:#1e5a32}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 20px;margin:12px 0;display:flex;justify-content:space-between;gap:16px;align-items:baseline}
+  .card a{color:var(--accent);font-weight:600;text-decoration:none}
+  .card a:hover{text-decoration:underline}
+  .card .d{color:var(--muted);font-family:system-ui,sans-serif;font-size:.88rem}
+  .soon{opacity:.55}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mechanics of Materials: Problem Generator</h1>
+  <div class="sub">One page per chapter. Each problem is generated from a seed with randomized data, a redrawn figure, a worked solution, and answer checking.</div>
+</header>
+<main>
+  <div class="card"><a href="StressProblemGenerator.html">1. Stress</a><span class="d">Stepped bars, trusses, glued joints, rivets, pins, punching</span></div>
+  <div class="card"><a href="StrainProblemGenerator.html">2. Strain</a><span class="d">Deformation, Hooke's law, indeterminate members, thermal stress</span></div>
+  <div class="card"><a href="TorsionProblemGenerator.html">3. Torsion</a><span class="d">Shafts, power, indeterminate shafts, thin-walled tubes</span></div>
+  <div class="card"><a href="ShearMomentProblemGenerator.html">4. Shear and moment in beams</a><span class="d">Reactions, shear and moment diagrams, hinged beams</span></div>
+  <div class="card"><a href="BeamStressProblemGenerator.html">5. Stresses in beams</a><span class="d">Flexure formula, shear stress, design, built-up beams</span></div>
+  <div class="card"><a href="DeflectionProblemGenerator.html">6. Deflection of beams</a><span class="d">Elastic curve, cantilevers, overhangs, stiffness design, superposition</span></div>
+</main>
+</body>
+</html>

@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fatigue Failures Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --beam:#f7e2c4; --beamline:#78461a; --load:#aa1e28; --sec:#cde1cd; --secline:#1e5a32;
+    --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  .tag{display:inline-block;font-family:system-ui,sans-serif;font-size:.78rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 9px;margin-left:6px}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .answers input.expr{width:19em;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<header>
+  <h1>Fatigue Failures Problem Generator</h1>
+  <div class="sub">Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem.</div>
+</header>
+<main>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+function fmt(v,d=0){if(Math.abs(v)<0.5*10**-d)v=0;return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+// ===== shared helpers for the problem types below
+const SF_MAT=[["AISI 1006 CD",280,330,41,48],["AISI 1015 HR",190,340,27.5,50],["AISI 1018 CD",370,440,54,64],["AISI 1020 CD",390,470,57,68],
+  ["AISI 1030 HR",260,470,37.5,68],["AISI 1035 CD",460,550,67,80],["AISI 1040 HR",290,520,42,76],["AISI 1050 CD",580,690,84,100]];
+const gF=v=>v.toFixed(1);
+const gL=(x1,y1,x2,y2,attr)=>`<line x1="${gF(x1)}" y1="${gF(y1)}" x2="${gF(x2)}" y2="${gF(y2)}" ${attr}/>`;
+const gT=(x,y,t,attr="")=>`<text x="${gF(x)}" y="${gF(y)}" ${attr}>${t}</text>`;
+const gI=v=>`<tspan font-style="italic">${v}</tspan>`;
+const gSub=(a,b)=>`${gI(a)}<tspan baseline-shift="sub" font-size="13">${b}</tspan>`;
+const G_AR=`stroke="#aa1e28" stroke-width="3" marker-end="url(#g-ar)"`, G_DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#g-dm)" marker-end="url(#g-dm)"`;
+const G_EXT=`stroke="#999" stroke-width="0.8"`, G_CL=`stroke="#888" stroke-width="0.9" stroke-dasharray="10 3 2 3"`, G_PART=`fill="#eec878" stroke="#7d5014" stroke-width="1.8"`;
+function gSvg(vb,body,maxh=380){return `<svg viewBox="${vb}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="18" style="max-height:${maxh}px">
+  <defs><marker id="g-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+  <marker id="g-ax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker>
+  <marker id="g-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  <pattern id="g-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#c9d5e2"/><line x1="0" y1="0" x2="0" y2="7" stroke="#28405a" stroke-width="1"/></pattern></defs>${body}</svg>`}
+function gMatTable(rows,us,cols){return `<table><tr><th>Material</th>${cols.map(c=>`<th>${c} (${us?"kpsi":"MPa"})</th>`).join("")}</tr>${rows.map(r=>`<tr><td>${r[0]}</td>${r.slice(1).map(v=>`<td>${fmt(v,1)}</td>`).join("")}</tr>`).join("")}</table>`}
+const gSF=us=>SF_MAT.map(m=>[m[0],us?m[3]:m[1],us?m[4]:m[2]]);
+
+// ===== shared fatigue relations (Marin factors, S-N line, criteria)
+const FA_SURF={"Ground":[1.34,1.58,-0.085],"Machined or cold-drawn":[2.70,4.51,-0.265],"Hot-rolled":[14.4,57.7,-0.718],"As-forged":[39.9,272,-0.995]};
+const FA_REL={"50":1,"90":0.897,"95":0.868,"99":0.814,"99.9":0.753};
+const FA_KC={"Bending":1,"Axial":0.85,"Torsion":0.59};
+function faSe0(Sut,us){return us?(Sut<=200?0.5*Sut:100):(Sut<=1400?0.5*Sut:700)}
+function faKa(surf,Sut,us){const c=FA_SURF[surf];return (us?c[0]:c[1])*Sut**c[2]}
+function faKb(d,us){return us?(d<=2?(d/0.3)**-0.107:0.91*d**-0.157):(d<=51?(d/7.62)**-0.107:1.51*d**-0.157)}
+function faF(Sut,us){const s=Math.min(200,us?Sut:Sut/6.894757);return s<70?0.9:Math.round((1.06-2.8e-3*s+6.9e-6*s*s)*100)/100}
+function faAB(Sut,Se,f){return {a:(f*Sut)**2/Se,b:-Math.log10(f*Sut/Se)/3}}
+function faGood(sa,sm,Se,Sut){return 1/(sa/Se+sm/Sut)}
+function faGerb(sa,sm,Se,Sut){if(sm<=0)return Se/sa;return 0.5*(Sut/sm)**2*(sa/Se)*(-1+Math.sqrt(1+(2*sm*Se/(Sut*sa))**2))}
+function faAsme(sa,sm,Se,Sy){return 1/Math.sqrt((sa/Se)**2+(sm/Sy)**2)}
+const faU=us=>us?"kpsi":"MPa";
+function faSNplot(Sut,Se,f,mark){                                  // log-log S-N sketch, optional marked point [N,S]
+  const X=N=>40+(Math.log10(N)-0)*68, Y=S=>250-200*(Math.log10(S)-Math.log10(0.6*Se))/(Math.log10(1.1*Sut)-Math.log10(0.6*Se));
+  let g=gL(40,250,40,30,`stroke="#222" stroke-width="1.3" marker-end="url(#g-ax)"`)+gL(40,250,500,250,`stroke="#222" stroke-width="1.3" marker-end="url(#g-ax)"`);
+  for(let e=0;e<=7;e++){g+=gL(X(10**e),250,X(10**e),255,`stroke="#222"`)+gT(X(10**e),272,`10<tspan baseline-shift="super" font-size="11">${e}</tspan>`,`text-anchor="middle" font-size="14"`)}
+  g+=`<polyline points="${gF(X(1))},${gF(Y(Sut))} ${gF(X(1e3))},${gF(Y(f*Sut))} ${gF(X(1e6))},${gF(Y(Se))} ${gF(X(1e7))},${gF(Y(Se))}" fill="none" stroke="#7d5014" stroke-width="2.4"/>`;
+  g+=gL(40,Y(f*Sut),X(1e3),Y(f*Sut),`stroke="#999" stroke-dasharray="4 3"`)+gL(40,Y(Se),X(1e6),Y(Se),`stroke="#999" stroke-dasharray="4 3"`);
+  g+=gT(34,Y(Sut)+5,gSub("S","ut"),`text-anchor="end" font-size="15"`)+gT(34,Y(f*Sut)+5,`${gI("f")}${gSub("S","ut")}`,`text-anchor="end" font-size="15"`)+gT(34,Y(Se)+5,gSub("S","e"),`text-anchor="end" font-size="15"`);
+  if(mark) g+=`<circle cx="${gF(X(mark[0]))}" cy="${gF(Y(mark[1]))}" r="5" fill="#aa1e28"/>`;
+  g+=gT(500,292,`Cycles ${gI("N")}`,`text-anchor="end" font-size="15"`)+gT(48,26,`Fatigue strength ${gI("S")}<tspan baseline-shift="sub" font-size="12">f</tspan> (log scale)`,`font-size="15"`);
+  return gSvg("-30 0 560 305",g,300);
+}
+
+// ===== 1. S-N line: life at a stress amplitude, or fatigue strength at a life
+function snSolve(p){const Se=faSe0(p.Sut,p.us),f=faF(p.Sut,p.us),{a,b}=faAB(p.Sut,Se,f);
+  return {Se,f,a,b,N:p.mode==="life"?(p.sa/a)**(1/b):p.N,Sf:p.mode==="life"?p.sa:a*p.N**b}}
+function snGenerate(seed){const r=mulberry32(seed);
+  for(let k=0;k<2000;k++){const us=r()<0.5, Sut=us?pick(r,range(70,240,5)):pick(r,range(500,1700,50)), p={us,Sut,mode:r()<0.5?"life":"strength"};
+    const Se=faSe0(Sut,us),f=faF(Sut,us);
+    if(p.mode==="life"){p.sa=Math.round((Se+(f*Sut-Se)*(0.1+0.8*r()))/(us?1:10))*(us?1:10)} else {p.N=pick(r,[2e3,5e3,1e4,2e4,5e4,8e4,1e5,1.5e5,2e5,4e5,6e5])}
+    const s=snSolve(p); if(s.N<1.5e3||s.N>8e5) continue; return {p,s}}}
+function snStatement(p,s){const u=faU(p.us);
+  return `<p>A steel rotating-beam test specimen has an ultimate strength of ${fmt(p.Sut)} ${u}. Use <i>S</i>′<sub>e</sub> = 0.5<i>S<sub>ut</sub></i> (capped at ${p.us?"100 kpsi":"700 MPa"}), the fatigue strength fraction <i>f</i> = ${fmt(s.f,2)} at 10³ cycles, and the S-N line <i>S<sub>f</sub></i> = <i>aN<sup>b</sup></i> between 10³ and 10⁶ cycles.</p>
+  <p>Find <i>a</i> and <i>b</i>, then ${p.mode==="life"?`estimate the life of the specimen at a completely reversed stress amplitude of ${fmt(p.sa)} ${u}.`:`estimate the fatigue strength corresponding to a life of ${fmt(p.N)} cycles of stress reversal.`}</p>`}
+function snFigure(p,s){return faSNplot(p.Sut,s.Se,s.f,null)}
+function snSolution(p,s){const u=faU(p.us);
+  return `<h3>1. Endurance limit and S-N constants</h3><p><span class="eq">S′<sub>e</sub> = ${fmt(s.Se,1)} ${u}</span>&nbsp; <span class="eq">a = (fS<sub>ut</sub>)²/S<sub>e</sub> = (${fmt(s.f,2)} × ${fmt(p.Sut)})²/${fmt(s.Se,1)} = ${fmt(s.a,1)} ${u}</span>&nbsp; <span class="eq">b = −(1/3)log(fS<sub>ut</sub>/S<sub>e</sub>) = ${fmt(s.b,5)}</span></p>
+  <p class="final">a = ${fmt(s.a,1)} ${u}, b = ${fmt(s.b,4)}</p><h3>2. ${p.mode==="life"?"Life":"Fatigue strength"}</h3>
+  ${p.mode==="life"?`<p><span class="eq">N = (σ<sub>a</sub>/a)<sup>1/b</sup> = (${fmt(p.sa)}/${fmt(s.a,1)})<sup>1/(${fmt(s.b,4)})</sup></span></p><p class="final">N = ${fmt(s.N)} cycles</p>`
+  :`<p><span class="eq">S<sub>f</sub> = aN<sup>b</sup> = ${fmt(s.a,1)}(${fmt(p.N)})<sup>${fmt(s.b,4)}</sup></span></p><p class="final">S<sub>f</sub> = ${fmt(s.Sf,1)} ${u}</p>`}${faSNplot(p.Sut,s.Se,s.f,[s.N,s.Sf])}`}
+
+// ===== 2. endurance limit with Marin factors
+function maSolve(p){const Sut=p.HB?(p.us?0.495:3.41)*p.HB:p.Sut, S0=faSe0(Sut,p.us), ka=faKa(p.surf,Sut,p.us), kb=p.load==="Axial"?1:faKb(p.d,p.us), kc=FA_KC[p.load], ke=FA_REL[p.rel];
+  return {Sut,S0,ka,kb,kc,ke,Se:ka*kb*kc*ke*S0}}
+function maGenerate(seed){const r=mulberry32(seed),us=r()<0.5,p={us,surf:pick(r,Object.keys(FA_SURF)),load:pick(r,["Bending","Bending","Axial","Torsion"]),rel:pick(r,["50","50","90","95","99","99.9"])};
+  if(r()<0.35) p.HB=pick(r,range(150,450,10)); else p.Sut=us?pick(r,range(60,220,5)):pick(r,range(400,1500,10));
+  p.d=us?pick(r,[0.25,0.375,0.5,0.625,0.75,1,1.25,1.5,1.75,2,2.5,3]):pick(r,[6,8,10,12,16,20,25,30,40,50,60,80,100]);
+  return {p,s:maSolve(p)}}
+function maStatement(p,s){const u=faU(p.us),L={"Bending":"rotating bending","Axial":"completely reversed axial loading","Torsion":"completely reversed torsion"}[p.load];
+  return `<p>${/^(8|11|18)/.test(fmt(p.d,p.us?3:0))?"An":"A"} ${fmt(p.d,p.us?3:0)} ${p.us?"in":"mm"} diameter steel rod ${p.HB?`has a measured hardness of ${p.HB} Brinell`:`has an ultimate tensile strength of ${fmt(p.Sut)} ${u}`} and a ${p.surf.toLowerCase()} surface. It is loaded in ${L}${p.rel!=="50"?`, and a reliability of ${p.rel}% is required`:""}.</p>
+  <p>Estimate the rotating-beam endurance limit <i>S</i>′<sub>e</sub>, the Marin factors and the endurance limit <i>S<sub>e</sub></i>. Use the relations in the table below.</p>
+  <table><tr><th>Quantity</th><th>Relation</th></tr>${p.HB?`<tr><td>S<sub>ut</sub></td><td>${p.us?"0.495 H<sub>B</sub> kpsi":"3.41 H<sub>B</sub> MPa"}</td></tr>`:""}<tr><td>S′<sub>e</sub></td><td>0.5S<sub>ut</sub>, at most ${p.us?"100 kpsi":"700 MPa"}</td></tr>
+  <tr><td>k<sub>a</sub></td><td>aS<sub>ut</sub><sup>b</sup>: ${Object.entries(FA_SURF).map(([k,c])=>`${k.toLowerCase()} a = ${p.us?c[0]:c[1]}, b = ${c[2]}`).join("; ")}</td></tr>
+  <tr><td>k<sub>b</sub></td><td>${p.us?"(d/0.3)<sup>−0.107</sup> for 0.11 ≤ d ≤ 2 in; 0.91d<sup>−0.157</sup> for 2 < d ≤ 10 in":"(d/7.62)<sup>−0.107</sup> for 2.79 ≤ d ≤ 51 mm; 1.51d<sup>−0.157</sup> for 51 < d ≤ 254 mm"}; 1 for axial loading</td></tr>
+  <tr><td>k<sub>c</sub></td><td>bending 1, axial 0.85, torsion 0.59</td></tr><tr><td>k<sub>e</sub></td><td>reliability 50% 1, 90% 0.897, 95% 0.868, 99% 0.814, 99.9% 0.753</td></tr></table>`}
+function maFigure(p,s){
+  let g=`<rect x="60" y="70" width="380" height="50" rx="3" ${G_PART}/><ellipse cx="440" cy="95" rx="10" ry="25" fill="#f6dda6" stroke="#7d5014" stroke-width="1.6"/>`+gL(30,95,480,95,G_CL);
+  if(p.load==="Bending") g+=gL(120,30,120,66,G_AR)+gL(380,30,380,66,G_AR)+gL(60,166,60,124,G_AR)+gL(440,166,440,124,G_AR)+gT(250,30,"rotating bending",`text-anchor="middle" fill="#aa1e28"`);
+  else if(p.load==="Axial") g+=gL(54,95,10,95,G_AR)+gL(452,95,496,95,G_AR)+gT(250,40,"reversed axial load",`text-anchor="middle" fill="#aa1e28"`);
+  else g+=gT(250,40,"reversed torsion",`text-anchor="middle" fill="#aa1e28"`)+`<path d="M30,70 A14,30 0 1,0 30,120" fill="none" stroke="#aa1e28" stroke-width="2.6" marker-end="url(#g-ar)"/><path d="M470,120 A14,30 0 1,0 470,70" fill="none" stroke="#aa1e28" stroke-width="2.6" marker-end="url(#g-ar)"/>`;
+  g+=gL(250,120,280,160,`stroke="#222" stroke-width="0.9"`)+gT(284,176,`${fmt(p.d,p.us?3:0)} ${p.us?"in":"mm"} dia., ${p.surf.toLowerCase()}`);
+  return gSvg("0 0 520 200",g,220)}
+function maSolution(p,s){const u=faU(p.us),d=p.us?2:1;
+  return `${p.HB?`<p><span class="eq">S<sub>ut</sub> = ${p.us?"0.495":"3.41"}(${p.HB}) = ${fmt(s.Sut,d)} ${u}</span></p>`:""}
+  <h3>1. Rotating-beam endurance limit</h3><p class="final">S′<sub>e</sub> = ${fmt(s.S0,d)} ${u}</p>
+  <h3>2. Marin factors</h3><table><tr><th>Factor</th><th>Basis</th><th>Value</th></tr>
+  <tr><td>k<sub>a</sub></td><td>${p.surf.toLowerCase()}: aS<sub>ut</sub><sup>b</sup></td><td>${fmt(s.ka,4)}</td></tr>
+  <tr><td>k<sub>b</sub></td><td>${p.load==="Axial"?"axial loading":`d = ${fmt(p.d,p.us?3:0)} ${p.us?"in":"mm"}`}</td><td>${fmt(s.kb,4)}</td></tr>
+  <tr><td>k<sub>c</sub></td><td>${p.load.toLowerCase()}</td><td>${fmt(s.kc,2)}</td></tr><tr><td>k<sub>e</sub></td><td>${p.rel}% reliability</td><td>${fmt(s.ke,3)}</td></tr></table>
+  <p class="final">S<sub>e</sub> = k<sub>a</sub>k<sub>b</sub>k<sub>c</sub>k<sub>e</sub>S′<sub>e</sub> = ${fmt(s.Se,d)} ${u}</p>`}
+
+// ===== 3. fluctuating bending and torsion: Goodman, Gerber, ASME-elliptic and yielding
+function fcSolve(p){const va=Math.hypot(p.sa,Math.sqrt(3)*p.ta), vm=Math.hypot(p.sm,Math.sqrt(3)*p.tm), vx=Math.hypot(p.sa+p.sm,Math.sqrt(3)*(p.ta+p.tm));
+  return {va,vm,vx,nG:faGood(va,vm,p.Se,p.Sut),nR:faGerb(va,vm,p.Se,p.Sut),nA:faAsme(va,vm,p.Se,p.Sy),ny:p.Sy/vx}}
+function fcGenerate(seed){const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){const us=r()<0.5,st=us?1:5,Sut=us?pick(r,range(70,180,5)):pick(r,range(450,1250,25)),Sy=Math.round(Sut*(0.55+0.3*r())/st)*st,Se=Math.round(Sut*(0.3+0.2*r())/st)*st;
+    const v=()=>Math.round(Sut*0.35*r()/st)*st, p={us,Sut,Sy,Se,sa:0,sm:0,ta:0,tm:0}, keys=["sa","sm","ta","tm"];
+    for(const k2 of keys) if(r()<0.55) p[k2]=v();
+    if(!p.sa&&!p.ta) continue; if(!p.sm&&!p.tm) continue;
+    const s=fcSolve(p); if(s.nG<1.05||s.nG>3||s.ny<1.05) continue; return {p,s}}}
+function fcStatement(p,s){const u=faU(p.us),it=[];
+  if(p.sa)it.push(`an alternating bending stress of ${fmt(p.sa)} ${u}`);if(p.sm)it.push(`a steady bending stress of ${fmt(p.sm)} ${u}`);if(p.ta)it.push(`an alternating torsional stress of ${fmt(p.ta)} ${u}`);if(p.tm)it.push(`a steady torsional stress of ${fmt(p.tm)} ${u}`);
+  return `<p>A steel bar has the minimum properties <i>S<sub>e</sub></i> = ${fmt(p.Se)} ${u}, <i>S<sub>y</sub></i> = ${fmt(p.Sy)} ${u} and <i>S<sub>ut</sub></i> = ${fmt(p.Sut)} ${u} (the endurance limit is fully corrected). At the critical point it carries ${it.slice(0,-1).join(", ")}${it.length>1?" and ":""}${it[it.length-1]}; the alternating components are in phase.</p>
+  <p>Find the von Mises alternating and mean stresses, the fatigue factors of safety by the modified Goodman, Gerber and ASME-elliptic criteria, and the factor of safety against yielding on the first cycle.</p>`}
+function fcFigure(p,s){
+  const W=440,H=200,X=t=>40+t*W/(4*Math.PI),sc=Math.max(p.sa+p.sm,p.ta+p.tm)||1,Y=v=>130-90*v/sc,pts=(a,m)=>{const o=[];for(let t=0;t<=4*Math.PI+1e-9;t+=Math.PI/24)o.push(gF(X(t))+","+gF(Y(m+a*Math.sin(t))));return o.join(" ")};
+  let g=gL(40,Y(0),W+60,Y(0),`stroke="#222" stroke-width="1.2" marker-end="url(#g-ax)"`)+gL(40,175,40,20,`stroke="#222" stroke-width="1.2" marker-end="url(#g-ax)"`)+gT(W+62,Y(0)+18,gI("t"),`font-size="15"`);
+  if(p.sa||p.sm) g+=`<polyline points="${pts(p.sa,p.sm)}" fill="none" stroke="#aa1e28" stroke-width="2.4"/>`+gT(W+44,Y(p.sm+p.sa*0)-6,"σ",`fill="#aa1e28"`);
+  if(p.ta||p.tm) g+=`<polyline points="${pts(p.ta,p.tm)}" fill="none" stroke="#28405a" stroke-width="2.4" stroke-dasharray="7 4"/>`+gT(W+44,Y(p.tm)+18,"τ",`fill="#28405a"`);
+  g+=gT(50,20,`Stress (${faU(p.us)})`,`font-size="15"`);return gSvg("0 0 540 200",g,220)}
+function fcSolution(p,s){const u=faU(p.us),d=p.us?2:1;
+  return `<h3>1. Von Mises components</h3><p><span class="eq">σ′<sub>a</sub> = √(σ<sub>a</sub>² + 3τ<sub>a</sub>²) = ${fmt(s.va,d)} ${u}</span>&nbsp; <span class="eq">σ′<sub>m</sub> = √(σ<sub>m</sub>² + 3τ<sub>m</sub>²) = ${fmt(s.vm,d)} ${u}</span></p>
+  <h3>2. Yielding on the first cycle</h3><p>The largest stresses act together: <span class="eq">σ′<sub>max</sub> = √[(σ<sub>a</sub> + σ<sub>m</sub>)² + 3(τ<sub>a</sub> + τ<sub>m</sub>)²] = ${fmt(s.vx,d)} ${u}</span>, n<sub>y</sub> = S<sub>y</sub>/σ′<sub>max</sub>.</p><p class="final">n<sub>y</sub> = ${fmt(s.ny,2)}</p>
+  <h3>3. Fatigue</h3><p>Modified Goodman: <span class="eq">1/n = σ′<sub>a</sub>/S<sub>e</sub> + σ′<sub>m</sub>/S<sub>ut</sub></span>. Gerber: <span class="eq">n = ½(S<sub>ut</sub>/σ′<sub>m</sub>)²(σ′<sub>a</sub>/S<sub>e</sub>)[−1 + √(1 + (2σ′<sub>m</sub>S<sub>e</sub>/(S<sub>ut</sub>σ′<sub>a</sub>))²)]</span>. ASME-elliptic: <span class="eq">n = [(σ′<sub>a</sub>/S<sub>e</sub>)² + (σ′<sub>m</sub>/S<sub>y</sub>)²]<sup>−1/2</sup></span>.</p>
+  <p class="final">n<sub>Goodman</sub> = ${fmt(s.nG,2)}, n<sub>Gerber</sub> = ${fmt(s.nR,2)}, n<sub>ASME</sub> = ${fmt(s.nA,2)}</p><p class="note">For a positive mean stress the modified Goodman line always lies inside the Gerber parabola, so n<sub>Goodman</sub> < n<sub>Gerber</sub>; the ASME ellipse uses S<sub>y</sub> on the mean-stress axis, so it can fall on either side of Goodman.</p>`}
+// ===== 4. notched bar under fluctuating axial load
+const NA_MAT=[["AISI 1018 CD",440,370,64,54],["AISI 1020 CD",470,390,68,57],["AISI 1035 CD",550,460,80,67],["AISI 1040 CD",590,490,85,71],["AISI 1050 CD",690,580,100,84]];
+function naSolve(p){const m=NA_MAT[p.mat],Sut=p.us?m[3]:m[1],Sy=p.us?m[4]:m[2],S0=faSe0(Sut,p.us),ka=faKa("Machined or cold-drawn",Sut,p.us),Se=ka*0.85*S0;
+  const Kf=1+p.q*(p.Kt-1),A=(p.w-p.dh)*p.t,c=p.us?1/1000:1,Fa=(p.Fmax-p.Fmin)/2,Fm=(p.Fmax+p.Fmin)/2,sa=Kf*Fa/A*(p.us?1000:1)*c,sm=Kf*Fm/A*(p.us?1000:1)*c;
+  const nf=sm>=0?faGood(sa,sm,Se,Sut):Se/sa, ny=Sy/(Math.abs(sm)+sa);
+  return {m,Sut,Sy,S0,ka,Se,Kf,A,Fa,Fm,sa,sm,nf,ny}}
+function naGenerate(seed){const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){const us=r()<0.4,p={us,mat:Math.floor(r()*NA_MAT.length)};
+    if(us){p.w=pick(r,range(1,3,0.25));p.t=pick(r,[0.125,0.1875,0.25,0.375,0.5]);p.dh=pick(r,range(0.125,0.75,0.125));const F=pick(r,range(1,20,0.5));p.Fmax=F;p.Fmin=pick(r,[-F,0,Math.round(0.4*F*2)/2,-Math.round(0.4*F*2)/2])}
+    else {p.w=pick(r,range(20,80,5));p.t=pick(r,[3,4,5,6,8,10,12]);p.dh=pick(r,range(4,20,2));const F=pick(r,range(4,80,1));p.Fmax=F;p.Fmin=pick(r,[-F,0,Math.round(0.4*F),-Math.round(0.4*F)])}
+    if(r()<0.2){const t=p.Fmax;p.Fmax=-p.Fmin;p.Fmin=-t}
+    if(p.dh/p.w>0.5||p.dh/p.w<0.1||p.Fmax===p.Fmin) continue;
+    p.Kt=Math.round((3-3.13*(p.dh/p.w)+3.66*(p.dh/p.w)**2-1.53*(p.dh/p.w)**3)*100)/100; p.q=pick(r,[0.75,0.8,0.85,0.9,0.95]);
+    const s=naSolve(p); if(s.nf<1.05||s.nf>4||s.ny<1) continue; return {p,s}}}
+function naStatement(p,s){const F=p.us?"kip":"kN",L=p.us?"in":"mm";
+  return `<p>A rectangular bar of ${s.m[0]} steel, ${fmt(p.w,2)} ${L} wide and ${fmt(p.t,p.us?3:0)} ${L} thick, has a ${fmt(p.dh,p.us?3:0)} ${L} diameter hole drilled through its center. It is loaded in push-pull by an axial force that fluctuates between ${fmt(p.Fmin,1)} and ${fmt(p.Fmax,1)} ${F} (tension positive), distributed uniformly across the width; ignore column action. The machined surface factor applies, k<sub>b</sub> = 1 and k<sub>c</sub> = 0.85 for axial loading, and S′<sub>e</sub> = 0.5S<sub>ut</sub>.</p>
+  <p>For the hole, K<sub>t</sub> = ${fmt(p.Kt,2)} on the net section and the notch sensitivity is q = ${fmt(p.q,2)}. Find K<sub>f</sub>, the endurance limit, the alternating and mean stresses, the fatigue factor of safety for infinite life (modified Goodman; for a compressive mean stress use n = S<sub>e</sub>/σ<sub>a</sub>), and the factor of safety against yielding.</p>
+  ${gMatTable(NA_MAT.map(m=>[m[0],p.us?m[3]:m[1],p.us?m[4]:m[2]]),p.us,["S<sub>ut</sub>","S<sub>y</sub>"])}`}
+function naFigure(p,s){const W=360,H=Math.max(70,Math.min(200,W*p.w/(p.w*3.2))),k=H/p.w,dh=p.dh*k;
+  let g=`<rect x="80" y="${gF(110-H/2)}" width="${W}" height="${gF(H)}" ${G_PART}/><circle cx="${80+W/2}" cy="110" r="${gF(dh/2)}" fill="#fff" stroke="#7d5014" stroke-width="1.6"/>`+gL(50,110,W+110,110,G_CL);
+  for(const y of [-0.3,0,0.3]){g+=gL(74,110+y*H,30,110+y*H,`stroke="#aa1e28" stroke-width="2.4" marker-end="url(#g-ar)" marker-start="url(#g-ar)"`)+gL(W+86,110+y*H,W+130,110+y*H,`stroke="#aa1e28" stroke-width="2.4" marker-end="url(#g-ar)" marker-start="url(#g-ar)"`)}
+  g+=gT(20,110-H/2-10,gI("F"),`fill="#aa1e28"`)+gT(W+130,110-H/2-10,gI("F"),`fill="#aa1e28"`);
+  g+=gL(80+W/2+dh/2+4,110-dh/2-4,80+W/2+60,110-H/2-30,`stroke="#222" stroke-width="0.9"`)+gT(80+W/2+64,110-H/2-32,`${fmt(p.dh,p.us?3:0)} dia.`);
+  g+=gL(70,110-H/2,40,110-H/2,G_EXT)+gL(70,110+H/2,40,110+H/2,G_EXT)+gL(48,110-H/2,48,110+H/2,`stroke="#222" stroke-width="0.9" marker-start="url(#g-dm)" marker-end="url(#g-dm)"`)+gT(44,110+H/2+24,`${fmt(p.w,2)}`,`text-anchor="middle"`);
+  g+=gT(W+120,110+H/2+30,`${gI("t")} = ${fmt(p.t,p.us?3:0)}; dimensions in ${p.us?"in":"mm"}`,`text-anchor="end" font-size="15"`);return gSvg("0 0 580 240",g,240)}
+function naSolution(p,s){const u=faU(p.us),d=p.us?2:1,L2=p.us?"in²":"mm²";
+  return `<h3>1. Endurance limit</h3><p><span class="eq">S′<sub>e</sub> = ${fmt(s.S0,d)} ${u}</span>&nbsp; <span class="eq">k<sub>a</sub> = ${fmt(s.ka,4)}</span>&nbsp; <span class="eq">S<sub>e</sub> = k<sub>a</sub>(1)(0.85)S′<sub>e</sub> = ${fmt(s.Se,d)} ${u}</span></p>
+  <h3>2. Stresses</h3><p><span class="eq">K<sub>f</sub> = 1 + q(K<sub>t</sub> − 1) = ${fmt(s.Kf,3)}</span>, net area A = (w − d)t = ${fmt(s.A,p.us?4:1)} ${L2}. F<sub>a</sub> = ${fmt(s.Fa,2)}, F<sub>m</sub> = ${fmt(s.Fm,2)} ${p.us?"kip":"kN"}.</p>
+  <p><span class="eq">σ<sub>a</sub> = K<sub>f</sub>F<sub>a</sub>/A = ${fmt(s.sa,d)} ${u}</span>&nbsp; <span class="eq">σ<sub>m</sub> = K<sub>f</sub>F<sub>m</sub>/A = ${fmt(s.sm,d)} ${u}</span></p>
+  <h3>3. Factors of safety</h3><p>${s.sm>=0?`<span class="eq">1/n<sub>f</sub> = σ<sub>a</sub>/S<sub>e</sub> + σ<sub>m</sub>/S<sub>ut</sub></span>`:`The mean stress is compressive, so <span class="eq">n<sub>f</sub> = S<sub>e</sub>/σ<sub>a</sub></span>`}; yielding: <span class="eq">n<sub>y</sub> = S<sub>y</sub>/(|σ<sub>m</sub>| + σ<sub>a</sub>)</span>.</p>
+  <p class="final">K<sub>f</sub> = ${fmt(s.Kf,3)}, S<sub>e</sub> = ${fmt(s.Se,d)} ${u}; σ<sub>a</sub> = ${fmt(s.sa,d)}, σ<sub>m</sub> = ${fmt(s.sm,d)} ${u}; n<sub>f</sub> = ${fmt(s.nf,2)}, n<sub>y</sub> = ${fmt(s.ny,2)}</p>`}
+
+// ===== 5. cantilever square rod sized for a finite life under reversed load
+const SL_MAT=[["AISI 1030 HR",470,260,68,37.5],["AISI 1040 HR",520,290,76,42],["AISI 1050 HR",620,340,90,49.5],["AISI 1080 HR",770,420,112,61.5],["AISI 1095 HR",830,460,120,66]];
+function slSolve(p){const m=SL_MAT[p.mat],Sut=p.us?m[3]:m[1],S0=faSe0(Sut,p.us),ka=faKa("Hot-rolled",Sut,p.us),f=faF(Sut,p.us);
+  let b=p.us?1:25, kb=1, Se=0, Sf=0, it=0; const M=p.us?p.F*1000*p.L:p.F*1000*p.L*1000;   // lbf·in or N·mm
+  for(;it<60;it++){kb=faKb(0.808*b,p.us);Se=ka*kb*S0;const {a,b:bb}=faAB(Sut,Se,f);Sf=a*p.N**bb;const bn=(6*M*p.n/(Sf*(p.us?1000:1)))**(1/3);if(Math.abs(bn-b)<1e-10){b=bn;break}b=bn}
+  const {a,b:bb}=faAB(Sut,Se,f); return {m,Sut,S0,ka,f,kb,Se,a,bb,Sf,b,M,it}}
+function slGenerate(seed){const r=mulberry32(seed);
+  for(let k=0;k<2000;k++){const us=r()<0.4,p={us,mat:Math.floor(r()*SL_MAT.length),N:pick(r,[2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5]),n:pick(r,[1.25,1.5,1.75,2])};
+    if(us){p.L=pick(r,range(6,36,2));p.F=pick(r,range(0.1,3,0.1))}else{p.L=pick(r,range(0.15,1,0.05));p.F=pick(r,range(0.5,15,0.5))}
+    const s=slSolve(p); if(us?(s.b<0.25||s.b>3):(s.b<6||s.b>75)) continue; return {p,s}}}
+function slStatement(p,s){const u=faU(p.us);
+  return `<p>A solid square rod of ${s.m[0]} steel is cantilevered at one end. It is ${fmt(p.L,p.us?0:2)} ${p.us?"in":"m"} long and supports a completely reversing transverse load of ±${fmt(p.F,1)} ${p.us?"kip":"kN"} at the free end. It must carry this load for ${fmt(p.N)} cycles with a design factor of ${fmt(p.n,2)}. Neglect stress concentration at the support.</p>
+  <p>Use the hot-rolled surface factor, k<sub>b</sub> with the equivalent diameter d<sub>e</sub> = 0.808b of a square section, f = ${fmt(s.f,2)}, and the S-N line between 10³ and 10⁶ cycles. Find the side b of the square, the size factor k<sub>b</sub> and the fatigue strength at the required life.</p>
+  ${gMatTable(SL_MAT.map(m=>[m[0],p.us?m[3]:m[1]]),p.us,["S<sub>ut</sub>"])}`}
+function slFigure(p,s){let g=`<rect x="40" y="40" width="22" height="160" fill="url(#g-hatch)" stroke="#28405a" stroke-width="1.5"/><rect x="62" y="100" width="380" height="40" ${G_PART}/>`+gL(40,120,470,120,G_CL);
+  g+=gL(442,40,442,94,`stroke="#aa1e28" stroke-width="2.6" marker-end="url(#g-ar)"`)+gL(442,200,442,146,`stroke="#aa1e28" stroke-width="2.6" marker-end="url(#g-ar)"`)+gT(452,60,`±${gI("F")}`,`fill="#aa1e28"`);
+  g+=gL(62,150,62,186,G_EXT)+gL(442,150,442,186,G_EXT)+gL(62,178,442,178,G_DIM)+gT(252,172,`${fmt(p.L,p.us?0:2)} ${p.us?"in":"m"}`,`text-anchor="middle" class="halo"`);
+  g+=`<rect x="500" y="100" width="40" height="40" ${G_PART}/>`+gT(520,90,gI("b"),`text-anchor="middle"`)+gT(552,126,gI("b"))+gT(520,166,"section",`text-anchor="middle" font-size="14"`);
+  return gSvg("20 20 560 200",g,220)}
+function slSolution(p,s){const u=faU(p.us),L=p.us?"in":"mm",d=p.us?2:1;
+  return `<h3>1. Fixed quantities</h3><p><span class="eq">S′<sub>e</sub> = ${fmt(s.S0,d)} ${u}</span>&nbsp; <span class="eq">k<sub>a</sub> = ${fmt(s.ka,4)}</span>&nbsp; <span class="eq">M = FL = ${p.us?fmt(s.M)+" lbf·in":fmt(s.M/1000)+" N·m"}</span></p>
+  <h3>2. Iterate on the size factor</h3><p>Start from a trial b, then repeat: d<sub>e</sub> = 0.808b, S<sub>e</sub> = k<sub>a</sub>k<sub>b</sub>S′<sub>e</sub>, a = (fS<sub>ut</sub>)²/S<sub>e</sub>, b<sub>SN</sub> = −(1/3)log(fS<sub>ut</sub>/S<sub>e</sub>), S<sub>f</sub> = aN<sup>b<sub>SN</sub></sup>, and from σ = 6M/b³ = S<sub>f</sub>/n, <span class="eq">b = (6Mn/S<sub>f</sub>)<sup>1/3</sup></span>. It converges in a few passes.</p>
+  <p>Converged: k<sub>b</sub> = ${fmt(s.kb,4)}, S<sub>e</sub> = ${fmt(s.Se,d)} ${u}, a = ${fmt(s.a,1)} ${u}, b<sub>SN</sub> = ${fmt(s.bb,4)}.</p>
+  <p class="final">S<sub>f</sub> = ${fmt(s.Sf,d)} ${u}; b = ${fmt(s.b,p.us?3:1)} ${L} (k<sub>b</sub> = ${fmt(s.kb,3)})</p><p class="note">Round b up to the next stock size in practice.</p>`}
+
+// ===== 6. combined bending, axial and torsion with fatigue stress-concentration factors
+function ckSolve(p){const va=Math.hypot(p.Kb*p.ba+p.Ka*p.aa/0.85,Math.sqrt(3)*p.Kt*p.ta), vm=Math.hypot(p.Kb*p.bm+p.Ka*p.am,Math.sqrt(3)*p.Kt*p.tm);
+  const nf=faGood(va,vm,p.Se,p.Su), ny=p.Sy/(va+vm), f=faF(p.Su,p.us), {a,b}=faAB(p.Su,p.Se,f), srev=va/(1-vm/p.Su), N=nf<1?(srev/a)**(1/b):Infinity;
+  return {va,vm,nf,ny,f,a,b,srev,N}}
+function ckGenerate(seed){const r=mulberry32(seed);
+  for(let k=0;k<20000;k++){const us=r()<0.3,st=us?1:5,Su=us?pick(r,range(60,180,5)):pick(r,range(400,1250,25)),p={us,Su,Sy:Math.round(Su*(0.6+0.3*r())/st)*st,Se:Math.round(Su*(0.3+0.2*r())/st)*st,
+    Kb:pick(r,[1,1.2,1.4,1.6,1.8,2]),Ka:pick(r,[1,1.1,1.2,1.5]),Kt:pick(r,[1,1.3,1.6,2]),finite:r()<0.35};
+    const v=x=>Math.round(Su*x*r()/st)*st, bt=pick(r,["rev","rep","fluc","none"]), at=pick(r,["const","none","rev"]), tt=pick(r,["rep","const","fluc","none"]);
+    const mk=(type,sc)=>{const A=v(sc);return type==="rev"?[A,0]:type==="rep"?[A/2,A/2]:type==="const"?[0,A]:type==="fluc"?[A*0.3,A*0.7]:[0,0]};
+    [p.ba,p.bm]=mk(bt,0.4);[p.aa,p.am]=mk(at,0.15);[p.ta,p.tm]=mk(tt,0.25);p.types=[bt,at,tt];
+    if(!p.ba&&!p.aa&&!p.ta) continue;
+    const s=ckSolve(p); if(p.finite?(s.nf>0.95||s.N<2e3||s.N>8e5):(s.nf<1.05||s.nf>3)) continue; if(s.ny<0.9) continue; return {p,s}}}
+function ckStatement(p,s){const u=faU(p.us),D={rev:"completely reversed",rep:"repeated (from zero)",fluc:"fluctuating",const:"constant",none:""};
+  const line=(nm,ty,a,m)=>ty==="none"?`<li>${nm}: none</li>`:`<li>${nm}: ${D[ty]}, ${ty==="const"?`${fmt(m)} ${u}`:`varying from ${fmt(m-a)} to ${fmt(m+a)} ${u}`}</li>`;
+  return `<p>A part is loaded with a combination of bending, axial and torsional loads that produce these nominal stresses at a notch:</p><ul>${line("Bending",p.types[0],p.ba,p.bm)}${line("Axial",p.types[1],p.aa,p.am)}${line("Torsion",p.types[2],p.ta,p.tm)}</ul>
+  <p>The varying stresses are in phase. The fatigue stress-concentration factors are K<sub>f,bending</sub> = ${p.Kb}, K<sub>f,axial</sub> = ${p.Ka} and K<sub>fs,torsion</sub> = ${p.Kt}. The material has S<sub>y</sub> = ${fmt(p.Sy)} ${u} and S<sub>ut</sub> = ${fmt(p.Su)} ${u}, and the fully adjusted endurance limit (for bending) is S<sub>e</sub> = ${fmt(p.Se)} ${u}. Apply the axial alternating stress with a 1/0.85 load factor.</p>
+  <p>Find the von Mises alternating and mean stresses, the fatigue factor of safety for infinite life by the modified Goodman criterion, and the yield factor of safety by the conservative check n<sub>y</sub> = S<sub>y</sub>/(σ′<sub>a</sub> + σ′<sub>m</sub>). If the life is not infinite, estimate the number of cycles with f = ${fmt(s.f,2)}.</p>`}
+function ckFigure(p,s){const W=420,X=t=>40+t*W/(4*Math.PI),all=[[p.ba,p.bm],[p.aa,p.am],[p.ta,p.tm]],sc=Math.max(...all.map(([a,m])=>Math.abs(a)+Math.abs(m)))||1,Y=v=>120-85*v/sc;
+  const pts=(a,m)=>{const o=[];for(let t=0;t<=4*Math.PI+1e-9;t+=Math.PI/24)o.push(gF(X(t))+","+gF(Y(m+a*Math.sin(t))));return o.join(" ")};
+  let g=gL(40,Y(0),W+60,Y(0),`stroke="#222" stroke-width="1.2" marker-end="url(#g-ax)"`)+gL(40,215,40,25,`stroke="#222" stroke-width="1.2" marker-end="url(#g-ax)"`);
+  const st=[["#aa1e28","","bending"],["#1e5a32","3 3","axial"],["#28405a","8 4","torsion"]];
+  all.forEach(([a,m],i)=>{if(!a&&!m)return;g+=`<polyline points="${pts(a,m)}" fill="none" stroke="${st[i][0]}" stroke-width="2.4" stroke-dasharray="${st[i][1]}"/>`+gT(W+66,Y(m)+5,st[i][2],`fill="${st[i][0]}" font-size="14"`)});
+  g+=gT(48,22,`Nominal stress (${faU(p.us)})`,`font-size="15"`);return gSvg("0 0 560 225",g,240)}
+function ckSolution(p,s){const u=faU(p.us),d=p.us?2:1;
+  return `<h3>1. Von Mises stresses with K<sub>f</sub></h3><p><span class="eq">σ′<sub>a</sub> = √{[K<sub>f</sub>σ<sub>a,b</sub> + K<sub>f</sub>σ<sub>a,ax</sub>/0.85]² + 3(K<sub>fs</sub>τ<sub>a</sub>)²} = √{[${fmt(p.Kb*p.ba,d)} + ${fmt(p.Ka*p.aa/0.85,d)}]² + 3(${fmt(p.Kt*p.ta,d)})²} = ${fmt(s.va,d)} ${u}</span></p>
+  <p><span class="eq">σ′<sub>m</sub> = √{[K<sub>f</sub>σ<sub>m,b</sub> + K<sub>f</sub>σ<sub>m,ax</sub>]² + 3(K<sub>fs</sub>τ<sub>m</sub>)²} = √{[${fmt(p.Kb*p.bm,d)} + ${fmt(p.Ka*p.am,d)}]² + 3(${fmt(p.Kt*p.tm,d)})²} = ${fmt(s.vm,d)} ${u}</span></p>
+  <h3>2. Factors of safety</h3><p><span class="eq">1/n<sub>f</sub> = σ′<sub>a</sub>/S<sub>e</sub> + σ′<sub>m</sub>/S<sub>ut</sub></span>&nbsp; <span class="eq">n<sub>y</sub> = S<sub>y</sub>/(σ′<sub>a</sub> + σ′<sub>m</sub>)</span></p>
+  <p class="final">σ′<sub>a</sub> = ${fmt(s.va,d)}, σ′<sub>m</sub> = ${fmt(s.vm,d)} ${u}; n<sub>f</sub> = ${fmt(s.nf,2)}, n<sub>y</sub> = ${fmt(s.ny,2)}</p>
+  ${s.nf<1?`<h3>3. Finite life</h3><p>The equivalent completely reversed stress is <span class="eq">σ<sub>rev</sub> = σ′<sub>a</sub>/(1 − σ′<sub>m</sub>/S<sub>ut</sub>) = ${fmt(s.srev,d)} ${u}</span>. With a = (fS<sub>ut</sub>)²/S<sub>e</sub> = ${fmt(s.a,1)} and b = ${fmt(s.b,4)}: <span class="eq">N = (σ<sub>rev</sub>/a)<sup>1/b</sup></span>.</p><p class="final">N = ${fmt(s.N)} cycles</p>`:`<p class="note">n<sub>f</sub> ≥ 1: infinite life is predicted.</p>`}
+  ${s.ny<1?`<p class="note">n<sub>y</sub> < 1 by this conservative check; a closer yield analysis (σ′<sub>max</sub> from the actual maximum stresses) may still show the part does not yield.</p>`:""}`}
+// ===== 7. cumulative damage: Miner's rule and Manson's method (completely reversed stress levels)
+function mmSolve(p){const {a,b}=faAB(p.Sut,p.Se,p.f), N=s=>(s/a)**(1/b), N1=N(p.s1),N2=N(p.s2),N3=N(p.s3);
+  const miner=N3*(1-p.n1/N1-p.n2/N2);
+  // Manson: S-N line always passes through (1e3, f Sut); after each block it passes through (remaining life, stress)
+  const P0=[1e3,p.f*p.Sut], line=(Nr,S)=>{const bb=Math.log10(S/P0[1])/Math.log10(Nr/P0[0]);return s=>P0[0]*(s/P0[1])**(1/bb)};
+  const R1=N1-p.n1, L1=line(R1,p.s1), N2p=L1(p.s2), R2=N2p-p.n2, L2=line(R2,p.s2), manson=L2(p.s3);
+  return {a,b,N1,N2,N3,miner,R1,N2p,R2,manson}}
+function mmGenerate(seed){const r=mulberry32(seed);
+  for(let k=0;k<20000;k++){const us=r()<0.4,st=us?1:5,Sut=us?pick(r,range(60,150,5)):pick(r,range(400,1000,10)),p={us,Sut,Se:Math.round(Sut*(0.35+0.1*r())/st)*st,f:pick(r,[0.8,0.85,0.86,0.88,0.9])};
+    const lv=()=>Math.round((p.Se+(p.f*p.Sut-p.Se)*(0.15+0.75*r()))/st)*st; p.s1=lv();p.s2=lv();p.s3=lv();
+    if(new Set([p.s1,p.s2,p.s3]).size<3||p.s3<=p.Se) continue;
+    const s0=mmSolve({...p,n1:0,n2:0}); p.n1=Math.round(s0.N1*(0.1+0.4*r())/100)*100||100; p.n2=Math.round(s0.N2*(0.1+0.35*r())/100)*100||100;
+    const s=mmSolve(p); if(!(s.miner>0.05*s.N3)||!(s.R2>1e3)||!(s.manson>0)||!isFinite(s.manson)) continue; return {p,s}}}
+function mmStatement(p,s){const u=faU(p.us);
+  return `<p>A machine part will be cycled at ±${fmt(p.s1)} ${u} for ${fmt(p.n1)} cycles. Then the loading changes to ±${fmt(p.s2)} ${u} for ${fmt(p.n2)} cycles. Finally the loading changes to ±${fmt(p.s3)} ${u}. For the part, S<sub>ut</sub> = ${fmt(p.Sut)} ${u}, f = ${fmt(p.f,2)}, and the fully corrected endurance limit is S<sub>e</sub> = ${fmt(p.Se)} ${u}.</p>
+  <p>Find the S-N lives at the three stress levels, and estimate how many cycles of operation can be expected at the last level (a) by Miner's rule and (b) by Manson's method.</p>`}
+function mmFigure(p,s){return faSNplot(p.Sut,p.Se,p.f,null)}
+function mmSolution(p,s){const u=faU(p.us);
+  return `<h3>1. S-N line</h3><p><span class="eq">a = (fS<sub>ut</sub>)²/S<sub>e</sub> = ${fmt(s.a,1)} ${u}</span>&nbsp; <span class="eq">b = −(1/3)log(fS<sub>ut</sub>/S<sub>e</sub>) = ${fmt(s.b,5)}</span>&nbsp; <span class="eq">N = (σ/a)<sup>1/b</sup></span></p>
+  <table><tr><th>Level</th><th>σ (${u})</th><th>N</th><th>Applied n</th></tr><tr><td>1</td><td>${fmt(p.s1)}</td><td>${fmt(s.N1)}</td><td>${fmt(p.n1)}</td></tr><tr><td>2</td><td>${fmt(p.s2)}</td><td>${fmt(s.N2)}</td><td>${fmt(p.n2)}</td></tr><tr><td>3</td><td>${fmt(p.s3)}</td><td>${fmt(s.N3)}</td><td>?</td></tr></table>
+  <h3>2. (a) Miner's rule</h3><p><span class="eq">n<sub>3</sub> = N<sub>3</sub>(1 − n<sub>1</sub>/N<sub>1</sub> − n<sub>2</sub>/N<sub>2</sub>)</span></p><p class="final">n<sub>3</sub> = ${fmt(s.miner)} cycles (Miner)</p>
+  <h3>3. (b) Manson's method</h3><p>Every damaged S-N line passes through (10³, fS<sub>ut</sub> = ${fmt(p.f*p.Sut,1)}). After level 1 the remaining life at σ<sub>1</sub> is N<sub>1</sub> − n<sub>1</sub> = ${fmt(s.R1)}; the line through (${fmt(s.R1)}, ${fmt(p.s1)}) gives N′<sub>2</sub> = ${fmt(s.N2p)} at σ<sub>2</sub>. After level 2 the remaining life is ${fmt(s.R2)}; the line through (${fmt(s.R2)}, ${fmt(p.s2)}) gives the life at σ<sub>3</sub>.</p>
+  <p class="final">n<sub>3</sub> = ${fmt(s.manson)} cycles (Manson)</p><p class="note">The two estimates differ because Miner's rule ignores the order of the loading, while Manson's method lets each block reshape the S-N line.</p>`}
+
+// ===== 8. round-wire cantilever spring under a fluctuating force: life by Goodman and Gerber
+function wsSolve(p){const Sut=(p.us?0.495:3.41)*p.HB, S0=faSe0(Sut,p.us), ka=faKa("Hot-rolled",Sut,p.us), de=0.370*p.d, kb=faKb(de,p.us), Se=ka*kb*S0, f=faF(Sut,p.us), {a,b}=faAB(Sut,Se,f);
+  const c=32*p.L/(Math.PI*p.d**3)*(p.us?1/1000:1), sa=c*(p.Fmax-p.Fmin)/2, sm=c*(p.Fmax+p.Fmin)/2;
+  const rG=sa/(1-sm/Sut), rR=sa/(1-(sm/Sut)**2), NG=(rG/a)**(1/b), NR=(rR/a)**(1/b);
+  return {Sut,S0,ka,de,kb,Se,f,a,b,sa,sm,rG,rR,NG,NR}}
+function wsGenerate(seed){const r=mulberry32(seed);
+  for(let k=0;k<20000;k++){const us=r()<0.5,p={us,HB:pick(r,range(250,450,10))};
+    if(us){p.d=pick(r,[0.125,0.1875,0.25,0.3125,0.375,0.5]);p.L=pick(r,range(4,16,1));p.Fmax=pick(r,range(5,80,5))}else{p.d=pick(r,[3,4,5,6,8,10,12]);p.L=pick(r,range(100,400,10));p.Fmax=pick(r,range(10,400,10))}
+    p.Fmin=Math.round(p.Fmax*(0.1+0.6*r())/(us?1:5))*(us?1:5);
+    if(us&&p.d*0.37<0.11||!us&&p.d*0.37<2.79) continue;
+    const s=wsSolve(p); if(s.sm+s.sa>0.95*s.Sut) continue; if(s.rR<=s.Se*1.02||s.NG<1.2e3||s.NR>9e5) continue; return {p,s}}}
+function wsStatement(p,s){const F=p.us?"lbf":"N",L=p.us?"in":"mm";
+  return `<p>A formed round-wire cantilever spring, ${fmt(p.d,p.us?3:0)} ${L} in diameter, carries a force at a distance of ${fmt(p.L)} ${L} from its support that varies between F<sub>min</sub> = ${fmt(p.Fmin)} ${F} and F<sub>max</sub> = ${fmt(p.Fmax)} ${F}. Hardness tests give a minimum of ${p.HB} Brinell, the surface corresponds to a hot-rolled finish, and there is no stress concentration. Ignore curvature effects.</p>
+  <p>Use S<sub>ut</sub> = ${p.us?"0.495H<sub>B</sub> kpsi":"3.41H<sub>B</sub> MPa"}, S′<sub>e</sub> = 0.5S<sub>ut</sub>, the hot-rolled surface factor, k<sub>b</sub> with d<sub>e</sub> = 0.370d for a nonrotating round section, and f = ${fmt(s.f,2)}. Estimate the number of load applications likely to cause failure using (a) the modified Goodman criterion and (b) the Gerber criterion.</p>
+  <table><tr><th>Quantity</th><th>Relation</th></tr><tr><td>k<sub>a</sub> (hot-rolled)</td><td>${p.us?"14.4":"57.7"}S<sub>ut</sub><sup>−0.718</sup></td></tr><tr><td>k<sub>b</sub></td><td>${p.us?"(d<sub>e</sub>/0.3)<sup>−0.107</sup>":"(d<sub>e</sub>/7.62)<sup>−0.107</sup>"}</td></tr></table>`}
+function wsFigure(p,s){let g=`<rect x="40" y="50" width="26" height="150" fill="url(#g-hatch)" stroke="#28405a" stroke-width="1.5"/><path d="M66,120 L420,120 Q440,120 440,140 L440,150" fill="none" stroke="#7d5014" stroke-width="10" stroke-linecap="round"/><path d="M66,120 L420,120 Q440,120 440,140 L440,150" fill="none" stroke="#eec878" stroke-width="7" stroke-linecap="round"/>`;
+  g+=gL(440,60,440,108,`stroke="#aa1e28" stroke-width="2.6" marker-end="url(#g-ar)"`)+gT(452,74,`${gSub("F","max")} = ${fmt(p.Fmax)} ${p.us?"lbf":"N"}`,`fill="#aa1e28" font-size="15"`)+gT(452,96,`${gSub("F","min")} = ${fmt(p.Fmin)} ${p.us?"lbf":"N"}`,`fill="#aa1e28" font-size="15"`);
+  g+=gL(66,128,66,186,G_EXT)+gL(440,160,440,186,G_EXT)+gL(66,178,440,178,G_DIM)+gT(253,172,`${fmt(p.L)} ${p.us?"in":"mm"}`,`text-anchor="middle" class="halo"`);
+  g+=gL(200,116,176,86,`stroke="#222" stroke-width="0.9"`)+gT(172,80,`${fmt(p.d,p.us?3:0)} ${p.us?"in":"mm"} dia.`,`text-anchor="end" font-size="15"`);
+  return gSvg("20 40 640 170",g,220)}
+function wsSolution(p,s){const u=faU(p.us),d=p.us?2:1;
+  return `<h3>1. Strength and endurance limit</h3><p><span class="eq">S<sub>ut</sub> = ${fmt(s.Sut,d)} ${u}</span>&nbsp; <span class="eq">S′<sub>e</sub> = ${fmt(s.S0,d)} ${u}</span>&nbsp; <span class="eq">k<sub>a</sub> = ${fmt(s.ka,4)}</span>&nbsp; <span class="eq">d<sub>e</sub> = ${fmt(s.de,p.us?4:2)} ${p.us?"in":"mm"}, k<sub>b</sub> = ${fmt(s.kb,4)}</span>&nbsp; <span class="eq">S<sub>e</sub> = ${fmt(s.Se,d)} ${u}</span></p>
+  <p>S-N line: <span class="eq">a = ${fmt(s.a,1)} ${u}</span>, <span class="eq">b = ${fmt(s.b,4)}</span>.</p>
+  <h3>2. Stresses</h3><p><span class="eq">σ = 32FL/(πd³)</span>: <span class="eq">σ<sub>a</sub> = ${fmt(s.sa,d)} ${u}</span>&nbsp; <span class="eq">σ<sub>m</sub> = ${fmt(s.sm,d)} ${u}</span></p>
+  <h3>3. Equivalent reversed stress and life</h3><p>Goodman: <span class="eq">σ<sub>rev</sub> = σ<sub>a</sub>/(1 − σ<sub>m</sub>/S<sub>ut</sub>) = ${fmt(s.rG,d)} ${u}</span>; Gerber: <span class="eq">σ<sub>rev</sub> = σ<sub>a</sub>/[1 − (σ<sub>m</sub>/S<sub>ut</sub>)²] = ${fmt(s.rR,d)} ${u}</span>. Both exceed S<sub>e</sub>, so <span class="eq">N = (σ<sub>rev</sub>/a)<sup>1/b</sup></span>.</p>
+  <p class="final">(a) Goodman: N = ${fmt(s.NG)} cycles; (b) Gerber: N = ${fmt(s.NR)} cycles</p>`}
+
+// ===== 9. rotating shaft with a shoulder fillet: fatigue at the fillet and under the load
+const RS_MAT=[["AISI 1018 CD",440,370,64,54],["AISI 1020 CD",470,390,68,57],["AISI 1035 CD",550,460,80,67],["AISI 1040 CD",590,490,85,71],["AISI 1050 CD",690,580,100,84]];
+function rsSolve(p){const m=RS_MAT[p.mat],Sut=p.us?m[3]:m[1],Sy=p.us?m[4]:m[2],S0=faSe0(Sut,p.us),ka=faKa("Machined or cold-drawn",Sut,p.us),Kf=1+p.q*(p.Kt-1);
+  const R1=p.F*(p.L-p.a)/p.L, Mf=R1*p.xs, Ml=R1*p.a, kbS=faKb(p.d,p.us), kbL=faKb(p.D,p.us), SeS=ka*kbS*S0, SeL=ka*kbL*S0;
+  const sf=Kf*32*Mf*(p.us?1:1000)/(Math.PI*p.d**3), sl=32*Ml*(p.us?1:1000)/(Math.PI*p.D**3);   // kpsi or MPa (moments in kip·in or kN·mm = N·m)
+  return {m,Sut,Sy,S0,ka,Kf,R1,Mf,Ml,kbS,kbL,SeS,SeL,sf,sl,nS:SeS/sf,nL:SeL/sl,ny:Sy/Math.max(sf,sl)}}
+function rsGenerate(seed){const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){const us=r()<0.4,p={us,mat:Math.floor(r()*RS_MAT.length),Kt:pick(r,[1.4,1.5,1.6,1.7,1.8,2.0,2.2]),q:pick(r,[0.7,0.75,0.8,0.85,0.9])};
+    if(us){p.L=pick(r,range(10,30,1));p.a=Math.round(p.L*(0.35+0.4*r()));p.xs=Math.round(p.a*(0.4+0.4*r())*2)/2;p.d=pick(r,range(0.75,2.5,0.125));p.D=p.d+pick(r,[0.25,0.375,0.5]);p.F=pick(r,range(0.2,6,0.1))}
+    else {p.L=pick(r,range(250,800,10));p.a=Math.round(p.L*(0.35+0.4*r())/5)*5;p.xs=Math.round(p.a*(0.4+0.4*r())/5)*5;p.d=pick(r,range(20,60,1));p.D=p.d+pick(r,[5,8,10,12]);p.F=pick(r,range(0.5,30,0.5))}
+    if(p.xs<=0||p.xs>=p.a) continue;
+    const s=rsSolve(p); const mn=Math.min(s.nS,s.nL); if(mn<1.1||mn>4||Math.abs(s.nS-s.nL)<0.06*mn) continue; return {p,s}}}
+function rsStatement(p,s){const L=p.us?"in":"mm",F=p.us?"kip":"kN";
+  return `<p>A rotating ${s.m[0]} steel shaft, machined all over, runs in bearings at <i>A</i> and <i>C</i> (simple supports) ${fmt(p.L)} ${L} apart and carries a stationary transverse force <i>F</i> = ${fmt(p.F,1)} ${F} at <i>B</i>, ${fmt(p.a)} ${L} from <i>A</i>. The shaft is ${fmt(p.d,p.us?3:0)} ${L} in diameter from <i>A</i> to a shoulder ${fmt(p.xs,p.us?1:0)} ${L} from <i>A</i>, and ${fmt(p.D,p.us?3:0)} ${L} from the shoulder to <i>C</i>. At the shoulder fillet K<sub>t</sub> = ${fmt(p.Kt,2)} and q = ${fmt(p.q,2)}; there is no other stress concentration.</p>
+  <p>Use S′<sub>e</sub> = 0.5S<sub>ut</sub>, the machined surface factor and the size factor for rotating bending at each section. Find the bending moment at the shoulder, the fatigue factors of safety for infinite life at the shoulder fillet and under the load, and the yield factor of safety.</p>
+  ${gMatTable(RS_MAT.map(m=>[m[0],p.us?m[3]:m[1],p.us?m[4]:m[2]]),p.us,["S<sub>ut</sub>","S<sub>y</sub>"])}`}
+function rsFigure(p,s){const W=440,X=x=>60+x*W/p.L,h1=26,h2=Math.min(48,h1*p.D/p.d),y=120;
+  let g=`<rect x="${gF(X(0))}" y="${y-h1/2}" width="${gF(X(p.xs)-X(0))}" height="${h1}" ${G_PART}/><rect x="${gF(X(p.xs))}" y="${gF(y-h2/2)}" width="${gF(X(p.L)-X(p.xs))}" height="${gF(h2)}" ${G_PART}/>`+gL(30,y,W+90,y,G_CL);
+  for(const x of [0,p.L]) g+=`<path d="M${gF(X(x))},${gF(y+h2/2+2)} l-14,24 l28,0 z" fill="#b9c8d8" stroke="#28405a" stroke-width="1.5"/>`;
+  g+=gL(X(p.a),y-h2/2-60,X(p.a),y-h2/2-4,G_AR)+gT(X(p.a)+8,y-h2/2-44,`${gI("F")} = ${fmt(p.F,1)} ${p.us?"kip":"kN"}`,`fill="#aa1e28"`);
+  g+=gT(X(0),y+h2/2+48,gI("A"),`text-anchor="middle"`)+gT(X(p.a),y+h2/2+20,gI("B"),`text-anchor="middle"`)+gT(X(p.L),y+h2/2+48,gI("C"),`text-anchor="middle"`);
+  const yd=y+h2/2+70; g+=gL(X(0),y+h2/2+52,X(0),yd+8,G_EXT)+gL(X(p.xs),y+h1/2+4,X(p.xs),yd+8,G_EXT)+gL(X(p.a),y+h2/2+26,X(p.a),yd+30,G_EXT)+gL(X(p.L),y+h2/2+52,X(p.L),yd+30,G_EXT);
+  g+=gL(X(0),yd,X(p.xs),yd,G_DIM)+gT((X(0)+X(p.xs))/2,yd-6,fmt(p.xs,p.us?1:0),`text-anchor="middle" font-size="15"`)+gL(X(0),yd+22,X(p.a),yd+22,G_DIM)+gT((X(0)+X(p.a))/2,yd+16,fmt(p.a),`text-anchor="middle" font-size="15" class="halo"`)+gL(X(0),yd+44,X(p.L),yd+44,G_DIM)+gT((X(0)+X(p.L))/2,yd+38,fmt(p.L),`text-anchor="middle" font-size="15" class="halo"`);
+  g+=gL(X(p.xs/2),y-h1/2,X(p.xs/2)-10,y-h1/2-40,`stroke="#222" stroke-width="0.9"`)+gT(X(p.xs/2)-14,y-h1/2-44,`${fmt(p.d,p.us?3:0)} dia.`,`text-anchor="end" font-size="15"`);
+  g+=gL((X(p.a)+X(p.L))/2,y-h2/2,(X(p.a)+X(p.L))/2+10,y-h2/2-40,`stroke="#222" stroke-width="0.9"`)+gT((X(p.a)+X(p.L))/2+14,y-h2/2-44,`${fmt(p.D,p.us?3:0)} dia.`,`font-size="15"`);
+  g+=gT(W+80,yd+70,`Dimensions in ${p.us?"in":"mm"}`,`text-anchor="end" font-size="15"`);return gSvg(`0 20 ${W+110} ${yd+60}`,g,300)}
+function rsSolution(p,s){const u=faU(p.us),d=p.us?2:1,M=p.us?"kip·in":"N·m",mm=v=>p.us?fmt(v,2):fmt(v,1);
+  return `<h3>1. Moments</h3><p><span class="eq">R<sub>A</sub> = F(L − a)/L = ${fmt(s.R1,3)} ${p.us?"kip":"kN"}</span>&nbsp; <span class="eq">M<sub>shoulder</sub> = R<sub>A</sub>x<sub>s</sub> = ${mm(s.Mf)} ${M}</span>&nbsp; <span class="eq">M<sub>B</sub> = R<sub>A</sub>a = ${mm(s.Ml)} ${M}</span></p>
+  <p>Rotation makes the bending stress completely reversed: σ<sub>m</sub> = 0.</p>
+  <h3>2. Shoulder fillet</h3><p><span class="eq">K<sub>f</sub> = 1 + q(K<sub>t</sub> − 1) = ${fmt(s.Kf,3)}</span>&nbsp; <span class="eq">σ<sub>a</sub> = K<sub>f</sub>32M/(πd³) = ${fmt(s.sf,d)} ${u}</span>&nbsp; <span class="eq">S<sub>e</sub> = k<sub>a</sub>k<sub>b</sub>S′<sub>e</sub> = ${fmt(s.ka,3)}(${fmt(s.kbS,3)})(${fmt(s.S0,d)}) = ${fmt(s.SeS,d)} ${u}</span></p>
+  <h3>3. Under the load</h3><p><span class="eq">σ<sub>a</sub> = 32M<sub>B</sub>/(πD³) = ${fmt(s.sl,d)} ${u}</span>&nbsp; <span class="eq">S<sub>e</sub> = ${fmt(s.ka,3)}(${fmt(s.kbL,3)})(${fmt(s.S0,d)}) = ${fmt(s.SeL,d)} ${u}</span></p>
+  <p class="final">n<sub>f</sub> = ${fmt(s.nS,2)} at the shoulder, ${fmt(s.nL,2)} under the load; the ${s.nS<s.nL?"shoulder":"load point"} governs. n<sub>y</sub> = S<sub>y</sub>/σ<sub>max</sub> = ${fmt(s.ny,2)}</p>`}
+const add2=(a,b)=>[a[0]+b[0],a[1]+b[1]];
+// ===== template registry: each entry has the same interface
+const TEMPLATES={
+  "sn-curve":{ name:"S-N line: life at a stress amplitude, or strength at a life",
+    generate:snGenerate, figure:snFigure, solution:snSolution, statement:snStatement,
+    get fields(){const u=cur&&cur.p.us?"kpsi":"MPa", life=cur&&cur.p.mode==="life";return [{id:"a",label:"Coefficient a",unit:u},{id:"b",label:"Exponent b",unit:"",signed:true},
+      life?{id:"N",label:"Life",unit:"cycles"}:{id:"Sf",label:"Fatigue strength",unit:u}]},
+    truth:s=>({a:s.a,b:s.b,N:s.N,Sf:s.Sf}), note:"Use the f given in the statement." },
+  "marin":{ name:"Endurance limit with Marin factors",
+    generate:maGenerate, figure:maFigure, solution:maSolution, statement:maStatement,
+    get fields(){const u=cur&&cur.p.us?"kpsi":"MPa";return [{id:"S0",label:"S′<sub>e</sub>",unit:u},{id:"ka",label:"k<sub>a</sub>",unit:""},{id:"kb",label:"k<sub>b</sub>",unit:""},{id:"Se",label:"Endurance limit S<sub>e</sub>",unit:u}]},
+    truth:s=>({S0:s.S0,ka:s.ka,kb:s.kb,Se:s.Se}), note:"Use the relations in the table." },
+  "fluct-criteria":{ name:"Fluctuating bending and torsion: Goodman, Gerber, ASME-elliptic, yielding",
+    generate:fcGenerate, figure:fcFigure, solution:fcSolution, statement:fcStatement,
+    get fields(){const u=cur&&cur.p.us?"kpsi":"MPa";return [{id:"va",label:"σ′<sub>a</sub>",unit:u},{id:"vm",label:"σ′<sub>m</sub>",unit:u},{id:"nG",label:"n, modified Goodman",unit:""},
+      {id:"nR",label:"n, Gerber",unit:""},{id:"nA",label:"n, ASME-elliptic",unit:""},{id:"ny",label:"n against yielding",unit:""}]},
+    truth:s=>({va:s.va,vm:s.vm,nG:s.nG,nR:s.nR,nA:s.nA,ny:s.ny}), note:"The endurance limit is already fully corrected." },
+  "notched-axial":{ name:"Bar with a hole under fluctuating axial load",
+    generate:naGenerate, figure:naFigure, solution:naSolution, statement:naStatement,
+    get fields(){const u=cur&&cur.p.us?"kpsi":"MPa";return [{id:"Kf",label:"K<sub>f</sub>",unit:""},{id:"Se",label:"Endurance limit S<sub>e</sub>",unit:u},{id:"sa",label:"σ<sub>a</sub>",unit:u},
+      {id:"sm",label:"σ<sub>m</sub> (with sign)",unit:u,signed:true},{id:"nf",label:"Fatigue factor of safety",unit:""},{id:"ny",label:"Yield factor of safety",unit:""}]},
+    truth:s=>({Kf:s.Kf,Se:s.Se,sa:s.sa,sm:s.sm,nf:s.nf,ny:s.ny}), note:"Stresses on the net section, with Kf applied." },
+  "size-for-life":{ name:"Cantilever square rod sized for a finite life",
+    generate:slGenerate, figure:slFigure, solution:slSolution, statement:slStatement,
+    get fields(){const us=cur&&cur.p.us;return [{id:"kb",label:"Size factor k<sub>b</sub>",unit:""},{id:"Sf",label:"Fatigue strength at the required life",unit:us?"kpsi":"MPa"},{id:"b",label:"Side of the square b",unit:us?"in":"mm"}]},
+    truth:s=>({kb:s.kb,Sf:s.Sf,b:s.b}), note:"Iterate: kb depends on b." },
+  "combined-kf":{ name:"Combined bending, axial and torsion with K<sub>f</sub>: Goodman and yielding",
+    generate:ckGenerate, figure:ckFigure, solution:ckSolution, statement:ckStatement,
+    get fields(){const u=cur&&cur.p.us?"kpsi":"MPa",f=[{id:"va",label:"σ′<sub>a</sub>",unit:u},{id:"vm",label:"σ′<sub>m</sub>",unit:u},{id:"nf",label:"Fatigue factor of safety (Goodman)",unit:""},{id:"ny",label:"Yield factor of safety",unit:""}];
+      if(cur&&cur.s.nf<1) f.push({id:"N",label:"Estimated life",unit:"cycles"}); return f},
+    truth:s=>({va:s.va,vm:s.vm,nf:s.nf,ny:s.ny,N:s.N}), note:"If the fatigue factor of safety is below 1, also estimate the life." },
+  "miner-manson":{ name:"Cumulative damage: Miner's rule and Manson's method",
+    generate:mmGenerate, figure:mmFigure, solution:mmSolution, statement:mmStatement,
+    fields:[{id:"N1",label:"S-N life at level 1",unit:"cycles"},{id:"N3",label:"S-N life at level 3",unit:"cycles"},{id:"miner",label:"Cycles at level 3, Miner",unit:"cycles"},{id:"manson",label:"Cycles at level 3, Manson",unit:"cycles"}],
+    truth:s=>({N1:s.N1,N3:s.N3,miner:s.miner,manson:s.manson}), note:"Lives within 2% are accepted." },
+  "wire-spring":{ name:"Round-wire cantilever spring: life by Goodman and Gerber",
+    generate:wsGenerate, figure:wsFigure, solution:wsSolution, statement:wsStatement,
+    get fields(){const u=cur&&cur.p.us?"kpsi":"MPa";return [{id:"Se",label:"Endurance limit S<sub>e</sub>",unit:u},{id:"sa",label:"σ<sub>a</sub>",unit:u},{id:"sm",label:"σ<sub>m</sub>",unit:u},
+      {id:"NG",label:"Life, modified Goodman",unit:"cycles"},{id:"NR",label:"Life, Gerber",unit:"cycles"}]},
+    truth:s=>({Se:s.Se,sa:s.sa,sm:s.sm,NG:s.NG,NR:s.NR}), note:"Lives within 2% are accepted." },
+  "rotating-shaft":{ name:"Rotating shaft with a shoulder fillet: infinite-life check",
+    generate:rsGenerate, figure:rsFigure, solution:rsSolution, statement:rsStatement,
+    get fields(){const us=cur&&cur.p.us;return [{id:"Mf",label:"Bending moment at the shoulder",unit:us?"kip·in":"N·m"},{id:"nS",label:"Fatigue factor of safety at the shoulder",unit:""},
+      {id:"nL",label:"Fatigue factor of safety under the load",unit:""},{id:"ny",label:"Yield factor of safety",unit:""}]},
+    truth:s=>({Mf:s.Mf,nS:s.nS,nL:s.nL,ny:s.ny}), note:"Rotating bending: the mean stress is zero." }
+};
+
+// ===== page
+let curKey="beam-tee", cur=null;
+const $=id=>document.getElementById(id);
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key];
+  cur=T.generate(seed); const {p,s}=cur;
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
+  $("fig").innerHTML=T.figure(p,s);
+  $("statement").innerHTML=T.statement(p,s);
+  const fields=T.fields.filter(f=>!(f.skip&&f.skip(p)));
+  $("answers").innerHTML=fields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :f.expr?`<input id="in-${f.id}" type="text" class="expr" spellcheck="false" autocomplete="off">`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent=(T.symbolic?"Answers are checked for algebraic equivalence. ":"Answers within 2% are accepted. ")+T.note;
+  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
+  $("solBtn").textContent="Show solution";
+}
+
+function check(){
+  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const scale=Math.max(...Object.values(truth).filter(v=>typeof v==="number").map(Math.abs));
+  T.fields.filter(f=>!(f.skip&&f.skip(cur.p))).forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    if(f.expr){const r=exprEquivalent(raw,f);el.textContent=r.ok?"Correct":r.msg?"Cannot read: "+r.msg:"Not yet";el.className="mark "+(r.ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scale:0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+const newSeed=()=>1+Math.floor(Math.random()*999999);
+$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
+$("typeSel").onchange=e=>render(e.target.value,newSeed());
+$("newBtn").onclick=()=>render(curKey,newSeed());
+$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+$("checkBtn").onclick=check;
+$("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+(function(){
+  const m=/^#([a-z-]+)-(\d+)$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
+  else render(Object.keys(TEMPLATES)[0],newSeed());
+})();
+
+
+</script>
+</body>
+</html>

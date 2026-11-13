@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stress Problem Generator</title>
+<style>
+  :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#ffffff;--accent:#1e5a32;--ok:#1e7a3c;--bad:#b3261e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  .sub a{color:var(--accent)}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .answers input{width:8em}
+  .mark{font-weight:600;min-width:7em}.mark.ok{color:var(--ok)}.mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mechanics of Materials: Stress Problem Generator</h1>
+  <div class="sub">Axial stress, shear stress, and bearing stress. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem. <a href="index.html">All chapters</a></div>
+</header>
+<main>
+  <div class="card bar"><label for="typeSel">Problem type</label><select id="typeSel"></select></div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+// ===== common helpers: seeded random numbers, number formatting, SVG drawing
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+function fmt(v,d=0){return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+function sig(v,n=3){if(v===0)return "0";const e=Math.floor(Math.log10(Math.abs(v)));return fmt(+v.toPrecision(n),Math.min(20,Math.max(0,n-1-e)))}
+const FR={0.25:"¼",0.375:"⅜",0.5:"½",0.625:"⅝",0.75:"¾",0.875:"⅞",1:"1",1.25:"1¼",1.5:"1½"};
+const dstr=v=>FR[v]||String(v);
+const C={fill:"#f7e2c4",ln:"#78461a",load:"#aa1e28",dim:"#5b6470",ink:"#1f2328",green:"#1e5a32",light:"#cde1cd",steel:"#dfe4ea",steelln:"#46505c"};
+const TX=(x,y,s,o={})=>`<text x="${x}" y="${y}" text-anchor="${o.a||"middle"}" font-size="${o.s||14}" fill="${o.c||C.ink}" font-family="Georgia,serif"${o.i?' font-style="italic"':""}>${s}</text>`;
+const LN=(x1,y1,x2,y2,o={})=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"${o.d?` stroke-dasharray="${o.d}"`:""}${o.cap?' stroke-linecap="round"':""}/>`;
+function AR(x1,y1,x2,y2,c=C.load,w=2.2){const a=Math.atan2(y2-y1,x2-x1),h=11,s=0.4;
+  const p=(da)=>`${(x2-h*Math.cos(a+da)).toFixed(1)},${(y2-h*Math.sin(a+da)).toFixed(1)}`;
+  return LN(x1,y1,x2-6*Math.cos(a),y2-6*Math.sin(a),{c,w})+`<polygon points="${x2.toFixed(1)},${y2.toFixed(1)} ${p(s)} ${p(-s)}" fill="${c}"/>`}
+const RC=(x,y,w,h,o={})=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${o.f||C.fill}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"/>`;
+const CI=(x,y,r,o={})=>`<circle cx="${x}" cy="${y}" r="${r}" fill="${o.f||"#fff"}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"/>`;
+function DIMH(x1,x2,y,label,o={}){const up=o.up?-6:16;
+  return LN(x1,y,x2,y,{c:C.dim,w:1})+LN(x1,y-5,x1,y+5,{c:C.dim,w:1})+LN(x2,y-5,x2,y+5,{c:C.dim,w:1})+TX((x1+x2)/2,y+up,label,{s:13,c:C.dim})}
+function DIMV(x,y1,y2,label,o={}){const dx=o.left?-8:8;
+  return LN(x,y1,x,y2,{c:C.dim,w:1})+LN(x-5,y1,x+5,y1,{c:C.dim,w:1})+LN(x-5,y2,x+5,y2,{c:C.dim,w:1})+TX(x+dx,(y1+y2)/2+4,label,{s:13,c:C.dim,a:o.left?"end":"start"})}
+function HATCH(x,y,w,h){let s=RC(x,y,w,h,{f:"#eceae4",c:C.ln,w:1});
+  for(let i=-h;i<w;i+=8){const xa=Math.max(x,x+i),ya=y+(xa-(x+i)),xb=Math.min(x+w,x+i+h),yb=y+(xb-(x+i));s+=LN(xa,ya,xb,yb,{c:"#9a8f80",w:.8})}return s}
+const SVG=(w,h,b)=>`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" role="img">${b}</svg>`;
+const sub=(a,b)=>`${a}<sub>${b}</sub>`;
+const iv=s=>`<i>${s}</i>`;
+
+// ===== 1. stepped bar: axial force diagram and normal stress in each segment
+const NODES="ABCDEFGHIJKLMNOP";
+function sbGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,n=pick(r,[3,3,4]),A=[],Ls=[],F=[];
+    for(let i=0;i<n;i++){
+      A.push(pick(r,us?[0.8,1.0,1.2,1.5,1.6,1.8,2.0,2.5]:[300,400,500,600,800,1000,1200]));
+      Ls.push(pick(r,us?[1.0,1.2,1.5,1.6,1.8,2.0]:[0.8,1.0,1.2,1.5,2.0]));
+      F.push(pick(r,us?range(1000,9000,500):range(5000,40000,1000))*pick(r,[1,-1]));
+    }
+    F.push(-F.reduce((a,b)=>a+b,0));                       // the bar is in equilibrium
+    const lo=us?1000:5000;
+    if(Math.abs(F[n])<lo||Math.max(...F.map(Math.abs))>(us?16000:70000)) continue;
+    const N=[];let c=0;for(let i=0;i<n;i++){c+=F[i];N.push(-c)}
+    if(N.some(v=>Math.abs(v)<lo/2)||!(N.some(v=>v>0)&&N.some(v=>v<0))) continue;
+    const sg=N.map((v,i)=>v/A[i]),m=sg.map(Math.abs),mx=Math.max(...m),imax=m.indexOf(mx);
+    if(m.some((v,i)=>i!==imax&&v>0.9*mx)) continue;
+    return {p:{us,n,A,Ls,F},s:{N,sg,imax,smax:mx}};
+  }
+  throw new Error("no valid problem");
+}
+const sbSeg=i=>NODES[i]+NODES[i+1];
+function sbFmtF(p,v){return p.us?`${fmt(Math.abs(v))} lb`:`${fmt(Math.abs(v)/1000)} kN`}
+function sbFigure(p){
+  const x0=90,W=580,tot=p.Ls.reduce((a,b)=>a+b,0),maxA=Math.max(...p.A),yc=165;let x=x0,b="";
+  const xs=[x0];p.Ls.forEach(l=>{x+=W*l/tot;xs.push(x)});
+  p.A.forEach((a,i)=>{const h=36+54*Math.sqrt(a/maxA);
+    b+=RC(xs[i],yc-h/2,xs[i+1]-xs[i],h)+TX((xs[i]+xs[i+1])/2,yc+5,`${fmt(a,p.us?1:0)} ${p.us?"in.²":"mm²"}`,{s:13})
+      +DIMH(xs[i],xs[i+1],262,`${fmt(p.Ls[i],1)} ${p.us?"ft":"m"}`)});
+  p.F.forEach((f,i)=>{const X=xs[i],d=f>0?1:-1;
+    b+=LN(X,84,X,yc-50,{c:C.dim,w:1,d:"3 3"})+AR(X,84,X+d*58,84)+TX(X+d*29,72,sbFmtF(p,f),{s:13,c:C.load})
+      +TX(X,yc+75,NODES[i],{s:15,i:1})});
+  return SVG(760,290,b);
+}
+function sbStatement(p){
+  const F=p.F.map((f,i)=>`${iv(NODES[i])}: ${sbFmtF(p,f)} to the ${f>0?"right":"left"}`).join("; ");
+  return `<p>The stepped bar ${NODES[0]}${NODES[p.n]} below consists of ${p.n} cylindrical segments with different cross-sectional areas and lengths, as shown. The bar is in equilibrium under the axial loads ${F}.</p>
+  <p>Find the normal stress in each segment (tension positive, compression negative), and identify the segment with the largest stress magnitude.</p>`;
+}
+function sbSolution(p,s){
+  const u=p.us?"lb":"N",su=p.us?"psi":"MPa";let h="<h3>1. Axial force in each segment</h3><p>Cut the bar inside a segment and write ΣF<sub>x</sub> = 0 for the part to the left of the cut. With tension positive, the axial force equals minus the sum of the external loads (positive to the right) to the left of the cut.</p><table><tr><th>Segment</th><th>N ("+u+")</th><th>A ("+(p.us?"in.²":"mm²")+")</th><th>σ = N/A ("+su+")</th></tr>";
+  s.N.forEach((n,i)=>{h+=`<tr><td>${sbSeg(i)}</td><td>${fmt(n)} (${n>0?"T":"C"})</td><td>${fmt(p.A[i],p.us?1:0)}</td><td>${sig(s.sg[i])} (${n>0?"T":"C"})</td></tr>`});
+  h+=`</table><p class="note">The segment lengths and the material do not enter the stress calculation.</p><h3>2. Largest stress</h3><p class="final">Segment ${sbSeg(s.imax)}, with |σ| = ${sig(s.smax)} ${su}.</p>`;
+  return h;
+}
+const SB={name:"Stepped bar: axial force and normal stress in each segment",
+  generate:sbGenerate,figure:sbFigure,statement:sbStatement,solution:sbSolution,
+  fields:(p,s)=>[...p.A.map((_,i)=>({id:"s"+i,label:`Stress in segment ${sbSeg(i)} (signed, tension +)`,unit:p.us?"psi":"MPa",signed:true})),
+    {id:"imax",label:"Segment with the largest |σ|",unit:"",choices:p.A.map((_,i)=>sbSeg(i))}],
+  truth:(p,s)=>{const o={imax:sbSeg(s.imax)};s.sg.forEach((v,i)=>o["s"+i]=v);return o},
+  note:"Enter signed stresses; tension is positive."};
+
+// ===== 2. two bars meeting at a pin that carries a weight: forces and the safe weight
+function tbGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,al=pick(r,range(25,65,5)),be=pick(r,range(25,65,5));
+    if(al+be<60||al+be>120) continue;
+    const A=[pick(r,us?range(0.2,1.0,0.1):[200,300,400,500,600,800]),pick(r,us?range(0.2,1.0,0.1):[200,300,400,500,600,800])];
+    const sw=[pick(r,us?range(12,24,2):range(80,160,10)),pick(r,us?range(12,24,2):range(80,160,10))];
+    const p={us,al,be,A,sw},s=tbSolve(p);
+    if(Math.abs(s.W[0]-s.W[1])<0.1*Math.min(...s.W)) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function tbSolve(p){
+  const a=p.al*Math.PI/180,b=p.be*Math.PI/180,D=Math.sin(a+b);
+  const k=[Math.cos(b)/D,Math.cos(a)/D];                    // P_AB/W and P_AC/W
+  const cap=p.A.map((A,i)=>p.sw[i]*A/(p.us?1:1000));          // kips (ksi·in.²), or kN (MPa·mm² = N)
+  const W=cap.map((c,i)=>c/k[i]),Ws=Math.min(...W);
+  return {k,cap,W,Ws,gov:W[0]<W[1]?"AB":"AC"};
+}
+function tbFigure(p){
+  const Ax=380,Ay=205,Lp=165,a=p.al*Math.PI/180,b=p.be*Math.PI/180;
+  const Bx=Ax-Lp*Math.cos(a),By=Ay-Lp*Math.sin(a),Cx=Ax+Lp*Math.cos(b),Cy=Ay-Lp*Math.sin(b);
+  const arc=(cx,cy,ang,left)=>{const r=34,x2=cx+(left?-1:1)*r*Math.cos(ang),y2=cy+r*Math.sin(ang);
+    return LN(cx,cy,cx+(left?-1:1)*(r+14),cy,{c:C.dim,w:1,d:"3 3"})+`<path d="M ${cx+(left?-r:r)} ${cy} A ${r} ${r} 0 0 ${left?0:1} ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="${C.dim}" stroke-width="1.2"/>`};
+  const wl=(cx,cy,ang,left)=>{const r=56;return [cx+(left?-1:1)*r*Math.cos(ang/2),cy+r*Math.sin(ang/2)+5]};
+  const [al_x,al_y]=wl(Bx,By,a,false),[be_x,be_y]=wl(Cx,Cy,b,true);
+  let s=HATCH(Bx-22,By-24,44,24)+HATCH(Cx-22,Cy-24,44,24)
+   +LN(Bx,By,Ax,Ay,{w:6,cap:1})+LN(Cx,Cy,Ax,Ay,{w:6,cap:1})+CI(Bx,By,5)+CI(Cx,Cy,5)+CI(Ax,Ay,6,{f:"#fff"})
+   +arc(Bx,By,a,false)+arc(Cx,Cy,b,true)
+   +TX(al_x+4,al_y,"α",{s:15,i:1,c:C.dim})+TX(be_x-4,be_y,"β",{s:15,i:1,c:C.dim})
+   +AR(Ax,Ay,Ax,Ay+70)+TX(Ax+16,Ay+60,"W",{s:16,i:1,c:C.load,a:"start"})
+   +TX(Bx-30,By+5,"B",{s:15,i:1,a:"end"})+TX(Cx+30,Cy+5,"C",{s:15,i:1,a:"start"})+TX(Ax-14,Ay+22,"A",{s:15,i:1,a:"end"})
+   +TX((Bx+Ax)/2-6,(By+Ay)/2+30,`AB`,{s:13,c:C.dim})+TX((Cx+Ax)/2+6,(Cy+Ay)/2+30,`AC`,{s:13,c:C.dim});
+  return SVG(760,290,s);
+}
+function tbStatement(p){
+  const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Wu=p.us?"kips":"kN";
+  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. The cross-sectional areas are ${fmt(p.A[0],p.us?1:0)} ${u} (${iv("AB")}) and ${fmt(p.A[1],p.us?1:0)} ${u} (${iv("AC")}); the working stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
+  <p>Express the bar forces as multiples of ${iv("W")}, then find the largest weight each bar can carry and the largest weight that can be hung safely.</p>`;
+}
+function tbSolution(p,s){
+  const Wu=p.us?"kips":"kN",Fu=p.us?"kips":"kN";
+  return `<h3>1. Equilibrium of pin A</h3><p>Both bars are two-force members; assume both in tension.</p>
+  <p class="eq">ΣF<sub>x</sub> = 0: P<sub>AC</sub> cos β − P<sub>AB</sub> cos α = 0</p><br><p class="eq">ΣF<sub>y</sub> = 0: P<sub>AB</sub> sin α + P<sub>AC</sub> sin β − W = 0</p>
+  <p>Solving, P<sub>AB</sub> = W cos β / sin(α+β) = ${sig(s.k[0],4)} W and P<sub>AC</sub> = W cos α / sin(α+β) = ${sig(s.k[1],4)} W.</p>
+  <h3>2. Weight limited by each bar</h3>
+  <p>Bar AB: P<sub>AB</sub> = σ<sub>w</sub>A = ${sig(s.cap[0])} ${Fu}, so W = ${sig(s.cap[0])}/${sig(s.k[0],4)} = ${sig(s.W[0])} ${Wu}.</p>
+  <p>Bar AC: P<sub>AC</sub> = σ<sub>w</sub>A = ${sig(s.cap[1])} ${Fu}, so W = ${sig(s.cap[1])}/${sig(s.k[1],4)} = ${sig(s.W[1])} ${Wu}.</p>
+  <h3>3. Safe weight</h3><p class="final">W<sub>safe</sub> = ${sig(s.Ws)} ${Wu}, governed by bar ${s.gov}. The larger value must be discarded because it would overstress the other bar.</p>`;
+}
+const TB={name:"Two bars supporting a weight: bar forces and safe load",
+  generate:tbGenerate,figure:tbFigure,statement:tbStatement,solution:tbSolution,
+  fields:(p,s)=>[{id:"kAB",label:"P_AB / W",unit:""},{id:"kAC",label:"P_AC / W",unit:""},
+    {id:"W1",label:"Largest W allowed by bar AB",unit:p.us?"kips":"kN"},{id:"W2",label:"Largest W allowed by bar AC",unit:p.us?"kips":"kN"},
+    {id:"Ws",label:"Largest safe W",unit:p.us?"kips":"kN"},{id:"gov",label:"Governing bar",unit:"",choices:["AB","AC"]}],
+  truth:(p,s)=>({kAB:s.k[0],kAC:s.k[1],W1:s.W[0],W2:s.W[1],Ws:s.Ws,gov:s.gov}),
+  note:"Answers within 2% are accepted."};
+
+// ===== 3. Warren truss: member stresses and required area (method of joints, solved numerically)
+function trSolve(p){
+  const n=p.n,nodes=[];
+  for(let i=0;i<=n;i++)nodes.push([i*p.a,0]);
+  for(let i=0;i<n;i++)nodes.push([(i+0.5)*p.a,p.h]);
+  const T=j=>n+1+j,mem=[];
+  for(let i=0;i<n;i++)mem.push([i,i+1]);
+  for(let i=0;i<n-1;i++)mem.push([T(i),T(i+1)]);
+  for(let i=0;i<n;i++){mem.push([i,T(i)]);mem.push([T(i),i+1])}
+  const m=mem.length,N=nodes.length,K=m+3,M=Array.from({length:2*N},()=>new Array(K+1).fill(0));
+  mem.forEach(([i,j],k)=>{const dx=nodes[j][0]-nodes[i][0],dy=nodes[j][1]-nodes[i][1],L=Math.hypot(dx,dy);
+    M[2*i][k]+=dx/L;M[2*i+1][k]+=dy/L;M[2*j][k]-=dx/L;M[2*j+1][k]-=dy/L});
+  M[0][m]=1;M[1][m+1]=1;M[2*n+1][m+2]=1;                    // pin at node 0, roller at node n
+  p.loads.forEach(([j,f])=>{M[2*j+1][K]-=-f});                // downward load f: -f in y; move to right side
+  for(let c=0;c<K;c++){let pv=c;for(let r=c+1;r<2*N;r++)if(Math.abs(M[r][c])>Math.abs(M[pv][c]))pv=r;
+    [M[c],M[pv]]=[M[pv],M[c]];for(let r=0;r<2*N;r++)if(r!==c){const f=M[r][c]/M[c][c];if(f)for(let q=c;q<=K;q++)M[r][q]-=f*M[c][q]}}
+  const x=[];for(let c=0;c<K;c++)x.push(M[c][K]/M[c][c]);
+  return {nodes,mem,F:x.slice(0,m),R:x.slice(m)};
+}
+function trGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,n=pick(r,[3,4,4]),a=pick(r,us?[6,8,10]:[3,4,5]),h=pick(r,us?[6,8,9,12]:[3,4,5]);
+    const cand=[];for(let j=1;j<n;j++)cand.push(j);const top=[];for(let j=0;j<n;j++)top.push(n+1+j);
+    const nl=pick(r,[2,3]),pickN=[...cand,...top];const chosen=new Set();while(chosen.size<nl)chosen.add(pick(r,pickN));
+    const loads=[...chosen].map(j=>[j,pick(r,us?range(5,30,5):range(20,120,10))]);
+    const p={us,n,a,h,loads,A:pick(r,us?[1.2,1.8,2.4,3.0]:[800,1000,1200,1400,1800])};
+    const sol=trSolve(p);
+    if(Math.abs(sol.R[1])<1e-9&&Math.abs(sol.R[2])<1e-9) continue;
+    const F=sol.F,mx=Math.max(...F.map(Math.abs)),m=sol.mem.length;
+    // members asked: one top chord, one bottom chord, one diagonal
+    const bot=[...Array(n).keys()],tp=[...Array(n-1).keys()].map(i=>n+i),dg=[...Array(2*n).keys()].map(i=>n+(n-1)+i);
+    const ok=a=>a.filter(i=>Math.abs(F[i])>0.12*mx);
+    const B=ok(bot),Tt=ok(tp),D=ok(dg);if(!B.length||!Tt.length||!D.length) continue;
+    const ask=[pick(r,D),pick(r,Tt),pick(r,B)];
+    const sw=[pick(r,us?[16,18,20,24]:[100,120,140,160]),0];sw[1]=Math.round(sw[0]*pick(r,[0.5,0.6,0.7])/(us?2:10))*(us?2:10);
+    if(sw[1]<=0) continue;
+    p.ask=ask;p.sw=sw;
+    const s={sol,ask,R:sol.R};
+    const Fa=ask.map(i=>F[i]);
+    s.sg=Fa.map(f=>f*1000/p.A);                              // kN or kips → MPa (SI), or ksi (US: kips/in²)
+    if(us)s.sg=Fa.map(f=>f/p.A);
+    const f0=Fa[0];s.Areq=Math.abs(f0)*(us?1:1000)/(f0>0?sw[0]:sw[1]);
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function trMemName(sol,k,p){const [i,j]=sol.mem[k];return NODES[i]+NODES[j]}
+function trFigure(p,s){
+  const sol=s.sol,n=p.n,sc=Math.min(600/(n*p.a),150/p.h),x0=100+(600-n*p.a*sc)/2,y0=230;
+  const P=([x,y])=>[x0+x*sc,y0-y*sc];let b="";
+  sol.mem.forEach(([i,j],k)=>{const [x1,y1]=P(sol.nodes[i]),[x2,y2]=P(sol.nodes[j]),hl=p.ask.includes(k);
+    b+=LN(x1,y1,x2,y2,{c:hl?C.green:C.ln,w:hl?5:3.5,cap:1})});
+  sol.nodes.forEach((nd,j)=>{const [x,y]=P(nd);b+=CI(x,y,4.5)+TX(x+15,y+(j<=n?((j===0||j===n)?42:24):-10),NODES[j],{s:14,i:1})});
+  const [ax,ay]=P(sol.nodes[0]),[bx,by]=P(sol.nodes[n]);
+  b+=`<polygon points="${ax},${ay+4} ${ax-12},${ay+22} ${ax+12},${ay+22}" fill="#eceae4" stroke="${C.ln}"/>`+CI(bx,by+12,8,{f:"#eceae4"})+LN(bx-14,by+22,bx+14,by+22);
+  p.loads.forEach(([j,f])=>{const [x,y]=P(sol.nodes[j]);const top=j>n;
+    b+=top?AR(x,y-52,x,y-5)+TX(x,y-58,`${f} ${p.us?"kips":"kN"}`,{s:13,c:C.load}):AR(x,y+6,x,y+52)+TX(x,y+70,`${f} ${p.us?"kips":"kN"}`,{s:13,c:C.load})});
+  const u=p.us?"ft":"m";
+  b+=DIMH(P(sol.nodes[0])[0],P(sol.nodes[1])[0],y0+96,`${p.a} ${u}`)+DIMV(x0-26,y0,y0-p.h*sc,`${p.h} ${u}`,{left:1});
+  return SVG(760,350,b);
+}
+function trStatement(p,s){
+  const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
+  const nm=k=>trMemName(s.sol,k,p),ld=p.loads.map(([j,f])=>`${f} ${Fu} at ${iv(NODES[j])}`).join(", ");
+  return `<p>The Warren truss shown has ${p.n} equal panels, each ${p.a} ${p.us?"ft":"m"} wide, and a height of ${p.h} ${p.us?"ft":"m"}. It is pinned at ${iv("A")} and supported by a roller at ${iv(NODES[p.n])}. Downward loads act at the joints: ${ld}. All members have the cross-sectional area ${fmt(p.A,p.us?1:0)} ${u}; member weights are neglected.</p>
+  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the working stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
+}
+function trSolution(p,s){
+  const sol=s.sol,Fu=p.us?"kips":"kN",su=p.us?"ksi":"MPa";
+  let h=`<h3>1. Reactions</h3><p>From the equilibrium of the whole truss: A<sub>x</sub> = ${sig(sol.R[0])} ${Fu}, A<sub>y</sub> = ${sig(sol.R[1])} ${Fu}, and the roller reaction at ${NODES[p.n]} is ${sig(sol.R[2])} ${Fu}.</p>
+  <h3>2. Member forces (method of joints, tension positive)</h3><table><tr><th>Member</th><th>Force (${Fu})</th><th></th></tr>`;
+  sol.mem.forEach((_,k)=>{h+=`<tr><td>${trMemName(sol,k,p)}</td><td>${sig(sol.F[k])}</td><td>${Math.abs(sol.F[k])<1e-6?"zero":sol.F[k]>0?"T":"C"}</td></tr>`});
+  h+=`</table><p class="note">Any member can also be found directly with the method of sections: cut through the member and two others, and take moments about the intersection of those two.</p><h3>3. Stresses in the highlighted members</h3><p>σ = N/A with A = ${fmt(p.A,p.us?1:0)} ${p.us?"in.²":"mm²"}.</p><table><tr><th>Member</th><th>N (${Fu})</th><th>σ (${su})</th></tr>`;
+  p.ask.forEach((k,i)=>{h+=`<tr><td>${trMemName(sol,k,p)}</td><td>${sig(sol.F[k])}</td><td>${sig(s.sg[i])}</td></tr>`});
+  const f0=sol.F[p.ask[0]];
+  h+=`</table><h3>4. Required area of member ${trMemName(sol,p.ask[0],p)}</h3><p>The member is in ${f0>0?"tension":"compression"}, so σ<sub>w</sub> = ${f0>0?p.sw[0]:p.sw[1]} ${su} governs: A = |N|/σ<sub>w</sub> = <span class="final">${sig(s.Areq)} ${p.us?"in.²":"mm²"}</span>.</p>`;
+  return h;
+}
+const TR={name:"Warren truss: member stresses by joints or sections",
+  generate:trGenerate,figure:trFigure,statement:trStatement,solution:trSolution,
+  fields:(p,s)=>[...p.ask.map((k,i)=>({id:"s"+i,label:`Stress in member ${trMemName(s.sol,k,p)} (signed, tension +)`,unit:p.us?"ksi":"MPa",signed:true})),
+    {id:"A",label:`Smallest area of member ${trMemName(s.sol,p.ask[0],p)}`,unit:p.us?"in.²":"mm²"},
+    {id:"Ry",label:`Vertical reaction at ${NODES[p.n]}`,unit:p.us?"kips":"kN"}],
+  truth:(p,s)=>({s0:s.sg[0],s1:s.sg[1],s2:s.sg[2],A:s.Areq,Ry:s.R[2]}),
+  note:"Enter signed stresses; tension is positive."};
+
+// ===== 4/5. glued joint in an axially loaded bar (inclined plane): design and analysis
+function gjParams(r){
+  const us=r()<0.4,th=pick(r,range(20,60,5));
+  const b=pick(r,us?[3,4,5,6]:[50,75,100]),t=pick(r,us?[0.75,1,1.5,2]:[25,40,50,75,100]);
+  const sw=pick(r,us?range(1000,1400,100):range(10,20,2)),sn=pick(r,us?range(500,900,50):range(4,10,1)),tg=pick(r,us?range(300,600,50):range(2,6,1));
+  return {us,th,b,t,sw,sn,tg};
+}
+function gjFigure(p){
+  const x0=130,x1=630,y0=95,y1=185,cx=380,th=p.th*Math.PI/180,dx=(y1-y0)/2*Math.tan(th),u=p.us?"in.":"mm";
+  const bx=cx-dx,by=y1,rr=34;
+  let s=RC(x0,y0,x1-x0,y1-y0)+LN(cx-dx,y1,cx+dx,y0,{c:C.green,w:3})
+   +AR(x0-56,140,x0,140)+AR(x1+56,140,x1,140)+TX(x0-30,128,"P",{s:16,i:1,c:C.load})+TX(x1+30,128,"P",{s:16,i:1,c:C.load})
+   +TX(cx+dx+16,y0-8,"glued joint",{s:13,c:C.green,a:"start"})
+   +LN(bx,by,bx,by-62,{c:C.dim,w:1,d:"3 3"})+`<path d="M ${bx} ${by-rr} A ${rr} ${rr} 0 0 1 ${(bx+rr*Math.sin(th)).toFixed(1)} ${(by-rr*Math.cos(th)).toFixed(1)}" fill="none" stroke="${C.dim}" stroke-width="1.2"/>`
+   +TX(bx-10,by-30,`θ = ${p.th}°`,{s:14,c:C.dim,a:"end"})
+   +DIMV(x1+90,y0,y1,`${p.b} ${u}`)+TX(x0,y1+34,`Thickness (into the page): ${p.t} ${u}`,{s:13,c:C.dim,a:"start"});
+  return SVG(800,250,s);
+}
+function gjDesignGen(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const p=gjParams(r),A=p.b*p.t,th=p.th*Math.PI/180,f=p.us?1:1000;
+    const P=[p.sw*A,p.sn*A/Math.cos(th)**2,2*p.tg*A/Math.sin(2*th)].map(v=>v/f);   // lb or kN
+    const sorted=[...P].sort((a,b)=>a-b);if(sorted[1]<1.1*sorted[0]) continue;
+    const i=P.indexOf(sorted[0]);
+    return {p,s:{P,Pm:sorted[0],gov:["Wood (tension)","Glue (normal stress)","Glue (shear stress)"][i]}};
+  }
+  throw new Error("no valid problem");
+}
+const GJNAMES=["Wood (tension)","Glue (normal stress)","Glue (shear stress)"];
+function gjDesignStatement(p){
+  const su=p.us?"psi":"MPa";
+  return `<p>Two pieces of wood, each with a ${p.b} × ${p.t} ${p.us?"in.":"mm"} cross section, are glued along a plane that makes an angle θ = ${p.th}° with the cross section, as shown. The working stresses are ${p.sw} ${su} for the wood in tension, ${p.sn} ${su} for the glue in normal stress, and ${p.tg} ${su} for the glue in shear.</p>
+  <p>Find the largest axial force ${iv("P")} permitted by each of the three criteria, the largest safe force, and the criterion that governs.</p>`;
+}
+function gjDesignSolution(p,s){
+  const Fu=p.us?"lb":"kN",su=p.us?"psi":"MPa",A=p.b*p.t;
+  return `<h3>1. Stresses on the inclined plane</h3><p>For an axial force P on cross-sectional area A (θ measured from the cross section):</p>
+  <p class="eq">σ = (P/A) cos²θ, τ = (P/2A) sin 2θ</p>
+  <p>Here A = ${p.b} × ${p.t} = ${fmt(A,p.us?2:0)} ${p.us?"in.²":"mm²"}.</p>
+  <h3>2. Force allowed by each criterion</h3>
+  <p>Wood: P = σ<sub>w</sub>A = ${sig(s.P[0])} ${Fu}.</p>
+  <p>Glue, normal: P = σ<sub>n</sub>A / cos²θ = ${sig(s.P[1])} ${Fu}.</p>
+  <p>Glue, shear: P = 2τ<sub>g</sub>A / sin 2θ = ${sig(s.P[2])} ${Fu}.</p>
+  <h3>3. Safe force</h3><p class="final">P<sub>max</sub> = ${sig(s.Pm)} ${Fu}, governed by: ${s.gov.toLowerCase()}.</p>`;
+}
+const GJD={name:"Glued joint in an axially loaded bar: largest safe force",
+  generate:gjDesignGen,figure:gjFigure,statement:gjDesignStatement,solution:gjDesignSolution,
+  fields:(p,s)=>[{id:"P1",label:"P allowed by the wood",unit:p.us?"lb":"kN"},{id:"P2",label:"P allowed by glue normal stress",unit:p.us?"lb":"kN"},
+    {id:"P3",label:"P allowed by glue shear stress",unit:p.us?"lb":"kN"},{id:"Pm",label:"Largest safe P",unit:p.us?"lb":"kN"},
+    {id:"gov",label:"Governing criterion",unit:"",choices:GJNAMES}],
+  truth:(p,s)=>({P1:s.P[0],P2:s.P[1],P3:s.P[2],Pm:s.Pm,gov:s.gov}),note:"Answers within 2% are accepted."};
+
+function gjAnaGen(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const p=gjParams(r),A=p.b*p.t,th=p.th*Math.PI/180,f=p.us?1:1000;
+    const Pw=p.sw*A/f,Pn=p.sn*A/Math.cos(th)**2/f,Pt=2*p.tg*A/Math.sin(2*th)/f,Pm=Math.min(Pw,Pn,Pt);
+    p.P=+(Pm*pick(r,[0.7,0.85,1.15,1.3])).toPrecision(2);
+    const P=p.P*f,sg=P/A,sn=sg*Math.cos(th)**2,ta=sg*Math.sin(2*th)/2;
+    const safe=sn<=p.sn&&ta<=p.tg&&sg<=p.sw;
+    if(Math.abs(sn/p.sn-1)<0.06||Math.abs(ta/p.tg-1)<0.06||Math.abs(sg/p.sw-1)<0.06) continue;
+    return {p,s:{sg,sn,ta,tmax:sg/2,safe}};
+  }
+  throw new Error("no valid problem");
+}
+function gjAnaStatement(p){
+  const su=p.us?"psi":"MPa",Fu=p.us?"lb":"kN";
+  return `<p>Two pieces of wood, each with a ${p.b} × ${p.t} ${p.us?"in.":"mm"} cross section, are glued along a plane that makes an angle θ = ${p.th}° with the cross section, as shown. The bar carries an axial force P = ${sig(p.P,2)} ${Fu}. The working stresses are ${p.sw} ${su} for the wood in tension, ${p.sn} ${su} for the glue in normal stress, and ${p.tg} ${su} for the glue in shear.</p>
+  <p>Find the normal and shear stresses on the glued plane, the normal stress on a cross section, and the largest shear stress in the bar. Decide whether the bar is safe.</p>`;
+}
+function gjAnaSolution(p,s){
+  const su=p.us?"psi":"MPa",Fu=p.us?"lb":"N";
+  return `<h3>1. Stress on a cross section</h3><p>A = ${p.b} × ${p.t} = ${fmt(p.b*p.t,p.us?2:0)} ${p.us?"in.²":"mm²"}, so σ<sub>0</sub> = P/A = ${sig(s.sg)} ${su}.</p>
+  <h3>2. Stresses on the glued plane</h3><p class="eq">σ = σ<sub>0</sub> cos²θ = ${sig(s.sn)} ${su}</p><br><p class="eq">τ = (σ<sub>0</sub>/2) sin 2θ = ${sig(s.ta)} ${su}</p>
+  <h3>3. Largest shear stress</h3><p>It acts on planes at 45° to the cross section: τ<sub>max</sub> = σ<sub>0</sub>/2 = ${sig(s.tmax)} ${su}.</p>
+  <h3>4. Check</h3><p class="final">${s.safe?"Safe: all three stresses are within the working stresses.":"Not safe: at least one working stress is exceeded (wood "+(s.sg>p.sw?"tension, ":"")+(s.sn>p.sn?"glue normal, ":"")+(s.ta>p.tg?"glue shear":"")+")."}</p>`;
+}
+const GJA={name:"Glued joint in an axially loaded bar: stresses on the joint",
+  generate:gjAnaGen,figure:gjFigure,statement:gjAnaStatement,solution:gjAnaSolution,
+  fields:(p,s)=>[{id:"sn",label:"Normal stress on the glued plane",unit:p.us?"psi":"MPa"},{id:"ta",label:"Shear stress on the glued plane (magnitude)",unit:p.us?"psi":"MPa"},
+    {id:"sg",label:"Normal stress on a cross section",unit:p.us?"psi":"MPa"},{id:"tm",label:"Largest shear stress in the bar",unit:p.us?"psi":"MPa"},
+    {id:"safe",label:"Is the bar safe?",unit:"",choices:["Yes","No"]}],
+  truth:(p,s)=>({sn:s.sn,ta:s.ta,sg:s.sg,tm:s.tmax,safe:s.safe?"Yes":"No"}),note:"Answers within 2% are accepted."};
+
+// ===== 6. riveted lap joint, one row of rivets across the plate width
+function ljGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,n=pick(r,[2,3,4]),d=pick(r,us?[0.5,0.625,0.75,0.875,1]:[12,16,20,22,25]),t=pick(r,us?[0.25,0.375,0.5]:[6,8,10,12]);
+    const sp=pick(r,[2.5,3,3.5])*d,w=us?Math.round(n*sp*8)/8:Math.round(n*sp/5)*5;
+    const tw=pick(r,us?range(10,16,2):range(40,80,10)),sb=pick(r,us?range(18,28,2):range(90,180,10)),st=pick(r,us?range(16,24,2):range(100,160,10));
+    const Ar=Math.PI*d*d/4,q=us?1:1/1000;                       // allowable stress x area: kips (ksi, in.) or kN (MPa, mm)
+    const P=[tw*n*Ar*q,sb*n*d*t*q,st*(w-n*d)*t*q];
+    const srt=[...P].sort((a,b)=>a-b);if(srt[1]<1.15*srt[0]) continue;
+    const Pa=+(srt[0]*pick(r,[0.5,0.6,0.7,0.8])).toPrecision(2),Pf=us?Pa:Pa*1000;   // kips or N
+    const s={P,Pm:srt[0],gov:["Rivet shear","Plate bearing","Plate tension"][P.indexOf(srt[0])],
+      tau:Pf/n/Ar,sb:Pf/(n*d*t),st:Pf/((w-n*d)*t)};                 // ksi or MPa
+    return {p:{us,n,d,t,w,tw,sb,st,Pa},s};
+  }
+  throw new Error("no valid problem");
+}
+function ljFigure(p){
+  const k=170/p.w,ph=p.w*k,rr=p.d*k/2,x0=100,seg=120,ov=170,cy=120,u=p.us?"in.":"mm",xr=x0+seg+ov/2,xe=x0+2*seg+ov;
+  let s=RC(x0,cy-ph/2,seg+ov,ph,{f:"#f2d9b0"})+RC(x0+seg,cy-ph/2,seg+ov,ph,{f:"#e8c690"});
+  for(let i=0;i<p.n;i++){const y=cy-ph/2+ph*(i+0.5)/p.n;s+=CI(xr,y,rr,{f:"#9aa5b1",c:C.steelln})}
+  s+=AR(x0-70,cy,x0,cy)+AR(xe+70,cy,xe,cy)+TX(x0-40,cy-12,"P",{s:16,i:1,c:C.load})+TX(xe+40,cy-12,"P",{s:16,i:1,c:C.load})
+   +DIMV(xe+92,cy-ph/2,cy+ph/2,`w = ${dstr(p.w)} ${u}`)+TX(xr,cy+ph/2+26,`${p.n} rivets, diameter ${dstr(p.d)} ${u}`,{s:13,c:C.dim});
+  const sy=cy+ph/2+70,tp=Math.max(10,p.t*k);
+  s+=RC(x0,sy,seg+ov,tp,{f:"#f2d9b0"})+RC(x0+seg,sy+tp,seg+ov,tp,{f:"#e8c690"})+RC(xr-rr,sy-8,2*rr,2*tp+16,{f:"#9aa5b1",c:C.steelln})
+   +TX(xe+30,sy+tp+5,`plate thickness t = ${dstr(p.t)} ${u}`,{s:13,c:C.dim,a:"start"})+TX(x0-12,sy+tp+5,"side view",{s:13,c:C.dim,a:"end"});
+  return SVG(800,sy+2*tp+30,s);
+}
+function ljStatement(p){
+  const su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN",u=p.us?"in.":"mm";
+  return `<p>Two plates, each ${dstr(p.w)} ${u} wide and ${dstr(p.t)} ${u} thick, are joined by a lap joint with ${p.n} rivets of diameter ${dstr(p.d)} ${u} arranged in one row across the width. The load is shared equally by the rivets, and friction between the plates is neglected. The working stresses are ${p.tw} ${su} for shear in the rivets, ${p.sb} ${su} for bearing between the plates and the rivets, and ${p.st} ${su} for tension in the plates, computed on the net section through the rivet holes.</p>
+  <p>For an applied load P = ${sig(p.Pa,2)} ${Fu}, find the shear stress in a rivet, the bearing stress, and the average tensile stress on the net section of a plate. Then find the largest load permitted by each criterion, the largest safe load, and the governing criterion.</p>`;
+}
+function ljSolution(p,s){
+  const su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN",u=p.us?"in.":"mm";
+  return `<h3>1. Stresses under the applied load</h3>
+  <p>Each rivet carries P/${p.n} in single shear, so τ = (P/${p.n}) / (πd²/4) = ${sig(s.tau)} ${p.us?"ksi":"MPa"}.</p>
+  <p>The bearing area per rivet is td, so σ<sub>b</sub> = (P/${p.n}) / (td) = ${sig(s.sb)} ${p.us?"ksi":"MPa"}.</p>
+  <p>The net section through the holes has area (w − ${p.n}d)t = ${sig((p.w-p.n*p.d)*p.t,4)} ${p.us?"in.²":"mm²"} and carries the full load: σ<sub>t</sub> = P/[(w − ${p.n}d)t] = ${sig(s.st)} ${p.us?"ksi":"MPa"}.</p>
+  <h3>2. Load allowed by each criterion</h3>
+  <p>Rivet shear: P = ${p.n}τ<sub>w</sub>(πd²/4) = ${sig(s.P[0])} ${Fu}. Bearing: P = ${p.n}σ<sub>b</sub>td = ${sig(s.P[1])} ${Fu}. Plate tension: P = σ<sub>t</sub>(w − ${p.n}d)t = ${sig(s.P[2])} ${Fu}.</p>
+  <h3>3. Safe load</h3><p class="final">P<sub>max</sub> = ${sig(s.Pm)} ${Fu}, governed by: ${s.gov.toLowerCase()}.</p>`;
+}
+const LJ={name:"Riveted lap joint: shear, bearing, and net-section tension",
+  generate:ljGenerate,figure:ljFigure,statement:ljStatement,solution:ljSolution,
+  fields:(p,s)=>{const su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";return [
+    {id:"tau",label:"Shear stress in a rivet",unit:su},{id:"sb",label:"Bearing stress",unit:su},{id:"st",label:"Tensile stress on the net section",unit:su},
+    {id:"P1",label:"P allowed by rivet shear",unit:Fu},{id:"P2",label:"P allowed by bearing",unit:Fu},{id:"P3",label:"P allowed by plate tension",unit:Fu},
+    {id:"Pm",label:"Largest safe P",unit:Fu},{id:"gov",label:"Governing criterion",unit:"",choices:["Rivet shear","Plate bearing","Plate tension"]}]},
+  truth:(p,s)=>({tau:s.tau,sb:s.sb,st:s.st,P1:s.P[0],P2:s.P[1],P3:s.P[2],Pm:s.Pm,gov:s.gov}),note:"Answers within 2% are accepted."};
+
+// ===== 7. bar held by a pin and a cable: cable force and stress, pin reaction and shear stress
+function pcGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,L=pick(r,us?[4,5,6,8]:[1.2,1.5,1.8,2.0,2.4]);
+    const c=Math.max(us?1:0.3,Math.round(L*pick(r,[0.5,0.6,0.75,0.8,1])*(us?2:10))/(us?2:10)),h=Math.max(us?1:0.3,Math.round(L*pick(r,[0.3,0.4,0.5,0.55])*(us?2:10))/(us?2:10));
+    const p={us,L,c,h,F:pick(r,us?range(200,1000,100):range(1,6,0.5)),W:pick(r,us?range(100,400,50):range(0.5,2,0.25)),
+      dc:pick(r,us?[0.25,0.375,0.5]:[6,8,10,12]),dp:pick(r,us?[0.5,0.625,0.75]:[10,12,16,20]),dbl:r()<0.5,sw:pick(r,us?[20000,24000,30000]:[120,140,160])};
+    const s=pcSolve(p);
+    const f=us?1:1,ok=us?(s.sc>5000&&s.sc<45000&&s.tp>3000&&s.tp<30000):(s.sc>40&&s.sc<250&&s.tp>20&&s.tp<150);
+    if(!ok) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function pcSolve(p){
+  const d=Math.hypot(p.c,p.h),T=(p.F*p.L+p.W*p.L/2)*d/(p.h*p.c);          // moments about B
+  const Bx=T*p.c/d,By=p.F+p.W-T*p.h/d,R=Math.hypot(Bx,By),k=p.us?1:1000;     // force units: lb or kN
+  const Ac=Math.PI*p.dc*p.dc/4,Ap=Math.PI*p.dp*p.dp/4;
+  return {T,Bx,By,R,sc:T*k/Ac,tp:R*k/((p.dbl?2:1)*Ap),dmin:Math.sqrt(4*T*k/(Math.PI*p.sw))};
+}
+function pcFigure(p){
+  const bx=130,by=250,Lp=330,sc=Lp/p.L,cx=bx+p.c*sc,dy=by-p.h*sc;
+  let s=HATCH(bx-34,dy-30,34,by-dy+80)+RC(bx,by-8,Lp,16)+LN(cx,by-8,bx,dy,{c:C.dim,w:2.5})+CI(bx,by,7)+CI(bx,dy,4,{f:"#fff"});
+  s+=AR(bx+Lp,by-70,bx+Lp,by-8)+TX(bx+Lp+12,by-42,"F",{s:16,i:1,c:C.load,a:"start"})
+   +AR(bx+Lp/2,by-52,bx+Lp/2,by-8)+TX(bx+Lp/2+12,by-30,"W",{s:16,i:1,c:C.load,a:"start"})
+   +TX(bx-12,by+32,"B",{s:15,i:1,a:"end"})+TX(bx+Lp+16,by+5,"A",{s:15,i:1,a:"start"})+TX(cx,by+30,"C",{s:15,i:1})+TX(bx-12,dy+4,"D",{s:15,i:1,a:"end"})
+   +DIMH(bx,bx+Lp,by+54,`L = ${p.L} ${p.us?"ft":"m"}`)+DIMH(bx,cx,by+84,`c = ${p.c} ${p.us?"ft":"m"}`)+DIMV(bx+Lp+90,dy,by,`h = ${p.h} ${p.us?"ft":"m"}`)
+   +LN(bx+Lp+84,dy,bx,dy,{c:C.dim,w:.8,d:"2 4"})+TX(cx+14,by-(by-dy)/2,"cable",{s:13,c:C.dim,a:"start"});
+  return SVG(760,350,s);
+}
+function pcStatement(p){
+  const u=p.us?"in.":"mm",Fu=p.us?"lb":"kN",su=p.us?"psi":"MPa";
+  return `<p>The uniform bar ${iv("AB")} of length ${p.L} ${p.us?"ft":"m"} and weight ${iv("W")} = ${p.W} ${Fu} carries a vertical force ${iv("F")} = ${p.F} ${Fu} at ${iv("A")}. It is held by a pin at ${iv("B")} and by a cable ${iv("CD")} attached ${p.c} ${p.us?"ft":"m"} from ${iv("B")} and to the wall ${p.h} ${p.us?"ft":"m"} above ${iv("B")}. The cable has a diameter of ${dstr(p.dc)} ${u}; the pin has a diameter of ${dstr(p.dp)} ${u} and is in ${p.dbl?"double":"single"} shear.</p>
+  <p>Find the cable force and the normal stress in the cable, the pin force at ${iv("B")}, and the shear stress in the pin. Then find the smallest cable diameter if the working stress is ${p.sw} ${su}.</p>`;
+}
+function pcSolution(p,s){
+  const Fu=p.us?"lb":"kN",su=p.us?"psi":"MPa",u=p.us?"in.":"mm",d=Math.hypot(p.c,p.h);
+  return `<h3>1. Cable force</h3><p>The cable makes the angle φ with the bar, with sin φ = h/√(c²+h²) = ${fmt(p.h/d,4)}. Moments about the pin B give</p>
+  <p class="eq">T sin φ · c = F L + W L/2</p>
+  <p>so T = ${sig(s.T)} ${Fu}, and σ = T/A = ${sig(s.sc)} ${su} with A = π(${dstr(p.dc)})²/4.</p>
+  <h3>2. Pin force</h3><p>Components of the pin force on the bar: B<sub>x</sub> = T cos φ = ${sig(s.Bx)} ${Fu} (away from the wall); B<sub>y</sub> = F + W − T sin φ = ${sig(s.By)} ${Fu} (upward positive).</p>
+  <p class="eq">R<sub>B</sub> = √(B<sub>x</sub>² + B<sub>y</sub>²) = ${sig(s.R)} ${Fu}</p>
+  <p>The pin is in ${p.dbl?"double":"single"} shear, so τ = R<sub>B</sub>/(${p.dbl?"2":"1"}·πd²/4) = ${sig(s.tp)} ${su}.</p>
+  <h3>3. Cable diameter</h3><p class="final">d<sub>min</sub> = √(4T/(πσ<sub>w</sub>)) = ${sig(s.dmin)} ${u}.</p>`;
+}
+const PC={name:"Bar supported by a pin and a cable: cable force, pin shear",
+  generate:pcGenerate,figure:pcFigure,statement:pcStatement,solution:pcSolution,
+  fields:(p,s)=>[{id:"T",label:"Cable force",unit:p.us?"lb":"kN"},{id:"sc",label:"Normal stress in the cable",unit:p.us?"psi":"MPa"},
+    {id:"R",label:"Pin force at B",unit:p.us?"lb":"kN"},{id:"tp",label:"Shear stress in the pin",unit:p.us?"psi":"MPa"},
+    {id:"dmin",label:"Smallest cable diameter",unit:p.us?"in.":"mm"}],
+  truth:(p,s)=>({T:s.T,sc:s.sc,R:s.R,tp:s.tp,dmin:s.dmin}),note:"Answers within 2% are accepted."};
+
+// ===== 8. punching a hole
+function puGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,d=pick(r,us?[0.5,0.75,1,1.5,2,2.5]:[10,12,16,20,25,30]),t=pick(r,us?[0.1,0.125,0.1875,0.25,0.375]:[3,4,5,6,8]);
+    const tu=pick(r,us?[30,35,40,45]:[250,300,350,400]),sw=pick(r,us?[50,60,70,80]:[500,600,800,1000]);
+    const f=us?1:1000,Ap=Math.PI*d*d/4,F=tu*Math.PI*d*t/(us?1:1000),sp=F*f/Ap;     // kips or kN
+    if(sp>0.9*sw||sp<0.3*sw) continue;
+    return {p:{us,d,t,tu,sw},s:{F,sp,tmax:sw*d/(4*tu),dmin:4*tu*t/sw}};
+  }
+  throw new Error("no valid problem");
+}
+function puFigure(p){
+  const cx=380,u=p.us?"in.":"mm";
+  const sl=RC(cx-45,132,90,30,{f:"#f2d9b0"});
+  let b=RC(cx-45,40,90,92,{f:C.steel,c:C.steelln})+sl+RC(cx-230,132,185,30)+RC(cx+45,132,185,30)
+   +RC(cx-230,162,185,38,{f:C.steel,c:C.steelln})+RC(cx+45,162,185,38,{f:C.steel,c:C.steelln})
+   +AR(cx,6,cx,40)+TX(cx+14,26,"F",{s:16,i:1,c:C.load,a:"start"})
+   +DIMH(cx-45,cx+45,224,`diameter ${dstr(p.d)} ${u}`)+DIMV(cx+250,132,162,`t = ${dstr(p.t)} ${u}`)
+   +TX(cx+58,86,"punch",{s:13,c:C.dim,a:"start"})+TX(cx+110,188,"die",{s:13,c:C.dim,a:"start"})+TX(cx-250,152,"plate",{s:13,c:C.dim,a:"end"});
+  return SVG(760,250,b);
+}
+function puStatement(p){
+  const u=p.us?"in.":"mm",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
+  return `<p>A circular punch of diameter ${dstr(p.d)} ${u} forms a hole in a plate ${dstr(p.t)} ${u} thick. The shear strength of the plate material is ${p.tu} ${su}, and the working compressive stress of the punch is ${p.sw} ${su}.</p>
+  <p>Find the force required to punch the hole and the compressive stress in the punch. Then find (a) the greatest plate thickness in which a hole of this diameter can be punched, and (b) the smallest hole that can be punched in a plate of the given thickness.</p>`;
+}
+function puSolution(p,s){
+  const u=p.us?"in.":"mm",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
+  return `<h3>1. Punching force</h3><p>The shear area is the cylindrical surface πdt, so F = τ<sub>u</sub>πdt = ${sig(s.F)} ${Fu}.</p>
+  <h3>2. Punch stress</h3><p>σ = F/(πd²/4) = ${sig(s.sp)} ${su}, which is ${s.sp<p.sw?"below":"above"} the working stress.</p>
+  <h3>3. Limits</h3><p>Setting σ equal to σ<sub>w</sub> gives σ<sub>w</sub>πd²/4 = τ<sub>u</sub>πdt, so</p>
+  <p class="eq">t<sub>max</sub> = σ<sub>w</sub>d/(4τ<sub>u</sub>) = ${sig(s.tmax)} ${u}, d<sub>min</sub> = 4τ<sub>u</sub>t/σ<sub>w</sub> = ${sig(s.dmin)} ${u}</p>`;
+}
+const PU={name:"Punching a hole: force, punch stress, limiting thickness",
+  generate:puGenerate,figure:puFigure,statement:puStatement,solution:puSolution,
+  fields:(p,s)=>[{id:"F",label:"Punching force",unit:p.us?"kips":"kN"},{id:"sp",label:"Compressive stress in the punch",unit:p.us?"ksi":"MPa"},
+    {id:"tmax",label:"(a) Greatest plate thickness",unit:p.us?"in.":"mm"},{id:"dmin",label:"(b) Smallest hole diameter",unit:p.us?"in.":"mm"}],
+  truth:(p,s)=>({F:s.F,sp:s.sp,tmax:s.tmax,dmin:s.dmin}),note:"Answers within 2% are accepted."};
+
+// ===== 9. clevis pin: double shear and bearing
+function clGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,d=pick(r,us?[0.5,0.625,0.75,0.875,1]:[12,16,20,25,30]);
+    const tr=pick(r,us?[0.375,0.5,0.625,0.75]:[10,12,16,20,25]),tc=pick(r,us?[0.25,0.3125,0.375,0.5]:[6,8,10,12]);
+    const tw=pick(r,us?range(10,16,2):range(40,100,10)),sb=pick(r,us?range(20,32,2):range(100,200,20));
+    const Ap=Math.PI*d*d/4,q=us?1:1/1000;                        // kips or kN
+    const P=[2*tw*Ap*q,sb*d*tr*q,sb*d*2*tc*q];
+    const srt=[...P].sort((a,b)=>a-b);if(srt[1]<1.15*srt[0]) continue;
+    const Pa=+(srt[0]*pick(r,[0.5,0.6,0.7,0.8])).toPrecision(2),Pf=us?Pa:Pa*1000;   // kips or N
+    const s={P,Pm:srt[0],gov:["Pin shear","Bearing at the rod eye","Bearing at the clevis ears"][P.indexOf(srt[0])],
+      tau:Pf/(2*Ap),sbc:Pf/(d*tr),sbe:Pf/(2*d*tc),dmin:Math.sqrt(2*Pf/(Math.PI*tw))};
+    return {p:{us,d,tr,tc,tw,sb,Pa},s};
+  }
+  throw new Error("no valid problem");
+}
+function clFigure(p){
+  const sc=p.us?150:3.4,tcp=Math.max(26,p.tc*sc),trp=Math.max(40,p.tr*sc*0.9),dp=Math.max(30,p.d*sc*0.9),x0=250,cy=130;
+  const xr=x0+tcp,xe=xr+trp;
+  let s=RC(x0,cy-70,tcp,140,{f:"#f2d9b0"})+RC(xr,cy-70,trp,140,{f:"#e8c690"})+RC(xe,cy-70,tcp,140,{f:"#f2d9b0"})
+   +RC(x0-30,cy-dp/2,2*tcp+trp+60,dp,{f:"#9aa5b1",c:C.steelln}).replace(/<rect/,"<rect fill-opacity=\".85\"")
+   +AR(xr+trp/2,cy+150,xr+trp/2,cy+70)+TX(xr+trp/2+14,cy+118,"P",{s:16,i:1,c:C.load,a:"start"})
+   +AR(x0+tcp/2,cy-70-60,x0+tcp/2,cy-70)+AR(xe+tcp/2,cy-70-60,xe+tcp/2,cy-70)+TX(x0+tcp/2-8,cy-110,"P/2",{s:14,i:1,c:C.load,a:"end"})+TX(xe+tcp/2+8,cy-110,"P/2",{s:14,i:1,c:C.load,a:"start"})
+   +TX(x0+tcp/2,cy+92,"ear",{s:12,c:C.dim})+TX(xr+trp/2,cy-80,"rod eye",{s:12,c:C.dim})+TX(xe+tcp/2,cy+92,"ear",{s:12,c:C.dim});
+  const u=p.us?"in.":"mm";
+  s+=TX(xe+tcp+70,cy-20,`pin ⌀ ${dstr(p.d)} ${u}`,{s:13,c:C.dim,a:"start"})+TX(xe+tcp+70,cy+0,`ear thickness ${dstr(p.tc)} ${u} each`,{s:13,c:C.dim,a:"start"})+TX(xe+tcp+70,cy+20,`rod eye thickness ${dstr(p.tr)} ${u}`,{s:13,c:C.dim,a:"start"});
+  return SVG(760,300,s);
+}
+function clStatement(p){
+  const u=p.us?"in.":"mm",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
+  return `<p>A rod eye of thickness ${dstr(p.tr)} ${u} is connected to a clevis with two ears, each ${dstr(p.tc)} ${u} thick, by a pin of diameter ${dstr(p.d)} ${u}, as shown (section along the pin axis). The pin is in double shear, and each ear carries half of the load. The working stresses are ${p.tw} ${su} for shear in the pin and ${p.sb} ${su} for bearing between the pin and either plate.</p>
+  <p>For a load P = ${sig(p.Pa,2)} ${Fu}, find the shear stress in the pin and the bearing stresses at the rod eye and at the ears. Then find the smallest pin diameter that is safe in shear for this load, the largest safe load for the given pin, and the governing criterion.</p>`;
+}
+function clSolution(p,s){
+  const u=p.us?"in.":"mm",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
+  return `<h3>1. Stresses under the applied load</h3><p>Double shear: τ = (P/2)/(πd²/4) = ${sig(s.tau)} ${su}.</p>
+  <p>Rod eye: σ<sub>b</sub> = P/(d t<sub>r</sub>) = ${sig(s.sbc)} ${su}. Ears: each ear carries P/2 on area d t<sub>c</sub>, so σ<sub>b</sub> = P/(2 d t<sub>c</sub>) = ${sig(s.sbe)} ${su}.</p>
+  <h3>2. Smallest pin diameter</h3><p>From τ<sub>w</sub> = 2P/(πd²): d<sub>min</sub> = √(2P/(πτ<sub>w</sub>)) = ${sig(s.dmin)} ${u}.</p>
+  <h3>3. Largest safe load</h3><p>Pin shear: ${sig(s.P[0])} ${Fu}. Rod-eye bearing: ${sig(s.P[1])} ${Fu}. Ear bearing: ${sig(s.P[2])} ${Fu}.</p>
+  <p class="final">P<sub>max</sub> = ${sig(s.Pm)} ${Fu}, governed by: ${s.gov.toLowerCase()}.</p>`;
+}
+const CL={name:"Clevis pin: double shear and bearing",
+  generate:clGenerate,figure:clFigure,statement:clStatement,solution:clSolution,
+  fields:(p,s)=>[{id:"tau",label:"Shear stress in the pin",unit:p.us?"ksi":"MPa"},{id:"sbc",label:"Bearing stress at the rod eye",unit:p.us?"ksi":"MPa"},
+    {id:"sbe",label:"Bearing stress at the ears",unit:p.us?"ksi":"MPa"},{id:"dmin",label:"Smallest pin diameter (shear)",unit:p.us?"in.":"mm"},
+    {id:"Pm",label:"Largest safe P",unit:p.us?"kips":"kN"},{id:"gov",label:"Governing criterion",unit:"",choices:["Pin shear","Bearing at the rod eye","Bearing at the clevis ears"]}],
+  truth:(p,s)=>({tau:s.tau,sbc:s.sbc,sbe:s.sbe,dmin:s.dmin,Pm:s.Pm,gov:s.gov}),note:"Answers within 2% are accepted."};
+
+const TEMPLATES={
+  "stepped-bar":SB,"two-bar":TB,"truss":TR,"glued-joint-design":GJD,"glued-joint-analysis":GJA,
+  "lap-joint":LJ,"pin-cable":PC,"punch":PU,"clevis":CL};
+
+const $=id=>document.getElementById(id);
+let curKey,curSeed,cur;
+function render(key,seed){
+  curKey=key;curSeed=seed;const T=TEMPLATES[key];cur=T.generate(seed);const {p,s}=cur;
+  $("typeSel").value=key;$("seedIn").value=seed;history.replaceState(null,"","#"+key+"-"+seed);
+  $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=T.statement(p,s);
+  $("answers").innerHTML=T.fields(p,s).map(f=>f.choices
+    ?`<label>${f.label}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
+    :`<label>${f.label}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
+  $("ansNote").textContent=T.note||"";$("solution").innerHTML=T.solution(p,s);
+  $("solution").style.display="none";$("solBtn").textContent="Show solution";
+}
+function check(){
+  const T=TEMPLATES[curKey],{p,s}=cur,tr=T.truth(p,s);
+  T.fields(p,s).forEach(f=>{
+    const el=$("m_"+f.id),raw=$("a_"+f.id).value.trim();let ok=false;
+    if(f.choices)ok=raw===tr[f.id];
+    else{const v=parseFloat(raw.replace(/,/g,"")),t=tr[f.id];
+      if(isFinite(v)) ok=f.signed?Math.abs(v-t)<=0.02*Math.abs(t)+1e-9:Math.abs(Math.abs(v)-Math.abs(t))<=0.02*Math.abs(t)+1e-9;
+      if(isFinite(v)&&f.signed&&Math.abs(v)>0&&Math.sign(v)!==Math.sign(t)) ok=false}
+    el.textContent=raw===""?"":ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");
+  });
+}
+const newSeed=()=>1+Math.floor(Math.random()*999999);
+$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
+$("typeSel").onchange=e=>render(e.target.value,newSeed());
+$("newBtn").onclick=()=>render(curKey,newSeed());
+$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+$("checkBtn").onclick=check;
+$("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+(function(){const m=/^#([a-z0-9-]+?)-(\d+)$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]])render(m[1],parseInt(m[2],10));else render(Object.keys(TEMPLATES)[0],newSeed())})();
+
+</script>
+</body>
+</html>

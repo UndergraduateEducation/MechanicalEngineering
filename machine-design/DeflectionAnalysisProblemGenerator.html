@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deflection Analysis Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --beam:#f7e2c4; --beamline:#78461a; --load:#aa1e28; --sec:#cde1cd; --secline:#1e5a32;
+    --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  .tag{display:inline-block;font-family:system-ui,sans-serif;font-size:.78rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 9px;margin-left:6px}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .answers input.expr{width:19em;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<header>
+  <h1>Deflection Analysis Problem Generator</h1>
+  <div class="sub">Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem.</div>
+</header>
+<main>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+function fmt(v,d=0){if(Math.abs(v)<0.5*10**-d)v=0;return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+// ===== cantilever of two equal-leg angles back to back, superposition (SI units)
+// section properties of one angle from nominal dimensions (fillets neglected)
+function angleProps(b,t){
+  const A1=b*t, A2=(b-t)*t, A=A1+A2;
+  const yb=(A1*t/2+A2*(t+(b-t)/2))/A;                    // centroid from the back of the horizontal leg
+  const I=b*t**3/12+A1*(yb-t/2)**2+t*(b-t)**3/12+A2*(t+(b-t)/2-yb)**2;
+  return {A,yb,I};
+}
+
+function caSolve(p){
+  const ap=angleProps(p.b,p.t);
+  const Ae=+ap.A.toFixed(0), yb=+ap.yb.toFixed(1), I1=+(ap.I/1e4).toFixed(1);   // values as stated (mm^2, mm, cm^4)
+  const I=2*I1*1e-8, E=207e9, EI=E*I, L=p.L, a=p.a, w=p.w*1000, F=p.F*1000;
+  const yw=x=>-w*x*x*(x*x+6*L*L-4*L*x)/(24*EI);
+  const yF=x=>x<=a?-F*x*x*(3*a-x)/(6*EI):-F*a*a*(3*x-a)/(6*EI);
+  const yAw=yw(a), yAF=yF(a), yBw=yw(L), yBF=yF(L);
+  const M=w*L*L/2+F*a;
+  const h=p.b/1000, cTop=p.up?yb/1000:h-yb/1000, cBot=h-cTop;     // flanges up: centroid near the top
+  const sTop=M*cTop/I/1e6, sBot=-M*cBot/I/1e6;                       // hogging: top in tension
+  const where=Math.abs(sTop)>=Math.abs(sBot)?"Top fiber, tension":"Bottom fiber, compression";
+  return {Ae,yb,I1,I,EI,yAw,yAF,yBw,yBF,yA:(yAw+yAF)*1000,yB:(yBw+yBF)*1000,M,cTop,cBot,sTop,sBot,
+    smax:Math.max(Math.abs(sTop),Math.abs(sBot)),where};
+}
+
+function caGenerate(seed){
+  const r=mulberry32(seed);
+  const sizes=[[50,6],[60,6],[65,8],[75,8],[80,10],[90,10],[100,10],[100,12]];
+  for(let k=0;k<5000;k++){
+    const [b,t]=pick(r,sizes);
+    const L=pick(r,range(1.6,3.6,0.2));
+    const p={b,t,L:+L.toFixed(1),a:0,w:pick(r,range(0.5,2.0,0.1)),F:pick(r,range(1.0,4.0,0.25)),up:r()<0.5};
+    p.w=+p.w.toFixed(1);
+    p.a=+(L*pick(r,[0.5,0.6,0.7,0.75,0.8,1])).toFixed(2);
+    if(p.a!==p.L&&Math.abs(p.a*10-Math.round(p.a*10))>1e-9) continue;   // load positions to 0.1 m
+    const s=caSolve(p);
+    if(s.smax<60||s.smax>250) continue;
+    if(Math.abs(s.yB)>p.L*1000/40) continue;            // keep deflections in the small-deflection range
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+
+function caStatement(p,s){
+  const atEnd=Math.abs(p.a-p.L)<1e-9;
+  return `<p>The cantilever shown is made of two steel angles, ${p.b} × ${p.b} × ${p.t} mm, mounted back to back so that their horizontal legs form a flange at the <b>${p.up?"top":"bottom"}</b>. For one angle (fillets neglected), <i>A</i> = ${fmt(s.Ae)} mm², <i>I</i> = ${fmt(s.I1,1)} cm⁴ about the centroidal axis parallel to a leg, and the centroid lies ${fmt(s.yb,1)} mm from the back of that leg. Take <i>E</i> = 207 GPa.</p>
+  <p>The beam is ${fmt(p.L,1)} m long and carries a uniform load <i>w</i> = ${fmt(p.w,1)} kN/m over its full length and a concentrated load <i>F</i> = ${fmt(p.F,2).replace(/\.?0+$/,"")} kN ${atEnd?"at the free end <i>B</i>":`at <i>A</i>, ${fmt(p.a,1)} m from the wall`}. Using superposition, find the deflection at ${atEnd?"<i>B</i>":"<i>A</i> and at <i>B</i>"}, the bending moment at the wall, and the maximum bending stress in the beam, stating where it occurs.</p>`;
+}
+
+function caFigure(p,s){
+  const S=260, f1=v=>v.toFixed(1), it=v=>`<tspan font-style="italic">${v}</tspan>`;
+  const X=x=>60+x*S, Y=y=>170-y*S, L=p.L, a=p.a, atEnd=Math.abs(a-L)<1e-9;
+  const DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#ca-dm)" marker-end="url(#ca-dm)"`, EXT=`stroke="#999" stroke-width="0.8"`;
+  const ln=(x1,y1,x2,y2,attr)=>`<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" ${attr}/>`;
+  const tx=(x,y,t,attr="")=>`<text x="${f1(x)}" y="${f1(y)}" ${attr}>${t}</text>`;
+  let g=`<rect x="${X(-0.12)}" y="${Y(0.3)}" width="${0.12*S}" height="${0.62*S}" fill="url(#ca-hatch)"/>`+ln(X(0),Y(0.3),X(0),Y(-0.32),`stroke="#28405a" stroke-width="2"`);
+  g+=`<rect x="${X(0)}" y="${Y(0.025)}" width="${f1(L*S)}" height="${f1(0.05*S)}" fill="#eec878" stroke="#7d5014" stroke-width="1.6"/>`;
+  g+=`<path d="M${X(0)},${Y(0)} C${X(0.42*L)},${Y(0)} ${X(0.75*L)},${Y(-0.06)} ${X(L)},${Y(-0.13)}" fill="none" stroke="#7d5014" stroke-dasharray="6 4"/>`;
+  g+=ln(X(0),Y(0.2),X(L),Y(0.2),`stroke="#aa1e28" stroke-width="1.6"`);
+  const n=Math.round(L/0.15);for(let i=0;i<=n;i++){const x=X(L*i/n);g+=ln(x,Y(0.2),x,Y(0.035),`stroke="#aa1e28" stroke-width="1.3" marker-end="url(#ca-ar)"`)}
+  g+=tx(X(0.3),Y(0.2)-8,`${it("w")} = ${fmt(p.w,1)} kN/m`,`fill="#aa1e28" class="halo"`);
+  g+=ln(X(a),Y(0.52),X(a),Y(0.035),`stroke="#aa1e28" stroke-width="3.2" marker-end="url(#ca-ar)"`)+tx(X(a),Y(0.52)-8,`${it("F")} = ${fmt(p.F,2).replace(/\.?0+$/,"")} kN`,`fill="#aa1e28" text-anchor="middle" class="halo"`);
+  g+=tx(X(0)-6,Y(-0.03)+16,it("O"),`text-anchor="end"`)+tx(X(L)+6,Y(-0.03)+14,it("B"));
+  if(!atEnd) g+=tx(X(a),Y(-0.04)+18,it("A"),`text-anchor="middle"`);
+  g+=ln(X(L)+12,Y(0),X(L)+60,Y(0),`stroke="#222" stroke-width="1.4" marker-end="url(#ca-ax)"`)+tx(X(L)+64,Y(0)+5,it("x"));
+  g+=ln(X(0),Y(0.3),X(0),Y(0.62),`stroke="#222" stroke-width="1.4" marker-end="url(#ca-ax)"`)+tx(X(0)+6,Y(0.62)+4,it("y"));
+  const y1=Y(-0.32), y2=Y(-0.44);
+  if(!atEnd){g+=ln(X(a),Y(-0.08),X(a),y1+8,EXT)+ln(X(0),y1,X(a),y1,DIM)+tx((X(0)+X(a))/2,y1-5,`${fmt(a,1)} m`,`text-anchor="middle" class="halo"`)}
+  g+=ln(X(L),Y(-0.15),X(L),y2+8,EXT)+ln(X(0),Y(-0.32),X(0),y2+8,EXT)+ln(X(0),y2,X(L),y2,DIM)+tx((X(0)+X(L))/2,y2-5,`${fmt(L,1)} m`,`text-anchor="middle" class="halo"`);
+  // section inset, true proportions
+  const k=1.25, cx=X(L)+150+k*p.b, top=70, b=p.b, t=p.t, ycen=top+k*(p.up?s.yb:b-s.yb);
+  const P=(u,v)=>`${f1(cx+k*u)},${f1(top+k*v)}`;
+  const pts=p.up?[[-b,0],[b,0],[b,t],[t,t],[t,b],[-t,b],[-t,t],[-b,t]]:[[-t,0],[t,0],[t,b-t],[b,b-t],[b,b],[-b,b],[-b,b-t],[-t,b-t]];
+  g+=`<polygon points="${pts.map(q=>P(q[0],q[1])).join(" ")}" fill="#eec878" stroke="#7d5014" stroke-width="1.6"/>`+ln(cx,top,cx,top+k*b,`stroke="#7d5014"`);
+  g+=ln(cx-k*b-14,ycen,cx+k*b+14,ycen,`stroke="#888" stroke-dasharray="10 3 2 3"`)+`<circle cx="${f1(cx)}" cy="${f1(ycen)}" r="2.5" fill="#222"/>`;
+  g+=tx(cx+k*b+16,ycen+5,"centroid",`font-size="18"`);
+  g+=ln(cx-k*b-22,top,cx-k*b-22,top+k*b,DIM)+tx(cx-k*b-28,top+k*b/2+5,`${b}`,`text-anchor="end" font-size="18"`);
+  g+=tx(cx,top+k*b+24,`Section: two ${b} × ${b} × ${t} mm angles`,`text-anchor="middle" font-size="18"`);
+  const W=cx+k*b+130;
+  return `<svg viewBox="0 0 ${f1(W)} 320" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="21" style="max-height:360px">
+  <defs>
+   <pattern id="ca-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#b9c8d8"/><line x1="0" y1="0" x2="0" y2="7" stroke="#28405a" stroke-width="1"/></pattern>
+   <marker id="ca-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+   <marker id="ca-ax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker>
+   <marker id="ca-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  </defs>${g}</svg>`;
+}
+
+function caSolution(p,s){
+  const atEnd=Math.abs(p.a-p.L)<1e-9, mm=v=>fmt(v*1000,2);
+  const ptA=atEnd?"":`<h3>3. Deflection at A (x = a = ${fmt(p.a,1)} m)</h3>
+  <p>Uniform load: <span class="eq">y = −w x²(x² + 6L² − 4Lx)/(24EI) = ${mm(s.yAw)} mm</span>&nbsp; Point load: <span class="eq">y = −F a³/(3EI) = ${mm(s.yAF)} mm</span></p>
+  <p class="final">y<sub>A</sub> = ${fmt(s.yA,2)} mm</p>`;
+  const n=atEnd?3:4;
+  return `<h3>1. Section properties</h3>
+  <p><span class="eq">I = 2 × ${fmt(s.I1,1)} = ${fmt(2*s.I1,1)} cm⁴ = ${(s.I).toExponential(4)} m⁴</span>&nbsp; <span class="eq">EI = ${fmt(s.EI/1000,2)} kN·m²</span></p>
+  <p>With the flange at the ${p.up?"top":"bottom"}, the neutral axis is ${fmt(s.cTop*1000,1)} mm below the top surface and ${fmt(s.cBot*1000,1)} mm above the bottom.</p>
+  <h3>2. Deflection at B (x = L = ${fmt(p.L,1)} m)</h3>
+  <p>Uniform load: <span class="eq">y = −wL⁴/(8EI) = ${mm(s.yBw)} mm</span>&nbsp; Point load: <span class="eq">${atEnd?"y = −FL³/(3EI)":"y = −F a²(3L − a)/(6EI)"} = ${mm(s.yBF)} mm</span></p>
+  <p class="final">y<sub>B</sub> = ${fmt(s.yB,2)} mm</p>
+  ${ptA}
+  <h3>${n}. Moment at the wall</h3>
+  <p><span class="eq">M<sub>O</sub> = wL²/2 + F a = ${fmt(p.w*1000*p.L*p.L/2)} + ${fmt(p.F*1000*p.a)} = ${fmt(s.M)} N·m</span>. The loads bend the beam concave down, so the top fiber is in tension and the bottom fiber in compression.</p>
+  <h3>${n+1}. Bending stresses at the wall</h3>
+  <p>Top: <span class="eq">σ = M c<sub>top</sub>/I = ${fmt(s.sTop,1)} MPa</span>&nbsp; Bottom: <span class="eq">σ = −M c<sub>bot</sub>/I = ${fmt(s.sBot,1)} MPa</span></p>
+  <p class="final">Maximum bending stress: ${fmt(s.smax,1)} MPa, ${s.where.toLowerCase()}, at the wall.</p>
+  <p>The far fiber is on the side away from the flange, because the flange pulls the neutral axis toward itself.</p>`;
+}
+
+// ===== simply supported beam of two channels: select by stress and midspan deflection (US units)
+const CH_TABLE=[["C3 × 4.1",4.1,1.66,1.10],["C3 × 5",5,1.85,1.24],["C4 × 5.4",5.4,3.85,1.93],["C3 × 6",6,2.07,1.38],
+  ["C5 × 6.7",6.7,7.49,3.00],["C4 × 7.25",7.25,4.59,2.29],["C6 × 8.2",8.2,13.1,4.38],["C5 × 9",9,8.90,3.56],
+  ["C7 × 9.8",9.8,21.2,6.08],["C6 × 10.5",10.5,15.2,5.06],["C8 × 11.5",11.5,32.6,8.14],["C7 × 12.25",12.25,24.2,6.93],
+  ["C6 × 13",13,17.4,5.80],["C9 × 13.4",13.4,47.9,10.6],["C8 × 13.75",13.75,36.1,9.03],["C10 × 15.3",15.3,67.3,13.5]];   // name, lb/ft, I (in^4), Z (in^3); sorted by weight
+const CH_E=30e6;
+
+function chSolve(p){
+  const L=p.L*12, loads=[[p.F1,p.a1*12],[p.F2,p.a2*12]], x=L/2;
+  const RO=loads.reduce((s,[F,a])=>s+F*(L-a),0)/L, RC=p.F1+p.F2-RO;
+  const MA=RO*loads[0][1], MB=RO*loads[1][1]-p.F1*(loads[1][1]-loads[0][1]);
+  const M=Math.max(MA,MB), Mat=MA>=MB?"A":"B";
+  const parts=loads.map(([F,a])=>{const b=L-a;
+    return x<=a?{F,a,b,beyond:false,yEI:F*b*x*(x*x+b*b-L*L)/(6*L)}:{F,a,b,beyond:true,yEI:F*a*(L-x)*((L-x)**2+a*a-L*L)/(6*L)}});
+  const yEI=parts[0].yEI+parts[1].yEI;
+  const yAllow=p.lim>0?p.lim:L/(-p.lim);
+  const Zreq=M/(p.sig*1000)/2, Ireq=Math.abs(yEI)/(CH_E*yAllow)/2;   // per channel
+  const okZ=c=>c[3]>=Zreq, okI=c=>c[2]>=Ireq;
+  const cZ=CH_TABLE.find(okZ), cI=CH_TABLE.find(okI), cBoth=CH_TABLE.find(c=>okZ(c)&&okI(c));
+  const gov=cBoth===cZ&&cBoth!==cI?"Stress":cBoth===cI&&cBoth!==cZ?"Deflection":null;
+  const sig=cBoth?M/(2*cBoth[3])/1000:NaN, y=cBoth?yEI/(CH_E*2*cBoth[2]):NaN;
+  return {L,RO,RC,MA,MB,M,Mat,parts,yEI,yAllow,Zreq,Ireq,cZ,cI,cBoth,gov,sig,y};
+}
+
+function chGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const L=pick(r,[8,10,12,14,16,18,20]);
+    const a1=pick(r,range(1,L-3,1)), a2=pick(r,range(a1+2,L-1,1));
+    const p={L,a1,a2,F1:pick(r,range(200,3000,50)),F2:pick(r,range(200,3000,50)),
+      sig:pick(r,[12,15,18,20]), lim:pick(r,[0.25,0.4,0.5,-240,-360])};       // lim > 0: inches; lim < 0: L/|lim|
+    const s=chSolve(p);
+    if(!s.cBoth||!s.gov) continue;
+    // no table value within 5% of a requirement, so the selection is never a judgment call
+    if(CH_TABLE.some(c=>Math.abs(c[3]/s.Zreq-1)<0.05||Math.abs(c[2]/s.Ireq-1)<0.05)) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+
+function chTableHTML(){
+  const half=Math.ceil(CH_TABLE.length/2), row=c=>c?`<td style="text-align:left">${c[0]}</td><td>${c[1]}</td><td>${c[2].toFixed(c[2]<10?2:1)}</td><td>${c[3].toFixed(2)}</td>`:`<td></td><td></td><td></td><td></td>`;
+  let rows="";for(let i=0;i<half;i++)rows+=`<tr>${row(CH_TABLE[i])}<td style="border:none;width:1.5em"></td>${row(CH_TABLE[i+half])}</tr>`;
+  const hd=`<th style="text-align:left">Designation</th><th>lb/ft</th><th><i>I</i> (in⁴)</th><th><i>Z</i> (in³)</th>`;
+  return `<p class="note" style="margin-bottom:.2em">American Standard channels: properties of one channel about the axis normal to the web, listed in order of weight.</p><table><tr>${hd}<th style="border:none"></th>${hd}</tr>${rows}</table>`;
+}
+
+function chStatement(p){
+  const lim=p.lim>0?`${p.lim} in`:`<i>L</i>/${-p.lim}`;
+  return `<p>The simply supported steel beam shown spans ${p.L} ft. It carries ${fmt(p.F1)} lbf at <i>A</i>, ${p.a1} ft from <i>O</i>, and ${fmt(p.F2)} lbf at <i>B</i>, ${p.a2} ft from <i>O</i>. Select the lightest pair of American Standard channels, mounted back to back, from the table so that the deflection at midspan does not exceed ${lim} and the bending stress does not exceed ${p.sig} kpsi. Take <i>E</i> = 30 Mpsi and use superposition. State which requirement governs the selection.</p>${chTableHTML()}`;
+}
+
+function chFigure(p,s){
+  const S=760/(p.L+6), f1=v=>v.toFixed(1), it=v=>`<tspan font-style="italic">${v}</tspan>`;
+  const X=x=>50+x*S, yb=150;
+  const ln=(x1,y1,x2,y2,attr)=>`<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" ${attr}/>`;
+  const tx=(x,y,t,attr="")=>`<text x="${f1(x)}" y="${f1(y)}" ${attr}>${t}</text>`;
+  const DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#ch-dm)" marker-end="url(#ch-dm)"`, EXT=`stroke="#999" stroke-width="0.8"`;
+  let g="";
+  for(const xx of [0,p.L]){const x=X(xx);
+    g+=`<polygon points="${f1(x)},${yb+8} ${f1(x-14)},${yb+32} ${f1(x+14)},${yb+32}" fill="#b9c8d8" stroke="#28405a" stroke-width="1.6"/>`+
+       `<rect x="${f1(x-24)}" y="${yb+32}" width="48" height="7" fill="url(#ch-hatch)"/>`+ln(x-24,yb+32,x+24,yb+32,`stroke="#28405a"`);}
+  g+=`<rect x="${f1(X(0))}" y="${yb-8}" width="${f1(p.L*S)}" height="16" fill="#eec878" stroke="#7d5014" stroke-width="1.6"/>`;
+  g+=`<path d="M${f1(X(0))},${yb} C${f1(X(p.L*0.25))},${yb+30} ${f1(X(p.L*0.75))},${yb+30} ${f1(X(p.L))},${yb}" fill="none" stroke="#7d5014" stroke-dasharray="6 4"/>`;
+  for(const [F,a,lab] of [[p.F1,p.a1,"A"],[p.F2,p.a2,"B"]]){
+    g+=ln(X(a),yb-90,X(a),yb-10,`stroke="#aa1e28" stroke-width="3.2" marker-end="url(#ch-ar)"`)+tx(X(a),yb-98,`${fmt(F)} lbf`,`fill="#aa1e28" text-anchor="middle"`);
+    g+=tx(X(a),yb+30,it(lab),`text-anchor="middle"`);}
+  g+=ln(X(p.L/2),yb-50,X(p.L/2),yb+46,`stroke="#888" stroke-dasharray="10 3 2 3"`)+tx(X(p.L/2),yb-56,"midspan",`text-anchor="middle" font-size="15" fill="#555"`);
+  g+=tx(X(0)-8,yb-14,it("O"),`text-anchor="end"`)+tx(X(p.L)+8,yb-14,it("C"));
+  g+=ln(X(p.L)+16,yb,X(p.L)+56,yb,`stroke="#222" stroke-width="1.4" marker-end="url(#ch-ax)"`)+tx(X(p.L)+60,yb+5,it("x"));
+  const yd=yb+70, xs=[0,p.a1,p.a2,p.L];
+  xs.forEach(v=>{g+=ln(X(v),yb+44,X(v),yd+8,EXT)});
+  for(let i=0;i<3;i++){g+=ln(X(xs[i]),yd,X(xs[i+1]),yd,DIM)+tx((X(xs[i])+X(xs[i+1]))/2,yd+20,`${xs[i+1]-xs[i]} ft`,`text-anchor="middle"`)}
+  // section sketch
+  const cx=X(p.L)+120, cy=yb, k=4;
+  for(const sg of [-1,1]){const P=(u,v)=>`${f1(cx+sg*k*u)},${f1(cy+k*v)}`;
+    g+=`<polygon points="${[[0,-12],[0,12],[8,12],[8,10.2],[1.4,10.2],[1.4,-10.2],[8,-10.2],[8,-12]].map(q=>P(q[0],q[1])).join(" ")}" fill="#eec878" stroke="#7d5014" stroke-width="1.4"/>`}
+  g+=tx(cx,cy+70,"two channels",`text-anchor="middle" font-size="15"`)+tx(cx,cy+88,"back to back",`text-anchor="middle" font-size="15"`);
+  return `<svg viewBox="0 0 ${f1(cx+90)} 260" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="18" style="max-height:300px">
+  <defs>
+   <pattern id="ch-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#28405a" stroke-width="1"/></pattern>
+   <marker id="ch-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+   <marker id="ch-ax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker>
+   <marker id="ch-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  </defs>${g}</svg>`;
+}
+
+function chSolution(p,s){
+  const lim=p.lim>0?`${p.lim} in`:`L/${-p.lim} = ${s.L}/${-p.lim} = ${fmt(s.yAllow,3)} in`;
+  const term=q=>q.beyond
+    ?`${fmt(q.F)} lbf at a = ${fmt(q.a)} in (midspan lies beyond the load): <span class="eq">EI y = F a (L − x)[(L − x)² + a² − L²]/(6L) = ${q.yEI.toExponential(4)} lbf·in³</span>`
+    :`${fmt(q.F)} lbf at a = ${fmt(q.a)} in, b = ${fmt(q.b)} in (midspan lies before the load): <span class="eq">EI y = F b x (x² + b² − L²)/(6L) = ${q.yEI.toExponential(4)} lbf·in³</span>`;
+  const other=s.gov==="Stress"?`Deflection alone would allow the ${s.cI[0]}`:`Stress alone would allow the ${s.cZ[0]}`;
+  return `<h3>1. Reactions and maximum moment</h3>
+  <p><span class="eq">R<sub>O</sub> = ${fmt(s.RO,1)} lbf, R<sub>C</sub> = ${fmt(s.RC,1)} lbf</span>&nbsp; <span class="eq">M<sub>A</sub> = ${fmt(s.MA)} lbf·in, M<sub>B</sub> = ${fmt(s.MB)} lbf·in</span>. The maximum moment is at <i>${s.Mat}</i>.</p>
+  <h3>2. Stress requirement</h3>
+  <p><span class="eq">Z ≥ M/σ<sub>allow</sub> = ${fmt(s.M)}/${fmt(p.sig*1000)} = ${fmt(2*s.Zreq,3)} in³</span> for the pair, or <b>${fmt(s.Zreq,3)} in³ per channel</b>.</p>
+  <h3>3. Midspan deflection by superposition (L = ${s.L} in, x = ${s.L/2} in)</h3>
+  <p>${term(s.parts[0])}</p><p>${term(s.parts[1])}</p>
+  <p>Total: <span class="eq">EI y = ${s.yEI.toExponential(4)} lbf·in³</span></p>
+  <h3>4. Deflection requirement</h3>
+  <p>The allowable deflection is ${lim}, so <span class="eq">I ≥ |EI y|/(E y<sub>allow</sub>) = ${fmt(2*s.Ireq,2)} in⁴</span> for the pair, or <b>${fmt(s.Ireq,2)} in⁴ per channel</b>.</p>
+  <h3>5. Selection</h3>
+  <p>The lightest channel meeting the stress requirement is the ${s.cZ[0]}; the lightest meeting the deflection requirement is the ${s.cI[0]}. ${other}, but it fails the ${s.gov==="Stress"?"stress":"deflection"} requirement.</p>
+  <p class="final">Select two ${s.cBoth[0]} channels; ${s.gov.toLowerCase()} governs.</p>
+  <p>Check with two ${s.cBoth[0]}: <span class="eq">σ = ${fmt(s.M)}/${fmt(2*s.cBoth[3],2)} = ${fmt(s.sig,2)} kpsi ≤ ${p.sig} kpsi</span>&nbsp; <span class="eq">|y| = ${fmt(Math.abs(s.y),3)} in ≤ ${fmt(s.yAllow,3)} in</span></p>`;
+}
+
+// ===== aluminum member hung from a steel rod: rod stretch plus bending (US units)
+const RL_Ea=10.4e6, RL_Es=30e6;
+const rlFrac=v=>({0.25:"&frac14;",0.375:"&frac38;",0.5:"&frac12;",0.3125:"⁵⁄₁₆",1.5:"1&frac12;",2.5:"2&frac12;"}[v]||fmt(v,v%1?2:0));
+
+function rlSolve(p){
+  const L=p.L, over=p.pos==="over", a=over?L+p.ov:p.a;       // load distance from O
+  const I=p.t*p.h**3/12, EI=RL_Ea*I, Ar=Math.PI*p.dr**2/4;
+  const FB=p.F*a/L, RO=p.F-FB;                                 // RO < 0: the pin pulls down
+  const dRod=FB*p.Lr/(Ar*RL_Es);
+  const yBend=over?-p.F*p.ov**2*(L+p.ov)/(3*EI):-p.F*a*a*(L-a)**2/(3*EI*L);
+  const yRigid=-dRod*a/L, yP=yBend+yRigid;
+  return {a,I,EI,Ar,FB,RO,dRod,yB:-dRod,yBend,yRigid,yP,share:yRigid/yP*100};
+}
+
+function rlGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const L=pick(r,range(10,20,2)), pos=pick(r,["between","over"]);
+    const p={L,pos,a:pos==="between"?pick(r,range(Math.ceil(0.3*L),Math.floor(0.7*L),1)):0,ov:pos==="over"?pick(r,[4,5,6,8]):0,
+      F:pick(r,range(50,300,25)),h:pick(r,[1.5,2,2.5,3]),t:pick(r,[0.25,0.375,0.5]),dr:pick(r,[0.25,0.3125,0.375,0.5]),Lr:pick(r,range(8,16,2))};
+    const s=rlSolve(p);
+    if(s.share<5||s.share>60) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+
+function rlStatement(p){
+  const P=p.pos==="over"?"D":"A";
+  const where=p.pos==="over"?`at <i>D</i>, on an overhang ${p.ov} in beyond <i>B</i>`:`at <i>A</i>, ${p.a} in from <i>O</i>`;
+  return `<p>The aluminum member shown (<i>E</i> = 10.4 Mpsi), ${rlFrac(p.h)} in deep and ${rlFrac(p.t)} in thick, is pinned to the wall at <i>O</i>. It is supported at <i>B</i>, ${p.L} in from <i>O</i>, by a ${rlFrac(p.dr)} in diameter steel rod <i>BC</i> (<i>E</i> = 30 Mpsi), ${p.Lr} in long, with hooked ends. A load of ${fmt(p.F)} lbf acts ${where}.</p>
+  <p>Using superposition, find the force in the rod, the vertical deflection at <i>B</i>, the vertical deflection at <i>${P}</i>, and the percentage of the deflection at <i>${P}</i> caused by the stretch of the rod.</p>`;
+}
+
+function rlFigure(p,s){
+  const over=p.pos==="over", end=over?p.L+p.ov:p.L, S=640/(end+8), f1=v=>v.toFixed(1), it=v=>`<tspan font-style="italic">${v}</tspan>`;
+  const X=x=>70+x*S, Yb=60+(p.Lr+2)*S, Yv=y=>Yb-y*S;
+  const ln=(x1,y1,x2,y2,attr)=>`<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" ${attr}/>`;
+  const tx=(x,y,t,attr="")=>`<text x="${f1(x)}" y="${f1(y)}" ${attr}>${t}</text>`;
+  const DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#rl-dm)" marker-end="url(#rl-dm)"`, EXT=`stroke="#999" stroke-width="0.8"`;
+  const hh=p.h/2*S, rr=Math.max(hh,6);
+  let g=`<rect x="${f1(X(-2.3))}" y="${f1(Yb-3.2*S)}" width="${f1(0.5*S)}" height="${f1(6.4*S)}" fill="url(#rl-hatch)"/>`+ln(X(-1.8),Yb-3.2*S,X(-1.8),Yb+3.2*S,`stroke="#28405a" stroke-width="2"`);
+  g+=`<path d="M${f1(X(-1.8))},${f1(Yb-0.9*S)} L${f1(X(0))},${f1(Yb-0.9*S)} A${f1(0.9*S)},${f1(0.9*S)} 0 0,1 ${f1(X(0))},${f1(Yb+0.9*S)} L${f1(X(-1.8))},${f1(Yb+0.9*S)} Z" fill="#b9c8d8" stroke="#28405a" stroke-width="1.6"/>`;
+  // ceiling bracket at C
+  const yc=Yv(p.Lr);
+  g+=`<rect x="${f1(X(p.L-1.8))}" y="${f1(yc-2.3*S)}" width="${f1(3.6*S)}" height="${f1(0.5*S)}" fill="url(#rl-hatch)"/>`+ln(X(p.L-1.8),yc-1.8*S,X(p.L+1.8),yc-1.8*S,`stroke="#28405a" stroke-width="2"`);
+  g+=`<path d="M${f1(X(p.L-0.9))},${f1(yc-1.8*S)} L${f1(X(p.L-0.9))},${f1(yc)} A${f1(0.9*S)},${f1(0.9*S)} 0 0,0 ${f1(X(p.L+0.9))},${f1(yc)} L${f1(X(p.L+0.9))},${f1(yc-1.8*S)} Z" fill="#b9c8d8" stroke="#28405a" stroke-width="1.6"/>`;
+  // member
+  g+=`<path d="M${f1(X(0))},${f1(Yb-hh)} L${f1(X(end))},${f1(Yb-hh)} A${f1(hh)},${f1(hh)} 0 0,1 ${f1(X(end))},${f1(Yb+hh)} L${f1(X(0))},${f1(Yb+hh)} A${f1(hh)},${f1(hh)} 0 0,1 ${f1(X(0))},${f1(Yb-hh)} Z" fill="#eec878" stroke="#7d5014" stroke-width="1.6"/>`;
+  g+=ln(X(-2.6),Yb,X(end)+hh+20,Yb,`stroke="#888" stroke-width="0.9" stroke-dasharray="10 3 2 3"`);
+  // rod
+  const rw=Math.max(4,p.dr*S);
+  g+=`<rect x="${f1(X(p.L)-rw/2)}" y="${f1(yc)}" width="${f1(rw)}" height="${f1(Yb-yc)}" fill="#969ba5" stroke="#464b55" stroke-width="1.4"/>`;
+  for(const yy of [yc,Yb]) g+=`<circle cx="${f1(X(p.L))}" cy="${f1(yy)}" r="${f1(Math.max(7,0.42*S))}" fill="#969ba5" stroke="#464b55" stroke-width="1.4"/>`;
+  for(const [xx,yy] of [[0,Yb],[p.L,Yb],[p.L,yc]]) g+=`<circle cx="${f1(X(xx))}" cy="${f1(yy)}" r="4" fill="#fff" stroke="#7d5014" stroke-width="1.4"/>`;
+  // load
+  const xP=over?end:p.a, P=over?"D":"A";
+  g+=ln(X(xP),Yb-hh-70,X(xP),Yb-3,`stroke="#aa1e28" stroke-width="3.2" marker-end="url(#rl-ar)"`)+`<circle cx="${f1(X(xP))}" cy="${f1(Yb)}" r="3" fill="#222"/>`;
+  g+=tx(X(xP),Yb-hh-78,`${fmt(p.F)} lbf`,`text-anchor="middle" fill="#aa1e28" class="halo"`);
+  g+=tx(X(0)-10,Yb+hh+20,it("O"),`text-anchor="end"`)+tx(X(p.L)+10,Yb+hh+20,it("B"))+tx(X(p.L)+0.9*S+10,yc+6,it("C"))+tx(X(xP)+(over?14:8),Yb+hh+20,it(P));
+  // dimensions
+  const yd=Yb+hh+48, stations=over?[[0,p.L],[p.L,end]]:[[0,p.a],[p.a,p.L]];
+  [0,p.L,xP].forEach(v=>{g+=ln(X(v),Yb+hh+6,X(v),yd+8,EXT)});
+  stations.forEach(([u,v])=>{g+=ln(X(u),yd,X(v),yd,DIM)+tx((X(u)+X(v))/2,yd+20,`${v-u} in`,`text-anchor="middle"`)});
+  const xr=X(p.L)-0.6*S-40;
+  g+=ln(X(p.L)-12,yc,xr-8,yc,EXT)+ln(X(p.L)-12,Yb,xr-8,Yb,EXT)+ln(xr,yc,xr,Yb,DIM)+tx(xr-6,(yc+Yb)/2,`${p.Lr} in`,`text-anchor="end" class="halo"`);
+  g+=tx(X(p.L)+rw/2+10,yc+(Yb-yc)*0.38,`steel, ${rlFrac(p.dr)} in dia.`,`class="halo"`);
+  g+=tx(X(0)+4,Yb-hh-14,`aluminum, ${rlFrac(p.h)} in deep, ${rlFrac(p.t)} in thick`,`class="halo"`);
+  // size the drawing to its labels: font scales with the drawing, label widths with the font
+  const W0=X(end)+hh+60, fs=Math.max(24,W0/30), cw=0.5*fs;
+  const W=Math.max(W0, X(p.L)+rw/2+10+cw*20, X(0)+4+cw*36), H=yd+40;
+  return `<svg viewBox="0 0 ${f1(W)} ${f1(H)}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="${f1(fs)}" style="max-height:480px">
+  <defs>
+   <pattern id="rl-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#28405a" stroke-width="1"/></pattern>
+   <marker id="rl-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+   <marker id="rl-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  </defs>${g}</svg>`;
+}
+
+function rlSolution(p,s){
+  const over=p.pos==="over", P=over?"D":"A", e=v=>v.toExponential(3);
+  const bend=over
+    ?`Treat the member as simply supported at <i>O</i> and <i>B</i> with an overhang of ${p.ov} in: <span class="eq">y = −F a²(L + a)/(3EI) = ${e(s.yBend)} in</span>`
+    :`Treat the member as simply supported at <i>O</i> and <i>B</i> with the load at a = ${p.a} in, b = ${p.L-p.a} in: <span class="eq">y = −F a² b²/(3EIL) = ${e(s.yBend)} in</span>`;
+  return `<h3>1. Statics</h3>
+  <p>Moments about <i>O</i>: <span class="eq">F<sub>BC</sub> = ${fmt(p.F)}(${s.a})/${p.L} = ${fmt(s.FB,2)} lbf</span> (tension). The pin at <i>O</i> carries ${fmt(Math.abs(s.RO),2)} lbf ${s.RO<0?"downward":"upward"}.</p>
+  <p class="final">F<sub>BC</sub> = ${fmt(s.FB,2)} lbf</p>
+  <h3>2. Rod stretch and the deflection at B</h3>
+  <p><span class="eq">A = π(${rlFrac(p.dr)})²/4 = ${fmt(s.Ar,4)} in²</span>&nbsp; <span class="eq">δ<sub>BC</sub> = F<sub>BC</sub>L<sub>BC</sub>/(AE<sub>s</sub>) = ${e(s.dRod)} in</span>. Bending does not move <i>B</i>, which the rod supports, so</p>
+  <p class="final">y<sub>B</sub> = ${e(s.yB)} in</p>
+  <h3>3. Rigid-body rotation</h3>
+  <p>With <i>B</i> lowered by δ<sub>BC</sub> and <i>O</i> fixed, the member rotates about <i>O</i>: <span class="eq">y = −δ<sub>BC</sub>(${s.a}/${p.L}) = ${e(s.yRigid)} in</span> at <i>${P}</i>.</p>
+  <h3>4. Bending with rigid supports</h3>
+  <p><span class="eq">I = ${rlFrac(p.t)}(${rlFrac(p.h)})³/12 = ${fmt(s.I,4)} in⁴</span>. ${bend}</p>
+  <h3>5. Total at ${P}</h3>
+  <p class="final">y<sub>${P}</sub> = ${e(s.yP)} in; the rod's stretch contributes ${fmt(s.share,1)}%.</p>`;
+}
+
+// ===== stepped torsion-bar spring with a cantilever arm (SI units)
+const TB_E=207e9, TB_G=79.3e9;
+function tbSolve(p){
+  const R=p.R/1000, segs=[[p.L1/1000,p.d1/1000],[p.L2/1000,p.d2/1000]];
+  const J=segs.map(([L,d])=>Math.PI*d**4/32), I=Math.PI*(p.da/1000)**4/64;
+  const ft=R*R*segs.reduce((s,[L],i)=>s+L/(TB_G*J[i]),0), fb=R**3/(3*TB_E*I);
+  const k=1/(ft+fb), F=k*p.delta/1000, T=F*R;
+  const tau=segs.map(([L,d])=>16*T/(Math.PI*d**3)/1e6), sig=32*F*R/(Math.PI*(p.da/1000)**3)/1e6;
+  return {R,J,I,ft,fb,k,share:ft/(ft+fb)*100,F,T,tau,tmax:Math.max(...tau),sig};
+}
+
+function tbGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const p={L1:pick(r,range(150,300,50)),L2:pick(r,range(100,250,50)),d1:pick(r,[16,18,20,22,25]),d2:pick(r,[10,12,14,16,18]),
+      R:pick(r,range(100,200,25)),da:pick(r,[8,10,12,14]),delta:pick(r,range(3,10,1))};
+    if(p.d2>p.d1-4) continue;
+    const s=tbSolve(p);
+    if(s.share<20||s.share>85) continue;
+    if(s.tmax<30||s.tmax>300||s.sig<60||s.sig>450) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+
+function tbStatement(p){
+  return `<p>The stepped torsion bar <i>OCA</i> is fixed to the wall at <i>O</i>. Segment <i>OC</i> is ${p.L1} mm long and ${p.d1} mm in diameter; segment <i>CA</i> is ${p.L2} mm long and ${p.d2} mm in diameter. A bearing near <i>A</i> supports the bar so that it carries torsion only. The arm <i>AB</i>, ${p.R} mm long and ${p.da} mm in diameter, is fixed to the bar at <i>A</i>, and a vertical force <i>F</i> acts at <i>B</i>. Both parts are carbon steel (<i>E</i> = 207 GPa, <i>G</i> = 79.3 GPa).</p>
+  <p>(a) Using superposition, find the spring rate <i>k</i> = <i>F</i>/δ<sub><i>B</i></sub> and the percentage of δ<sub><i>B</i></sub> due to twisting of the bar. (b) For a working deflection δ<sub><i>B</i></sub> = ${p.delta} mm, find <i>F</i>, the maximum shear stress in the bar, and the maximum bending stress in the arm.</p>`;
+}
+
+function tbFigure(p,s){
+  const Lb=p.L1+p.L2, K=Math.min(62,700/((Lb+120)*0.0158+(p.R+40)*0.01486)), f1=v=>v.toFixed(1), c=Math.PI/180;
+  const ex=[0.0158,-0.00625], ey=[0,0.01968], ez=[-0.01486,-0.00665];
+  const bb={mnX:1e9,mnY:1e9,mxX:-1e9,mxY:-1e9};
+  const G=(X,Y)=>{bb.mnX=Math.min(bb.mnX,X);bb.mxX=Math.max(bb.mxX,X);bb.mnY=Math.min(bb.mnY,Y);bb.mxY=Math.max(bb.mxY,Y)};
+  const P=(x,y,z)=>{const X=K*(x*ex[0]+y*ey[0]+z*ez[0]),Y=-K*(x*ex[1]+y*ey[1]+z*ez[1]);G(X,Y);return [X,Y]};
+  const pt=a=>f1(a[0])+","+f1(a[1]);
+  const poly=(pts,attr)=>`<polygon points="${pts.map(pt).join(" ")}" ${attr}/>`;
+  const pl=(pts,attr)=>`<polyline points="${pts.map(pt).join(" ")}" fill="none" ${attr}/>`;
+  const line=(a,b,attr)=>`<line x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}" ${attr}/>`;
+  const text=(a,str,attr="")=>{const w=11*str.replace(/<[^>]*>/g,"").length,al=/text-anchor="end"/.test(attr)?[w,0]:/text-anchor="middle"/.test(attr)?[w/2,w/2]:[0,w];
+    G(a[0]-al[0]-4,a[1]-18);G(a[0]+al[1]+4,a[1]+8);return `<text x="${f1(a[0])}" y="${f1(a[1])}" ${attr}>${str}</text>`};
+  const it=v=>`<tspan font-style="italic">${v}</tspan>`;
+  const OL=`stroke="#7d5014" stroke-width="1.5" stroke-linejoin="round"`, WL=`stroke="#28405a" stroke-width="1.5" stroke-linejoin="round"`;
+  const CL=`stroke="#888" stroke-width="0.9" stroke-dasharray="10 3 2 3"`, EXT=`stroke="#999" stroke-width="0.8"`;
+  const DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#tb-dm)" marker-end="url(#tb-dm)"`, AX=`stroke="#222" stroke-width="1.5" marker-end="url(#tb-ax)"`;
+  const tsA=-32.47, tsB=147.53, tzA=145.89, tzB=325.89;
+  const cylx=(x0,x1,r,front)=>{const q=t=>[r*Math.cos(t*c),r*Math.sin(t*c)];
+    let o=poly([P(x0,...q(tsA)),P(x1,...q(tsA)),P(x1,...q(tsB)),P(x0,...q(tsB))],`fill="#c9a865"`)+
+      poly([P(x0,...q(tsB+30)),P(x1,...q(tsB+30)),P(x1,...q(tsB-60)),P(x0,...q(tsB-60))],`fill="#eec878"`)+
+      line(P(x0,...q(tsA)),P(x1,...q(tsA)),OL)+line(P(x0,...q(tsB)),P(x1,...q(tsB)),OL);
+    if(front){const e=[];for(let t=0;t<=360;t+=10)e.push(P(x1,...q(t)));o+=poly(e,`fill="#f2d391" ${OL}`)}
+    return o};
+  const cylz=(x,z0,z1,r)=>{const q=t=>[x+r*Math.cos(t*c),r*Math.sin(t*c)];
+    const e=[];for(let t=tzB-180;t<=tzB;t+=10)e.push(P(...q(t),z1));
+    return poly([P(...q(tzA),z0),P(...q(tzA),z1),P(...q(tzB),z1),P(...q(tzB),z0)],`fill="#c9a865"`)+
+      poly([P(...q(tzA-40),z0),P(...q(tzA-40),z1),P(...q(tzA-110),z1),P(...q(tzA-110),z0)],`fill="#eec878"`)+
+      line(P(...q(tzA),z0),P(...q(tzA),z1),OL)+line(P(...q(tzB),z0),P(...q(tzB),z1),OL)+pl(e,OL)};
+  const box=(x0,x1,y0,y1,z0,z1,cols)=>poly([P(x1,y0,z0),P(x1,y1,z0),P(x1,y1,z1),P(x1,y0,z1)],`fill="${cols[0]}" ${WL}`)+
+    poly([P(x0,y1,z0),P(x1,y1,z0),P(x1,y1,z1),P(x0,y1,z1)],`fill="${cols[1]}" ${WL}`)+poly([P(x0,y0,z1),P(x1,y0,z1),P(x1,y1,z1),P(x0,y1,z1)],`fill="${cols[2]}" ${WL}`);
+  const r1=p.d1/2, r2=p.d2/2, ra=p.da/2, xC=p.L1, xA=Lb, R=p.R;
+  let g="", labels=[];
+  // wall
+  g+=poly([P(-30,80,-60),P(-30,80,60),P(0,80,60),P(0,80,-60)],`fill="#8d9aa7" ${WL}`)+poly([P(0,-80,-60),P(0,80,-60),P(0,80,60),P(0,-80,60)],`fill="#b9c8d8" ${WL}`)+
+     poly([P(-30,-80,60),P(0,-80,60),P(0,80,60),P(-30,80,60)],`fill="url(#tb-hatch)" ${WL}`);
+  g+=line(P(0,-80,0),P(0,80,0),CL)+line(P(0,80,0),P(0,125,0),AX)+line(P(0,0,60),P(0,0,105),`stroke="#888" stroke-dasharray="4 3"`)+line(P(0,0,105),P(0,0,140),AX);
+  labels.push(text(add2(P(0,135,0),[0,-4]),it("y"),`text-anchor="middle"`),text(add2(P(0,0,150),[-6,10]),it("z"),`text-anchor="end"`));
+  // arm (behind the bar end), load at B
+  g+=cylz(xA,0,-R,ra);
+  g+=line(P(xA,75,-R),P(xA,8,-R),`stroke="#aa1e28" stroke-width="3" marker-end="url(#tb-ar)"`);
+  labels.push(text(add2(P(xA,80,-R),[0,-6]),it("F"),`fill="#aa1e28" text-anchor="middle" class="halo"`));
+  // bar, bearing, stub
+  g+=cylx(0,xC,r1,true)+cylx(xC,xA,r2,true);
+  const bx0=xA-50, bx1=xA-25;
+  g+=box(bx0,bx1,-r2-25,r2+3,-18,18,["#87909b","#c4d3e1","#b7c8d8"])+cylx(bx1,xA,r2,true);
+  g+=line(P(xA,0,0),P(xA+70,0,0),CL)+line(P(xA+70,0,0),P(xA+110,0,0),AX);
+  labels.push(text(add2(P(xA+118,0,0),[0,5]),it("x")));
+  // labels
+  labels.push(text(add2(P(0,r1+2,0),[6,-8]),it("O"),`class="halo"`),text(add2(P(xC,r1,0),[0,-8]),it("C"),`text-anchor="middle" class="halo"`),
+    text(add2(P(xA,-r2,0),[12,30]),it("A"),`class="halo"`),text(add2(P(xA,0,-R),[10,6]),it("B"),`class="halo"`));
+  // dimensions
+  const yd=-125;
+  g+=line(P(0,-80,0),P(0,yd-10,0),EXT)+line(P(xC,-r1-2,0),P(xC,yd-10,0),EXT)+line(P(xA,-r2-2,0),P(xA,yd-10,0),EXT);
+  g+=line(P(0,yd,0),P(xC,yd,0),DIM)+line(P(xC,yd,0),P(xA,yd,0),DIM);
+  labels.push(text(add2(P(xC/2,yd,0),[-6,20]),`${p.L1}`,`text-anchor="end" class="halo"`),text(add2(P(xC+p.L2/2,yd,0),[-6,20]),`${p.L2}`,`text-anchor="end" class="halo"`));
+  g+=line(P(xA,ra+2,0),P(xA,48,0),EXT)+line(P(xA,ra+2,-R),P(xA,48,-R),EXT)+line(P(xA,40,0),P(xA,40,-R),DIM);
+  labels.push(text(add2(P(xA,40,-0.62*R),[0,-8]),`${R}`,`text-anchor="middle" class="halo"`));
+  // diameters
+  const cO=P(0.5*xC,r1-1,0), cO2=P(0.48*xC,r1+48,0), cC=P(xC+0.5*(p.L2-50),r2-1,0), cC2=P(xC+0.5*(p.L2-50)+5,r2+45,0), cA=P(xA,ra,-0.75*R), cA2=P(xA,30,-R-50);
+  g+=line(cO,cO2,`stroke="#222" stroke-width="0.9"`)+line(cC,cC2,`stroke="#222" stroke-width="0.9"`)+line(cA,cA2,`stroke="#222" stroke-width="0.9"`);
+  labels.push(text(add2(cO2,[0,-6]),`${p.d1} dia.`,`text-anchor="middle" class="halo"`),text(add2(cC2,[0,-6]),`${p.d2} dia.`,`text-anchor="middle" class="halo"`),
+    text(add2(cA2,[6,4]),`arm, ${p.da} dia.`,`class="halo"`));
+  labels.push(text([bb.mxX-4,bb.mxY+22],"Dimensions in mm",`text-anchor="end" font-size="15"`));
+  g+=labels.join("");
+  const pad=14,W=bb.mxX-bb.mnX+2*pad,H=bb.mxY-bb.mnY+2*pad;
+  return `<svg viewBox="${f1(bb.mnX-pad)} ${f1(bb.mnY-pad)} ${f1(W)} ${f1(H)}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="18" style="max-height:440px">
+  <defs>
+   <pattern id="tb-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#c9d5e2"/><line x1="0" y1="0" x2="0" y2="7" stroke="#28405a" stroke-width="1"/></pattern>
+   <marker id="tb-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+   <marker id="tb-ax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker>
+   <marker id="tb-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  </defs>${g}</svg>`;
+}
+const add2=(a,b)=>[a[0]+b[0],a[1]+b[1]];
+
+function tbSolution(p,s){
+  const e=v=>v.toExponential(4);
+  return `<h3>1. Twist of the bar</h3>
+  <p>The torque in both segments is <span class="eq">T = F R</span>, with R = ${fmt(s.R,3)} m. The segments twist in series, and the twist rotates the arm as a rigid body, moving <i>B</i> by θR:</p>
+  <p><span class="eq">J<sub>OC</sub> = πd⁴/32 = ${e(s.J[0])} m⁴</span>&nbsp; <span class="eq">J<sub>CA</sub> = ${e(s.J[1])} m⁴</span></p>
+  <p><span class="eq">δ<sub>1</sub>/F = R² Σ L<sub>i</sub>/(G J<sub>i</sub>) = ${e(s.ft)} m/N</span></p>
+  <h3>2. Bending of the arm</h3>
+  <p>The arm acts as a cantilever from <i>A</i>: <span class="eq">I = πd⁴/64 = ${e(s.I)} m⁴</span>&nbsp; <span class="eq">δ<sub>2</sub>/F = R³/(3EI) = ${e(s.fb)} m/N</span></p>
+  <h3>3. (a) Spring rate</h3>
+  <p>The two compliances act in series: <span class="eq">k = 1/(δ<sub>1</sub>/F + δ<sub>2</sub>/F) = 1/${e(s.ft+s.fb)}</span></p>
+  <p class="final">k = ${fmt(s.k/1000,2)} kN/m; twisting of the bar causes ${fmt(s.share,1)}% of δ<sub>B</sub>.</p>
+  <h3>4. (b) Stresses at δ<sub>B</sub> = ${p.delta} mm</h3>
+  <p><span class="eq">F = k δ<sub>B</sub> = ${fmt(s.F,1)} N</span>&nbsp; <span class="eq">T = F R = ${fmt(s.T,2)} N·m</span></p>
+  <p>Shear stress, <span class="eq">τ = 16T/(πd³)</span>: segment <i>OC</i> ${fmt(s.tau[0],1)} MPa, segment <i>CA</i> ${fmt(s.tau[1],1)} MPa. The smaller segment carries the larger stress.</p>
+  <p>Arm bending at <i>A</i>: <span class="eq">σ = 32 F R/(πd³) = ${fmt(s.sig,1)} MPa</span></p>
+  <p class="final">F = ${fmt(s.F,1)} N, τ<sub>max</sub> = ${fmt(s.tmax,1)} MPa (segment CA), σ<sub>arm</sub> = ${fmt(s.sig,1)} MPa.</p>`;
+}
+
+// ===== uniform shaft with a couple between the bearings: end-slope sizing (SI units)
+const MS_E=207e9, MS_SIZES=[10,12,14,16,18,20,22,25,28,30,32,35,40,45,50,55,60];
+function msSolve(p){
+  const l=p.l/1000, al=p.a/p.l, cA=3*al*al-6*al+2, cC=3*al*al-1;
+  const gov=Math.abs(cA)>=Math.abs(cC)?"A":"C", cg=Math.max(Math.abs(cA),Math.abs(cC));
+  const I=p.M*l*cg/(6*MS_E*p.th), dmin=(64*I/Math.PI)**0.25*1000;
+  const dsel=MS_SIZES.find(d=>d>=dmin), Is=Math.PI*(dsel/1000)**4/64;
+  return {al,cA,cC,gov,I,dmin,dsel,Is,thA:p.M*l*Math.abs(cA)/(6*MS_E*Is),thC:p.M*l*Math.abs(cC)/(6*MS_E*Is)};
+}
+function msGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const l=pick(r,range(300,800,50)), p={l,a:pick(r,range(50,l-50,25)),M:pick(r,range(50,400,10)),th:pick(r,[0.001,0.0012,0.0015,0.002])};
+    if(p.a<0.15*l||p.a>0.85*l) continue;
+    const s=msSolve(p), lo=Math.min(Math.abs(s.cA),Math.abs(s.cC)), hi=Math.max(Math.abs(s.cA),Math.abs(s.cC));
+    if(lo>0.95*hi||lo<0.05*hi) continue;                      // governing end must be clear; both slopes checkable
+    if(s.dmin<12||s.dmin>55) continue;
+    if(MS_SIZES.some(d=>Math.abs(d-s.dmin)<0.02*d)) continue; // size selection must be clear
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function msStatement(p){
+  return `<p>A uniform steel shaft runs in bearings at <i>A</i> and <i>C</i>, ${p.l} mm apart. A couple <i>M<sub>B</sub></i> = ${p.M} N·m acts at <i>B</i>, ${p.a} mm from <i>A</i>. The bearings require the slope of the shaft at each end not to exceed ${p.th} rad. Take <i>E</i> = 207 GPa.</p>
+  <p>(a) Which bearing governs, and what is the minimum diameter <i>d</i>? (b) Select <i>d</i> from the preferred sizes ${MS_SIZES.join(", ")} mm, and find the slopes at <i>A</i> and <i>C</i> for the selected diameter.</p>`;
+}
+function msFigure(p,s){
+  const S=620/p.l, X=x=>70+x*S, Y=120, h=20, f1=v=>v.toFixed(1), it=v=>`<tspan font-style="italic">${v}</tspan>`;
+  const ln=(x1,y1,x2,y2,attr)=>`<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" ${attr}/>`;
+  const tx=(x,y,t,attr="")=>`<text x="${f1(x)}" y="${f1(y)}" ${attr}>${t}</text>`;
+  const rect=(x,y,w,hh,attr)=>`<rect x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(hh)}" ${attr}/>`;
+  const DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#ms-dm)" marker-end="url(#ms-dm)"`, EXT=`stroke="#999" stroke-width="0.8"`;
+  const PL=`fill="#eec878" stroke="#7d5014" stroke-width="1.6"`, JL=`fill="#dcb46a" stroke="#7d5014" stroke-width="1.6"`, BL=`fill="#b9c8d8" stroke="#28405a" stroke-width="1.6"`;
+  let g=rect(X(0)-30,Y-13,46,26,JL)+rect(X(p.l)-16,Y-13,46,26,JL)+rect(X(0)+16,Y-h,X(p.l)-X(0)-32,2*h,PL)+rect(X(0)+16,Y-h+5,X(p.l)-X(0)-32,6,`fill="#fff" opacity="0.45"`);
+  for(const x of [0,p.l]){g+=rect(X(x)-12,Y-31,24,62,BL)+ln(X(x)-12,Y-13,X(x)+12,Y-13,`stroke="#28405a"`)+ln(X(x)-12,Y+13,X(x)+12,Y+13,`stroke="#28405a"`)+
+    rect(X(x)-26,Y+31,52,9,`fill="url(#ms-hatch)"`)+ln(X(x)-26,Y+31,X(x)+26,Y+31,`stroke="#28405a" stroke-width="2"`)}
+  g+=ln(X(0)-50,Y,X(p.l)+50,Y,`stroke="#888" stroke-width="0.9" stroke-dasharray="10 3 2 3"`);
+  // couple at B, clockwise
+  const xb=X(p.a), R=42, c=Math.PI/180, q=t=>[xb+R*Math.cos(t*c),Y-R*Math.sin(t*c)];
+  g+=`<circle cx="${f1(xb)}" cy="${Y}" r="4" fill="#222"/><path d="M${q(150).map(f1).join(",")} A${R},${R} 0 1,1 ${q(-150).map(f1).join(",")}" fill="none" stroke="#aa1e28" stroke-width="3.2" marker-end="url(#ms-ar)"/>`;
+  g+=tx(xb-0.5*R-4,Y-R-6,`${it("M")}<tspan baseline-shift="sub" font-size="15">${it("B")}</tspan> = ${p.M} N·m`,`text-anchor="end" fill="#aa1e28" class="halo"`);
+  g+=tx(xb+8,Y+26,it("B"),`class="halo"`)+tx(X(0),Y+64,it("A"),`text-anchor="middle"`)+tx(X(p.l),Y+64,it("C"),`text-anchor="middle"`);
+  // dimensions
+  const yu=Y-R-48, yl=Y+96;
+  g+=ln(X(0),Y-34,X(0),yu-8,EXT)+ln(xb,Y-R-34,xb,yu-8,EXT)+ln(X(p.l),Y-34,X(p.l),yu-8,EXT);
+  g+=ln(X(0),yu,xb,yu,DIM)+ln(xb,yu,X(p.l),yu,DIM)+tx((X(0)+xb)/2,yu-8,`${p.a}`,`text-anchor="middle"`)+tx((xb+X(p.l))/2,yu-8,it("b"),`text-anchor="middle"`);
+  g+=ln(X(0),Y+72,X(0),yl+8,EXT)+ln(X(p.l),Y+72,X(p.l),yl+8,EXT)+ln(X(0),yl,X(p.l),yl,DIM)+tx((X(0)+X(p.l))/2,yl-8,`${p.l}`,`text-anchor="middle" class="halo"`);
+  g+=ln(X(p.l)-70,Y-h,X(p.l)-50,Y-h-26,`stroke="#222" stroke-width="0.9"`)+tx(X(p.l)-53,Y-h-30,it("d"),`text-anchor="end"`);
+  g+=tx(X(p.l)+50,yl+36,"Dimensions in mm",`text-anchor="end" font-size="15"`);
+  return `<svg viewBox="0 ${f1(yu-30)} ${f1(X(p.l)+70)} ${f1(yl+50-(yu-30))}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="19" style="max-height:360px">
+  <defs>
+   <pattern id="ms-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#28405a" stroke-width="1"/></pattern>
+   <marker id="ms-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+   <marker id="ms-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  </defs>${g}</svg>`;
+}
+function msSolution(p,s){
+  const e=v=>v.toExponential(3), G=s.gov, O=G==="A"?"C":"A";
+  return `<h3>1. End slopes for a couple on a simple span</h3>
+  <p>For a couple <i>M</i> at distance <i>a</i> from <i>A</i> on a simply supported span <i>l</i> (beam tables, simple supports with a moment load):</p>
+  <p><span class="eq">θ<sub>A</sub> = M(3a² − 6al + 2l²)/(6EIl)</span>&nbsp; <span class="eq">θ<sub>C</sub> = M(3a² − l²)/(6EIl)</span></p>
+  <p>With α = a/l = ${fmt(s.al,3)}, write both as <span class="eq">θ = c M l/(6EI)</span>:</p>
+  <p><span class="eq">c<sub>A</sub> = 3α² − 6α + 2 = ${fmt(s.cA,4)}</span>&nbsp; <span class="eq">c<sub>C</sub> = 3α² − 1 = ${fmt(s.cC,4)}</span></p>
+  <p>|c<sub>${G}</sub>| is the larger, so the slope at bearing <i>${G}</i> governs.</p>
+  <h3>2. (a) Minimum diameter</h3>
+  <p><span class="eq">I ≥ |c<sub>${G}</sub>| M l/(6E θ<sub>allow</sub>) = ${fmt(Math.abs(G==="A"?s.cA:s.cC),4)}(${p.M})(${fmt(p.l/1000,3)})/[6(207×10⁹)(${p.th})] = ${e(s.I)} m⁴</span></p>
+  <p><span class="eq">d = (64I/π)<sup>1/4</sup> = ${fmt(s.dmin,2)} mm</span></p>
+  <p class="final">Bearing ${G} governs; d<sub>min</sub> = ${fmt(s.dmin,2)} mm.</p>
+  <h3>3. (b) Selected size and slopes</h3>
+  <p>The next preferred size is ${s.dsel} mm, so <span class="eq">I = π(${s.dsel})⁴/64 = ${e(s.Is)} m⁴</span>.</p>
+  <p><span class="eq">|θ<sub>A</sub>| = ${e(s.thA)} rad</span>&nbsp; <span class="eq">|θ<sub>C</sub>| = ${e(s.thC)} rad</span></p>
+  <p class="final">Use d = ${s.dsel} mm; |θ<sub>A</sub>| = ${e(s.thA)} rad, |θ<sub>C</sub>| = ${e(s.thC)} rad, both within ${p.th} rad.</p>`;
+}
+
+// ===== L-shaped bar, Castigliano deflection in the direction of F (SI units)
+const CB_E=207e9, CB_G=79.3e9, CB_TRI=[[3,4,5],[4,3,5],[5,12,13],[12,5,13],[8,15,17],[15,8,17]];
+function cbSolve(p){
+  const L1=p.L1/1000, L2=p.L2/1000, d=p.d/1000, I=Math.PI*d**4/64, J=2*I, A=Math.PI*d*d/4, EI=CB_E*I, GJ=CB_G*J, EA=CB_E*A;
+  const v=p.F*p.tv/p.tc, h=p.F*p.th/p.tc, F=p.F, c={};
+  if(p.dir==="OA"){
+    c.ABb=(v*v+h*h)*L2**3/(3*EI); c.ABa=0;
+    c.OAb=v*v*L1**3/(3*EI)+(h*L2)**2*L1/EI; c.OAa=h*h*L1/EA;
+  } else {
+    c.ABb=v*v*L2**3/(3*EI); c.ABa=h*h*L2/EA;
+    c.OAb=(v*v+h*h)*L1**3/(3*EI); c.OAa=0;
+  }
+  c.OAt=(v*L2)**2*L1/GJ;
+  for(const k in c) c[k]=c[k]/F*1000;                               // mm
+  const delta=c.ABb+c.ABa+c.OAb+c.OAa+c.OAt;
+  // stresses at the wall
+  const Mz=v*L1, My=p.dir==="OA"?h*L2:h*L1, M=Math.hypot(Mz,My), T=v*L2;
+  const sig=32*M/(Math.PI*d**3)/1e6+(p.dir==="OA"?h/A/1e6:0), tau=16*T/(Math.PI*d**3)/1e6;
+  return {I,J,A,EI,GJ,EA,v,h,c,delta,AB:c.ABb+c.ABa,share:c.OAt/delta*100,vm:Math.sqrt(sig*sig+3*tau*tau)};
+}
+function cbGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const t=pick(r,CB_TRI);
+    const p={L1:pick(r,range(300,500,50)),L2:pick(r,range(120,240,20)),d:pick(r,[10,12,14,16]),F:pick(r,range(20,200,5)),
+      tv:t[0],th:t[1],tc:t[2],dir:pick(r,["OA","AB"])};
+    if(p.F%p.tc!==0) continue;                                   // integer force components
+    const s=cbSolve(p);
+    if(s.delta<2||s.delta>25||s.vm>220||s.vm<60) continue;
+    if(s.share<10||s.share>70) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function cbStatement(p){
+  const along=p.dir==="OA"?"parallel to <i>OA</i>, directed away from the wall":"along <i>AB</i>, directed away from <i>A</i>";
+  return `<p>The ${p.d} mm diameter steel bar <i>OAB</i> is fixed to the wall at <i>O</i>. Segment <i>OA</i> is ${p.L1} mm long and segment <i>AB</i> is ${p.L2} mm long; both lie in a horizontal plane, at right angles to each other. A force <i>F</i> = ${p.F} N acts at <i>B</i>, sloped ${p.tv} (vertical, downward) to ${p.th} (horizontal), with its horizontal component ${along}. Take <i>E</i> = 207 GPa and <i>G</i> = 79.3 GPa, and neglect transverse shear.</p>
+  <p>Using Castigliano's theorem, find the deflection of <i>B</i> in the direction of <i>F</i>, the part of it due to torsion of <i>OA</i>, and the part due to segment <i>AB</i>.</p>`;
+}
+function cbFigure(p,s){
+  const K=330/(0.017*p.L1), f1=v=>v.toFixed(1), c=Math.PI/180;
+  const ex=[0.0158,-0.00625], ey=[0,0.01968], ez=[-0.01486,-0.00665], u=50;   // u: drawing units per mm scale factor
+  const bb={mnX:1e9,mnY:1e9,mxX:-1e9,mxY:-1e9};
+  const Gb=(X,Y)=>{bb.mnX=Math.min(bb.mnX,X);bb.mxX=Math.max(bb.mxX,X);bb.mnY=Math.min(bb.mnY,Y);bb.mxY=Math.max(bb.mxY,Y)};
+  const P=(x,y,z)=>{const X=K*(x*ex[0]+y*ey[0]+z*ez[0]),Y=-K*(x*ex[1]+y*ey[1]+z*ez[1]);Gb(X,Y);return [X,Y]};
+  const pt=a=>f1(a[0])+","+f1(a[1]);
+  const poly=(pts,attr)=>`<polygon points="${pts.map(pt).join(" ")}" ${attr}/>`;
+  const line=(a,b,attr)=>`<line x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}" ${attr}/>`;
+  const text=(a,str,attr="")=>{const w=10.5*str.replace(/<[^>]*>/g,"").length,al=/text-anchor="end"/.test(attr)?[w,0]:/text-anchor="middle"/.test(attr)?[w/2,w/2]:[0,w];
+    Gb(a[0]-al[0]-4,a[1]-18);Gb(a[0]+al[1]+4,a[1]+8);return `<text x="${f1(a[0])}" y="${f1(a[1])}" ${attr}>${str}</text>`};
+  const it=v=>`<tspan font-style="italic">${v}</tspan>`;
+  const OL=`stroke="#7d5014" stroke-width="1.5" stroke-linejoin="round"`, WL=`stroke="#28405a" stroke-width="1.5" stroke-linejoin="round"`;
+  const CL=`stroke="#888" stroke-width="0.9" stroke-dasharray="10 3 2 3"`, EXT=`stroke="#999" stroke-width="0.8"`;
+  const DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#cb-dm)" marker-end="url(#cb-dm)"`;
+  const L1=p.L1, L2=p.L2, r=Math.max(p.d/2,0.022*L1), W=Math.max(60,0.17*L1);
+  const cylx=(x0,x1)=>{const q=t=>[r*Math.cos(t*c),r*Math.sin(t*c)];
+    return poly([P(x0,...q(-32.47)),P(x1,...q(-32.47)),P(x1,...q(147.53)),P(x0,...q(147.53))],`fill="#c9a865"`)+
+      poly([P(x0,...q(110)),P(x1,...q(110)),P(x1,...q(60)),P(x0,...q(60))],`fill="#eec878"`)+
+      line(P(x0,...q(-32.47)),P(x1,...q(-32.47)),OL)+line(P(x0,...q(147.53)),P(x1,...q(147.53)),OL)};
+  const cylz=(x,z0,z1)=>{const q=t=>[x+r*Math.cos(t*c),r*Math.sin(t*c)], e=[];for(let t=0;t<=360;t+=10)e.push(P(...q(t),z1));
+    return poly([P(...q(145.89),z0),P(...q(145.89),z1),P(...q(325.89),z1),P(...q(325.89),z0)],`fill="#c9a865"`)+
+      poly([P(...q(100),z0),P(...q(100),z1),P(...q(45),z1),P(...q(45),z0)],`fill="#eec878"`)+
+      line(P(...q(145.89),z0),P(...q(145.89),z1),OL)+line(P(...q(325.89),z0),P(...q(325.89),z1),OL)+poly(e,`fill="#f6dda6" ${OL}`)};
+  let g="", labels=[];
+  // wall at x = 0
+  g+=poly([P(-0.04*L1,W*1.15,-W),P(0,W*1.15,-W),P(0,W*1.15,W),P(-0.04*L1,W*1.15,W)],`fill="#8d9aa7" ${WL}`)+
+     poly([P(0,-W*1.15,-W),P(0,W*1.15,-W),P(0,W*1.15,W),P(0,-W*1.15,W)],`fill="#b9c8d8" ${WL}`)+
+     poly([P(-0.04*L1,-W*1.15,W),P(0,-W*1.15,W),P(0,W*1.15,W),P(-0.04*L1,W*1.15,W)],`fill="url(#cb-hatch)" ${WL}`);
+  // bar
+  g+=cylx(0,L1);
+  const A0=P(L1,0,0); g+=`<circle cx="${f1(A0[0])}" cy="${f1(A0[1])}" r="${f1(K*0.02169*r)}" fill="#c9a865" ${OL}/>`;
+  g+=cylz(L1,0,L2)+line(P(-10,0,0),P(L1,0,0),CL)+line(P(L1,0,0),P(L1,0,L2),CL);
+  // force at B
+  const La=0.32*L1, dv=-p.tv/p.tc, dh=p.th/p.tc, D=(t)=>p.dir==="OA"?[L1+t*dh,t*dv,L2]:[L1,t*dv,L2+t*dh];
+  const B=P(L1,0,L2), Ft=P(...D(La));
+  g+=line(B,Ft,`stroke="#aa1e28" stroke-width="3.2" marker-end="url(#cb-ar)"`);
+  const P1=D(0.4*La), P2=D(0.8*La), Cn=p.dir==="OA"?[P1[0],P2[1],L2]:[L1,P2[1],P1[2]];
+  g+=line(P(...P1),P(...Cn),`stroke="#222" stroke-width="0.9"`)+line(P(...Cn),P(...P2),`stroke="#222" stroke-width="0.9"`);
+  const mV=P((P1[0]+Cn[0])/2,(P1[1]+Cn[1])/2,(P1[2]+Cn[2])/2), mH=P((Cn[0]+P2[0])/2,Cn[1],(Cn[2]+P2[2])/2), side=p.dir==="OA"?-1:1;
+  labels.push(text([mV[0]+side*8,mV[1]+6],`${p.tv}`,side<0?`text-anchor="end" class="halo"`:`class="halo"`),text([mH[0],mH[1]+22],`${p.th}`,`text-anchor="middle" class="halo"`));
+  labels.push(text([Ft[0]+(p.dir==="OA"?8:-8),Ft[1]+22],`${it("F")} = ${p.F} N`,`fill="#aa1e28" class="halo" text-anchor="${p.dir==="OA"?"start":"end"}"`));
+  // labels
+  labels.push(text(add2(P(0,r,0),[-6,-10]),it("O"),`text-anchor="end" class="halo"`),text(add2(P(L1,r,0),[10,-8]),it("A"),`class="halo"`),
+    text(add2(B,[-14,-4]),it("B"),`text-anchor="end" class="halo"`));
+  // dimensions
+  const zd=-0.2*L1, xd=L1+0.2*L1;
+  g+=line(P(0,0,-r-4),P(0,0,zd-12),EXT)+line(P(L1,0,-r-4),P(L1,0,zd-12),EXT)+line(P(0,0,zd),P(L1,0,zd),DIM);
+  labels.push(text(add2(P(L1/2,0,zd),[0,-8]),`${L1}`,`text-anchor="middle" class="halo"`));
+  g+=line(P(L1+r+4,0,0),P(xd+12,0,0),EXT)+line(P(L1+r+4,0,L2),P(xd+12,0,L2),EXT)+line(P(xd,0,0),P(xd,0,L2),DIM);
+  labels.push(text(add2(P(xd,0,L2/2),[10,14]),`${L2}`,`class="halo"`));
+  const cA=P(0.3*L1,-r*0.8,0), cA2=P(0.22*L1,-0.3*L1,0);
+  g+=line(cA,cA2,`stroke="#222" stroke-width="0.9"`); labels.push(text(add2(cA2,[-4,16]),`${p.d} mm dia.`,`text-anchor="end" class="halo"`));
+  labels.push(text([bb.mxX-4,bb.mxY+24],"Dimensions in mm",`text-anchor="end" font-size="15"`));
+  g+=labels.join("");
+  const pad=14,Wd=bb.mxX-bb.mnX+2*pad,H=bb.mxY-bb.mnY+2*pad;
+  return `<svg viewBox="${f1(bb.mnX-pad)} ${f1(bb.mnY-pad)} ${f1(Wd)} ${f1(H)}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="18" style="max-height:460px">
+  <defs>
+   <pattern id="cb-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#c9d5e2"/><line x1="0" y1="0" x2="0" y2="7" stroke="#28405a" stroke-width="1"/></pattern>
+   <marker id="cb-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+   <marker id="cb-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  </defs>${g}</svg>`;
+}
+function cbSolution(p,s){
+  const e=v=>v.toExponential(4), v=fmt(s.v,2), h=fmt(s.h,2), oa=p.dir==="OA", L1=fmt(p.L1/1000,3), L2=fmt(p.L2/1000,3);
+  const rows=[["Bending of AB",s.c.ABb],["Axial force in AB",s.c.ABa],["Bending of OA",s.c.OAb],["Axial force in OA",s.c.OAa],["Torsion of OA",s.c.OAt]];
+  return `<h3>1. Components and section properties</h3>
+  <p>F<sub>v</sub> = F(${p.tv}/${p.tc}) = ${v} N downward; F<sub>h</sub> = F(${p.th}/${p.tc}) = ${h} N ${oa?"parallel to OA":"along AB"}.</p>
+  <p><span class="eq">I = πd⁴/64 = ${e(s.I)} m⁴</span>&nbsp; <span class="eq">J = 2I</span>&nbsp; <span class="eq">EI = ${fmt(s.EI,2)} N·m²</span>&nbsp; <span class="eq">GJ = ${fmt(s.GJ,2)} N·m²</span>&nbsp; <span class="eq">EA = ${e(s.EA)} N</span></p>
+  <h3>2. Internal actions</h3>
+  <p>Segment AB, s measured from B: bending M = F<sub>v</sub>s${oa?` and F<sub>h</sub>s, about perpendicular axes; no axial force`:`; axial force N = F<sub>h</sub>`}; no torsion.</p>
+  <p>Segment OA, u measured from A: bending F<sub>v</sub>u; ${oa?`a constant bending moment F<sub>h</sub>L<sub>AB</sub> about the vertical axis; axial force F<sub>h</sub>`:`bending F<sub>h</sub>u about the vertical axis; no axial force`}; torque T = F<sub>v</sub>L<sub>AB</sub> = ${fmt(s.v*p.L2/1000,3)} N·m.</p>
+  <h3>3. Castigliano's theorem</h3>
+  <p>Every internal action is proportional to F, so <span class="eq">δ = ∂U/∂F = (1/F)[Σ∫M²/EI + ∫T²/GJ + ΣN²L/EA]</span>:</p>
+  <p><span class="eq">δ = (1/F)[${oa?`(F<sub>v</sub>²+F<sub>h</sub>²)L<sub>AB</sub>³/3EI + F<sub>v</sub>²L<sub>OA</sub>³/3EI + (F<sub>h</sub>L<sub>AB</sub>)²L<sub>OA</sub>/EI + F<sub>h</sub>²L<sub>OA</sub>/EA`:`F<sub>v</sub>²L<sub>AB</sub>³/3EI + F<sub>h</sub>²L<sub>AB</sub>/EA + (F<sub>v</sub>²+F<sub>h</sub>²)L<sub>OA</sub>³/3EI`} + (F<sub>v</sub>L<sub>AB</sub>)²L<sub>OA</sub>/GJ]</span></p>
+  <table>${rows.filter(r=>r[1]>0).map(r=>`<tr><td>${r[0]}</td><td>${fmt(r[1],4)} mm</td></tr>`).join("")}<tr><td><b>Total</b></td><td><b>${fmt(s.delta,3)} mm</b></td></tr></table>
+  <p class="final">δ<sub>B</sub> = ${fmt(s.delta,3)} mm in the direction of F; torsion of OA contributes ${fmt(s.c.OAt,3)} mm (${fmt(s.share,1)}%); segment AB contributes ${fmt(s.AB,3)} mm.</p>`;
+}
+
+// ===== wire hook: vertical deflection of the load point by Castigliano (SI units)
+const HK_E=207e3, HK_G=207e3/(2*1.29);                                   // MPa
+function hkSolve(p){
+  const F=p.m*9.81, I=Math.PI*p.d**4/64, A=Math.PI*p.d**2/4, EI=HK_E*I, R=p.R, L=p.L, side=p.join==="side";
+  const c={shank:side?F*R*R*L/EI:0, arc:side?Math.PI*F*R**3/(4*EI):Math.PI*F*R**3/(2*EI), ax:F*L/(A*HK_E)};
+  // normal force and shear in the arc (small); straight-beam forms, shear factor 1.33 for a round section
+  const span=side?Math.PI/2:Math.PI;
+  c.small=c.ax+F*R*span/2/(A*HK_E)+1.33*F*R*span/2/(A*HK_G);
+  const delta=c.shank+c.arc+c.small, sig=32*F*R/(Math.PI*p.d**3);
+  return {F,I,A,EI,c,delta,sig,where:side?"Throughout the shank AB":"In the arc, level with the center"};
+}
+function hkGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const p={d:pick(r,[1.5,2,2.5,3,4]),L:pick(r,range(50,150,10)),R:pick(r,range(20,50,5)),m:pick(r,range(0.5,3,0.25)),join:pick(r,["top","side"])};
+    if(p.R/p.d<10) continue;
+    const s=hkSolve(p);
+    if(s.sig<80||s.sig>450||s.delta<1||s.delta>30) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function hkStatement(p){
+  const j=p.join==="side"?"at the left side of the circle, level with its center, so the hook turns down through a quarter circle to <i>D</i>":"at the top of the circle, so the hook turns through a half circle to <i>D</i>, directly below the shank";
+  return `<p>A hook is bent from ${p.d} mm diameter steel wire and fixed into the ceiling at <i>A</i>. The straight shank <i>AB</i> is ${p.L} mm long. The hook is a circle of radius ${p.R} mm (to the wire center line), and the shank joins it ${j}. A ${fmt(p.m,2)} kg mass hangs from the lowest point <i>D</i>; the wire continues past <i>D</i> to the free end <i>E</i>. Take <i>E</i> = 207 GPa.</p>
+  <p>Using Castigliano's theorem, find the vertical deflection of <i>D</i>, the maximum bending stress in the wire, and where it occurs.</p>`;
+}
+function hkFigure(p,s){
+  const side=p.join==="side", S=300/(p.L+2*p.R), f1=v=>v.toFixed(1), it=v=>`<tspan font-style="italic">${v}</tspan>`, c=Math.PI/180;
+  const X=x=>x*S, Y=y=>-y*S, cx=side?p.R:0, cy=side?0:-p.R, w=Math.max(p.d*S,6);
+  const pts=[[0,p.L],[0,0]], a0=side?180:90, a1=side?380:-190, n=60;
+  for(let i=1;i<=n;i++){const t=(a0+(a1-a0)*i/n)*c;pts.push([cx+p.R*Math.cos(t),cy+p.R*Math.sin(t)])}
+  const d=pts.map((q,i)=>(i?"L":"M")+f1(X(q[0]))+","+f1(Y(q[1]))).join(" ");
+  const ln=(x1,y1,x2,y2,attr)=>`<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" ${attr}/>`;
+  const tx=(x,y,t,attr="")=>`<text x="${f1(x)}" y="${f1(y)}" ${attr}>${t}</text>`;
+  const DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#hk-dm)" marker-end="url(#hk-dm)"`, EXT=`stroke="#999" stroke-width="0.8"`;
+  const CL=`stroke="#888" stroke-width="0.9" stroke-dasharray="10 3 2 3"`;
+  let g=`<rect x="-60" y="${f1(Y(p.L)-14)}" width="120" height="14" fill="url(#hk-hatch)"/>`+ln(-60,Y(p.L),60,Y(p.L),`stroke="#28405a" stroke-width="2"`);
+  g+=ln(X(cx),Y(cy)-p.R*S-12,X(cx),Y(cy)+p.R*S+12,CL)+ln(X(cx)-p.R*S-12,Y(cy),X(cx)+p.R*S+12,Y(cy),CL);
+  g+=`<path d="${d}" fill="none" stroke="#7d5014" stroke-width="${f1(w+3)}"/><path d="${d}" fill="none" stroke="#eec878" stroke-width="${f1(w)}"/>`;
+  const Dx=X(cx), Dy=Y(cy-p.R)+w/2+2;
+  g+=ln(Dx,Dy,Dx,Dy+60,`stroke="#aa1e28" stroke-width="3.2" marker-end="url(#hk-ar)"`)+tx(Dx,Dy+84,`${it("m")} = ${fmt(p.m,2)} kg`,`text-anchor="middle" fill="#aa1e28" class="halo"`);
+  g+=tx(w/2+8,Y(p.L)+26,it("A"))+tx(w/2+8,Y(0)+(side?-10:24),it("B"),`class="halo"`)+tx(Dx+10,Dy-w-6,it("D"),`class="halo"`);
+  const Ea=a1*c; g+=tx(X(cx+p.R*Math.cos(Ea))+(side?12:-12),Y(cy+p.R*Math.sin(Ea))-6,it("E"),side?"":`text-anchor="end"`);
+  if(!side) g+=tx(X(p.R)+w/2+8,Y(cy)-8,it("C"),`class="halo"`);
+  // dimensions
+  const xd=-Math.max(40,w+30);
+  g+=ln(-w/2-4,Y(p.L),xd-8,Y(p.L),EXT)+ln(-w/2-4,Y(0),xd-8,Y(0),EXT)+ln(xd,Y(p.L),xd,Y(0),DIM)+tx(xd-8,(Y(p.L)+Y(0))/2+6,`${p.L}`,`text-anchor="end"`);
+  const ra=(side?235:-40)*c, rx=X(cx+(p.R-0)*Math.cos(ra))-Math.cos(ra)*(w/2+1), ry=Y(cy+p.R*Math.sin(ra))+Math.sin(ra)*(w/2+1);
+  g+=ln(X(cx),Y(cy),rx,ry,`stroke="#222" stroke-width="0.9" marker-end="url(#hk-dm)"`)+tx((X(cx)+rx)/2+(side?10:-8),(Y(cy)+ry)/2+(side?8:-8),`${it("R")} = ${p.R}`,side?`class="halo"`:`text-anchor="end" class="halo"`);
+  const yc=Y(0.55*p.L); g+=ln(w/2+30,yc-18,w/2+1,yc,`stroke="#222" stroke-width="0.9" marker-end="url(#hk-dm)"`)+tx(w/2+34,yc-20,`${p.d} mm dia.`);
+  const xmin=xd-60, xmax=Math.max(X(cx+p.R)+70,w/2+160), ytop=Y(p.L)-24, ybot=Dy+120;
+  g+=tx(xmax-6,ybot-8,"Dimensions in mm",`text-anchor="end" font-size="15"`);
+  return `<svg viewBox="${f1(xmin)} ${f1(ytop)} ${f1(xmax-xmin)} ${f1(ybot-ytop)}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="18" style="max-height:470px">
+  <defs>
+   <pattern id="hk-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#28405a" stroke-width="1"/></pattern>
+   <marker id="hk-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+   <marker id="hk-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  </defs>${g}</svg>`;
+}
+function hkSolution(p,s){
+  const side=p.join==="side", e=v=>v.toExponential(4);
+  return `<h3>1. Load and section properties</h3>
+  <p><span class="eq">F = mg = ${fmt(p.m,2)}(9.81) = ${fmt(s.F,3)} N</span>&nbsp; <span class="eq">I = πd⁴/64 = ${fmt(s.I,4)} mm⁴</span>&nbsp; <span class="eq">EI = ${e(s.EI)} N·mm²</span>&nbsp; <span class="eq">A = ${fmt(s.A,3)} mm²</span></p>
+  <h3>2. Bending moments</h3>
+  ${side?`<p>D lies a horizontal distance R from the shank, so the shank carries a constant moment <span class="eq">M = FR</span> as well as the tension F. In the quarter arc from B, with φ measured from B, the moment arm is R cos φ: <span class="eq">M = FR cos φ</span>, 0 ≤ φ ≤ π/2.</p>`
+  :`<p>D lies directly below the shank, so the shank carries only the tension F. In the half circle from B, with φ measured from B, the moment arm is R sin φ: <span class="eq">M = FR sin φ</span>, 0 ≤ φ ≤ π.</p>`}
+  <p>The wire beyond D carries no load.</p>
+  <h3>3. Castigliano's theorem</h3>
+  <p><span class="eq">δ<sub>D</sub> = ∫ M(∂M/∂F) ds/EI + FL/AE + (normal force and shear in the arc)</span></p>
+  <p><span class="eq">${side?"FR²L/EI + πFR³/(4EI)":"πFR³/(2EI)"}</span></p>
+  <table>${side?`<tr><td>Bending of the shank</td><td>${fmt(s.c.shank,4)} mm</td></tr>`:""}<tr><td>Bending of the arc</td><td>${fmt(s.c.arc,4)} mm</td></tr><tr><td>Axial, normal force and shear terms</td><td>${fmt(s.c.small,4)} mm</td></tr><tr><td><b>Total</b></td><td><b>${fmt(s.delta,3)} mm</b></td></tr></table>
+  <h3>4. Maximum bending stress</h3>
+  <p>The largest moment is FR = ${fmt(s.F*p.R,1)} N·mm, ${side?"along the whole shank":"at φ = π/2, level with the center of the circle"}. <span class="eq">σ = 32FR/(πd³) = ${fmt(s.sig,1)} MPa</span></p>
+  <p class="final">δ<sub>D</sub> = ${fmt(s.delta,3)} mm downward; σ<sub>max</sub> = ${fmt(s.sig,1)} MPa, ${side?"throughout the shank AB":"in the arc, level with the center"}.</p>`;
+}
+
+// ===== split ring opened by tangential forces (SI units)
+const SR_E=207e3;
+function srSolve(p){
+  const R=p.D/2, I=p.b*p.h**3/12, F=p.delta*SR_E*I/(3*Math.PI*R**3), M=2*F*R, sig=M*(p.h/2)/I;
+  return {R,I,F,M,sig,where:"Opposite the split"};
+}
+function srGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const p={D:pick(r,range(50,120,5)),h:pick(r,[3,3.5,4,4.5,5,6]),b:pick(r,[2,2.5,3,3.5,4]),delta:pick(r,range(0.5,3,0.25)),pos:pick(r,["top","right","bottom"])};
+    if(p.D/2/p.h<8) continue;
+    const s=srSolve(p);
+    if(s.sig<50||s.sig>500||s.F<2) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function srStatement(p){
+  return `<p>A steel split ring has a mean diameter of ${p.D} mm, a radial height <i>h</i> = ${p.h} mm, and an axial thickness <i>b</i> = ${p.b} mm. Two equal and opposite tangential forces <i>F</i>, applied at the split ends, open the split by δ = ${fmt(p.delta,2)} mm. Take <i>E</i> = 207 GPa and treat the ring as a thin curved beam.</p>
+  <p>Using Castigliano's theorem, find the force <i>F</i>, the maximum bending stress in the ring, and where it occurs.</p>`;
+}
+function srFigure(p,s){
+  const Rd=130, hd=Math.max(p.h/s.R*Rd,10), al={top:90,right:0,bottom:-90}[p.pos], g0=4, c=Math.PI/180, f1=v=>v.toFixed(1), it=v=>`<tspan font-style="italic">${v}</tspan>`;
+  const P=(rr,a)=>[rr*Math.cos(a*c),-rr*Math.sin(a*c)], pt=q=>f1(q[0])+","+f1(q[1]);
+  const out=[],inn=[];for(let i=0;i<=120;i++){const a=al+g0+(360-2*g0)*i/120;out.push(P(Rd+hd/2,a));inn.unshift(P(Rd-hd/2,a))}
+  const ln=(a,b,attr)=>`<line x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}" ${attr}/>`;
+  const tx=(q,t,attr="")=>`<text x="${f1(q[0])}" y="${f1(q[1])}" ${attr}>${t}</text>`;
+  const CL=`stroke="#888" stroke-width="0.9" stroke-dasharray="10 3 2 3"`;
+  let g=ln([-Rd-30,0],[Rd+30,0],CL)+ln([0,-Rd-30],[0,Rd+30],CL);
+  g+=`<polygon points="${out.concat(inn).map(pt).join(" ")}" fill="#eec878" stroke="#7d5014" stroke-width="1.6" stroke-linejoin="round"/>`;
+  // forces: tangential, outside the ring, pushing the ends apart
+  for(const sg of [1,-1]){const a=al+sg*(g0+3), base=P(Rd+hd/2+14,a), t=[-Math.sin(a*c)*sg,-Math.cos(a*c)*sg], tip=[base[0]+48*t[0],base[1]+48*t[1]];
+    g+=ln(base,tip,`stroke="#aa1e28" stroke-width="3.2" marker-end="url(#sr-ar)"`)+tx([tip[0]+16*t[0]+12*Math.cos(a*c),tip[1]+16*t[1]-12*Math.sin(a*c)+6],it("F"),`text-anchor="middle" fill="#aa1e28" class="halo"`)}
+  g+=tx(P(Rd-hd/2-22,al),"δ",`text-anchor="middle" font-style="italic" class="halo" dominant-baseline="middle"`);
+  // mean diameter and h
+  const dA=al+135, d1=P(Rd,dA), d2=P(Rd,dA+180);
+  g+=ln(d1,d2,`stroke="#222" stroke-width="0.9" marker-start="url(#sr-dm)" marker-end="url(#sr-dm)"`)+tx([0.62*d1[0]+0.38*d2[0]+(d1[0]<0?8:-8),0.62*d1[1]+0.38*d2[1]+(d1[1]>0?-8:20)],`${p.D} mean dia.`,`class="halo"`+(d1[0]<0?"":` text-anchor="end"`));
+  const hA=al-135, o1=P(Rd+hd/2+36,hA), o2=P(Rd+hd/2,hA), i1=P(Rd-hd/2-26,hA), i2=P(Rd-hd/2,hA);
+  g+=ln(o1,o2,`stroke="#222" stroke-width="0.9" marker-end="url(#sr-dm)"`)+ln(i1,i2,`stroke="#222" stroke-width="0.9" marker-end="url(#sr-dm)"`)+tx([o1[0]+(o1[0]>0?6:-6),o1[1]+(o1[1]>0?16:-4)],`${it("h")} = ${p.h}`,o1[0]>0?`class="halo"`:`text-anchor="end" class="halo"`);
+  g+=tx([Rd+90,Rd+86],`Dimensions in mm; ${it("b")} = ${p.b} normal to the page`,`text-anchor="end" font-size="15"`);
+  return `<svg viewBox="${-Rd-110} ${-Rd-90} ${2*Rd+220} ${2*Rd+190}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="18" style="max-height:440px">
+  <defs>
+   <marker id="sr-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+   <marker id="sr-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  </defs>${g}</svg>`;
+}
+function srSolution(p,s){
+  return `<h3>1. Bending moment</h3>
+  <p>With θ measured from the split, the moment arm of F about a section at θ is R(1 − cos θ): <span class="eq">M = FR(1 − cos θ)</span>, <span class="eq">∂M/∂F = R(1 − cos θ)</span>.</p>
+  <h3>2. Castigliano's theorem</h3>
+  <p><span class="eq">δ = (1/EI)∫₀^2π M(∂M/∂F) R dθ = (FR³/EI)∫₀^2π (1 − cos θ)² dθ = 3πFR³/EI</span></p>
+  <p><span class="eq">I = bh³/12 = ${fmt(p.b,1)}(${p.h})³/12 = ${fmt(s.I,3)} mm⁴</span>, R = ${fmt(s.R,1)} mm.</p>
+  <p><span class="eq">F = δEI/(3πR³) = ${fmt(p.delta,2)}(207 000)(${fmt(s.I,3)})/[3π(${fmt(s.R,1)})³] = ${fmt(s.F,3)} N</span></p>
+  <h3>3. Maximum bending stress</h3>
+  <p>M is largest at θ = π, opposite the split: <span class="eq">M = 2FR = ${fmt(s.M,1)} N·mm</span>, <span class="eq">σ = M(h/2)/I = ${fmt(s.sig,1)} MPa</span>.</p>
+  <p class="final">F = ${fmt(s.F,3)} N; σ<sub>max</sub> = ${fmt(s.sig,1)} MPa, opposite the split.</p>
+  <p class="note">With R/h = ${fmt(s.R/p.h,1)}, the curved-beam terms (eccentricity, normal force, shear) change F by well under 1%.</p>`;
+}
+
+// ===== simply supported beam with a uniform load on part of the span (SI units)
+const PU_E=207e9;
+function puSolve(p){
+  const l=p.l, a=p.a, w=p.w*1000, EI=PU_E*p.I*1e-6, left=p.side==="left";
+  const x1=left?0:a, x2=left?a:l, Lw=x2-x1, xc=(x1+x2)/2;
+  const R2=w*Lw*xc/l, R1=w*Lw-R2, br=(x,n)=>x>0?x**n:0;
+  const C1=-(R1*l**3/6-w*br(l-x1,4)/24+w*br(l-x2,4)/24)/l;
+  const y=x=>(R1*x**3/6-w*br(x-x1,4)/24+w*br(x-x2,4)/24+C1*x)/EI;
+  const yp=x=>(R1*x*x/2-w*br(x-x1,3)/6+w*br(x-x2,3)/6+C1)/EI;
+  let lo=0,hi=l;for(let k=0;k<80;k++){const m=(lo+hi)/2;if(yp(m)<0)lo=m;else hi=m}
+  const xm=(lo+hi)/2;
+  return {w,EI,R1,R2,C1,x1,x2,yB:y(a)*1000,xm,ym:y(xm)*1000,seg:xm<a?"AB":"BC",y};
+}
+function puGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const l=pick(r,range(1.5,4,0.25)), p={l,a:Math.round(pick(r,range(0.2,0.8,0.1))*l*10)/10,w:pick(r,range(2,20,1)),
+      I:pick(r,[2,3,4,5,6,8,10,12,16,20]),side:pick(r,["left","right"])};
+    if(p.a<0.15*l||p.a>0.85*l) continue;
+    const s=puSolve(p);
+    if(Math.abs(s.xm-p.a)<0.05*l) continue;                     // segment of the maximum must be clear
+    if(-s.ym<0.3||-s.ym>15) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function puStatement(p){
+  const seg=p.side==="left"?"segment <i>AB</i>, from <i>x</i> = 0 to <i>x</i> = <i>a</i>":"segment <i>BC</i>, from <i>x</i> = <i>a</i> to <i>x</i> = <i>l</i>";
+  return `<p>The simply supported steel beam <i>AC</i> has span <i>l</i> = ${fmt(p.l,2)} m and carries a uniform load <i>w</i> = ${p.w} kN/m on ${seg}, with <i>a</i> = ${fmt(p.a,1)} m. Point <i>B</i> is at <i>x</i> = <i>a</i>. Take <i>E</i> = 207 GPa and <i>I</i> = ${p.I}×10⁻⁶ m⁴.</p>
+  <p>Find the reactions, the deflection at <i>B</i>, and the maximum deflection with its location <i>x</i> and segment. Deflections are positive upward.</p>`;
+}
+function puFigure(p,s){
+  const S=620/p.l, X=x=>60+x*S, Yb=150, f1=v=>v.toFixed(1), it=v=>`<tspan font-style="italic">${v}</tspan>`;
+  const ln=(x1,y1,x2,y2,attr)=>`<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" ${attr}/>`;
+  const tx=(x,y,t,attr="")=>`<text x="${f1(x)}" y="${f1(y)}" ${attr}>${t}</text>`;
+  const DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#pu-dm)" marker-end="url(#pu-dm)"`, EXT=`stroke="#999" stroke-width="0.8"`;
+  const BL=`fill="#b9c8d8" stroke="#28405a" stroke-width="1.6"`, x1=X(s.x1), x2=X(s.x2), yl=Yb-62;
+  let g=`<rect x="${f1(X(0))}" y="${Yb-9}" width="${f1(p.l*S)}" height="18" fill="#eec878" stroke="#7d5014" stroke-width="1.6"/>`;
+  g+=ln(x1,yl,x2,yl,`stroke="#aa1e28" stroke-width="1.8"`);
+  const n=Math.max(4,Math.round((x2-x1)/26));for(let i=0;i<=n;i++){const xx=x1+(x2-x1)*i/n;g+=ln(xx,yl,xx,Yb-11,`stroke="#aa1e28" stroke-width="1.4" marker-end="url(#pu-sa)"`)}
+  g+=tx((x1+x2)/2,yl-8,`${it("w")} = ${p.w} kN/m`,`text-anchor="middle" fill="#aa1e28" class="halo"`);
+  // supports and reactions
+  g+=`<path d="M${f1(X(0))},${Yb+9} L${f1(X(0)-18)},${Yb+40} L${f1(X(0)+18)},${Yb+40} Z" ${BL}/>`+`<rect x="${f1(X(0)-26)}" y="${Yb+40}" width="52" height="8" fill="url(#pu-hatch)"/>`+ln(X(0)-26,Yb+40,X(0)+26,Yb+40,`stroke="#28405a" stroke-width="2"`);
+  g+=`<path d="M${f1(X(p.l))},${Yb+9} L${f1(X(p.l)-18)},${Yb+33} L${f1(X(p.l)+18)},${Yb+33} Z" ${BL}/>`;
+  for(const d of [-11,0,11]) g+=`<circle cx="${f1(X(p.l)+d)}" cy="${Yb+37}" r="4" fill="#fff" stroke="#28405a"/>`;
+  g+=`<rect x="${f1(X(p.l)-26)}" y="${Yb+41}" width="52" height="8" fill="url(#pu-hatch)"/>`+ln(X(p.l)-26,Yb+41,X(p.l)+26,Yb+41,`stroke="#28405a" stroke-width="2"`);
+  for(const [x,t] of [[0,"1"],[p.l,"2"]]) g+=ln(X(x),Yb+108,X(x),Yb+56,`stroke="#aa1e28" stroke-width="3.2" marker-end="url(#pu-ar)"`)+tx(X(x),Yb+130,`${it("R")}<tspan baseline-shift="sub" font-size="13">${t}</tspan>`,`text-anchor="middle" fill="#aa1e28"`);
+  // axes and labels
+  g+=ln(X(0),Yb,X(0),Yb-110,`stroke="#222" stroke-width="1.3" marker-end="url(#pu-ax)"`)+tx(X(0)-8,Yb-104,it("y"),`text-anchor="end"`);
+  g+=ln(X(p.l),Yb,X(p.l)+48,Yb,`stroke="#222" stroke-width="1.3" marker-end="url(#pu-ax)"`)+tx(X(p.l)+54,Yb+6,it("x"));
+  g+=tx(X(0)-8,Yb-14,it("A"),`text-anchor="end"`)+tx(X(p.a),Yb+30,it("B"),`text-anchor="middle" class="halo"`)+tx(X(p.l)+8,Yb-14,it("C"));
+  // dimensions
+  const d1=Yb-140, d2=Yb-180;
+  g+=ln(X(p.a),Yb-70,X(p.a),d1-8,EXT)+ln(X(p.l),Yb-70,X(p.l),d2-8,EXT)+ln(X(0),Yb-116,X(0),d2-8,EXT);
+  g+=ln(X(0),d1,X(p.a),d1,DIM)+ln(X(p.a),d1,X(p.l),d1,DIM)+ln(X(0),d2,X(p.l),d2,DIM);
+  g+=tx((X(0)+X(p.a))/2,d1-7,`${it("a")} = ${fmt(p.a,1)} m`,`text-anchor="middle" class="halo"`)+tx((X(p.a)+X(p.l))/2,d1-7,`${it("b")}`,`text-anchor="middle" class="halo"`)+tx((X(0)+X(p.l))/2,d2-7,`${it("l")} = ${fmt(p.l,2)} m`,`text-anchor="middle" class="halo"`);
+  return `<svg viewBox="0 ${d2-30} ${f1(X(p.l)+90)} ${f1(Yb+150-(d2-30))}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="18" style="max-height:380px">
+  <defs>
+   <pattern id="pu-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#28405a" stroke-width="1"/></pattern>
+   <marker id="pu-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+   <marker id="pu-sa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L10,5 L0,9 z" fill="#aa1e28"/></marker>
+   <marker id="pu-ax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker>
+   <marker id="pu-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  </defs>${g}</svg>`;
+}
+function puSolution(p,s){
+  const left=p.side==="left", b=p.l-p.a, e=v=>v.toExponential(4), k=v=>fmt(v/1000,3);
+  const sing=left?`− w⟨x⟩⁴/24 + w⟨x − a⟩⁴/24`:`− w⟨x − a⟩⁴/24`;
+  return `<h3>1. Reactions</h3>
+  <p>The resultant w(${left?"a":"b"}) = ${k(s.w*(s.x2-s.x1))} kN acts at x = ${fmt((s.x1+s.x2)/2,3)} m.</p>
+  <p><span class="eq">R<sub>2</sub> = w(${left?"a":"b"})x̄/l = ${k(s.R2)} kN</span>&nbsp; <span class="eq">R<sub>1</sub> = w(${left?"a":"b"}) − R<sub>2</sub> = ${k(s.R1)} kN</span></p>
+  <h3>2. Elastic curve</h3>
+  <p>With singularity functions, <span class="eq">EIy″ = M = R<sub>1</sub>x ${left?"− w⟨x⟩²/2 + w⟨x − a⟩²/2":"− w⟨x − a⟩²/2"}</span>. Integrating twice with y(0) = 0:</p>
+  <p><span class="eq">EIy = R<sub>1</sub>x³/6 ${sing} + C<sub>1</sub>x</span></p>
+  <p>y(l) = 0 gives <span class="eq">C<sub>1</sub> = ${e(s.C1)} N·m²</span>. With <span class="eq">EI = ${e(s.EI)} N·m²</span>:</p>
+  ${left?`<p class="note">These are the textbook expressions: R₁ = wa(2l − a)/2l, R₂ = wa²/2l.</p>`:`<p class="note">In closed form, R₁ = wb²/2l, R₂ = wb(2l − b)/2l, and y<sub>AB</sub> = wb²x(2x² − 2l² + b²)/(24EIl).</p>`}
+  <h3>3. Deflection at B</h3>
+  <p class="final">y<sub>B</sub> = y(${fmt(p.a,1)}) = ${fmt(s.yB,3)} mm</p>
+  <h3>4. Maximum deflection</h3>
+  <p>Since M ≥ 0 over the whole span, y′ increases monotonically and the maximum deflection is at its single root. Setting <span class="eq">EIy′ = R<sub>1</sub>x²/2 ${left?"− w⟨x⟩³/6 + w⟨x − a⟩³/6":"− w⟨x − a⟩³/6"} + C<sub>1</sub> = 0</span> and solving gives x = ${fmt(s.xm,3)} m, which lies in segment ${s.seg}.</p>
+  <p class="final">y<sub>max</sub> = ${fmt(s.ym,3)} mm at x = ${fmt(s.xm,3)} m (segment ${s.seg}).</p>`;
+}
+
+// ===== symbolic answers: expression parser and equivalence check
+function exprCompile(str,vars){
+  const toks=[], re=/\s*(\d+\.?\d*(?:[eE][+-]?\d+)?|\.\d+|[A-Za-zπ]+|[-+*/^()·×])/y; let m, i=0;
+  str=str.replace(/[−–]/g,"-").replace(/[\[{]/g,"(").replace(/[\]}]/g,")").replace(/²/g,"^2").replace(/³/g,"^3").replace(/⁴/g,"^4").replace(/\s+$/,"");
+  while(i<str.length){re.lastIndex=i;m=re.exec(str);if(!m) throw new Error("cannot read near “"+str.slice(i,i+6)+"”");i=re.lastIndex;
+    const t=m[1];
+    if(/^[\d.]/.test(t)) toks.push({k:"n",v:parseFloat(t)});
+    else if(/^[A-Za-zπ]+$/.test(t)){
+      if(t==="pi"||t==="π") toks.push({k:"n",v:Math.PI});
+      else if(vars.includes(t)) toks.push({k:"v",v:t});
+      else if([...t].every(ch=>vars.includes(ch)||ch==="π")) [...t].forEach(ch=>toks.push(ch==="π"?{k:"n",v:Math.PI}:{k:"v",v:ch}));
+      else throw new Error("unknown symbol “"+t+"”; use "+vars.join(", "));
+    } else toks.push({k:"o",v:t==="·"||t==="×"?"*":t});
+  }
+  let p=0; const peek=()=>toks[p], take=()=>toks[p++];
+  const isStart=t=>t&&(t.k==="n"||t.k==="v"||(t.k==="o"&&t.v==="("));
+  function expr(){let f=term();while(peek()&&peek().k==="o"&&"+-".includes(peek().v)){const o=take().v,g=term(),h=f;f=o==="+"?e=>h(e)+g(e):e=>h(e)-g(e)}return f}
+  function term(){let f=unary();for(;;){const t=peek();
+    if(t&&t.k==="o"&&"*/".includes(t.v)){take();const g=unary(),h=f;f=t.v==="*"?e=>h(e)*g(e):e=>h(e)/g(e)}
+    else if(isStart(t)){const g=power(),h=f;f=e=>h(e)*g(e)} else return f}}
+  function unary(){const t=peek();if(t&&t.k==="o"&&"+-".includes(t.v)){take();const g=unary();return t.v==="-"?e=>-g(e):g}return power()}
+  function power(){const b=primary();if(peek()&&peek().k==="o"&&peek().v==="^"){take();const x=unary();return e=>Math.pow(b(e),x(e))}return b}
+  function primary(){const t=take();if(!t) throw new Error("expression ends early");
+    if(t.k==="n") return ()=>t.v; if(t.k==="v") return e=>e[t.v];
+    if(t.v==="("){const f=expr();const c=take();if(!c||c.v!==")") throw new Error("missing )");return f}
+    throw new Error("unexpected “"+t.v+"”")}
+  const f=expr(); if(p<toks.length) throw new Error("unexpected “"+toks[p].v+"”"); return f;
+}
+function exprEquivalent(str,f){
+  let g; try{g=exprCompile(str,f.vars)}catch(err){return {ok:false,msg:err.message}}
+  const r=mulberry32(12345);
+  for(let k=0;k<8;k++){const e=f.sample(r), t=f.fn(e), v=g(e);
+    if(!isFinite(v)||Math.abs(v-t)>1e-7*(Math.abs(t)+1e-9)) return {ok:false};}
+  return {ok:true};
+}
+
+// ===== symbolic beam problems (closed-form answers in terms of the symbols)
+const SY_CASES={
+  "ss-point":{beam:"ss",load:"P",lo:"a",hi:"a",title:"a simply supported beam AC with a concentrated load P at B",
+    method:"Moments about C and A give the reactions. With singularity functions, EIy″ = R₁x − P⟨x − a⟩; integrate twice and apply y(0) = y(l) = 0.",
+    q:[["R1","Reaction R₁","Pb/l",e=>e.P*e.b/e.l,"none"],["R2","Reaction R₂","Pa/l",e=>e.P*e.a/e.l,"none"],
+       ["MAB","Bending moment in AB, 0 ≤ x ≤ a","Pbx/l",e=>e.P*e.b*e.x/e.l,"AB"],["MBC","Bending moment in BC, a ≤ x ≤ l","Pa(l − x)/l",e=>e.P*e.a*(e.l-e.x)/e.l,"BC"],
+       ["yB","Deflection at B","−Pa²b²/(3EIl)",e=>-e.P*e.a**2*e.b**2/(3*e.E*e.I*e.l),"none"],["thA","Slope at A","−Pab(l + b)/(6EIl)",e=>-e.P*e.a*e.b*(e.l+e.b)/(6*e.E*e.I*e.l),"none"]]},
+  "ss-udl-left":{beam:"ss",load:"w",lo:"0",hi:"a",title:"a simply supported beam AC with a uniform load w on AB",
+    method:"The resultant wa acts at x = a/2, which gives the reactions. EIy″ = R₁x − w⟨x⟩²/2 + w⟨x − a⟩²/2; integrate twice and apply y(0) = y(l) = 0.",
+    q:[["R1","Reaction R₁","wa(2l − a)/(2l)",e=>e.w*e.a*(2*e.l-e.a)/(2*e.l),"none"],["R2","Reaction R₂","wa²/(2l)",e=>e.w*e.a**2/(2*e.l),"none"],
+       ["MAB","Bending moment in AB, 0 ≤ x ≤ a","wx(2al − a² − lx)/(2l)",e=>e.w*e.x*(2*e.a*e.l-e.a**2-e.l*e.x)/(2*e.l),"AB"],["MBC","Bending moment in BC, a ≤ x ≤ l","wa²(l − x)/(2l)",e=>e.w*e.a**2*(e.l-e.x)/(2*e.l),"BC"],
+       ["thA","Slope at A","−wa²(2l − a)²/(24EIl)",e=>-e.w*e.a**2*(2*e.l-e.a)**2/(24*e.E*e.I*e.l),"none"],
+       ["yAB","Deflection in AB, 0 ≤ x ≤ a","wx[2ax²(2l − a) − lx³ − a²(2l − a)²]/(24EIl)",e=>e.w*e.x*(2*e.a*e.x**2*(2*e.l-e.a)-e.l*e.x**3-e.a**2*(2*e.l-e.a)**2)/(24*e.E*e.I*e.l),"AB"]]},
+  "ss-udl-right":{beam:"ss",load:"w",lo:"a",hi:"l",title:"a simply supported beam AC with a uniform load w on BC",
+    method:"The resultant wb acts at x = a + b/2, which gives the reactions. EIy″ = R₁x − w⟨x − a⟩²/2; integrate twice and apply y(0) = y(l) = 0.",
+    q:[["R1","Reaction R₁","wb²/(2l)",e=>e.w*e.b**2/(2*e.l),"none"],["R2","Reaction R₂","wb(2l − b)/(2l)",e=>e.w*e.b*(2*e.l-e.b)/(2*e.l),"none"],
+       ["MAB","Bending moment in AB, 0 ≤ x ≤ a","wb²x/(2l)",e=>e.w*e.b**2*e.x/(2*e.l),"AB"],["MBC","Bending moment in BC, a ≤ x ≤ l","w(l − x)(lx − a²)/(2l)",e=>e.w*(e.l-e.x)*(e.l*e.x-e.a**2)/(2*e.l),"BC"],
+       ["thA","Slope at A","wb²(b² − 2l²)/(24EIl)",e=>e.w*e.b**2*(e.b**2-2*e.l**2)/(24*e.E*e.I*e.l),"none"],
+       ["yAB","Deflection in AB, 0 ≤ x ≤ a","wb²x(2x² − 2l² + b²)/(24EIl)",e=>e.w*e.b**2*e.x*(2*e.x**2-2*e.l**2+e.b**2)/(24*e.E*e.I*e.l),"AB"]]},
+  "cant-point":{beam:"cant",load:"P",lo:"a",hi:"a",title:"a cantilever AC, fixed at A, with a concentrated load P at B",
+    method:"Equilibrium of the whole beam gives the wall reactions. In AB, M = −P(a − x); BC carries no moment. Integrate with y(0) = y′(0) = 0; BC is straight, so y<sub>C</sub> = y<sub>B</sub> + θ<sub>B</sub> b.",
+    q:[["RA","Wall force R<sub>A</sub> (upward)","P",e=>e.P,"none"],["MA","Wall moment M<sub>A</sub> (sagging positive)","−Pa",e=>-e.P*e.a,"none"],
+       ["MAB","Bending moment in AB, 0 ≤ x ≤ a","−P(a − x)",e=>-e.P*(e.a-e.x),"AB"],["thB","Slope at B","−Pa²/(2EI)",e=>-e.P*e.a**2/(2*e.E*e.I),"none"],
+       ["yB","Deflection at B","−Pa³/(3EI)",e=>-e.P*e.a**3/(3*e.E*e.I),"none"],["yC","Deflection at the free end C","−Pa²(3l − a)/(6EI)",e=>-e.P*e.a**2*(3*e.l-e.a)/(6*e.E*e.I),"none"]]},
+  "cant-udl":{beam:"cant",load:"w",lo:"0",hi:"a",title:"a cantilever AC, fixed at A, with a uniform load w on AB",
+    method:"Equilibrium gives the wall reactions. In AB, M = −w(a − x)²/2; BC carries no moment. Integrate with y(0) = y′(0) = 0; BC is straight, so y<sub>C</sub> = y<sub>B</sub> + θ<sub>B</sub> b.",
+    q:[["RA","Wall force R<sub>A</sub> (upward)","wa",e=>e.w*e.a,"none"],["MA","Wall moment M<sub>A</sub> (sagging positive)","−wa²/2",e=>-e.w*e.a**2/2,"none"],
+       ["MAB","Bending moment in AB, 0 ≤ x ≤ a","−w(a − x)²/2",e=>-e.w*(e.a-e.x)**2/2,"AB"],["thB","Slope at B","−wa³/(6EI)",e=>-e.w*e.a**3/(6*e.E*e.I),"none"],
+       ["yB","Deflection at B","−wa⁴/(8EI)",e=>-e.w*e.a**4/(8*e.E*e.I),"none"],["yC","Deflection at the free end C","−wa³(4l − a)/(24EI)",e=>-e.w*e.a**3*(4*e.l-e.a)/(24*e.E*e.I),"none"]]}
+};
+function sySample(load,seg){
+  return r=>{const l=1+2*r(), a=l*(0.2+0.6*r()), b=l-a, e={l,a,b,E:1+2*r(),I:0.5+1.5*r()};
+    e[load]=1+4*r(); e.x=seg==="AB"?a*(0.05+0.9*r()):seg==="BC"?a+b*(0.05+0.9*r()):0.3+r(); return e};
+}
+function syGenerate(seed){
+  const r=mulberry32(seed), key=pick(r,Object.keys(SY_CASES)), C=SY_CASES[key], idx=[...C.q.keys()];
+  for(let i=idx.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]]}
+  const sel=idx.slice(0,3).sort((u,v)=>u-v);
+  return {p:{key,sel},s:{C,qs:sel.map(i=>C.q[i])}};
+}
+function syStatement(p,s){
+  const C=s.C, v=[C.load,"a","b","l","x","E","I"].join(", ");
+  return `<p>For ${C.title}, as shown, with <i>b</i> = <i>l</i> − <i>a</i>, find the quantities below in terms of ${v}. Deflections and slopes are positive upward and counterclockwise; bending moments are positive when they cause sagging.</p>
+  <p class="note">Type expressions such as <code>-${C.load}*a^2*b^2/(3*E*I*l)</code>. Adjacent single letters multiply, so <code>-${C.load}a^2b^2/(3EIl)</code> also works; use ^ for powers and parentheses around a denominator.</p>`;
+}
+function syFigure(p,s){
+  const C=s.C, S=560, X=x=>70+x*S, Yb=150, a=0.42, f1=v=>v.toFixed(1), it=v=>`<tspan font-style="italic">${v}</tspan>`;
+  const ln=(x1,y1,x2,y2,attr)=>`<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" ${attr}/>`;
+  const tx=(x,y,t,attr="")=>`<text x="${f1(x)}" y="${f1(y)}" ${attr}>${t}</text>`;
+  const DIM=`stroke="#222" stroke-width="0.9" marker-start="url(#sy-dm)" marker-end="url(#sy-dm)"`, EXT=`stroke="#999" stroke-width="0.8"`, BL=`fill="#b9c8d8" stroke="#28405a" stroke-width="1.6"`;
+  const pos={"0":0,"a":a,"l":1};
+  let g=`<rect x="${X(0)}" y="${Yb-9}" width="${S}" height="18" fill="#eec878" stroke="#7d5014" stroke-width="1.6"/>`;
+  if(C.load==="P") g+=ln(X(a),Yb-80,X(a),Yb-11,`stroke="#aa1e28" stroke-width="3.2" marker-end="url(#sy-ar)"`)+tx(X(a)+10,Yb-66,it("P"),`fill="#aa1e28"`);
+  else{const x1=X(pos[C.lo]),x2=X(pos[C.hi]),n=Math.round((x2-x1)/26);g+=ln(x1,Yb-62,x2,Yb-62,`stroke="#aa1e28" stroke-width="1.8"`);
+    for(let i=0;i<=n;i++){const xx=x1+(x2-x1)*i/n;g+=ln(xx,Yb-62,xx,Yb-11,`stroke="#aa1e28" stroke-width="1.4" marker-end="url(#sy-sa)"`)}
+    g+=tx((x1+x2)/2,Yb-70,it("w"),`text-anchor="middle" fill="#aa1e28"`)}
+  if(C.beam==="ss"){
+    g+=`<path d="M${X(0)},${Yb+9} L${X(0)-18},${Yb+40} L${X(0)+18},${Yb+40} Z" ${BL}/><rect x="${X(0)-26}" y="${Yb+40}" width="52" height="8" fill="url(#sy-hatch)"/>`+ln(X(0)-26,Yb+40,X(0)+26,Yb+40,`stroke="#28405a" stroke-width="2"`);
+    g+=`<path d="M${X(1)},${Yb+9} L${X(1)-18},${Yb+33} L${X(1)+18},${Yb+33} Z" ${BL}/>`;for(const d of [-11,0,11]) g+=`<circle cx="${X(1)+d}" cy="${Yb+37}" r="4" fill="#fff" stroke="#28405a"/>`;
+    g+=`<rect x="${X(1)-26}" y="${Yb+41}" width="52" height="8" fill="url(#sy-hatch)"/>`+ln(X(1)-26,Yb+41,X(1)+26,Yb+41,`stroke="#28405a" stroke-width="2"`);
+    for(const [x,t] of [[0,"1"],[1,"2"]]) g+=ln(X(x),Yb+104,X(x),Yb+56,`stroke="#aa1e28" stroke-width="3.2" marker-end="url(#sy-ar)"`)+tx(X(x)+10,Yb+100,`${it("R")}<tspan baseline-shift="sub" font-size="13">${t}</tspan>`,`fill="#aa1e28"`);
+  } else {
+    g+=`<rect x="${X(0)-22}" y="${Yb-70}" width="14" height="140" fill="url(#sy-hatch)"/>`+ln(X(0),Yb-70,X(0),Yb+70,`stroke="#28405a" stroke-width="2.4"`);
+  }
+  g+=ln(X(0),Yb,X(0)+(C.beam==="ss"?0:0),Yb-118,`stroke="#222" stroke-width="1.3" marker-end="url(#sy-ax)"`)+tx(X(0)+8,Yb-108,it("y"));
+  g+=ln(X(1),Yb,X(1)+48,Yb,`stroke="#222" stroke-width="1.3" marker-end="url(#sy-ax)"`)+tx(X(1)+54,Yb+6,it("x"));
+  g+=tx(X(0)+(C.beam==="ss"?-10:10),Yb+32,it("A"),C.beam==="ss"?`text-anchor="end"`:"")+tx(X(a),Yb+32,it("B"),`text-anchor="middle"`)+tx(X(1)+10,Yb-14,it("C"));
+  const d1=Yb-140,d2=Yb-176;
+  g+=ln(X(a),Yb-(C.load==="P"?84:66),X(a),d1-8,EXT)+ln(X(1),Yb-14,X(1),d2-8,EXT)+ln(X(0),Yb-122,X(0),d2-8,EXT);
+  g+=ln(X(0),d1,X(a),d1,DIM)+ln(X(a),d1,X(1),d1,DIM)+ln(X(0),d2,X(1),d2,DIM);
+  g+=tx((X(0)+X(a))/2,d1-7,it("a"),`text-anchor="middle"`)+tx((X(a)+X(1))/2,d1-7,it("b"),`text-anchor="middle"`)+tx((X(0)+X(1))/2,d2-7,it("l"),`text-anchor="middle"`);
+  return `<svg viewBox="0 ${d2-28} ${X(1)+90} ${Yb+150-(d2-28)}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="20" style="max-height:360px">
+  <defs>
+   <pattern id="sy-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#28405a" stroke-width="1"/></pattern>
+   <marker id="sy-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker>
+   <marker id="sy-sa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,1 L10,5 L0,9 z" fill="#aa1e28"/></marker>
+   <marker id="sy-ax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker>
+   <marker id="sy-dm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker>
+  </defs>${g}</svg>`;
+}
+function sySolution(p,s){
+  return `<h3>Method</h3><p>${s.C.method}</p><h3>Results</h3>
+  ${s.qs.map(q=>`<p class="final">${q[1]}: ${q[2]}</p>`).join("")}
+  <p class="note">Any algebraically equivalent form is accepted; the page checks an answer by evaluating it at eight random sets of values of the symbols.</p>`;
+}
+
+// ===== template registry: each entry has the same interface
+const TEMPLATES={
+  "cantilever-angles":{
+    name:"Cantilever of two angles: deflection by superposition and bending stress (SI)",
+    generate:caGenerate, figure:caFigure, solution:caSolution, statement:caStatement,
+    fields:[
+      {id:"yA",label:"Deflection at A (with sign, up positive)",unit:"mm",signed:true,skip:p=>Math.abs(p.a-p.L)<1e-9},
+      {id:"yB",label:"Deflection at B (with sign, up positive)",unit:"mm",signed:true},
+      {id:"M",label:"Bending moment at the wall (magnitude)",unit:"N·m"},
+      {id:"smax",label:"Maximum bending stress (magnitude)",unit:"MPa"},
+      {id:"where",label:"Location of the maximum stress",unit:"",choices:["Top fiber, tension","Bottom fiber, compression","Top fiber, compression","Bottom fiber, tension"]}],
+    truth:s=>({yA:s.yA,yB:s.yB,M:s.M,smax:s.smax,where:s.where}),
+    note:"Deflections carry their signs, upward positive."
+  },
+  "channel-select":{
+    name:"Simply supported beam: select channels for stress and deflection (US units)",
+    generate:chGenerate, figure:chFigure, solution:chSolution, statement:chStatement,
+    fields:[
+      {id:"M",label:"Maximum bending moment",unit:"lbf·in"},
+      {id:"Z",label:"Required Z per channel",unit:"in³"},
+      {id:"I",label:"Required I per channel",unit:"in⁴"},
+      {id:"sel",label:"Selected channel",unit:"",choices:CH_TABLE.map(c=>c[0])},
+      {id:"gov",label:"Governing requirement",unit:"",choices:["Stress","Deflection"]}],
+    truth:s=>({M:s.M,Z:s.Zreq,I:s.Ireq,sel:s.cBoth[0],gov:s.gov}),
+    note:"Choose from the table in the statement."
+  },
+  "rod-link":{
+    name:"Member hung from a steel rod: rod stretch plus bending (US units)",
+    generate:rlGenerate, figure:rlFigure, solution:rlSolution, statement:rlStatement,
+    fields:[
+      {id:"FB",label:"Force in rod BC",unit:"lbf"},
+      {id:"yB",label:"Deflection at B (with sign, up positive)",unit:"in",signed:true},
+      {id:"yP",label:"Deflection at the load point (with sign, up positive)",unit:"in",signed:true},
+      {id:"share",label:"Share of that deflection from the rod's stretch",unit:"%"}],
+    truth:s=>({FB:s.FB,yB:s.yB,yP:s.yP,share:s.share}),
+    note:"Deflections carry their signs, upward positive; scientific notation such as -8.01e-3 is accepted."
+  },
+  "torsion-bar":{ name:"Stepped torsion-bar spring with an arm: spring rate and stresses (SI)",
+    generate:tbGenerate, figure:tbFigure, solution:tbSolution, statement:tbStatement,
+    fields:[{id:"k",label:"Spring rate k",unit:"kN/m"},{id:"share",label:"Share of δ<sub>B</sub> from twisting of the bar",unit:"%"},
+      {id:"F",label:"Force F at the working deflection",unit:"N"},{id:"tmax",label:"Maximum shear stress in the bar",unit:"MPa"},
+      {id:"sig",label:"Maximum bending stress in the arm",unit:"MPa"}],
+    truth:s=>({k:s.k/1000,share:s.share,F:s.F,tmax:s.tmax,sig:s.sig}),
+    note:"Treat the bar as pure torsion and the arm as a cantilever fixed at A; the two deflections add at B."
+  },
+  "moment-shaft":{ name:"Shaft with a couple between bearings: size for end slope (SI)",
+    generate:msGenerate, figure:msFigure, solution:msSolution, statement:msStatement,
+    fields:[{id:"gov",label:"Governing bearing",unit:"",choices:["A","C"]},{id:"dmin",label:"Minimum diameter",unit:"mm"},
+      {id:"dsel",label:"Selected diameter",unit:"mm",choices:MS_SIZES.map(String)},
+      {id:"thA",label:"Slope magnitude at A, selected d",unit:"rad"},{id:"thC",label:"Slope magnitude at C, selected d",unit:"rad"}],
+    truth:s=>({gov:s.gov,dmin:s.dmin,dsel:String(s.dsel),thA:s.thA,thC:s.thC}),
+    note:"Enter slope magnitudes; scientific notation such as 1.31e-3 is accepted."
+  },
+  "castigliano-bar":{ name:"L-shaped bar with an inclined end force: Castigliano deflection (SI)",
+    generate:cbGenerate, figure:cbFigure, solution:cbSolution, statement:cbStatement,
+    fields:[{id:"delta",label:"Deflection of B in the direction of F",unit:"mm"},{id:"tors",label:"Part due to torsion of OA",unit:"mm"},
+      {id:"ab",label:"Part due to segment AB",unit:"mm"}],
+    truth:s=>({delta:s.delta,tors:s.c.OAt,ab:s.AB}),
+    note:"Include bending, torsion and axial terms; neglect transverse shear."
+  },
+  "wire-hook":{ name:"Wire hook under a hanging mass: Castigliano deflection (SI)",
+    generate:hkGenerate, figure:hkFigure, solution:hkSolution, statement:hkStatement,
+    fields:[{id:"delta",label:"Vertical deflection of D",unit:"mm"},{id:"sig",label:"Maximum bending stress",unit:"MPa"},
+      {id:"where",label:"Location of the maximum bending stress",unit:"",choices:["Throughout the shank AB","In the arc, level with the center","At D"]}],
+    truth:s=>({delta:s.delta,sig:s.sig,where:s.where}),
+    note:"Bending dominates; the axial, normal force and shear terms change δ by well under 1%."
+  },
+  "split-ring":{ name:"Split ring opened by tangential forces: Castigliano (SI)",
+    generate:srGenerate, figure:srFigure, solution:srSolution, statement:srStatement,
+    fields:[{id:"F",label:"Force F",unit:"N"},{id:"sig",label:"Maximum bending stress",unit:"MPa"},
+      {id:"where",label:"Location of the maximum bending stress",unit:"",choices:["At the split","90° from the split","Opposite the split"]}],
+    truth:s=>({F:s.F,sig:s.sig,where:s.where}),
+    note:"Treat the ring as a thin curved beam and keep only the bending energy."
+  },
+  "partial-udl":{ name:"Simply supported beam, uniform load on part of the span (SI)",
+    generate:puGenerate, figure:puFigure, solution:puSolution, statement:puStatement,
+    fields:[{id:"R1",label:"Reaction R₁",unit:"kN"},{id:"R2",label:"Reaction R₂",unit:"kN"},
+      {id:"yB",label:"Deflection at B",unit:"mm",signed:true},{id:"ym",label:"Maximum deflection",unit:"mm",signed:true},
+      {id:"xm",label:"Location x of the maximum deflection",unit:"m"},{id:"seg",label:"Segment containing the maximum",unit:"",choices:["AB","BC"]}],
+    truth:s=>({R1:s.R1/1000,R2:s.R2/1000,yB:s.yB,ym:s.ym,xm:s.xm,seg:s.seg}),
+    note:"Deflections carry their signs, upward positive."
+  },
+  "symbolic-beam":{ name:"Symbolic: reactions, moments, slopes and deflections in closed form",
+    generate:syGenerate, figure:syFigure, solution:sySolution, statement:syStatement, symbolic:true,
+    get fields(){ return (cur&&cur.s.qs?cur.s.qs:[]).map(q=>({id:q[0],label:q[1],unit:"",expr:true,vars:[cur.s.C.load,"a","b","l","x","E","I"],
+      fn:q[3],sample:sySample(cur.s.C.load,q[4])})) },
+    truth:s=>({}),
+    note:"Enter expressions, not numbers."
+  }
+};
+
+// ===== page
+let curKey="beam-tee", cur=null;
+const $=id=>document.getElementById(id);
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key];
+  cur=T.generate(seed); const {p,s}=cur;
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
+  $("fig").innerHTML=T.figure(p,s);
+  $("statement").innerHTML=T.statement(p,s);
+  const fields=T.fields.filter(f=>!(f.skip&&f.skip(p)));
+  $("answers").innerHTML=fields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :f.expr?`<input id="in-${f.id}" type="text" class="expr" spellcheck="false" autocomplete="off">`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent=(T.symbolic?"Answers are checked for algebraic equivalence. ":"Answers within 2% are accepted. ")+T.note;
+  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
+  $("solBtn").textContent="Show solution";
+}
+
+function check(){
+  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const scale=Math.max(...Object.values(truth).filter(v=>typeof v==="number").map(Math.abs));
+  T.fields.filter(f=>!(f.skip&&f.skip(cur.p))).forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    if(f.expr){const r=exprEquivalent(raw,f);el.textContent=r.ok?"Correct":r.msg?"Cannot read: "+r.msg:"Not yet";el.className="mark "+(r.ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scale:0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+const newSeed=()=>1+Math.floor(Math.random()*999999);
+$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
+$("typeSel").onchange=e=>render(e.target.value,newSeed());
+$("newBtn").onclick=()=>render(curKey,newSeed());
+$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+$("checkBtn").onclick=check;
+$("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+(function(){
+  const m=/^#([a-z-]+)-(\d+)$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
+  else render(Object.keys(TEMPLATES)[0],newSeed());
+})();
+
+
+</script>
+</body>
+</html>
