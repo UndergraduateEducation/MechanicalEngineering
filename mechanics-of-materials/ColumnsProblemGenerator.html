@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Columns Problem Generator</title>
+<style>
+  :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#ffffff;--accent:#1e5a32;--ok:#1e7a3c;--bad:#b3261e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  .sub a{color:var(--accent)}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .answers input{width:8em}
+  .mark{font-weight:600;min-width:7em}.mark.ok{color:var(--ok)}.mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mechanics of Materials: Columns Problem Generator</h1>
+  <div class="sub">Euler buckling, effective length, AISC design strength, and the secant formula for eccentric loads. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem. <a href="index.html">All chapters</a></div>
+</header>
+<main>
+  <div class="card bar"><label for="typeSel">Problem type</label><select id="typeSel"></select></div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+// ===== common helpers: seeded random numbers, number formatting, SVG drawing
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+function fmt(v,d=0){return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+function sig(v,n=3){if(v===0)return "0";const e=Math.floor(Math.log10(Math.abs(v)));return fmt(+v.toPrecision(n),Math.min(20,Math.max(0,n-1-e)))}
+const FR={0.25:"¼",0.375:"⅜",0.5:"½",0.625:"⅝",0.75:"¾",0.875:"⅞",1:"1",1.25:"1¼",1.5:"1½"};
+const dstr=v=>FR[v]||String(v);
+const C={fill:"#f7e2c4",ln:"#78461a",load:"#aa1e28",dim:"#5b6470",ink:"#1f2328",green:"#1e5a32",light:"#cde1cd",steel:"#dfe4ea",steelln:"#46505c"};
+const TX=(x,y,s,o={})=>`<text x="${x}" y="${y}" text-anchor="${o.a||"middle"}" font-size="${o.s||14}" fill="${o.c||C.ink}" font-family="Georgia,serif"${o.i?' font-style="italic"':""}>${s}</text>`;
+const LN=(x1,y1,x2,y2,o={})=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"${o.d?` stroke-dasharray="${o.d}"`:""}${o.cap?' stroke-linecap="round"':""}/>`;
+function AR(x1,y1,x2,y2,c=C.load,w=2.2){const a=Math.atan2(y2-y1,x2-x1),h=11,s=0.4;
+  const p=(da)=>`${(x2-h*Math.cos(a+da)).toFixed(1)},${(y2-h*Math.sin(a+da)).toFixed(1)}`;
+  return LN(x1,y1,x2-6*Math.cos(a),y2-6*Math.sin(a),{c,w})+`<polygon points="${x2.toFixed(1)},${y2.toFixed(1)} ${p(s)} ${p(-s)}" fill="${c}"/>`}
+const RC=(x,y,w,h,o={})=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${o.f||C.fill}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"/>`;
+const CI=(x,y,r,o={})=>`<circle cx="${x}" cy="${y}" r="${r}" fill="${o.f||"#fff"}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"/>`;
+function DIMH(x1,x2,y,label,o={}){const up=o.up?-6:16;
+  return LN(x1,y,x2,y,{c:C.dim,w:1})+LN(x1,y-5,x1,y+5,{c:C.dim,w:1})+LN(x2,y-5,x2,y+5,{c:C.dim,w:1})+TX((x1+x2)/2,y+up,label,{s:13,c:C.dim})}
+function DIMV(x,y1,y2,label,o={}){const dx=o.left?-8:8;
+  return LN(x,y1,x,y2,{c:C.dim,w:1})+LN(x-5,y1,x+5,y1,{c:C.dim,w:1})+LN(x-5,y2,x+5,y2,{c:C.dim,w:1})+TX(x+dx,(y1+y2)/2+4,label,{s:13,c:C.dim,a:o.left?"end":"start"})}
+function HATCH(x,y,w,h){let s=RC(x,y,w,h,{f:"#eceae4",c:C.ln,w:1});
+  for(let i=-h;i<w;i+=8){const xa=Math.max(x,x+i),ya=y+(xa-(x+i)),xb=Math.min(x+w,x+i+h),yb=y+(xb-(x+i));s+=LN(xa,ya,xb,yb,{c:"#9a8f80",w:.8})}return s}
+const SVG=(w,h,b)=>`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" role="img">${b}</svg>`;
+const sub=(a,b)=>`${a}<sub>${b}</sub>`;
+const iv=s=>`<i>${s}</i>`;
+
+// ===== 1. stepped bar: axial force diagram and normal stress in each segment
+const NODES="ABCDEFGHIJKLMNOP";
+function sbGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,n=pick(r,[3,3,4]),A=[],Ls=[],F=[];
+    for(let i=0;i<n;i++){
+      A.push(pick(r,us?[0.8,1.0,1.2,1.5,1.6,1.8,2.0,2.5]:[300,400,500,600,800,1000,1200]));
+      Ls.push(pick(r,us?[1.0,1.2,1.5,1.6,1.8,2.0]:[0.8,1.0,1.2,1.5,2.0]));
+      F.push(pick(r,us?range(1000,9000,500):range(5000,40000,1000))*pick(r,[1,-1]));
+    }
+    F.push(-F.reduce((a,b)=>a+b,0));                       // the bar is in equilibrium
+    const lo=us?1000:5000;
+    if(Math.abs(F[n])<lo||Math.max(...F.map(Math.abs))>(us?16000:70000)) continue;
+    const N=[];let c=0;for(let i=0;i<n;i++){c+=F[i];N.push(-c)}
+    if(N.some(v=>Math.abs(v)<lo/2)||!(N.some(v=>v>0)&&N.some(v=>v<0))) continue;
+    const sg=N.map((v,i)=>v/A[i]),m=sg.map(Math.abs),mx=Math.max(...m),imax=m.indexOf(mx);
+    if(m.some((v,i)=>i!==imax&&v>0.9*mx)) continue;
+    return {p:{us,n,A,Ls,F},s:{N,sg,imax,smax:mx}};
+  }
+  throw new Error("no valid problem");
+}
+const sbSeg=i=>NODES[i]+NODES[i+1];
+function sbFmtF(p,v){return p.us?`${fmt(Math.abs(v))} lb`:`${fmt(Math.abs(v)/1000)} kN`}
+function sbFigure(p){
+  const x0=90,W=580,tot=p.Ls.reduce((a,b)=>a+b,0),maxA=Math.max(...p.A),yc=165;let x=x0,b="";
+  const xs=[x0];p.Ls.forEach(l=>{x+=W*l/tot;xs.push(x)});
+  p.A.forEach((a,i)=>{const h=36+54*Math.sqrt(a/maxA);
+    b+=RC(xs[i],yc-h/2,xs[i+1]-xs[i],h)+TX((xs[i]+xs[i+1])/2,yc+5,`${fmt(a,p.us?1:0)} ${p.us?"in.²":"mm²"}`,{s:13})
+      +DIMH(xs[i],xs[i+1],262,`${fmt(p.Ls[i],1)} ${p.us?"ft":"m"}`)});
+  p.F.forEach((f,i)=>{const X=xs[i],d=f>0?1:-1;
+    b+=LN(X,84,X,yc-50,{c:C.dim,w:1,d:"3 3"})+AR(X,84,X+d*58,84)+TX(X+d*29,72,sbFmtF(p,f),{s:13,c:C.load})
+      +TX(X,yc+75,NODES[i],{s:15,i:1})});
+  return SVG(760,290,b);
+}
+function sbStatement(p){
+  const F=p.F.map((f,i)=>`${iv(NODES[i])}: ${sbFmtF(p,f)} to the ${f>0?"right":"left"}`).join("; ");
+  return `<p>The stepped bar ${NODES[0]}${NODES[p.n]} below consists of ${p.n} cylindrical segments with different cross-sectional areas and lengths, as shown. The bar is in equilibrium under the axial loads ${F}.</p>
+  <p>Find the normal stress in each segment (tension positive, compression negative), and identify the segment with the largest stress magnitude.</p>`;
+}
+function sbSolution(p,s){
+  const u=p.us?"lb":"N",su=p.us?"psi":"MPa";let h="<h3>1. Axial force in each segment</h3><p>Cut the bar inside a segment and write ΣF<sub>x</sub> = 0 for the part to the left of the cut. With tension positive, the axial force equals minus the sum of the external loads (positive to the right) to the left of the cut.</p><table><tr><th>Segment</th><th>N ("+u+")</th><th>A ("+(p.us?"in.²":"mm²")+")</th><th>σ = N/A ("+su+")</th></tr>";
+  s.N.forEach((n,i)=>{h+=`<tr><td>${sbSeg(i)}</td><td>${fmt(n)} (${n>0?"T":"C"})</td><td>${fmt(p.A[i],p.us?1:0)}</td><td>${sig(s.sg[i])} (${n>0?"T":"C"})</td></tr>`});
+  h+=`</table><p class="note">The segment lengths and the material do not enter the stress calculation.</p><h3>2. Largest stress</h3><p class="final">Segment ${sbSeg(s.imax)}, with |σ| = ${sig(s.smax)} ${su}.</p>`;
+  return h;
+}
+const SB={name:"Stepped bar: axial force and normal stress in each segment",
+  generate:sbGenerate,figure:sbFigure,statement:sbStatement,solution:sbSolution,
+  fields:(p,s)=>[...p.A.map((_,i)=>({id:"s"+i,label:`Stress in segment ${sbSeg(i)} (signed, tension +)`,unit:p.us?"psi":"MPa",signed:true})),
+    {id:"imax",label:"Segment with the largest |σ|",unit:"",choices:p.A.map((_,i)=>sbSeg(i))}],
+  truth:(p,s)=>{const o={imax:sbSeg(s.imax)};s.sg.forEach((v,i)=>o["s"+i]=v);return o},
+  note:"Enter signed stresses; tension is positive."};
+
+// ===== 2. two bars meeting at a pin that carries a weight: forces and the safe weight
+function tbGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,al=pick(r,range(25,65,5)),be=pick(r,range(25,65,5));
+    if(al+be<60||al+be>120) continue;
+    const A=[pick(r,us?range(0.2,1.0,0.1):[200,300,400,500,600,800]),pick(r,us?range(0.2,1.0,0.1):[200,300,400,500,600,800])];
+    const sw=[pick(r,us?range(12,24,2):range(80,160,10)),pick(r,us?range(12,24,2):range(80,160,10))];
+    const p={us,al,be,A,sw},s=tbSolve(p);
+    if(Math.abs(s.W[0]-s.W[1])<0.1*Math.min(...s.W)) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function tbSolve(p){
+  const a=p.al*Math.PI/180,b=p.be*Math.PI/180,D=Math.sin(a+b);
+  const k=[Math.cos(b)/D,Math.cos(a)/D];                    // P_AB/W and P_AC/W
+  const cap=p.A.map((A,i)=>p.sw[i]*A/(p.us?1:1000));          // kips (ksi·in.²), or kN (MPa·mm² = N)
+  const W=cap.map((c,i)=>c/k[i]),Ws=Math.min(...W);
+  return {k,cap,W,Ws,gov:W[0]<W[1]?"AB":"AC"};
+}
+function tbFigure(p){
+  const Ax=380,Ay=205,Lp=165,a=p.al*Math.PI/180,b=p.be*Math.PI/180;
+  const Bx=Ax-Lp*Math.cos(a),By=Ay-Lp*Math.sin(a),Cx=Ax+Lp*Math.cos(b),Cy=Ay-Lp*Math.sin(b);
+  const arc=(cx,cy,ang,left)=>{const r=34,x2=cx+(left?-1:1)*r*Math.cos(ang),y2=cy+r*Math.sin(ang);
+    return LN(cx,cy,cx+(left?-1:1)*(r+14),cy,{c:C.dim,w:1,d:"3 3"})+`<path d="M ${cx+(left?-r:r)} ${cy} A ${r} ${r} 0 0 ${left?0:1} ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="${C.dim}" stroke-width="1.2"/>`};
+  const wl=(cx,cy,ang,left)=>{const r=56;return [cx+(left?-1:1)*r*Math.cos(ang/2),cy+r*Math.sin(ang/2)+5]};
+  const [al_x,al_y]=wl(Bx,By,a,false),[be_x,be_y]=wl(Cx,Cy,b,true);
+  let s=HATCH(Bx-22,By-24,44,24)+HATCH(Cx-22,Cy-24,44,24)
+   +LN(Bx,By,Ax,Ay,{w:6,cap:1})+LN(Cx,Cy,Ax,Ay,{w:6,cap:1})+CI(Bx,By,5)+CI(Cx,Cy,5)+CI(Ax,Ay,6,{f:"#fff"})
+   +arc(Bx,By,a,false)+arc(Cx,Cy,b,true)
+   +TX(al_x+4,al_y,"α",{s:15,i:1,c:C.dim})+TX(be_x-4,be_y,"β",{s:15,i:1,c:C.dim})
+   +AR(Ax,Ay,Ax,Ay+70)+TX(Ax+16,Ay+60,"W",{s:16,i:1,c:C.load,a:"start"})
+   +TX(Bx-30,By+5,"B",{s:15,i:1,a:"end"})+TX(Cx+30,Cy+5,"C",{s:15,i:1,a:"start"})+TX(Ax-14,Ay+22,"A",{s:15,i:1,a:"end"})
+   +TX((Bx+Ax)/2-6,(By+Ay)/2+30,`AB`,{s:13,c:C.dim})+TX((Cx+Ax)/2+6,(Cy+Ay)/2+30,`AC`,{s:13,c:C.dim});
+  return SVG(760,290,s);
+}
+function tbStatement(p){
+  const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Wu=p.us?"kips":"kN";
+  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. The cross-sectional areas are ${fmt(p.A[0],p.us?1:0)} ${u} (${iv("AB")}) and ${fmt(p.A[1],p.us?1:0)} ${u} (${iv("AC")}); the working stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
+  <p>Express the bar forces as multiples of ${iv("W")}, then find the largest weight each bar can carry and the largest weight that can be hung safely.</p>`;
+}
+function tbSolution(p,s){
+  const Wu=p.us?"kips":"kN",Fu=p.us?"kips":"kN";
+  return `<h3>1. Equilibrium of pin A</h3><p>Both bars are two-force members; assume both in tension.</p>
+  <p class="eq">ΣF<sub>x</sub> = 0: P<sub>AC</sub> cos β − P<sub>AB</sub> cos α = 0</p><br><p class="eq">ΣF<sub>y</sub> = 0: P<sub>AB</sub> sin α + P<sub>AC</sub> sin β − W = 0</p>
+  <p>Solving, P<sub>AB</sub> = W cos β / sin(α+β) = ${sig(s.k[0],4)} W and P<sub>AC</sub> = W cos α / sin(α+β) = ${sig(s.k[1],4)} W.</p>
+  <h3>2. Weight limited by each bar</h3>
+  <p>Bar AB: P<sub>AB</sub> = σ<sub>w</sub>A = ${sig(s.cap[0])} ${Fu}, so W = ${sig(s.cap[0])}/${sig(s.k[0],4)} = ${sig(s.W[0])} ${Wu}.</p>
+  <p>Bar AC: P<sub>AC</sub> = σ<sub>w</sub>A = ${sig(s.cap[1])} ${Fu}, so W = ${sig(s.cap[1])}/${sig(s.k[1],4)} = ${sig(s.W[1])} ${Wu}.</p>
+  <h3>3. Safe weight</h3><p class="final">W<sub>safe</sub> = ${sig(s.Ws)} ${Wu}, governed by bar ${s.gov}. The larger value must be discarded because it would overstress the other bar.</p>`;
+}
+const TB={name:"Two bars supporting a weight: bar forces and safe load",
+  generate:tbGenerate,figure:tbFigure,statement:tbStatement,solution:tbSolution,
+  fields:(p,s)=>[{id:"kAB",label:"P_AB / W",unit:""},{id:"kAC",label:"P_AC / W",unit:""},
+    {id:"W1",label:"Largest W allowed by bar AB",unit:p.us?"kips":"kN"},{id:"W2",label:"Largest W allowed by bar AC",unit:p.us?"kips":"kN"},
+    {id:"Ws",label:"Largest safe W",unit:p.us?"kips":"kN"},{id:"gov",label:"Governing bar",unit:"",choices:["AB","AC"]}],
+  truth:(p,s)=>({kAB:s.k[0],kAC:s.k[1],W1:s.W[0],W2:s.W[1],Ws:s.Ws,gov:s.gov}),
+  note:"Answers within 2% are accepted."};
+
+// ===== 3. Warren truss: member stresses and required area (method of joints, solved numerically)
+function trSolve(p){
+  const n=p.n,nodes=[];
+  for(let i=0;i<=n;i++)nodes.push([i*p.a,0]);
+  for(let i=0;i<n;i++)nodes.push([(i+0.5)*p.a,p.h]);
+  const T=j=>n+1+j,mem=[];
+  for(let i=0;i<n;i++)mem.push([i,i+1]);
+  for(let i=0;i<n-1;i++)mem.push([T(i),T(i+1)]);
+  for(let i=0;i<n;i++){mem.push([i,T(i)]);mem.push([T(i),i+1])}
+  const m=mem.length,N=nodes.length,K=m+3,M=Array.from({length:2*N},()=>new Array(K+1).fill(0));
+  mem.forEach(([i,j],k)=>{const dx=nodes[j][0]-nodes[i][0],dy=nodes[j][1]-nodes[i][1],L=Math.hypot(dx,dy);
+    M[2*i][k]+=dx/L;M[2*i+1][k]+=dy/L;M[2*j][k]-=dx/L;M[2*j+1][k]-=dy/L});
+  M[0][m]=1;M[1][m+1]=1;M[2*n+1][m+2]=1;                    // pin at node 0, roller at node n
+  p.loads.forEach(([j,f])=>{M[2*j+1][K]-=-f});                // downward load f: -f in y; move to right side
+  for(let c=0;c<K;c++){let pv=c;for(let r=c+1;r<2*N;r++)if(Math.abs(M[r][c])>Math.abs(M[pv][c]))pv=r;
+    [M[c],M[pv]]=[M[pv],M[c]];for(let r=0;r<2*N;r++)if(r!==c){const f=M[r][c]/M[c][c];if(f)for(let q=c;q<=K;q++)M[r][q]-=f*M[c][q]}}
+  const x=[];for(let c=0;c<K;c++)x.push(M[c][K]/M[c][c]);
+  return {nodes,mem,F:x.slice(0,m),R:x.slice(m)};
+}
+function trGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,n=pick(r,[3,4,4]),a=pick(r,us?[6,8,10]:[3,4,5]),h=pick(r,us?[6,8,9,12]:[3,4,5]);
+    const cand=[];for(let j=1;j<n;j++)cand.push(j);const top=[];for(let j=0;j<n;j++)top.push(n+1+j);
+    const nl=pick(r,[2,3]),pickN=[...cand,...top];const chosen=new Set();while(chosen.size<nl)chosen.add(pick(r,pickN));
+    const loads=[...chosen].map(j=>[j,pick(r,us?range(5,30,5):range(20,120,10))]);
+    const p={us,n,a,h,loads,A:pick(r,us?[1.2,1.8,2.4,3.0]:[800,1000,1200,1400,1800])};
+    const sol=trSolve(p);
+    if(Math.abs(sol.R[1])<1e-9&&Math.abs(sol.R[2])<1e-9) continue;
+    const F=sol.F,mx=Math.max(...F.map(Math.abs)),m=sol.mem.length;
+    // members asked: one top chord, one bottom chord, one diagonal
+    const bot=[...Array(n).keys()],tp=[...Array(n-1).keys()].map(i=>n+i),dg=[...Array(2*n).keys()].map(i=>n+(n-1)+i);
+    const ok=a=>a.filter(i=>Math.abs(F[i])>0.12*mx);
+    const B=ok(bot),Tt=ok(tp),D=ok(dg);if(!B.length||!Tt.length||!D.length) continue;
+    const ask=[pick(r,D),pick(r,Tt),pick(r,B)];
+    const sw=[pick(r,us?[16,18,20,24]:[100,120,140,160]),0];sw[1]=Math.round(sw[0]*pick(r,[0.5,0.6,0.7])/(us?2:10))*(us?2:10);
+    if(sw[1]<=0) continue;
+    p.ask=ask;p.sw=sw;
+    const s={sol,ask,R:sol.R};
+    const Fa=ask.map(i=>F[i]);
+    s.sg=Fa.map(f=>f*1000/p.A);                              // kN or kips → MPa (SI), or ksi (US: kips/in²)
+    if(us)s.sg=Fa.map(f=>f/p.A);
+    const f0=Fa[0];s.Areq=Math.abs(f0)*(us?1:1000)/(f0>0?sw[0]:sw[1]);
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function trMemName(sol,k,p){const [i,j]=sol.mem[k];return NODES[i]+NODES[j]}
+function trFigure(p,s){
+  const sol=s.sol,n=p.n,sc=Math.min(600/(n*p.a),150/p.h),x0=100+(600-n*p.a*sc)/2,y0=230;
+  const P=([x,y])=>[x0+x*sc,y0-y*sc];let b="";
+  sol.mem.forEach(([i,j],k)=>{const [x1,y1]=P(sol.nodes[i]),[x2,y2]=P(sol.nodes[j]),hl=p.ask.includes(k);
+    b+=LN(x1,y1,x2,y2,{c:hl?C.green:C.ln,w:hl?5:3.5,cap:1})});
+  sol.nodes.forEach((nd,j)=>{const [x,y]=P(nd);b+=CI(x,y,4.5)+TX(x+15,y+(j<=n?((j===0||j===n)?42:24):-10),NODES[j],{s:14,i:1})});
+  const [ax,ay]=P(sol.nodes[0]),[bx,by]=P(sol.nodes[n]);
+  b+=`<polygon points="${ax},${ay+4} ${ax-12},${ay+22} ${ax+12},${ay+22}" fill="#eceae4" stroke="${C.ln}"/>`+CI(bx,by+12,8,{f:"#eceae4"})+LN(bx-14,by+22,bx+14,by+22);
+  p.loads.forEach(([j,f])=>{const [x,y]=P(sol.nodes[j]);const top=j>n;
+    b+=top?AR(x,y-52,x,y-5)+TX(x,y-58,`${f} ${p.us?"kips":"kN"}`,{s:13,c:C.load}):AR(x,y+6,x,y+52)+TX(x,y+70,`${f} ${p.us?"kips":"kN"}`,{s:13,c:C.load})});
+  const u=p.us?"ft":"m";
+  b+=DIMH(P(sol.nodes[0])[0],P(sol.nodes[1])[0],y0+96,`${p.a} ${u}`)+DIMV(x0-26,y0,y0-p.h*sc,`${p.h} ${u}`,{left:1});
+  return SVG(760,350,b);
+}
+function trStatement(p,s){
+  const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
+  const nm=k=>trMemName(s.sol,k,p),ld=p.loads.map(([j,f])=>`${f} ${Fu} at ${iv(NODES[j])}`).join(", ");
+  return `<p>The Warren truss shown has ${p.n} equal panels, each ${p.a} ${p.us?"ft":"m"} wide, and a height of ${p.h} ${p.us?"ft":"m"}. It is pinned at ${iv("A")} and supported by a roller at ${iv(NODES[p.n])}. Downward loads act at the joints: ${ld}. All members have the cross-sectional area ${fmt(p.A,p.us?1:0)} ${u}; member weights are neglected.</p>
+  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the working stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
+}
+function trSolution(p,s){
+  const sol=s.sol,Fu=p.us?"kips":"kN",su=p.us?"ksi":"MPa";
+  let h=`<h3>1. Reactions</h3><p>From the equilibrium of the whole truss: A<sub>x</sub> = ${sig(sol.R[0])} ${Fu}, A<sub>y</sub> = ${sig(sol.R[1])} ${Fu}, and the roller reaction at ${NODES[p.n]} is ${sig(sol.R[2])} ${Fu}.</p>
+  <h3>2. Member forces (method of joints, tension positive)</h3><table><tr><th>Member</th><th>Force (${Fu})</th><th></th></tr>`;
+  sol.mem.forEach((_,k)=>{h+=`<tr><td>${trMemName(sol,k,p)}</td><td>${sig(sol.F[k])}</td><td>${Math.abs(sol.F[k])<1e-6?"zero":sol.F[k]>0?"T":"C"}</td></tr>`});
+  h+=`</table><p class="note">Any member can also be found directly with the method of sections: cut through the member and two others, and take moments about the intersection of those two.</p><h3>3. Stresses in the highlighted members</h3><p>σ = N/A with A = ${fmt(p.A,p.us?1:0)} ${p.us?"in.²":"mm²"}.</p><table><tr><th>Member</th><th>N (${Fu})</th><th>σ (${su})</th></tr>`;
+  p.ask.forEach((k,i)=>{h+=`<tr><td>${trMemName(sol,k,p)}</td><td>${sig(sol.F[k])}</td><td>${sig(s.sg[i])}</td></tr>`});
+  const f0=sol.F[p.ask[0]];
+  h+=`</table><h3>4. Required area of member ${trMemName(sol,p.ask[0],p)}</h3><p>The member is in ${f0>0?"tension":"compression"}, so σ<sub>w</sub> = ${f0>0?p.sw[0]:p.sw[1]} ${su} governs: A = |N|/σ<sub>w</sub> = <span class="final">${sig(s.Areq)} ${p.us?"in.²":"mm²"}</span>.</p>`;
+  return h;
+}
+const TR={name:"Warren truss: member stresses by joints or sections",
+  generate:trGenerate,figure:trFigure,statement:trStatement,solution:trSolution,
+  fields:(p,s)=>[...p.ask.map((k,i)=>({id:"s"+i,label:`Stress in member ${trMemName(s.sol,k,p)} (signed, tension +)`,unit:p.us?"ksi":"MPa",signed:true})),
+    {id:"A",label:`Smallest area of member ${trMemName(s.sol,p.ask[0],p)}`,unit:p.us?"in.²":"mm²"},
+    {id:"Ry",label:`Vertical reaction at ${NODES[p.n]}`,unit:p.us?"kips":"kN"}],
+  truth:(p,s)=>({s0:s.sg[0],s1:s.sg[1],s2:s.sg[2],A:s.Areq,Ry:s.R[2]}),
+  note:"Enter signed stresses; tension is positive."};
+
+// ===== Chapter 10: columns. Base units: SI N, mm, MPa; US kips, in., ksi.
+const KU=us=>us?{F:"kips",d:"in.",L:"ft",lb:12,S:"ksi",E:29000,Ed:"29 × 10⁶ psi",Ef:1}:{F:"kN",d:"mm",L:"m",lb:1000,S:"MPa",E:200000,Ed:"200 GPa",Ef:1000};
+const ENDS=[{k:"pp",n:"pinned at both ends",K:1},{k:"ff",n:"built in at both ends",K:0.5},{k:"fp",n:"built in at the base and pinned at the top",K:0.7},{k:"fr",n:"built in at the base and free at the top",K:2}];
+function colSec(r,us){
+  const t=pick(r,["rect","round","tube","sqtube"]);
+  if(t==="rect"){const b=pick(r,us?[1,1.5,2,3,4]:[25,40,50,75,100]),h=b*pick(r,[1.5,2,3]);return {t,b,h,A:b*h,I:h*b**3/12,Imax:b*h**3/12,c:b/2,txt:`a solid rectangular section ${b} × ${h} ${us?"in.":"mm"}`}}
+  if(t==="round"){const d=pick(r,us?[1,1.5,2,2.5,3,4]:[25,40,50,60,75,100]);return {t,d,A:Math.PI*d*d/4,I:Math.PI*d**4/64,c:d/2,txt:`a solid circular section of diameter ${d} ${us?"in.":"mm"}`}}
+  if(t==="tube"){const d=pick(r,us?[2,3,4,5,6]:[50,75,100,125,150]),di=d*pick(r,[0.6,0.7,0.8]),dd=+di.toFixed(us?2:0);return {t,d,di:dd,A:Math.PI*(d*d-dd*dd)/4,I:Math.PI*(d**4-dd**4)/64,c:d/2,txt:`a circular tube with outer diameter ${d} ${us?"in.":"mm"} and inner diameter ${dd} ${us?"in.":"mm"}`}}
+  const B=pick(r,us?[2,3,4,5,6]:[50,75,100,125,150]),w=pick(r,us?[0.125,0.1875,0.25,0.375]:[3,4,5,6,8]);if(w>B/8)return colSec(r,us);
+  return {t,B,w,A:B*B-(B-2*w)**2,I:(B**4-(B-2*w)**4)/12,c:B/2,txt:`a square tube ${B} × ${B} ${us?"in.":"mm"} outside with wall thickness ${dstr(w)} ${us?"in.":"mm"}`};
+}
+const secTxt=s=>s.txt;
+// column drawing
+function colDraw(end,Llab,sec,us,o={}){
+  const x=200,y1=85,y2=320;let s=RC(x-9,y1,18,y2-y1,{f:"#dfe4ea",c:C.steelln});
+  const fix=y=>HATCH(x-40,y,80,12),pin=(y,top)=>top?`<polygon points="${x},${y} ${x-12},${y-18} ${x+12},${y-18}" fill="#eceae4" stroke="${C.ln}" stroke-width="1.3"/>`+HATCH(x-18,y-28,36,10):`<polygon points="${x},${y} ${x-12},${y+18} ${x+12},${y+18}" fill="#eceae4" stroke="${C.ln}" stroke-width="1.3"/>`+HATCH(x-18,y+18,36,10);
+  if(end==="ff"){s+=fix(y2)+fix(y1-12)}else if(end==="fp"){s+=fix(y2)+LN(x-30,y1,x-30,y1-30,{c:C.ln,w:2})+LN(x+30,y1,x+30,y1-30,{c:C.ln,w:2})}
+  else if(end==="fr")s+=fix(y2);else{s+=pin(y2,false)+LN(x-30,y1,x-30,y1-30,{c:C.ln,w:2})+LN(x+30,y1,x+30,y1-30,{c:C.ln,w:2})}
+  if(!o.noP)s+=AR(x,y1-55,x,y1-2)+TX(x+14,y1-34,o.P||"P",{s:14,i:1,c:C.load,a:"start"});
+  if(o.ecc)s+=TX(x-40,y1-30,o.ecc,{s:12,c:C.dim,a:"end"});
+  s+=DIMV(x+70,y1,y2,Llab);
+  if(end==="fp"||end==="pp")s+=TX(x+40,y1-12,"top guided laterally",{s:11,c:C.dim,a:"start"});
+  // section sketch
+  const cx=500,cy=195,k=sec?110/Math.max(sec.h||sec.d||sec.B,1):1,u=us?"in.":"mm";
+  if(sec){if(sec.t==="rect")s+=RC(cx-sec.b*k/2,cy-sec.h*k/2,sec.b*k,sec.h*k,{f:"#dfe4ea",c:C.steelln})+TX(cx,cy+sec.h*k/2+18,`${sec.b} × ${sec.h} ${u}`,{s:12,c:C.dim});
+    if(sec.t==="round")s+=CI(cx,cy,sec.d*k/2,{f:"#dfe4ea",c:C.steelln})+TX(cx,cy+sec.d*k/2+18,`d = ${sec.d} ${u}`,{s:12,c:C.dim});
+    if(sec.t==="tube")s+=CI(cx,cy,sec.d*k/2,{f:"#dfe4ea",c:C.steelln})+CI(cx,cy,sec.di*k/2,{f:"#fff",c:C.steelln})+TX(cx,cy+sec.d*k/2+18,`d₀ = ${sec.d}, dᵢ = ${sec.di} ${u}`,{s:12,c:C.dim});
+    if(sec.t==="sqtube")s+=RC(cx-55,cy-55,110,110,{f:"#dfe4ea",c:C.steelln})+RC(cx-55+sec.w*k,cy-55+sec.w*k,110-2*sec.w*k,110-2*sec.w*k,{f:"#fff",c:C.steelln})+TX(cx,cy+74,`${sec.B} × ${sec.B} ${u}, t = ${dstr(sec.w)} ${u}`,{s:12,c:C.dim});
+    s+=TX(cx,cy-80,"Cross section",{s:12,c:C.dim})}
+  return SVG(760,355,s);
+}
+const aisc=(Le,r,A,E,Fy)=>{const sl=Le/r,lim=4.71*Math.sqrt(E/Fy),scr=Math.PI**2*E/sl**2,snom=sl<=lim?Math.pow(0.658,Fy/scr)*Fy:0.877*scr;return {sl,lim,scr,snom,P:0.9*snom*A}};
+
+// ----- 1. Euler buckling with end conditions and factor of safety
+function k1Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const u=KU(us),end=pick(r,ENDS),sec=colSec(r,us),mat=pick(r,[{n:"steel",E:u.E,spl:us?36:250},{n:"aluminum",E:us?10000:70000,spl:us?30:200}]),L=pick(r,us?[4,6,8,10,12,16,20]:[1,1.5,2,3,4,5,6])*u.lb,FS=pick(r,[2,2.5,3]);
+    const rg=Math.sqrt(sec.I/sec.A),Le=end.K*L,sl=Le/rg,scr=Math.PI**2*mat.E/sl**2;if(scr>0.95*mat.spl||sl>250) continue;
+    const Pcr=scr*sec.A;return {p:{us,end,sec,mat,L,FS},s:{rg,Le,sl,scr,Pcr,Pal:Pcr/FS}};
+  }
+  throw new Error("no valid problem");
+}
+const pF=(v,us)=>us?v:v/1000;  // N->kN for SI
+const K1={name:"Euler buckling: effective length, slenderness, critical load",generate:k1Generate,
+  figure:p=>colDraw(p.end.k,`L = ${sig(p.L/KU(p.us).lb,3)} ${KU(p.us).L}`,p.sec,p.us),
+  statement:p=>{const u=KU(p.us);return `<p>A ${p.mat.n} column of length ${sig(p.L/u.lb,3)} ${u.L} is ${p.end.n}. It has ${secTxt(p.sec)}. Use E = ${p.mat.n==="steel"?u.Ed:(p.us?"10 × 10⁶ psi":"70 GPa")}; the proportional limit is ${p.mat.spl} ${u.S}.</p>
+  <p>Find the least radius of gyration, the effective length, the slenderness ratio, the critical (Euler) load, and the allowable axial load for a factor of safety of ${p.FS}. Confirm that the critical stress is below the proportional limit.</p>`},
+  solution:(p,s)=>{const u=KU(p.us);return `<h3>1. Section</h3><p>A = ${sig(p.sec.A,4)} ${u.d}², I<sub>min</sub> = ${sig(p.sec.I,4)} ${u.d}⁴, r = √(I/A) = ${sig(s.rg,4)} ${u.d}.</p>
+  <h3>2. Effective length</h3><p>For a column ${p.end.n}, L<sub>e</sub> = ${p.end.K}L = ${sig(s.Le/u.lb,4)} ${u.L}; L<sub>e</sub>/r = ${sig(s.sl,4)}.</p>
+  <h3>3. Critical load</h3><p class="eq">σ<sub>cr</sub> = π²E/(L<sub>e</sub>/r)² = ${sig(s.scr,4)} ${u.S} &lt; σ<sub>pl</sub>, so Euler's formula applies.</p><p>P<sub>cr</sub> = σ<sub>cr</sub>A = ${sig(pF(s.Pcr,p.us),4)} ${u.F}.</p>
+  <h3>4. Allowable load</h3><p class="final">P<sub>allow</sub> = P<sub>cr</sub>/${p.FS} = ${sig(pF(s.Pal,p.us),4)} ${u.F}</p>`},
+  fields:p=>{const u=KU(p.us);return [{id:"r",label:"Least radius of gyration",unit:u.d},{id:"sl",label:"Slenderness ratio Le/r",unit:""},{id:"Pcr",label:"Critical load",unit:u.F},{id:"Pa",label:"Allowable load",unit:u.F}]},
+  truth:(p,s)=>({r:s.rg,sl:s.sl,Pcr:pF(s.Pcr,p.us),Pa:pF(s.Pal,p.us)}),note:"Answers within 2% are accepted."};
+
+// ----- 2. rectangular column with different bracing in the two planes
+function k2Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const u=KU(us),b=pick(r,us?[1.5,2,3,4]:[40,50,75,100]),h=b*pick(r,[1.5,2,2.5,3]),wood=r()<0.5,E=wood?(us?1500:10000):u.E,L=pick(r,us?[6,8,10,12,16]:[2,3,4,5])*u.lb;
+    const e1=pick(r,ENDS),e2=pick(r,ENDS),brace=r()<0.4;          // buckling about the weak axis (bending in the plane of b) and the strong axis
+    const Kw=e1.K*(brace?0.5:1),Ks=e2.K;
+    const A=b*h,Iw=h*b**3/12,Is=b*h**3/12,Pw=Math.PI**2*E*Iw/(Kw*L)**2,Ps=Math.PI**2*E*Is/(Ks*L)**2;
+    if(Math.abs(Pw/Ps-1)<0.08) continue;const Pcr=Math.min(Pw,Ps),scr=Pcr/A;if(scr>(wood?(us?4:30):(us?30:200))) continue;
+    return {p:{us,b,h,wood,E,L,e1,e2,brace},s:{Pw,Ps,Pcr,gov:Pw<Ps?"Weak axis":"Strong axis",Lw:Kw*L,Ls:Ks*L}};
+  }
+  throw new Error("no valid problem");
+}
+const K2={name:"Column with different end conditions in the two planes",generate:k2Generate,
+  figure:p=>colDraw(p.e1.k,`L = ${sig(p.L/KU(p.us).lb,3)} ${KU(p.us).L}`,{t:"rect",b:p.b,h:p.h},p.us)+(p.brace?SVG(760,26,TX(380,18,"A brace at midheight prevents lateral movement in the plane of the thin dimension b.",{s:12,c:C.dim})):""),
+  statement:p=>{const u=KU(p.us);return `<p>A ${p.wood?"wood":"steel"} column of length ${sig(p.L/u.lb,3)} ${u.L} has a rectangular cross section b × h = ${p.b} × ${p.h} ${u.d}. For buckling in the plane of the thin dimension b (bending about the weak axis), the column is ${p.e1.n}${p.brace?", and a brace at midheight prevents lateral movement in that plane":""}. For buckling in the other plane (bending about the strong axis), it is ${p.e2.n}. Use E = ${p.wood?(p.us?"1.5 × 10⁶ psi":"10 GPa"):u.Ed}.</p>
+  <p>Find the critical load for buckling about each axis, the critical load of the column, and the axis about which it buckles.</p>`},
+  solution:(p,s)=>{const u=KU(p.us);return `<h3>1. Weak axis</h3><p>I = hb³/12 = ${sig(p.h*p.b**3/12,4)} ${u.d}⁴, L<sub>e</sub> = ${sig(s.Lw/u.lb,4)} ${u.L}${p.brace?" (the brace halves the buckling length)":""}: P<sub>cr</sub> = π²EI/L<sub>e</sub>² = ${sig(pF(s.Pw,p.us),4)} ${u.F}.</p>
+  <h3>2. Strong axis</h3><p>I = bh³/12 = ${sig(p.b*p.h**3/12,4)} ${u.d}⁴, L<sub>e</sub> = ${sig(s.Ls/u.lb,4)} ${u.L}: P<sub>cr</sub> = ${sig(pF(s.Ps,p.us),4)} ${u.F}.</p>
+  <h3>3. Critical load</h3><p class="final">P<sub>cr</sub> = ${sig(pF(s.Pcr,p.us),4)} ${u.F}; the column buckles about the ${s.gov.toLowerCase()}.</p>`},
+  fields:p=>{const u=KU(p.us);return [{id:"Pw",label:"Critical load, weak axis",unit:u.F},{id:"Ps",label:"Critical load, strong axis",unit:u.F},{id:"P",label:"Critical load of the column",unit:u.F},{id:"g",label:"Buckling axis",unit:"",choices:["Weak axis","Strong axis"]}]},
+  truth:(p,s)=>({Pw:pF(s.Pw,p.us),Ps:pF(s.Ps,p.us),P:pF(s.Pcr,p.us),g:s.gov}),note:"Answers within 2% are accepted."};
+
+// ----- 3. two-member frame: size a square wood strut against buckling
+function k3Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const u=KU(us),a=pick(r,us?[3,4,5,6]:[1,1.5,2,2.5]),bb=pick(r,us?[2,3,4]:[0.6,1,1.5]),h=pick(r,us?[2,3,4]:[0.6,1,1.5]),W=pick(r,us?range(1,8,0.5):range(5,40,5)),FS=pick(r,[2,2.5,3]),E=us?1500:10000;
+    // joint B at (0,0); support A at (-a,-h) (strut AB, compression), support C at (bb,h)... use: AB from A(-a,0)->B and BC from C(0,h)? keep a classic: B is loaded; AB horizontal strut from wall, BC inclined tie up to wall
+    const Lab=a*u.lb,Lbc=Math.hypot(a,h)*u.lb,T=W*Math.hypot(a,h)/h,Cab=W*a/h;            // tie BC tension, strut AB compression
+    const F=us?Cab:Cab*1000,b=Math.pow(12*FS*F*Lab*Lab/(Math.PI**2*E),0.25);
+    if(b>(us?12:300)||b<(us?1:25)) continue;
+    return {p:{us,a,h,W,FS,E},s:{T,C:Cab,b,Lab,Lbc}};
+  }
+  throw new Error("no valid problem");
+}
+const K3={name:"Two-member frame: size a square wood strut against buckling",generate:k3Generate,
+  figure:p=>{const u=KU(p.us),k=260/Math.max(p.a,p.h*1.3),Ax=160,Ay=230,Bx=Ax+p.a*k,Cy=Ay-p.h*k;
+    let s=HATCH(Ax-18,Cy-30,18,Ay-Cy+60)+LN(Ax,Ay,Bx,Ay,{c:C.ln,w:7,cap:1})+LN(Ax,Cy,Bx,Ay,{c:C.steelln,w:3})+CI(Ax,Ay,5)+CI(Ax,Cy,5)+CI(Bx,Ay,6)
+     +AR(Bx,Ay+2,Bx,Ay+70)+TX(Bx+12,Ay+56,`W = ${p.W} ${u.F}`,{s:13,c:C.load,a:"start"})+TX(Ax-24,Ay+4,"A",{s:14,i:1,a:"end"})+TX(Ax-24,Cy+4,"C",{s:14,i:1,a:"end"})+TX(Bx+12,Ay-8,"B",{s:14,i:1,a:"start"})
+     +DIMH(Ax,Bx,Ay+90,`${p.a} ${u.L}`)+DIMV(Bx+60,Cy,Ay,`${p.h} ${u.L}`)+TX((Ax+Bx)/2,Ay-14,"strut AB (square b × b wood)",{s:12,c:C.dim})+TX((Ax+Bx)/2+10,(Cy+Ay)/2-14,"tie BC",{s:12,c:C.dim,a:"start"});
+    return SVG(760,Ay+110,s)},
+  statement:p=>{const u=KU(p.us);return `<p>The pin-jointed structure shown supports the vertical load W = ${p.W} ${u.F} at joint ${iv("B")}. Member ${iv("AB")} is a horizontal wood strut with a square b × b cross section; member ${iv("BC")} is a steel tie. Use E = ${p.us?"1.5 × 10⁶ psi":"10 GPa"} for wood. Joint ${iv("B")} is braced so that the strut can buckle in any plane only as a pin-ended column.</p>
+  <p>Find the forces in the strut and the tie, and the smallest dimension b that gives a factor of safety of ${p.FS} against buckling of the strut.</p>`},
+  solution:(p,s)=>{const u=KU(p.us);return `<h3>1. Member forces</h3><p>Equilibrium of joint B: the vertical component of the tie force carries W, so T = W·(BC)/h = ${sig(s.T,4)} ${u.F} (tension), and the strut force is C = W·a/h = ${sig(s.C,4)} ${u.F} (compression).</p>
+  <h3>2. Buckling requirement</h3><p>The strut is pin ended with L<sub>e</sub> = ${p.a} ${u.L}. The critical load must be ${p.FS}C:</p><p class="eq">π²E(b⁴/12)/L<sub>e</sub>² = ${p.FS}C ⇒ b = [12(${p.FS}C)L<sub>e</sub>²/(π²E)]<sup>1/4</sup></p>
+  <p class="final">b = ${sig(s.b,4)} ${u.d}</p>`},
+  fields:p=>{const u=KU(p.us);return [{id:"C",label:"Compressive force in the strut",unit:u.F},{id:"T",label:"Tensile force in the tie",unit:u.F},{id:"b",label:"Smallest strut dimension b",unit:u.d}]},
+  truth:(p,s)=>({C:s.C,T:s.T,b:s.b}),note:"Answers within 2% are accepted."};
+
+// ----- 4. thermal buckling of a bar between walls
+function k4Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const u=KU(us),m=pick(r,["steel","aluminum"]),E=m==="steel"?u.E:(us?10300:71000),al=m==="steel"?(us?6.5e-6:11.7e-6):(us?12.8e-6:23e-6);
+    const d=pick(r,us?[0.5,0.75,1,1.25,1.5]:[10,15,20,25,30]),L=pick(r,us?[2,3,4,5,6]:[0.5,0.8,1,1.5,2])*u.lb,end=pick(r,[ENDS[0],ENDS[1]]);
+    const rg=d/4,Le=end.K*L,dT=Math.PI**2*rg**2/(al*Le**2),sc=E*al*dT;if(dT<5||dT>200) continue;
+    return {p:{us,m,E,al,d,L,end},s:{rg,Le,dT,sc,P:sc*Math.PI*d*d/4}};
+  }
+  throw new Error("no valid problem");
+}
+const K4={name:"Thermal buckling of a bar between rigid walls",generate:k4Generate,
+  figure:p=>{const u=KU(p.us);let s=HATCH(150,80,18,120)+HATCH(590,80,18,120)+RC(168,128,422,24,{f:"#dfe4ea",c:C.steelln})+DIMH(168,590,190,`L = ${sig(p.L/u.lb,3)} ${u.L}, diameter ${p.d} ${u.d}`)+TX(380,110,p.end.k==="ff"?"ends built in":"ends pinned (free to rotate)",{s:13,c:C.dim});return SVG(760,220,s)},
+  statement:p=>{const u=KU(p.us);return `<p>A solid ${p.m} bar of diameter ${p.d} ${u.d} fits snugly, without stress, between two immovable walls ${sig(p.L/u.lb,3)} ${u.L} apart. The ends are ${p.end.k==="ff"?"built in":"pinned"}. Use E = ${p.m==="steel"?u.Ed:(p.us?"10.3 × 10⁶ psi":"71 GPa")} and α = ${sig(p.al*1e6,3)} × 10⁻⁶/${p.us?"°F":"°C"}.</p>
+  <p>Find the temperature increase that causes the bar to buckle, and the axial stress and force at that point.</p>`},
+  solution:(p,s)=>{const u=KU(p.us);return `<h3>1. Thermal force</h3><p>The walls prevent expansion, so the bar carries P = EAαΔT.</p>
+  <h3>2. Buckling</h3><p>Buckling occurs when P = π²EI/L<sub>e</sub>², with L<sub>e</sub> = ${p.end.K}L. E cancels, and with r² = I/A = (d/4)²:</p><p class="eq">ΔT = π²r²/(αL<sub>e</sub>²) = ${sig(s.dT,4)} ${p.us?"°F":"°C"}</p>
+  <p>σ = EαΔT = ${sig(s.sc,4)} ${u.S}; P = ${sig(pF(s.P,p.us),4)} ${u.F}.</p>`},
+  fields:p=>{const u=KU(p.us);return [{id:"dT",label:"Temperature increase at buckling",unit:p.us?"°F":"°C"},{id:"s",label:"Axial stress at buckling",unit:u.S},{id:"P",label:"Axial force at buckling",unit:u.F}]},
+  truth:(p,s)=>({dT:s.dT,s:s.sc,P:pF(s.P,p.us)}),note:"Answers within 2% are accepted."};
+
+// ----- 5. AISC design strength
+function k5Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const u=KU(us),end=pick(r,ENDS),sec=colSec(r,us),Fy=pick(r,us?[36,50]:[250,350]),L=pick(r,us?[4,6,8,10,12,16,20,25]:[1,1.5,2,3,4,5,6,8])*u.lb;
+    const rg=Math.sqrt(sec.I/sec.A),Le=end.K*L,o=aisc(Le,rg,sec.A,u.E,Fy);if(o.sl>200||o.sl<20) continue;
+    return {p:{us,end,sec,Fy,L},s:{rg,Le,...o}};
+  }
+  throw new Error("no valid problem");
+}
+const K5={name:"Steel column design strength (AISC, Eqs. 10.8 and 10.9)",generate:k5Generate,
+  figure:p=>colDraw(p.end.k,`L = ${sig(p.L/KU(p.us).lb,3)} ${KU(p.us).L}`,p.sec,p.us),
+  statement:p=>{const u=KU(p.us);return `<p>A steel column (σ<sub>yp</sub> = ${p.Fy} ${u.S}, E = ${u.Ed}) of length ${sig(p.L/u.lb,3)} ${u.L} is ${p.end.n}. It has ${secTxt(p.sec)}; assume the section is nonslender.</p>
+  <p>Using the AISC specifications, find the slenderness ratio, the Euler critical stress, the nominal stress, and the design strength P<sub>des</sub> = φσ<sub>nom</sub>A with φ = 0.9.</p>`},
+  solution:(p,s)=>{const u=KU(p.us);return `<h3>1. Slenderness</h3><p>r = ${sig(s.rg,4)} ${u.d}, L<sub>e</sub> = ${p.end.K}L = ${sig(s.Le/u.lb,4)} ${u.L}, L<sub>e</sub>/r = ${sig(s.sl,4)}. The limit 4.71√(E/σ<sub>yp</sub>) = ${sig(s.lim,4)}.</p>
+  <h3>2. Stresses</h3><p>σ<sub>cr</sub> = π²E/(L<sub>e</sub>/r)² = ${sig(s.scr,4)} ${u.S}. ${s.sl<=s.lim?`Since L<sub>e</sub>/r ≤ ${sig(s.lim,4)}: σ<sub>nom</sub> = 0.658<sup>σ<sub>yp</sub>/σ<sub>cr</sub></sup>σ<sub>yp</sub>`:`Since L<sub>e</sub>/r &gt; ${sig(s.lim,4)}: σ<sub>nom</sub> = 0.877σ<sub>cr</sub>`} = ${sig(s.snom,4)} ${u.S}.</p>
+  <h3>3. Design strength</h3><p class="final">P<sub>des</sub> = 0.9σ<sub>nom</sub>A = 0.9(${sig(s.snom,4)})(${sig(p.sec.A,4)}) = ${sig(pF(s.P,p.us),4)} ${u.F}</p>`},
+  fields:p=>{const u=KU(p.us);return [{id:"sl",label:"Slenderness ratio Le/r",unit:""},{id:"scr",label:"Euler critical stress",unit:u.S},{id:"sn",label:"Nominal stress",unit:u.S},{id:"P",label:"Design strength",unit:u.F}]},
+  truth:(p,s)=>({sl:s.sl,scr:s.scr,sn:s.snom,P:pF(s.P,p.us)}),note:"Answers within 2% are accepted."};
+
+// ----- 6. AISC: longest column for a required design strength
+function k6Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const u=KU(us),end=pick(r,ENDS),sec=colSec(r,us),Fy=pick(r,us?[36,50]:[250,350]),E=u.E,rg=Math.sqrt(sec.I/sec.A);
+    const frac=pick(r,[0.25,0.35,0.5,0.6,0.7,0.8]),Preq=+((0.9*Fy*sec.A*frac)/(us?1:1000)).toPrecision(2)*(us?1:1000);
+    const sn=Preq/(0.9*sec.A);let scr,branch;
+    if(sn>=0.877*Fy/2.25*Math.pow(1,1)&&sn>=Math.pow(0.658,2.25)*Fy){scr=Fy*Math.log(0.658)/Math.log(sn/Fy);branch="inelastic"}else{scr=sn/0.877;branch="elastic"}
+    const sl=Math.PI*Math.sqrt(E/scr),Le=sl*rg,L=Le/end.K;if(sl>200||sl<20) continue;
+    const chk=aisc(Le,rg,sec.A,E,Fy);if(Math.abs(chk.P/Preq-1)>1e-6) continue;
+    return {p:{us,end,sec,Fy,Preq},s:{rg,sn,scr,sl,Le,L,branch}};
+  }
+  throw new Error("no valid problem");
+}
+const K6={name:"Steel column: longest length for a required design strength",generate:k6Generate,
+  figure:p=>colDraw(p.end.k,"L = ?",p.sec,p.us),
+  statement:p=>{const u=KU(p.us);return `<p>A steel column (σ<sub>yp</sub> = ${p.Fy} ${u.S}, E = ${u.Ed}) is ${p.end.n} and has ${secTxt(p.sec)}; assume the section is nonslender. The required design strength is ${sig(pF(p.Preq,p.us),3)} ${u.F}.</p>
+  <p>Using the AISC specifications (φ = 0.9), find the required nominal stress, the corresponding slenderness ratio, and the largest allowable length of the column.</p>`},
+  solution:(p,s)=>{const u=KU(p.us);return `<h3>1. Required nominal stress</h3><p>σ<sub>nom</sub> = P<sub>des</sub>/(0.9A) = ${sig(s.sn,4)} ${u.S}.</p>
+  <h3>2. Which formula applies</h3><p>At the limit L<sub>e</sub>/r = 4.71√(E/σ<sub>yp</sub>), σ<sub>cr</sub> = σ<sub>yp</sub>/2.25 and σ<sub>nom</sub> = 0.658<sup>2.25</sup>σ<sub>yp</sub> = ${sig(Math.pow(0.658,2.25)*p.Fy,4)} ${u.S}. ${s.branch==="inelastic"?"The required σ<sub>nom</sub> is larger, so the first of Eqs. (10.8) applies: σ<sub>yp</sub>/σ<sub>cr</sub> = ln(σ<sub>nom</sub>/σ<sub>yp</sub>)/ln 0.658.":"The required σ<sub>nom</sub> is smaller, so the second of Eqs. (10.8) applies: σ<sub>cr</sub> = σ<sub>nom</sub>/0.877."}</p>
+  <p>σ<sub>cr</sub> = ${sig(s.scr,4)} ${u.S}; L<sub>e</sub>/r = π√(E/σ<sub>cr</sub>) = ${sig(s.sl,4)}.</p>
+  <h3>3. Length</h3><p>L<sub>e</sub> = (L<sub>e</sub>/r)·r = ${sig(s.Le/u.lb,4)} ${u.L}; with L<sub>e</sub> = ${p.end.K}L:</p><p class="final">L<sub>max</sub> = ${sig(s.L/u.lb,4)} ${u.L}</p>`},
+  fields:p=>{const u=KU(p.us);return [{id:"sn",label:"Required nominal stress",unit:u.S},{id:"sl",label:"Slenderness ratio Le/r",unit:""},{id:"L",label:"Largest length",unit:u.L}]},
+  truth:(p,s)=>({sn:s.sn,sl:s.sl,L:s.L/KU(p.us).lb}),note:"Answers within 2% are accepted."};
+
+// ----- 7. eccentric load: secant formula
+function secant(P,A,I,c,e,Le,E){const rg2=I/A,k=Le/2*Math.sqrt(P/(E*I));return {smax:P/A*(1+e*c/rg2/Math.cos(k)),v:e*(1/Math.cos(k)-1),k}}
+function k7Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const u=KU(us),sec=colSec(r,us),Fy=pick(r,us?[36,50]:[250,350]),L=pick(r,us?[4,6,8,10,12]:[1,1.5,2,3,4])*u.lb,end=pick(r,[ENDS[0],ENDS[3]]),Le=end.K*L;
+    const e=+(sec.c*pick(r,[0.1,0.2,0.3,0.5,0.8])).toPrecision(2),Pcr=Math.PI**2*u.E*sec.I/Le**2,P=+(Pcr*pick(r,[0.1,0.15,0.2,0.3])/(us?1:1000)).toPrecision(2)*(us?1:1000);
+    const o=secant(P,sec.A,sec.I,sec.c,e,Le,u.E);if(o.smax>0.9*Fy||o.smax<0.2*Fy) continue;
+    let lo=1,hi=1;while(secant(hi*P,sec.A,sec.I,sec.c,e,Le,u.E).smax<Fy&&hi*P<Pcr)hi*=1.5;hi=Math.min(hi,Pcr/P*0.999999);
+    for(let i=0;i<200;i++){const m=(lo+hi)/2,s=secant(m*P,sec.A,sec.I,sec.c,e,Le,u.E);if(s.smax<Fy&&isFinite(s.smax)&&s.k<Math.PI/2)lo=m;else hi=m}
+    return {p:{us,sec,Fy,L,end,e,P},s:{...o,N:lo,Le}};
+  }
+  throw new Error("no valid problem");
+}
+const K7={name:"Eccentrically loaded column: secant formula",generate:k7Generate,
+  figure:p=>colDraw(p.end.k,`L = ${sig(p.L/KU(p.us).lb,3)} ${KU(p.us).L}`,p.sec,p.us,{P:`P = ${sig(pF(p.P,p.us),3)} ${KU(p.us).F}`,ecc:`eccentricity e = ${p.e} ${KU(p.us).d}`}),
+  statement:p=>{const u=KU(p.us);return `<p>A steel column (σ<sub>yp</sub> = ${p.Fy} ${u.S}, E = ${u.Ed}) of length ${sig(p.L/u.lb,3)} ${u.L} is ${p.end.n}. It has ${secTxt(p.sec)} and carries P = ${sig(pF(p.P,p.us),3)} ${u.F} applied with eccentricity e = ${p.e} ${u.d} in the plane of buckling.</p>
+  <p>Using the secant formula, find the maximum compressive stress, the factor of safety against yielding (applied to the load), and the maximum lateral deflection.</p>`},
+  solution:(p,s)=>{const u=KU(p.us),sec=p.sec;return `<h3>1. Section</h3><p>A = ${sig(sec.A,4)} ${u.d}², I = ${sig(sec.I,4)} ${u.d}⁴, r² = I/A = ${sig(sec.I/sec.A,4)} ${u.d}², c = ${sig(sec.c,4)} ${u.d}, L<sub>e</sub> = ${p.end.K}L = ${sig(s.Le/u.lb,4)} ${u.L}.</p>
+  <h3>2. Maximum stress (Eq. 10.11)</h3><p class="eq">σ<sub>max</sub> = (P/A)[1 + (ec/r²) sec((L<sub>e</sub>/2r)√(P/(EA)))] = ${sig(s.smax,4)} ${u.S}</p>
+  <h3>3. Factor of safety</h3><p>Because σ<sub>max</sub> is not proportional to P, the factor N is found by solving σ<sub>yp</sub> = σ<sub>max</sub>(NP) for N (here by bisection); N = σ<sub>yp</sub>/σ<sub>max</sub> = ${sig(p.Fy/s.smax,3)} would be incorrect.</p><p class="final">N = ${sig(s.N,4)}</p>
+  <h3>4. Lateral deflection (Eq. 10.10)</h3><p class="eq">v<sub>max</sub> = e[sec((L<sub>e</sub>/2)√(P/(EI))) − 1] = ${sig(s.v,4)} ${u.d}</p>`},
+  fields:p=>{const u=KU(p.us);return [{id:"s",label:"Maximum compressive stress",unit:u.S},{id:"N",label:"Factor of safety against yielding",unit:""},{id:"v",label:"Maximum lateral deflection",unit:u.d}]},
+  truth:(p,s)=>({s:s.smax,N:s.N,v:s.v}),note:"Answers within 2% are accepted."};
+
+const TEMPLATES={"euler":K1,"two-planes":K2,"frame-strut":K3,"thermal-buckling":K4,"aisc-strength":K5,"aisc-length":K6,"secant":K7};
+
+const $=id=>document.getElementById(id);
+let curKey,curSeed,cur;
+function render(key,seed){
+  curKey=key;curSeed=seed;const T=TEMPLATES[key];cur=T.generate(seed);const {p,s}=cur;
+  $("typeSel").value=key;$("seedIn").value=seed;history.replaceState(null,"","#"+key+"-"+seed);
+  $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=T.statement(p,s);
+  $("answers").innerHTML=T.fields(p,s).map(f=>f.choices
+    ?`<label>${f.label}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
+    :`<label>${f.label}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
+  $("ansNote").textContent=T.note||"";$("solution").innerHTML=T.solution(p,s);
+  $("solution").style.display="none";$("solBtn").textContent="Show solution";
+}
+function check(){
+  const T=TEMPLATES[curKey],{p,s}=cur,tr=T.truth(p,s);
+  T.fields(p,s).forEach(f=>{
+    const el=$("m_"+f.id),raw=$("a_"+f.id).value.trim();let ok=false;
+    if(f.choices)ok=raw===tr[f.id];
+    else{const v=parseFloat(raw.replace(/,/g,"")),t=tr[f.id];
+      if(isFinite(v)&&f.abs!==undefined) ok=Math.abs(v-t)<=f.abs;
+      else if(isFinite(v)) ok=f.signed?Math.abs(v-t)<=0.02*Math.abs(t)+1e-9:Math.abs(Math.abs(v)-Math.abs(t))<=0.02*Math.abs(t)+1e-9;
+      if(isFinite(v)&&f.signed&&f.abs===undefined&&Math.abs(v)>0&&Math.sign(v)!==Math.sign(t)) ok=false}
+    el.textContent=raw===""?"":ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");
+  });
+}
+const newSeed=()=>1+Math.floor(Math.random()*999999);
+$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
+$("typeSel").onchange=e=>render(e.target.value,newSeed());
+$("newBtn").onclick=()=>render(curKey,newSeed());
+$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+$("checkBtn").onclick=check;
+$("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+(function(){const m=/^#([a-z0-9-]+?)-(\d+)$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]])render(m[1],parseInt(m[2],10));else render(Object.keys(TEMPLATES)[0],newSeed())})();
+
+</script>
+</body>
+</html>

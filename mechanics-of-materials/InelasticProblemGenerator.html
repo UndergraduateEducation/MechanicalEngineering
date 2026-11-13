@@ -1,0 +1,1674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inelastic Action Problem Generator</title>
+<style>
+  :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#ffffff;--accent:#1e5a32;--ok:#1e7a3c;--bad:#b3261e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  .sub a{color:var(--accent)}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .answers input{width:8em}
+  .mark{font-weight:600;min-width:7em}.mark.ok{color:var(--ok)}.mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mechanics of Materials: Inelastic Action Problem Generator</h1>
+  <div class="sub">Elastoplastic torsion and bending, shape factors, residual stresses, and limit analysis of indeterminate bars and beams. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem. <a href="index.html">All chapters</a></div>
+</header>
+<main>
+  <div class="card bar"><label for="typeSel">Problem type</label><select id="typeSel"></select></div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+// ===== common helpers: seeded random numbers, number formatting, SVG drawing
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+function fmt(v,d=0){return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+function sig(v,n=3){if(v===0)return "0";const e=Math.floor(Math.log10(Math.abs(v)));return fmt(+v.toPrecision(n),Math.min(20,Math.max(0,n-1-e)))}
+const FR={0.25:"¼",0.375:"⅜",0.5:"½",0.625:"⅝",0.75:"¾",0.875:"⅞",1:"1",1.25:"1¼",1.5:"1½"};
+const dstr=v=>FR[v]||String(v);
+const C={fill:"#f7e2c4",ln:"#78461a",load:"#aa1e28",dim:"#5b6470",ink:"#1f2328",green:"#1e5a32",light:"#cde1cd",steel:"#dfe4ea",steelln:"#46505c"};
+const TX=(x,y,s,o={})=>`<text x="${x}" y="${y}" text-anchor="${o.a||"middle"}" font-size="${o.s||14}" fill="${o.c||C.ink}" font-family="Georgia,serif"${o.i?' font-style="italic"':""}>${s}</text>`;
+const LN=(x1,y1,x2,y2,o={})=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"${o.d?` stroke-dasharray="${o.d}"`:""}${o.cap?' stroke-linecap="round"':""}/>`;
+function AR(x1,y1,x2,y2,c=C.load,w=2.2){const a=Math.atan2(y2-y1,x2-x1),h=11,s=0.4;
+  const p=(da)=>`${(x2-h*Math.cos(a+da)).toFixed(1)},${(y2-h*Math.sin(a+da)).toFixed(1)}`;
+  return LN(x1,y1,x2-6*Math.cos(a),y2-6*Math.sin(a),{c,w})+`<polygon points="${x2.toFixed(1)},${y2.toFixed(1)} ${p(s)} ${p(-s)}" fill="${c}"/>`}
+const RC=(x,y,w,h,o={})=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${o.f||C.fill}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"/>`;
+const CI=(x,y,r,o={})=>`<circle cx="${x}" cy="${y}" r="${r}" fill="${o.f||"#fff"}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"/>`;
+function DIMH(x1,x2,y,label,o={}){const up=o.up?-6:16;
+  return LN(x1,y,x2,y,{c:C.dim,w:1})+LN(x1,y-5,x1,y+5,{c:C.dim,w:1})+LN(x2,y-5,x2,y+5,{c:C.dim,w:1})+TX((x1+x2)/2,y+up,label,{s:13,c:C.dim})}
+function DIMV(x,y1,y2,label,o={}){const dx=o.left?-8:8;
+  return LN(x,y1,x,y2,{c:C.dim,w:1})+LN(x-5,y1,x+5,y1,{c:C.dim,w:1})+LN(x-5,y2,x+5,y2,{c:C.dim,w:1})+TX(x+dx,(y1+y2)/2+4,label,{s:13,c:C.dim,a:o.left?"end":"start"})}
+function HATCH(x,y,w,h){let s=RC(x,y,w,h,{f:"#eceae4",c:C.ln,w:1});
+  for(let i=-h;i<w;i+=8){const xa=Math.max(x,x+i),ya=y+(xa-(x+i)),xb=Math.min(x+w,x+i+h),yb=y+(xb-(x+i));s+=LN(xa,ya,xb,yb,{c:"#9a8f80",w:.8})}return s}
+const SVG=(w,h,b)=>`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" role="img">${b}</svg>`;
+const sub=(a,b)=>`${a}<sub>${b}</sub>`;
+const iv=s=>`<i>${s}</i>`;
+
+// ===== 1. stepped bar: axial force diagram and normal stress in each segment
+const NODES="ABCDEFGHIJKLMNOP";
+function sbGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,n=pick(r,[3,3,4]),A=[],Ls=[],F=[];
+    for(let i=0;i<n;i++){
+      A.push(pick(r,us?[0.8,1.0,1.2,1.5,1.6,1.8,2.0,2.5]:[300,400,500,600,800,1000,1200]));
+      Ls.push(pick(r,us?[1.0,1.2,1.5,1.6,1.8,2.0]:[0.8,1.0,1.2,1.5,2.0]));
+      F.push(pick(r,us?range(1000,9000,500):range(5000,40000,1000))*pick(r,[1,-1]));
+    }
+    F.push(-F.reduce((a,b)=>a+b,0));                       // the bar is in equilibrium
+    const lo=us?1000:5000;
+    if(Math.abs(F[n])<lo||Math.max(...F.map(Math.abs))>(us?16000:70000)) continue;
+    const N=[];let c=0;for(let i=0;i<n;i++){c+=F[i];N.push(-c)}
+    if(N.some(v=>Math.abs(v)<lo/2)||!(N.some(v=>v>0)&&N.some(v=>v<0))) continue;
+    const sg=N.map((v,i)=>v/A[i]),m=sg.map(Math.abs),mx=Math.max(...m),imax=m.indexOf(mx);
+    if(m.some((v,i)=>i!==imax&&v>0.9*mx)) continue;
+    return {p:{us,n,A,Ls,F},s:{N,sg,imax,smax:mx}};
+  }
+  throw new Error("no valid problem");
+}
+const sbSeg=i=>NODES[i]+NODES[i+1];
+function sbFmtF(p,v){return p.us?`${fmt(Math.abs(v))} lb`:`${fmt(Math.abs(v)/1000)} kN`}
+function sbFigure(p){
+  const x0=90,W=580,tot=p.Ls.reduce((a,b)=>a+b,0),maxA=Math.max(...p.A),yc=165;let x=x0,b="";
+  const xs=[x0];p.Ls.forEach(l=>{x+=W*l/tot;xs.push(x)});
+  p.A.forEach((a,i)=>{const h=36+54*Math.sqrt(a/maxA);
+    b+=RC(xs[i],yc-h/2,xs[i+1]-xs[i],h)+TX((xs[i]+xs[i+1])/2,yc+5,`${fmt(a,p.us?1:0)} ${p.us?"in.²":"mm²"}`,{s:13})
+      +DIMH(xs[i],xs[i+1],262,`${fmt(p.Ls[i],1)} ${p.us?"ft":"m"}`)});
+  p.F.forEach((f,i)=>{const X=xs[i],d=f>0?1:-1;
+    b+=LN(X,84,X,yc-50,{c:C.dim,w:1,d:"3 3"})+AR(X,84,X+d*58,84)+TX(X+d*29,72,sbFmtF(p,f),{s:13,c:C.load})
+      +TX(X,yc+75,NODES[i],{s:15,i:1})});
+  return SVG(760,290,b);
+}
+function sbStatement(p){
+  const F=p.F.map((f,i)=>`${iv(NODES[i])}: ${sbFmtF(p,f)} to the ${f>0?"right":"left"}`).join("; ");
+  return `<p>The stepped bar ${NODES[0]}${NODES[p.n]} below consists of ${p.n} cylindrical segments with different cross-sectional areas and lengths, as shown. The bar is in equilibrium under the axial loads ${F}.</p>
+  <p>Find the normal stress in each segment (tension positive, compression negative), and identify the segment with the largest stress magnitude.</p>`;
+}
+function sbSolution(p,s){
+  const u=p.us?"lb":"N",su=p.us?"psi":"MPa";let h="<h3>1. Axial force in each segment</h3><p>Cut the bar inside a segment and write ΣF<sub>x</sub> = 0 for the part to the left of the cut. With tension positive, the axial force equals minus the sum of the external loads (positive to the right) to the left of the cut.</p><table><tr><th>Segment</th><th>N ("+u+")</th><th>A ("+(p.us?"in.²":"mm²")+")</th><th>σ = N/A ("+su+")</th></tr>";
+  s.N.forEach((n,i)=>{h+=`<tr><td>${sbSeg(i)}</td><td>${fmt(n)} (${n>0?"T":"C"})</td><td>${fmt(p.A[i],p.us?1:0)}</td><td>${sig(s.sg[i])} (${n>0?"T":"C"})</td></tr>`});
+  h+=`</table><p class="note">The segment lengths and the material do not enter the stress calculation.</p><h3>2. Largest stress</h3><p class="final">Segment ${sbSeg(s.imax)}, with |σ| = ${sig(s.smax)} ${su}.</p>`;
+  return h;
+}
+const SB={name:"Stepped bar: axial force and normal stress in each segment",
+  generate:sbGenerate,figure:sbFigure,statement:sbStatement,solution:sbSolution,
+  fields:(p,s)=>[...p.A.map((_,i)=>({id:"s"+i,label:`Stress in segment ${sbSeg(i)} (signed, tension +)`,unit:p.us?"psi":"MPa",signed:true})),
+    {id:"imax",label:"Segment with the largest |σ|",unit:"",choices:p.A.map((_,i)=>sbSeg(i))}],
+  truth:(p,s)=>{const o={imax:sbSeg(s.imax)};s.sg.forEach((v,i)=>o["s"+i]=v);return o},
+  note:"Enter signed stresses; tension is positive."};
+
+// ===== 2. two bars meeting at a pin that carries a weight: forces and the safe weight
+function tbGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,al=pick(r,range(25,65,5)),be=pick(r,range(25,65,5));
+    if(al+be<60||al+be>120) continue;
+    const A=[pick(r,us?range(0.2,1.0,0.1):[200,300,400,500,600,800]),pick(r,us?range(0.2,1.0,0.1):[200,300,400,500,600,800])];
+    const sw=[pick(r,us?range(12,24,2):range(80,160,10)),pick(r,us?range(12,24,2):range(80,160,10))];
+    const p={us,al,be,A,sw},s=tbSolve(p);
+    if(Math.abs(s.W[0]-s.W[1])<0.1*Math.min(...s.W)) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function tbSolve(p){
+  const a=p.al*Math.PI/180,b=p.be*Math.PI/180,D=Math.sin(a+b);
+  const k=[Math.cos(b)/D,Math.cos(a)/D];                    // P_AB/W and P_AC/W
+  const cap=p.A.map((A,i)=>p.sw[i]*A/(p.us?1:1000));          // kips (ksi·in.²), or kN (MPa·mm² = N)
+  const W=cap.map((c,i)=>c/k[i]),Ws=Math.min(...W);
+  return {k,cap,W,Ws,gov:W[0]<W[1]?"AB":"AC"};
+}
+function tbFigure(p){
+  const Ax=380,Ay=205,Lp=165,a=p.al*Math.PI/180,b=p.be*Math.PI/180;
+  const Bx=Ax-Lp*Math.cos(a),By=Ay-Lp*Math.sin(a),Cx=Ax+Lp*Math.cos(b),Cy=Ay-Lp*Math.sin(b);
+  const arc=(cx,cy,ang,left)=>{const r=34,x2=cx+(left?-1:1)*r*Math.cos(ang),y2=cy+r*Math.sin(ang);
+    return LN(cx,cy,cx+(left?-1:1)*(r+14),cy,{c:C.dim,w:1,d:"3 3"})+`<path d="M ${cx+(left?-r:r)} ${cy} A ${r} ${r} 0 0 ${left?0:1} ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="${C.dim}" stroke-width="1.2"/>`};
+  const wl=(cx,cy,ang,left)=>{const r=56;return [cx+(left?-1:1)*r*Math.cos(ang/2),cy+r*Math.sin(ang/2)+5]};
+  const [al_x,al_y]=wl(Bx,By,a,false),[be_x,be_y]=wl(Cx,Cy,b,true);
+  let s=HATCH(Bx-22,By-24,44,24)+HATCH(Cx-22,Cy-24,44,24)
+   +LN(Bx,By,Ax,Ay,{w:6,cap:1})+LN(Cx,Cy,Ax,Ay,{w:6,cap:1})+CI(Bx,By,5)+CI(Cx,Cy,5)+CI(Ax,Ay,6,{f:"#fff"})
+   +arc(Bx,By,a,false)+arc(Cx,Cy,b,true)
+   +TX(al_x+4,al_y,"α",{s:15,i:1,c:C.dim})+TX(be_x-4,be_y,"β",{s:15,i:1,c:C.dim})
+   +AR(Ax,Ay,Ax,Ay+70)+TX(Ax+16,Ay+60,"W",{s:16,i:1,c:C.load,a:"start"})
+   +TX(Bx-30,By+5,"B",{s:15,i:1,a:"end"})+TX(Cx+30,Cy+5,"C",{s:15,i:1,a:"start"})+TX(Ax-14,Ay+22,"A",{s:15,i:1,a:"end"})
+   +TX((Bx+Ax)/2-6,(By+Ay)/2+30,`AB`,{s:13,c:C.dim})+TX((Cx+Ax)/2+6,(Cy+Ay)/2+30,`AC`,{s:13,c:C.dim});
+  return SVG(760,290,s);
+}
+function tbStatement(p){
+  const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Wu=p.us?"kips":"kN";
+  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. The cross-sectional areas are ${fmt(p.A[0],p.us?1:0)} ${u} (${iv("AB")}) and ${fmt(p.A[1],p.us?1:0)} ${u} (${iv("AC")}); the working stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
+  <p>Express the bar forces as multiples of ${iv("W")}, then find the largest weight each bar can carry and the largest weight that can be hung safely.</p>`;
+}
+function tbSolution(p,s){
+  const Wu=p.us?"kips":"kN",Fu=p.us?"kips":"kN";
+  return `<h3>1. Equilibrium of pin A</h3><p>Both bars are two-force members; assume both in tension.</p>
+  <p class="eq">ΣF<sub>x</sub> = 0: P<sub>AC</sub> cos β − P<sub>AB</sub> cos α = 0</p><br><p class="eq">ΣF<sub>y</sub> = 0: P<sub>AB</sub> sin α + P<sub>AC</sub> sin β − W = 0</p>
+  <p>Solving, P<sub>AB</sub> = W cos β / sin(α+β) = ${sig(s.k[0],4)} W and P<sub>AC</sub> = W cos α / sin(α+β) = ${sig(s.k[1],4)} W.</p>
+  <h3>2. Weight limited by each bar</h3>
+  <p>Bar AB: P<sub>AB</sub> = σ<sub>w</sub>A = ${sig(s.cap[0])} ${Fu}, so W = ${sig(s.cap[0])}/${sig(s.k[0],4)} = ${sig(s.W[0])} ${Wu}.</p>
+  <p>Bar AC: P<sub>AC</sub> = σ<sub>w</sub>A = ${sig(s.cap[1])} ${Fu}, so W = ${sig(s.cap[1])}/${sig(s.k[1],4)} = ${sig(s.W[1])} ${Wu}.</p>
+  <h3>3. Safe weight</h3><p class="final">W<sub>safe</sub> = ${sig(s.Ws)} ${Wu}, governed by bar ${s.gov}. The larger value must be discarded because it would overstress the other bar.</p>`;
+}
+const TB={name:"Two bars supporting a weight: bar forces and safe load",
+  generate:tbGenerate,figure:tbFigure,statement:tbStatement,solution:tbSolution,
+  fields:(p,s)=>[{id:"kAB",label:"P_AB / W",unit:""},{id:"kAC",label:"P_AC / W",unit:""},
+    {id:"W1",label:"Largest W allowed by bar AB",unit:p.us?"kips":"kN"},{id:"W2",label:"Largest W allowed by bar AC",unit:p.us?"kips":"kN"},
+    {id:"Ws",label:"Largest safe W",unit:p.us?"kips":"kN"},{id:"gov",label:"Governing bar",unit:"",choices:["AB","AC"]}],
+  truth:(p,s)=>({kAB:s.k[0],kAC:s.k[1],W1:s.W[0],W2:s.W[1],Ws:s.Ws,gov:s.gov}),
+  note:"Answers within 2% are accepted."};
+
+// ===== 3. Warren truss: member stresses and required area (method of joints, solved numerically)
+function trSolve(p){
+  const n=p.n,nodes=[];
+  for(let i=0;i<=n;i++)nodes.push([i*p.a,0]);
+  for(let i=0;i<n;i++)nodes.push([(i+0.5)*p.a,p.h]);
+  const T=j=>n+1+j,mem=[];
+  for(let i=0;i<n;i++)mem.push([i,i+1]);
+  for(let i=0;i<n-1;i++)mem.push([T(i),T(i+1)]);
+  for(let i=0;i<n;i++){mem.push([i,T(i)]);mem.push([T(i),i+1])}
+  const m=mem.length,N=nodes.length,K=m+3,M=Array.from({length:2*N},()=>new Array(K+1).fill(0));
+  mem.forEach(([i,j],k)=>{const dx=nodes[j][0]-nodes[i][0],dy=nodes[j][1]-nodes[i][1],L=Math.hypot(dx,dy);
+    M[2*i][k]+=dx/L;M[2*i+1][k]+=dy/L;M[2*j][k]-=dx/L;M[2*j+1][k]-=dy/L});
+  M[0][m]=1;M[1][m+1]=1;M[2*n+1][m+2]=1;                    // pin at node 0, roller at node n
+  p.loads.forEach(([j,f])=>{M[2*j+1][K]-=-f});                // downward load f: -f in y; move to right side
+  for(let c=0;c<K;c++){let pv=c;for(let r=c+1;r<2*N;r++)if(Math.abs(M[r][c])>Math.abs(M[pv][c]))pv=r;
+    [M[c],M[pv]]=[M[pv],M[c]];for(let r=0;r<2*N;r++)if(r!==c){const f=M[r][c]/M[c][c];if(f)for(let q=c;q<=K;q++)M[r][q]-=f*M[c][q]}}
+  const x=[];for(let c=0;c<K;c++)x.push(M[c][K]/M[c][c]);
+  return {nodes,mem,F:x.slice(0,m),R:x.slice(m)};
+}
+function trGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,n=pick(r,[3,4,4]),a=pick(r,us?[6,8,10]:[3,4,5]),h=pick(r,us?[6,8,9,12]:[3,4,5]);
+    const cand=[];for(let j=1;j<n;j++)cand.push(j);const top=[];for(let j=0;j<n;j++)top.push(n+1+j);
+    const nl=pick(r,[2,3]),pickN=[...cand,...top];const chosen=new Set();while(chosen.size<nl)chosen.add(pick(r,pickN));
+    const loads=[...chosen].map(j=>[j,pick(r,us?range(5,30,5):range(20,120,10))]);
+    const p={us,n,a,h,loads,A:pick(r,us?[1.2,1.8,2.4,3.0]:[800,1000,1200,1400,1800])};
+    const sol=trSolve(p);
+    if(Math.abs(sol.R[1])<1e-9&&Math.abs(sol.R[2])<1e-9) continue;
+    const F=sol.F,mx=Math.max(...F.map(Math.abs)),m=sol.mem.length;
+    // members asked: one top chord, one bottom chord, one diagonal
+    const bot=[...Array(n).keys()],tp=[...Array(n-1).keys()].map(i=>n+i),dg=[...Array(2*n).keys()].map(i=>n+(n-1)+i);
+    const ok=a=>a.filter(i=>Math.abs(F[i])>0.12*mx);
+    const B=ok(bot),Tt=ok(tp),D=ok(dg);if(!B.length||!Tt.length||!D.length) continue;
+    const ask=[pick(r,D),pick(r,Tt),pick(r,B)];
+    const sw=[pick(r,us?[16,18,20,24]:[100,120,140,160]),0];sw[1]=Math.round(sw[0]*pick(r,[0.5,0.6,0.7])/(us?2:10))*(us?2:10);
+    if(sw[1]<=0) continue;
+    p.ask=ask;p.sw=sw;
+    const s={sol,ask,R:sol.R};
+    const Fa=ask.map(i=>F[i]);
+    s.sg=Fa.map(f=>f*1000/p.A);                              // kN or kips → MPa (SI), or ksi (US: kips/in²)
+    if(us)s.sg=Fa.map(f=>f/p.A);
+    const f0=Fa[0];s.Areq=Math.abs(f0)*(us?1:1000)/(f0>0?sw[0]:sw[1]);
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function trMemName(sol,k,p){const [i,j]=sol.mem[k];return NODES[i]+NODES[j]}
+function trFigure(p,s){
+  const sol=s.sol,n=p.n,sc=Math.min(600/(n*p.a),150/p.h),x0=100+(600-n*p.a*sc)/2,y0=230;
+  const P=([x,y])=>[x0+x*sc,y0-y*sc];let b="";
+  sol.mem.forEach(([i,j],k)=>{const [x1,y1]=P(sol.nodes[i]),[x2,y2]=P(sol.nodes[j]),hl=p.ask.includes(k);
+    b+=LN(x1,y1,x2,y2,{c:hl?C.green:C.ln,w:hl?5:3.5,cap:1})});
+  sol.nodes.forEach((nd,j)=>{const [x,y]=P(nd);b+=CI(x,y,4.5)+TX(x+15,y+(j<=n?((j===0||j===n)?42:24):-10),NODES[j],{s:14,i:1})});
+  const [ax,ay]=P(sol.nodes[0]),[bx,by]=P(sol.nodes[n]);
+  b+=`<polygon points="${ax},${ay+4} ${ax-12},${ay+22} ${ax+12},${ay+22}" fill="#eceae4" stroke="${C.ln}"/>`+CI(bx,by+12,8,{f:"#eceae4"})+LN(bx-14,by+22,bx+14,by+22);
+  p.loads.forEach(([j,f])=>{const [x,y]=P(sol.nodes[j]);const top=j>n;
+    b+=top?AR(x,y-52,x,y-5)+TX(x,y-58,`${f} ${p.us?"kips":"kN"}`,{s:13,c:C.load}):AR(x,y+6,x,y+52)+TX(x,y+70,`${f} ${p.us?"kips":"kN"}`,{s:13,c:C.load})});
+  const u=p.us?"ft":"m";
+  b+=DIMH(P(sol.nodes[0])[0],P(sol.nodes[1])[0],y0+96,`${p.a} ${u}`)+DIMV(x0-26,y0,y0-p.h*sc,`${p.h} ${u}`,{left:1});
+  return SVG(760,350,b);
+}
+function trStatement(p,s){
+  const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
+  const nm=k=>trMemName(s.sol,k,p),ld=p.loads.map(([j,f])=>`${f} ${Fu} at ${iv(NODES[j])}`).join(", ");
+  return `<p>The Warren truss shown has ${p.n} equal panels, each ${p.a} ${p.us?"ft":"m"} wide, and a height of ${p.h} ${p.us?"ft":"m"}. It is pinned at ${iv("A")} and supported by a roller at ${iv(NODES[p.n])}. Downward loads act at the joints: ${ld}. All members have the cross-sectional area ${fmt(p.A,p.us?1:0)} ${u}; member weights are neglected.</p>
+  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the working stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
+}
+function trSolution(p,s){
+  const sol=s.sol,Fu=p.us?"kips":"kN",su=p.us?"ksi":"MPa";
+  let h=`<h3>1. Reactions</h3><p>From the equilibrium of the whole truss: A<sub>x</sub> = ${sig(sol.R[0])} ${Fu}, A<sub>y</sub> = ${sig(sol.R[1])} ${Fu}, and the roller reaction at ${NODES[p.n]} is ${sig(sol.R[2])} ${Fu}.</p>
+  <h3>2. Member forces (method of joints, tension positive)</h3><table><tr><th>Member</th><th>Force (${Fu})</th><th></th></tr>`;
+  sol.mem.forEach((_,k)=>{h+=`<tr><td>${trMemName(sol,k,p)}</td><td>${sig(sol.F[k])}</td><td>${Math.abs(sol.F[k])<1e-6?"zero":sol.F[k]>0?"T":"C"}</td></tr>`});
+  h+=`</table><p class="note">Any member can also be found directly with the method of sections: cut through the member and two others, and take moments about the intersection of those two.</p><h3>3. Stresses in the highlighted members</h3><p>σ = N/A with A = ${fmt(p.A,p.us?1:0)} ${p.us?"in.²":"mm²"}.</p><table><tr><th>Member</th><th>N (${Fu})</th><th>σ (${su})</th></tr>`;
+  p.ask.forEach((k,i)=>{h+=`<tr><td>${trMemName(sol,k,p)}</td><td>${sig(sol.F[k])}</td><td>${sig(s.sg[i])}</td></tr>`});
+  const f0=sol.F[p.ask[0]];
+  h+=`</table><h3>4. Required area of member ${trMemName(sol,p.ask[0],p)}</h3><p>The member is in ${f0>0?"tension":"compression"}, so σ<sub>w</sub> = ${f0>0?p.sw[0]:p.sw[1]} ${su} governs: A = |N|/σ<sub>w</sub> = <span class="final">${sig(s.Areq)} ${p.us?"in.²":"mm²"}</span>.</p>`;
+  return h;
+}
+const TR={name:"Warren truss: member stresses by joints or sections",
+  generate:trGenerate,figure:trFigure,statement:trStatement,solution:trSolution,
+  fields:(p,s)=>[...p.ask.map((k,i)=>({id:"s"+i,label:`Stress in member ${trMemName(s.sol,k,p)} (signed, tension +)`,unit:p.us?"ksi":"MPa",signed:true})),
+    {id:"A",label:`Smallest area of member ${trMemName(s.sol,p.ask[0],p)}`,unit:p.us?"in.²":"mm²"},
+    {id:"Ry",label:`Vertical reaction at ${NODES[p.n]}`,unit:p.us?"kips":"kN"}],
+  truth:(p,s)=>({s0:s.sg[0],s1:s.sg[1],s2:s.sg[2],A:s.Areq,Ry:s.R[2]}),
+  note:"Enter signed stresses; tension is positive."};
+
+// ===== Chapter 3 helpers. Base units: SI N, mm, MPa (torque N·mm); US lb, in., psi (torque lb·in.)
+const TU=us=>us?{T:"lb·ft",tf:1/12,S:"ksi",sf:1/1000,L:"in.",Lb:"ft",lb:12,G:"× 10⁶ psi",Gf:1e-6}
+               :{T:"N·m",tf:1/1000,S:"MPa",sf:1,L:"mm",Lb:"m",lb:1000,G:"GPa",Gf:1/1000};
+const GM={steel:[80000,12e6],aluminum:[28000,4e6],bronze:[35000,6e6],copper:[47000,6.8e6]};
+const Gm=(m,us)=>GM[m][us?1:0];
+const Gstr=(m,us)=>`G = ${fmt(Gm(m,us)*TU(us).Gf,us?1:0)} ${TU(us).G}`.replace(".0 "," ");
+const Jc=(d,di=0)=>Math.PI*(d**4-di**4)/32;
+const deg=r=>r*180/Math.PI;
+const tq=(v,us)=>sig(v*TU(us).tf,3), st=(v,us)=>sig(v*TU(us).sf,3), lb_=(v,us)=>sig(v/TU(us).lb,3);
+const GFILL={steel:"#dfe4ea",aluminum:"#eef1f4",bronze:"#ecd3a6",copper:"#e9b996",wood:"#f2d9b0"};
+// shaft segment as a cylinder seen from the side
+const CYL=(x1,x2,yc,r,f="#dfe4ea")=>`<path d="M${x1},${yc-r} L${x2},${yc-r} A${r*0.28},${r} 0 0 1 ${x2},${yc+r} L${x1},${yc+r}" fill="${f}" stroke="${C.steelln}" stroke-width="1.5"/>`+`<ellipse cx="${x1}" cy="${yc}" rx="${r*0.28}" ry="${r}" fill="${f}" stroke="${C.steelln}" stroke-width="1.5"/>`;
+// torque vector (right-hand rule): double-headed arrow along the axis
+function TV(x,y,dir,lab,c=C.load){const L=56,x2=x+dir*L;const hd=xx=>`<polygon points="${xx},${y} ${xx-dir*11},${y-5} ${xx-dir*11},${y+5}" fill="${c}"/>`;
+  return LN(x,y,x2-dir*6,y,{c,w:2.2})+hd(x2)+hd(x2-dir*10)+TX(x+dir*L/2,y-10,lab,{s:13,c})}
+const WALLV=(x,y1,y2,left)=>HATCH(left?x-18:x,y1,18,y2-y1);
+
+// ===== 1. circular shaft, solid or hollow: stress and angle of twist
+function csGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=TU(us),m=pick(r,["steel","aluminum","bronze"]),hollow=r()<0.5;
+    const d=pick(r,us?[1,1.5,2,2.5,3,4,5,6]:[25,30,40,50,60,75,80,100,120,150]),di=hollow?d*pick(r,[0.5,0.6,0.7,0.75,0.8]):0;
+    const L=pick(r,us?[2,3,4,5,6,8,10]:[0.5,1,1.5,2,3,4])*u.lb,J=Jc(d,di),tt=pick(r,us?range(4000,16000,1000):range(30,110,10));
+    let T=+(tt*J/(d/2)).toPrecision(2);
+    const tmax=T*(d/2)/J,tin=hollow?T*(di/2)/J:T*(d/4)/J,th=deg(T*L/(Gm(m,us)*J));
+    if(th<0.3||th>8) continue;
+    return {p:{us,m,hollow,d,di:+di.toFixed(us?3:1),L,T},s:{J,tmax,tin,th}};
+  }
+  throw new Error("no valid problem");
+}
+function csFigure(p){
+  const u=TU(p.us),r=60,x1=170,x2=560,yc=140;
+  let b=WALLV(x1-r*0.28,yc-90,yc+90,true)+CYL(x1,x2,yc,r,GFILL[p.m]);
+  if(p.hollow)b+=`<ellipse cx="${x2}" cy="${yc}" rx="${r*0.28*p.di/p.d}" ry="${r*p.di/p.d}" fill="#fff" stroke="${C.steelln}" stroke-width="1.5"/>`;
+  b+=TV(x2+30,yc,1,`T = ${tq(p.T,p.us)} ${u.T}`)+DIMH(x1,x2,yc+r+36,`L = ${lb_(p.L,p.us)} ${u.Lb}`)
+   +TX(x2,yc-r-14,p.hollow?`outer d = ${p.d} ${u.L}, inner d = ${p.di} ${u.L}`:`d = ${p.d} ${u.L}`,{s:13,c:C.dim});
+  return SVG(760,260,b);
+}
+function csStatement(p){
+  const u=TU(p.us);
+  return `<p>A ${p.hollow?"hollow":"solid"} ${p.m} shaft of length ${lb_(p.L,p.us)} ${u.Lb}${p.hollow?` with outer diameter ${p.d} ${u.L} and inner diameter ${p.di} ${u.L}`:` and diameter ${p.d} ${u.L}`} is built into the wall at one end and carries the torque T = ${tq(p.T,p.us)} ${u.T} at the free end. Use ${Gstr(p.m,p.us)}.</p>
+  <p>Find the polar moment of inertia, the maximum shear stress, the shear stress ${p.hollow?"at the inner surface":"at half the outer radius"}, and the angle of twist of the shaft.</p>`;
+}
+function csSolution(p,s){
+  const u=TU(p.us);
+  return `<h3>1. Polar moment of inertia</h3><p class="eq">J = π(${p.hollow?`d<sub>o</sub>⁴ − d<sub>i</sub>⁴`:"d⁴"})/32 = ${sig(s.J,4)} ${u.L}⁴</p>
+  <h3>2. Shear stresses</h3><p>The shear stress varies linearly with radius, τ = Tρ/J:</p>
+  <p>τ<sub>max</sub> = T(d/2)/J = ${st(s.tmax,p.us)} ${u.S}; at ρ = ${p.hollow?"d<sub>i</sub>/2":"d/4"}, τ = ${st(s.tin,p.us)} ${u.S}.</p>
+  <h3>3. Angle of twist</h3><p class="eq">θ = TL/(GJ) = ${sig(s.th*Math.PI/180)} rad = ${sig(s.th)}°</p>`;
+}
+const CS={name:"Circular shaft (solid or hollow): shear stress and angle of twist",
+  generate:csGenerate,figure:csFigure,statement:csStatement,solution:csSolution,
+  fields:p=>{const u=TU(p.us);return [{id:"J",label:"Polar moment of inertia",unit:u.L+"⁴"},{id:"tmax",label:"Maximum shear stress",unit:u.S},
+    {id:"tin",label:p.hollow?"Shear stress at the inner surface":"Shear stress at half the outer radius",unit:u.S},{id:"th",label:"Angle of twist",unit:"degrees"}]},
+  truth:(p,s)=>({J:s.J,tmax:s.tmax*TU(p.us).sf,tin:s.tin*TU(p.us).sf,th:s.th}),note:"Answers within 2% are accepted."};
+
+// ===== 2. stepped shaft built into a wall, torques at the steps
+function shGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=TU(us),n=pick(r,[2,3,3]),d=[],L=[],M=[],T=[];
+    for(let i=0;i<n;i++){d.push(pick(r,us?[1,1.25,1.5,2,2.5,3]:[25,30,40,50,60,75]));L.push(pick(r,us?[2,3,4,5]:[0.5,0.8,1,1.2,1.5])*u.lb);
+      M.push(r()<0.7?"steel":pick(r,["aluminum","bronze"]));T.push(pick(r,us?range(200,3000,100).map(v=>v*12):range(200,4000,100).map(v=>v*1000))*pick(r,[1,-1]))}
+    const Ti=[];let c=0;for(let i=0;i<n;i++){c+=T[i];Ti.push(c)}
+    if(Ti.some(v=>Math.abs(v)<Math.abs(T[0])*0.15)) continue;
+    const tau=Ti.map((v,i)=>Math.abs(v)*16/(Math.PI*d[i]**3));
+    if(Math.max(...tau)>(us?18000:120)||Math.min(...tau)<(us?1500:10)) continue;
+    const srt=[...tau].sort((a,b)=>b-a);if(srt[1]>0.93*srt[0]) continue;
+    const ph=Ti.map((v,i)=>v*L[i]/(Gm(M[i],us)*Jc(d[i]))),phA=Math.abs(ph.reduce((a,b)=>a+b,0));
+    if(deg(phA)<0.2||deg(phA)>10) continue;
+    return {p:{us,n,d,L,M,T},s:{Ti,tau,ph,phA:deg(phA),imax:tau.indexOf(srt[0])}};
+  }
+  throw new Error("no valid problem");
+}
+function shFigure(p){
+  const u=TU(p.us),x0=110,W=520,tot=p.L.reduce((a,b)=>a+b,0),md=Math.max(...p.d),yc=150;let x=x0,b="";const xs=[x0];p.L.forEach(l=>{x+=W*l/tot;xs.push(x)});
+  b+=WALLV(xs[p.n]+4,yc-90,yc+90,false);
+  for(let i=p.n-1;i>=0;i--){const rr=22+38*p.d[i]/md;b+=CYL(xs[i],xs[i+1],yc,rr,GFILL[p.M[i]])+TX((xs[i]+xs[i+1])/2,yc+5,`${p.d[i]} ${u.L}`,{s:12})
+    +DIMH(xs[i],xs[i+1],yc+90,`${lb_(p.L[i],p.us)} ${u.Lb}`)}
+  p.T.forEach((t,i)=>{b+=TV(xs[i],yc-82-(i%2)*0,t>0?1:-1,`${tq(Math.abs(t),p.us)} ${u.T}`)+LN(xs[i],yc-76,xs[i],yc-60,{c:C.dim,w:1,d:"2 2"})+TX(xs[i],yc+70,NODES[i],{s:15,i:1})});
+  b+=TX(xs[p.n]-10,yc+70,NODES[p.n],{s:15,i:1});
+  return SVG(760,270,b);
+}
+function shStatement(p){
+  const u=TU(p.us),mats=[...new Set(p.M)].map(m=>`${Gstr(m,p.us)} for ${m}`).join(", ");
+  const Ts=p.T.map((t,i)=>`${tq(Math.abs(t),p.us)} ${u.T} at ${iv(NODES[i])}`).join(", ");
+  return `<p>The solid shaft ${NODES[0]}${NODES[p.n]} is built into the wall at ${iv(NODES[p.n])}. Its ${p.n} segments have the diameters and lengths shown${new Set(p.M).size>1?"; segment materials are "+p.M.map((m,i)=>`${sbSeg(i)} ${m}`).join(", "):", and all segments are "+p.M[0]}. The torques ${Ts} act in the senses shown by the torque vectors (right-hand rule). Use ${mats}.</p>
+  <p>Find the maximum shear stress in each segment, the segment with the largest stress, and the angle of rotation of end ${iv("A")}.</p>`;
+}
+function shSolution(p,s){
+  const u=TU(p.us);let h=`<h3>1. Internal torques</h3><p>A free-body diagram of the part of the shaft to the left of a cut in each segment gives the internal torque as the sum of the applied torques on that part (vectors pointing right taken positive):</p><table><tr><th>Segment</th><th>T (${u.T})</th><th>d (${u.L})</th><th>τ<sub>max</sub> = 16|T|/(πd³) (${u.S})</th><th>θ = TL/(GJ) (rad)</th></tr>`;
+  s.Ti.forEach((t,i)=>{h+=`<tr><td>${sbSeg(i)}</td><td>${tq(t,p.us)}</td><td>${p.d[i]}</td><td>${st(s.tau[i],p.us)}</td><td>${sig(s.ph[i])}</td></tr>`});
+  return h+`</table><p>Largest stress: segment ${sbSeg(s.imax)}.</p><h3>2. Rotation of A</h3><p>The wall end does not rotate, so the rotation of A is the sum of the segment twists with their signs:</p><p class="final">|φ<sub>A</sub>| = ${sig(s.phA)}°</p>`;
+}
+const SH={name:"Stepped shaft with several torques: stresses and rotation of the free end",
+  generate:shGenerate,figure:shFigure,statement:shStatement,solution:shSolution,
+  fields:p=>[...p.d.map((_,i)=>({id:"t"+i,label:`Maximum shear stress in ${sbSeg(i)}`,unit:TU(p.us).S})),{id:"imax",label:"Segment with the largest stress",unit:"",choices:p.d.map((_,i)=>sbSeg(i))},{id:"ph",label:"Angle of rotation of A (magnitude)",unit:"degrees"}],
+  truth:(p,s)=>{const o={imax:sbSeg(s.imax),ph:s.phA};s.tau.forEach((v,i)=>o["t"+i]=v*TU(p.us).sf);return o},note:"Answers within 2% are accepted."};
+
+// ===== 3. gears on a rotating shaft: power, stress, relative rotation
+function gpGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=TU(us),n=pick(r,[3,4]),inp=pick(r,[...Array(n).keys()]);
+    const Pw=[];for(let i=0;i<n;i++)if(i!==inp)Pw[i]=pick(r,us?range(10,80,5):range(5,60,5));
+    Pw[inp]=-Pw.reduce((a,b)=>a+(b||0),0);
+    const freq=us?pick(r,[300,450,600,900,1200]):pick(r,[2,3,4,5,8,10]);   // rpm or Hz
+    const Tg=Pw.map(P=>us?-P*63025/freq:-P*1e6/(2*Math.PI*freq));      // lb·in. or N·mm; input torque negative of outputs
+    const d=pick(r,us?[1.5,2,2.5,3]:[40,50,60,75,80]),L=[];for(let i=0;i<n-1;i++)L.push(pick(r,us?[2,3,4,5]:[0.5,0.8,1,1.2,1.5])*u.lb);
+    const Ti=[];let c=0;for(let i=0;i<n-1;i++){c+=Tg[i];Ti.push(c)}
+    const Tm=Math.max(...Ti.map(Math.abs)),tmax=16*Tm/(Math.PI*d**3);
+    if(tmax>(us?16000:110)||tmax<(us?2000:15)) continue;
+    const G=Gm("steel",us),ph=Ti.reduce((a,t,i)=>a+t*L[i]/(G*Jc(d)),0);if(deg(Math.abs(ph))<0.1) continue;
+    const tw=pick(r,us?[6000,8000,10000,12000]:[40,50,60,70]),dmin=Math.cbrt(16*Tm/(Math.PI*tw));
+    return {p:{us,n,inp,Pw,freq,d,L,tw},s:{Tg,Ti,Tm,tmax,ph:deg(Math.abs(ph)),dmin}};
+  }
+  throw new Error("no valid problem");
+}
+function gpFigure(p){
+  const u=TU(p.us),x0=120,W=520,tot=p.L.reduce((a,b)=>a+b,0),yc=150;let x=x0;const xs=[x0];p.L.forEach(l=>{x+=W*l/tot;xs.push(x)});
+  let b=CYL(x0-30,xs[p.n-1]+30,yc,14,GFILL.steel);
+  xs.forEach((X,i)=>{b+=RC(X-9,yc-62,18,124,{f:i===p.inp?"#cde1cd":"#c9ced6",c:C.steelln})+TX(X,yc+92,NODES[i],{s:15,i:1})
+    +TX(X,yc-74,`${Math.abs(p.Pw[i])} ${p.us?"hp":"kW"} ${i===p.inp?"in":"out"}`,{s:12,c:i===p.inp?C.green:C.load})});
+  for(let i=0;i<p.n-1;i++)b+=DIMH(xs[i],xs[i+1],yc+116,`${lb_(p.L[i],p.us)} ${u.Lb}`);
+  b+=TX(380,24,`shaft diameter ${p.d} ${u.L}, ${p.us?p.freq+" rev/min":p.freq+" Hz"}`,{s:13,c:C.dim});
+  return SVG(760,300,b);
+}
+function gpStatement(p){
+  const u=TU(p.us),ps=p.Pw.map((P,i)=>i===p.inp?null:`${P} ${p.us?"hp":"kW"} at ${iv(NODES[i])}`).filter(Boolean).join(", ");
+  return `<p>Gears ${NODES.slice(0,p.n).split("").map(iv).join(", ")} are attached to a solid steel shaft of diameter ${p.d} ${u.L} that rotates at ${p.us?p.freq+" rev/min":p.freq+" Hz"}. Gear ${iv(NODES[p.inp])} receives ${Math.abs(p.Pw[p.inp])} ${p.us?"hp":"kW"} from a motor, and the power is taken off at the other gears: ${ps}. The spacing of the gears is shown. Use ${Gstr("steel",p.us)} and neglect friction in the bearings.</p>
+  <p>Find the maximum shear stress in the shaft and the angle of rotation of gear ${iv("A")} relative to gear ${iv(NODES[p.n-1])}. Then find the smallest diameter for a working shear stress of ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}.</p>`;
+}
+function gpSolution(p,s){
+  const u=TU(p.us);let h=`<h3>1. Gear torques</h3><p>${p.us?"T (lb·in.) = 63 025 P(hp)/n(rev/min)":"T = P/(2πf)"}. ${p.Pw.map((P,i)=>`T<sub>${NODES[i]}</sub> = ${tq(Math.abs(s.Tg[i]),p.us)} ${u.T}`).join(", ")}; the input torque balances the outputs.</p>
+  <h3>2. Internal torques and stresses</h3><table><tr><th>Segment</th><th>|T| (${u.T})</th><th>τ<sub>max</sub> (${u.S})</th></tr>`;
+  s.Ti.forEach((t,i)=>{h+=`<tr><td>${sbSeg(i)}</td><td>${tq(Math.abs(t),p.us)}</td><td>${st(16*Math.abs(t)/(Math.PI*p.d**3),p.us)}</td></tr>`});
+  return h+`</table><p>Maximum: τ<sub>max</sub> = ${st(s.tmax,p.us)} ${u.S}.</p>
+  <h3>3. Rotation of A relative to ${NODES[p.n-1]}</h3><p>Sum the segment twists TL/(GJ) with their signs: |φ<sub>A/${NODES[p.n-1]}</sub>| = ${sig(s.ph)}°.</p>
+  <h3>4. Smallest diameter</h3><p class="final">d<sub>min</sub> = (16|T|<sub>max</sub>/(πτ<sub>w</sub>))<sup>1/3</sup> = ${sig(s.dmin)} ${u.L}</p>`;
+}
+const GP={name:"Gears on a rotating shaft: power, shear stress, relative rotation",
+  generate:gpGenerate,figure:gpFigure,statement:gpStatement,solution:gpSolution,
+  fields:p=>{const u=TU(p.us);return [{id:"tmax",label:"Maximum shear stress in the shaft",unit:u.S},{id:"ph",label:`Rotation of A relative to ${NODES[p.n-1]}`,unit:"degrees"},{id:"dmin",label:"Smallest diameter",unit:u.L}]},
+  truth:(p,s)=>({tmax:s.tmax*TU(p.us).sf,ph:s.ph,dmin:s.dmin}),note:"Answers within 2% are accepted."};
+
+// ===== 4. shaft design for power: strength and stiffness
+function pdGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=TU(us),m=pick(r,["steel","aluminum"]),P=pick(r,us?[5,10,15,20,30,40,50,75,100]:[5,10,15,20,30,40,50,75]),f=us?pick(r,[120,200,300,600,900,1200]):pick(r,[1,2,3,5,10,20]);
+    const T=us?P*63025/f:P*1e6/(2*Math.PI*f),tw=pick(r,us?[6000,8000,10000,12000]:[40,50,60,70]),th=pick(r,[2,3,4,6,8,10]),L=pick(r,us?[2,3,4,5,8]:[0.5,1,1.5,2,3])*u.lb;
+    const G=Gm(m,us),ds=Math.cbrt(16*T/(Math.PI*tw)),dt=Math.pow(32*T*L/(Math.PI*G*th*Math.PI/180),0.25);
+    if(Math.abs(ds/dt-1)<0.06) continue;
+    return {p:{us,m,P,f,tw,th,L},s:{T,ds,dt,d:Math.max(ds,dt),gov:ds>dt?"Shear stress":"Angle of twist"}};
+  }
+  throw new Error("no valid problem");
+}
+function pdFigure(p){
+  const u=TU(p.us);
+  let b=RC(70,95,90,90,{f:"#c9ced6",c:C.steelln})+TX(115,145,"motor",{s:13})+CYL(160,560,140,22,GFILL[p.m])+RC(560,70,22,140,{f:"#c9ced6",c:C.steelln})
+   +TX(360,90,`${p.P} ${p.us?"hp":"kW"} at ${p.us?p.f+" rev/min":p.f+" Hz"}`,{s:14,c:C.load})+DIMH(160,560,210,`twist limited to ${p.th}° in ${lb_(p.L,p.us)} ${u.Lb}`)+TX(371,145,"d = ?",{s:13});
+  return SVG(760,240,b);
+}
+function pdStatement(p){
+  const u=TU(p.us);
+  return `<p>A solid ${p.m} shaft transmits ${p.P} ${p.us?"hp":"kW"} at ${p.us?p.f+" rev/min":p.f+" Hz"}. The shear stress must not exceed ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}, and the angle of twist must not exceed ${p.th}° in a length of ${lb_(p.L,p.us)} ${u.Lb}. Use ${Gstr(p.m,p.us)}.</p>
+  <p>Find the torque, the smallest diameter for each requirement, the smallest safe diameter, and the governing requirement.</p>`;
+}
+function pdSolution(p,s){
+  const u=TU(p.us);
+  return `<h3>1. Torque</h3><p>${p.us?"T = 63 025 P/n":"T = P/(2πf)"} = ${tq(s.T,p.us)} ${u.T}.</p>
+  <h3>2. Strength</h3><p class="eq">τ<sub>w</sub> = 16T/(πd³) ⇒ d = ${sig(s.ds)} ${u.L}</p>
+  <h3>3. Stiffness</h3><p class="eq">θ = 32TL/(πd⁴G) ⇒ d = ${sig(s.dt)} ${u.L}</p><p>with θ in radians (${sig(p.th*Math.PI/180)} rad).</p>
+  <h3>4. Smallest safe diameter</h3><p class="final">d = ${sig(s.d)} ${u.L}, governed by: ${s.gov.toLowerCase()}.</p>`;
+}
+const PD={name:"Shaft design for transmitted power: strength and stiffness",
+  generate:pdGenerate,figure:pdFigure,statement:pdStatement,solution:pdSolution,
+  fields:p=>{const u=TU(p.us);return [{id:"T",label:"Torque",unit:u.T},{id:"ds",label:"Diameter for the stress limit",unit:u.L},{id:"dt",label:"Diameter for the twist limit",unit:u.L},
+    {id:"d",label:"Smallest safe diameter",unit:u.L},{id:"gov",label:"Governing requirement",unit:"",choices:["Shear stress","Angle of twist"]}]},
+  truth:(p,s)=>({T:s.T*TU(p.us).tf,ds:s.ds,dt:s.dt,d:s.d,gov:s.gov}),note:"Answers within 2% are accepted."};
+
+// ===== 5. shaft between two walls with a torque at the junction
+function iwGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=TU(us),M=[pick(r,["steel","aluminum","bronze"]),pick(r,["steel","aluminum","bronze"])];
+    const d=[pick(r,us?[1.5,2,2.5,3,4]:[30,40,50,60,75,80]),pick(r,us?[1.5,2,2.5,3,4]:[30,40,50,60,75,80])],L=[pick(r,us?[2,3,4,5,6]:[0.5,0.8,1,1.5,2])*u.lb,pick(r,us?[2,3,4,5,6]:[0.5,0.8,1,1.5,2])*u.lb];
+    const T=pick(r,us?range(500,8000,250).map(v=>v*12):range(500,8000,250).map(v=>v*1000));
+    const k1=Gm(M[0],us)*Jc(d[0])/L[0],k2=Gm(M[1],us)*Jc(d[1])/L[1],phB=T/(k1+k2),TA=k1*phB,TC=k2*phB;
+    const t1=16*TA/(Math.PI*d[0]**3),t2=16*TC/(Math.PI*d[1]**3);
+    if(Math.max(t1,t2)>(us?16000:110)||Math.min(t1,t2)<(us?1500:10)) continue;
+    if(M[0]===M[1]&&d[0]===d[1]&&L[0]===L[1]) continue;
+    return {p:{us,M,d,L,T},s:{k1,k2,phB:deg(phB),TA,TC,t1,t2}};
+  }
+  throw new Error("no valid problem");
+}
+function iwFigure(p){
+  const u=TU(p.us),x0=110,W=540,sc=W/(p.L[0]+p.L[1]),xB=x0+p.L[0]*sc,yc=150,md=Math.max(...p.d),rr=i=>22+38*p.d[i]/md;
+  let b=WALLV(x0,yc-90,yc+90,true)+WALLV(x0+W+6,yc-90,yc+90,false)+CYL(xB,x0+W,yc,rr(1),GFILL[p.M[1]])+CYL(x0,xB,yc,rr(0),GFILL[p.M[0]])
+   +TX((x0+xB)/2,yc+5,`${p.M[0]}, ${p.d[0]} ${u.L}`,{s:12})+TX((xB+x0+W)/2,yc+5,`${p.M[1]}, ${p.d[1]} ${u.L}`,{s:12})
+   +TV(xB,yc-84,1,`T = ${tq(p.T,p.us)} ${u.T}`)+LN(xB,yc-78,xB,yc-62,{c:C.dim,w:1,d:"2 2"})
+   +TX(x0+10,yc+76,"A",{s:15,i:1})+TX(xB,yc+76,"B",{s:15,i:1})+TX(x0+W-12,yc+76,"C",{s:15,i:1})
+   +DIMH(x0,xB,yc+100,`${lb_(p.L[0],p.us)} ${u.Lb}`)+DIMH(xB,x0+W,yc+100,`${lb_(p.L[1],p.us)} ${u.Lb}`);
+  return SVG(760,280,b);
+}
+function iwStatement(p){
+  const u=TU(p.us),mats=[...new Set(p.M)].map(m=>`${Gstr(m,p.us)} for ${m}`).join(" and ");
+  return `<p>The compound shaft ${iv("ABC")} is attached to rigid walls at ${iv("A")} and ${iv("C")}. Segment ${iv("AB")} is a solid ${p.M[0]} shaft of diameter ${p.d[0]} ${u.L}, and segment ${iv("BC")} is a solid ${p.M[1]} shaft of diameter ${p.d[1]} ${u.L}; lengths are shown. The torque T = ${tq(p.T,p.us)} ${u.T} is applied at the junction ${iv("B")}. Use ${mats}.</p>
+  <p>Find the reactive torques at ${iv("A")} and ${iv("C")}, the maximum shear stress in each segment, and the angle of rotation of ${iv("B")}.</p>`;
+}
+function iwSolution(p,s){
+  const u=TU(p.us);
+  return `<h3>1. Equilibrium</h3><p>T<sub>A</sub> + T<sub>C</sub> = T: one equation for two unknown reactive torques.</p>
+  <h3>2. Compatibility</h3><p>Both segments twist through the same angle φ<sub>B</sub>, because the walls do not rotate: T<sub>A</sub>L<sub>AB</sub>/(GJ)<sub>AB</sub> = T<sub>C</sub>L<sub>BC</sub>/(GJ)<sub>BC</sub>. With k = GJ/L for each segment (k<sub>AB</sub> = ${sig(s.k1*TU(p.us).tf)}, k<sub>BC</sub> = ${sig(s.k2*TU(p.us).tf)} ${u.T}/rad):</p>
+  <p class="eq">φ<sub>B</sub> = T/(k<sub>AB</sub> + k<sub>BC</sub>) = ${sig(s.phB*Math.PI/180)} rad = ${sig(s.phB)}°</p>
+  <h3>3. Reactions and stresses</h3><p>T<sub>A</sub> = k<sub>AB</sub>φ<sub>B</sub> = ${tq(s.TA,p.us)} ${u.T}; T<sub>C</sub> = k<sub>BC</sub>φ<sub>B</sub> = ${tq(s.TC,p.us)} ${u.T}.</p>
+  <p>τ<sub>AB</sub> = 16T<sub>A</sub>/(πd<sub>AB</sub>³) = ${st(s.t1,p.us)} ${u.S}; τ<sub>BC</sub> = ${st(s.t2,p.us)} ${u.S}.</p>`;
+}
+const IW={name:"Shaft between two walls with a torque at the junction (indeterminate)",
+  generate:iwGenerate,figure:iwFigure,statement:iwStatement,solution:iwSolution,
+  fields:p=>{const u=TU(p.us);return [{id:"TA",label:"Reactive torque at A",unit:u.T},{id:"TC",label:"Reactive torque at C",unit:u.T},{id:"t1",label:"Maximum shear stress in AB",unit:u.S},{id:"t2",label:"Maximum shear stress in BC",unit:u.S},{id:"ph",label:"Rotation of B",unit:"degrees"}]},
+  truth:(p,s)=>({TA:s.TA*TU(p.us).tf,TC:s.TC*TU(p.us).tf,t1:s.t1*TU(p.us).sf,t2:s.t2*TU(p.us).sf,ph:s.phB}),note:"Answers within 2% are accepted."};
+
+// ===== 6. composite shaft: tube bonded to a solid core
+function ctGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=TU(us),pr=pick(r,[["steel","aluminum"],["steel","bronze"],["aluminum","steel"],["bronze","steel"],["copper","aluminum"]]);
+    const d1=pick(r,us?[1,1.5,2,2.5]:[25,30,40,50,60]),d2=+(d1*pick(r,[1.25,1.4,1.5,1.6,2])).toFixed(us?3:1),L=pick(r,us?[3,4,5,6,8]:[1,1.5,2,2.5])*u.lb;
+    const k1=Gm(pr[0],us)*Jc(d1),k2=Gm(pr[1],us)*Jc(d2,d1),T=pick(r,us?range(500,10000,250).map(v=>v*12):range(200,8000,100).map(v=>v*1000));
+    const th=T/(k1+k2),t1=Gm(pr[0],us)*th*d1/2,t2=Gm(pr[1],us)*th*d2/2;
+    const w=[pick(r,us?[8000,10000,12000,14000]:[50,60,70,80,100]),pick(r,us?[6000,8000,10000]:[40,50,60,70])];
+    if(t1>0.95*w[0]||t2>0.95*w[1]||Math.min(t1/w[0],t2/w[1])<0.2) continue;
+    const Ta=T*w[0]/t1,Tb=T*w[1]/t2;if(Math.abs(Ta/Tb-1)<0.1) continue;
+    return {p:{us,pr,d1,d2,L,T,w},s:{k1,k2,t1,t2,th:deg(th*L),Ta,Tb,Tm:Math.min(Ta,Tb),gov:Ta<Tb?"Core":"Tube"}};
+  }
+  throw new Error("no valid problem");
+}
+function ctFigure(p){
+  const u=TU(p.us),x0=160,x1=520,yc=140,R=70,ri=R*p.d1/p.d2;
+  let b=WALLV(x0-R*0.28,yc-100,yc+100,true)+CYL(x0,x1,yc,R,GFILL[p.pr[1]])+`<ellipse cx="${x1}" cy="${yc}" rx="${ri*0.28}" ry="${ri}" fill="${GFILL[p.pr[0]]}" stroke="${C.steelln}" stroke-width="1.5"/>`
+   +LN(x0,yc-ri,x1,yc-ri,{c:C.steelln,w:1,d:"5 4"})+LN(x0,yc+ri,x1,yc+ri,{c:C.steelln,w:1,d:"5 4"})
+   +TV(x1+36,yc,1,`T = ${tq(p.T,p.us)} ${u.T}`)+DIMH(x0,x1,yc+R+34,`L = ${lb_(p.L,p.us)} ${u.Lb}`)
+   +TX(x1+30,yc+R+4,`${p.pr[1]} tube, outer d = ${p.d2} ${u.L}`,{s:12,c:C.dim,a:"start"})+TX(x1+30,yc+R+20,`${p.pr[0]} core, d = ${p.d1} ${u.L}`,{s:12,c:C.dim,a:"start"});
+  return SVG(760,270,b);
+}
+function ctStatement(p){
+  const u=TU(p.us);
+  return `<p>A composite shaft is made by bonding a ${p.pr[1]} tube of outer diameter ${p.d2} ${u.L} to a solid ${p.pr[0]} core of diameter ${p.d1} ${u.L}. The shaft is ${lb_(p.L,p.us)} ${u.Lb} long, is built in at one end, and carries the torque T = ${tq(p.T,p.us)} ${u.T} at the other end. Use ${Gstr(p.pr[0],p.us)} for ${p.pr[0]} and ${Gstr(p.pr[1],p.us)} for ${p.pr[1]}.</p>
+  <p>Find the maximum shear stress in the core and in the tube and the angle of twist. Then find the largest safe torque if the working shear stresses are ${p.us?fmt(p.w[0])+" psi":p.w[0]+" MPa"} for the core and ${p.us?fmt(p.w[1])+" psi":p.w[1]+" MPa"} for the tube.</p>`;
+}
+function ctSolution(p,s){
+  const u=TU(p.us),f=TU(p.us).sf;
+  return `<h3>1. Equilibrium and compatibility</h3><p>T<sub>core</sub> + T<sub>tube</sub> = T, and the bond forces both parts to twist through the same angle, so each part carries torque in proportion to its GJ.</p>
+  <p>(GJ)<sub>core</sub> = ${sig(s.k1)} and (GJ)<sub>tube</sub> = ${sig(s.k2)} ${p.us?"lb·in.²":"N·mm²"}. The twist per unit length is θ′ = T/(ΣGJ).</p>
+  <h3>2. Stresses</h3><p>τ = Gθ′ρ: core at ρ = d<sub>core</sub>/2: τ = ${st(s.t1,p.us)} ${u.S}; tube at ρ = d<sub>o</sub>/2: τ = ${st(s.t2,p.us)} ${u.S}. The stress jumps at the interface because G changes.</p>
+  <h3>3. Angle of twist</h3><p class="eq">θ = TL/(ΣGJ) = ${sig(s.th)}°</p>
+  <h3>4. Safe torque</h3><p>Stresses are proportional to T. Core limit: T = ${tq(s.Ta,p.us)} ${u.T}. Tube limit: T = ${tq(s.Tb,p.us)} ${u.T}.</p><p class="final">T<sub>max</sub> = ${tq(s.Tm,p.us)} ${u.T}, governed by the ${s.gov.toLowerCase()}.</p>`;
+}
+const CT={name:"Composite shaft: tube bonded to a solid core (indeterminate)",
+  generate:ctGenerate,figure:ctFigure,statement:ctStatement,solution:ctSolution,
+  fields:p=>{const u=TU(p.us);return [{id:"t1",label:"Maximum shear stress in the core",unit:u.S},{id:"t2",label:"Maximum shear stress in the tube",unit:u.S},{id:"th",label:"Angle of twist",unit:"degrees"},
+    {id:"Tm",label:"Largest safe torque",unit:u.T},{id:"gov",label:"Governing part",unit:"",choices:["Core","Tube"]}]},
+  truth:(p,s)=>({t1:s.t1*TU(p.us).sf,t2:s.t2*TU(p.us).sf,th:s.th,Tm:s.Tm*TU(p.us).tf,gov:s.gov}),note:"Answers within 2% are accepted."};
+
+// ===== 7. thin-walled rectangular tube
+function twGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=TU(us),m=pick(r,["steel","aluminum"]),B=pick(r,us?[3,4,5,6,8]:[60,80,100,120,150]),H=pick(r,us?[2,3,4,5,6]:[40,50,60,80,100]);
+    const t1=pick(r,us?[0.125,0.1875,0.25,0.375]:[2,3,4,5,6]),t2=pick(r,us?[0.125,0.1875,0.25,0.375]:[2,3,4,5,6]);
+    if(t1===t2&&r()<0.6) continue;
+    const L=pick(r,us?[3,4,5,6,8]:[1,1.5,2,2.5,3])*u.lb,b=B-t2,h=H-t1,A0=b*h,Sot=2*b/t1+2*h/t2;
+    if(Math.max(t1,t2)>0.1*Math.min(B,H)) continue;
+    const tw=pick(r,us?[6000,8000,10000,12000]:[40,50,60,70,80]),T=+(2*A0*Math.min(t1,t2)*tw*pick(r,[0.4,0.5,0.6,0.7])).toPrecision(2);
+    const q=T/(2*A0),G=Gm(m,us),th=deg(T*L*Sot/(4*A0*A0*G));if(th<0.1||th>8) continue;
+    return {p:{us,m,B,H,t1,t2,L,T,tw},s:{b,h,A0,Sot,q,tau1:q/t1,tau2:q/t2,th,Tw:2*A0*Math.min(t1,t2)*tw}};
+  }
+  throw new Error("no valid problem");
+}
+function twFigure(p){
+  const u=TU(p.us),k=Math.min(360/p.B,200/p.H),W=p.B*k,Hh=p.H*k,x0=200,y0=40,a=Math.max(5,p.t2*k),c=Math.max(5,p.t1*k);
+  let b=`<path d="M${x0},${y0} h${W} v${Hh} h${-W} Z M${x0+a},${y0+c} v${Hh-2*c} h${W-2*a} v${-(Hh-2*c)} Z" fill="${GFILL[p.m]}" fill-rule="evenodd" stroke="${C.steelln}" stroke-width="1.5"/>`
+   +`<rect x="${x0+a/2}" y="${y0+c/2}" width="${W-a}" height="${Hh-c}" fill="none" stroke="${C.green}" stroke-width="1" stroke-dasharray="5 4"/>`
+   +DIMH(x0,x0+W,y0+Hh+28,`${p.B} ${u.L}`)+DIMV(x0-30,y0,y0+Hh,`${p.H} ${u.L}`,{left:1})
+   +TX(x0+W/2,y0+c+20,`t = ${dstr(p.t1)} ${u.L} (top and bottom)`,{s:12,c:C.dim})+TX(x0+W+14,y0+Hh/2+4,`t = ${dstr(p.t2)} ${u.L} (sides)`,{s:12,c:C.dim,a:"start"})
+   +TX(x0+W/2,y0+Hh+70,"Outer dimensions shown; dashed line is the median line of the wall.",{s:12,c:C.dim});
+  return SVG(760,y0+Hh+90,b);
+}
+function twStatement(p){
+  const u=TU(p.us);
+  return `<p>A ${p.m} tube of length ${lb_(p.L,p.us)} ${u.Lb} has the thin-walled rectangular cross section shown: outer dimensions ${p.B} × ${p.H} ${u.L}, wall thickness ${dstr(p.t1)} ${u.L} in the top and bottom walls and ${dstr(p.t2)} ${u.L} in the side walls. It carries the torque T = ${tq(p.T,p.us)} ${u.T}. Use ${Gstr(p.m,p.us)} and neglect stress concentrations at the corners.</p>
+  <p>Find the area enclosed by the median line, the shear flow, the shear stress in the top and bottom walls and in the side walls, and the angle of twist. Then find the largest torque for a working shear stress of ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}.</p>`;
+}
+function twSolution(p,s){
+  const u=TU(p.us);
+  return `<h3>1. Median line</h3><p>The median line measures (B − t<sub>side</sub>) × (H − t<sub>top</sub>) = ${sig(s.b,4)} × ${sig(s.h,4)} ${u.L}, so A₀ = ${sig(s.A0,4)} ${u.L}².</p>
+  <h3>2. Shear flow and stresses</h3><p class="eq">q = T/(2A₀) = ${sig(s.q*(p.us?1:1))} ${p.us?"lb/in.":"N/mm"}</p><p>τ = q/t: top and bottom walls τ = ${st(s.tau1,p.us)} ${u.S}; side walls τ = ${st(s.tau2,p.us)} ${u.S}. The largest stress is in the thinnest wall.</p>
+  <h3>3. Angle of twist</h3><p class="eq">θ = (TL/(4A₀²G)) ∮ds/t, ∮ds/t = 2(${sig(s.b,4)})/t<sub>top</sub> + 2(${sig(s.h,4)})/t<sub>side</sub> = ${sig(s.Sot,4)}</p><p>θ = ${sig(s.th*Math.PI/180)} rad = ${sig(s.th)}°.</p>
+  <h3>4. Largest torque</h3><p class="final">T = 2A₀t<sub>min</sub>τ<sub>w</sub> = ${tq(s.Tw,p.us)} ${u.T}</p>`;
+}
+const TW={name:"Thin-walled rectangular tube: shear flow, stresses, angle of twist",
+  generate:twGenerate,figure:twFigure,statement:twStatement,solution:twSolution,
+  fields:p=>{const u=TU(p.us);return [{id:"A0",label:"Area enclosed by the median line",unit:u.L+"²"},{id:"q",label:"Shear flow",unit:p.us?"lb/in.":"N/mm"},
+    {id:"tau1",label:"Shear stress in top and bottom walls",unit:u.S},{id:"tau2",label:"Shear stress in side walls",unit:u.S},{id:"th",label:"Angle of twist",unit:"degrees"},{id:"Tw",label:"Largest torque",unit:u.T}]},
+  truth:(p,s)=>({A0:s.A0,q:s.q,tau1:s.tau1*TU(p.us).sf,tau2:s.tau2*TU(p.us).sf,th:s.th,Tw:s.Tw*TU(p.us).tf}),note:"Answers within 2% are accepted."};
+
+// ===== 8. rectangular and circular segments in series (Table 3.1 coefficients)
+const RT31=[[1.0,0.208,0.141],[1.2,0.219,0.166],[1.5,0.231,0.196],[2.0,0.246,0.229],[2.5,0.258,0.249],[3.0,0.267,0.263],[4.0,0.282,0.281],[5.0,0.291,0.291],[10.0,0.312,0.312]];
+function rsGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=TU(us),m=pick(r,["steel","aluminum","wood"]),[ab,C1,C2]=pick(r,RT31.slice(0,7));
+    const bb=pick(r,us?[0.5,0.75,1,1.25,1.5,2]:[10,15,20,25,30,40,50]),a=+(ab*bb).toFixed(3),d=pick(r,us?[0.75,1,1.25,1.5,2,2.5]:[20,25,30,40,50,60]);
+    const L=[pick(r,us?[1,1.5,2,3]:[0.3,0.5,0.6,0.8,1])*u.lb,pick(r,us?[1,1.5,2,3]:[0.3,0.5,0.6,0.8,1])*u.lb];
+    const G=m==="wood"?(us?75000:0.5*1000):Gm(m,us),tw=m==="wood"?(us?700:5):pick(r,us?[8000,10000,12000]:[50,60,70,80]);
+    const Tr=C1*a*bb*bb*tw,Tc=tw*Math.PI*d**3/16;if(Math.abs(Tr/Tc-1)<0.1) continue;
+    const T=Math.min(Tr,Tc),thr=T*L[0]/(C2*a*bb**3*G),thc=T*L[1]/(G*Jc(d)),th=deg(thr+thc);
+    if(th<0.2||th>30) continue;
+    return {p:{us,m,a,b:bb,ab,C1,C2,d,L,G,tw},s:{Tr,Tc,T,gov:Tr<Tc?"Rectangular segment":"Circular segment",th,thr:deg(thr),thc:deg(thc)}};
+  }
+  throw new Error("no valid problem");
+}
+function rsFigure(p){
+  const u=TU(p.us),x0=140,W=480,sc=W/(p.L[0]+p.L[1]),xB=x0+p.L[0]*sc,yc=140,mx=Math.max(p.a,p.d),k=110/mx,hb=p.b*k,ha=p.a*k,rr=p.d*k/2;
+  let b=WALLV(x0,yc-90,yc+90,true)+CYL(xB,x0+W,yc,rr,GFILL[p.m])
+   +`<polygon points="${x0},${yc-ha/2} ${xB},${yc-ha/2} ${xB},${yc+ha/2} ${x0},${yc+ha/2}" fill="${GFILL[p.m]}" stroke="${C.steelln}" stroke-width="1.5"/>`
+   +`<polygon points="${x0},${yc-ha/2} ${x0+hb*0.5},${yc-ha/2-hb*0.35} ${xB+hb*0.5},${yc-ha/2-hb*0.35} ${xB},${yc-ha/2}" fill="#f4f5f2" stroke="${C.steelln}" stroke-width="1.5"/>`
+   +TV(x0+W+30,yc,1,"T")+TX((x0+xB)/2,yc+5,`${p.a} × ${p.b} ${u.L}`,{s:12})+TX((xB+x0+W)/2,yc+5,`d = ${p.d} ${u.L}`,{s:12})
+   +DIMH(x0,xB,yc+90,`${lb_(p.L[0],p.us)} ${u.Lb}`)+DIMH(xB,x0+W,yc+90,`${lb_(p.L[1],p.us)} ${u.Lb}`);
+  return SVG(760,260,b);
+}
+function rsStatement(p){
+  const u=TU(p.us),Gs=p.m==="wood"?(p.us?"G = 75 000 psi":"G = 0.5 GPa"):Gstr(p.m,p.us),ws=p.us?fmt(p.tw)+" psi":p.tw+" MPa";
+  return `<p>A ${p.m} bar built into a wall consists of two segments: a rectangular segment with cross section ${p.a} × ${p.b} ${u.L} and a circular segment of diameter ${p.d} ${u.L}, with the lengths shown. A torque T is applied at the free end. The working shear stress is ${ws}; use ${Gs}. For the rectangular section, τ<sub>max</sub> = T/(C₁ab²) and θ = TL/(C₂ab³G), with a ≥ b; for a/b = ${p.ab}, C₁ = ${p.C1} and C₂ = ${p.C2}.</p>
+  <p>Find the largest safe torque for each segment, the largest safe torque for the bar, the governing segment, and the angle of twist of the free end under that torque.</p>`;
+}
+function rsSolution(p,s){
+  const u=TU(p.us);
+  return `<h3>1. Largest torque for each segment</h3><p>Rectangular: T = C₁ab²τ<sub>w</sub> = ${tq(s.Tr,p.us)} ${u.T}. Circular: T = πd³τ<sub>w</sub>/16 = ${tq(s.Tc,p.us)} ${u.T}.</p>
+  <p class="final">T<sub>max</sub> = ${tq(s.T,p.us)} ${u.T}, governed by the ${s.gov.toLowerCase()}.</p>
+  <h3>2. Angle of twist</h3><p>Rectangular: θ = TL/(C₂ab³G) = ${sig(s.thr)}°. Circular: θ = TL/(GJ) = ${sig(s.thc)}°.</p><p class="final">θ = ${sig(s.th)}°</p>`;
+}
+const RS={name:"Rectangular and circular bar segments in series (Table 3.1)",
+  generate:rsGenerate,figure:rsFigure,statement:rsStatement,solution:rsSolution,
+  fields:p=>{const u=TU(p.us);return [{id:"Tr",label:"Largest torque, rectangular segment",unit:u.T},{id:"Tc",label:"Largest torque, circular segment",unit:u.T},{id:"T",label:"Largest safe torque",unit:u.T},
+    {id:"gov",label:"Governing segment",unit:"",choices:["Rectangular segment","Circular segment"]},{id:"th",label:"Angle of twist of the free end",unit:"degrees"}]},
+  truth:(p,s)=>({Tr:s.Tr*TU(p.us).tf,Tc:s.Tc*TU(p.us).tf,T:s.T*TU(p.us).tf,gov:s.gov,th:s.th}),note:"Answers within 2% are accepted."};
+
+// ===== 9. two shafts connected by gears
+function gtGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=TU(us),d=[pick(r,us?[0.75,1,1.25,1.5,2]:[20,25,30,40,50]),pick(r,us?[1,1.25,1.5,2,2.5]:[25,30,40,50,60])];
+    const L=[pick(r,us?[2,3,4,5]:[0.5,0.8,1,1.2,1.5])*u.lb,pick(r,us?[2,3,4,5]:[0.5,0.8,1,1.2,1.5])*u.lb],rB=pick(r,us?[2,3,4]:[50,75,100]),rC=rB*pick(r,[1.5,2,2.5,3]);
+    const T=pick(r,us?range(100,1500,50).map(v=>v*12):range(50,1500,50).map(v=>v*1000)),T2=T*rC/rB,G=Gm("steel",us);
+    const t1=16*T/(Math.PI*d[0]**3),t2=16*T2/(Math.PI*d[1]**3);if(Math.max(t1,t2)>(us?16000:110)||Math.min(t1,t2)<(us?2000:15)) continue;
+    const phC=T2*L[1]/(G*Jc(d[1])),phB=phC*rC/rB,phA=phB+T*L[0]/(G*Jc(d[0]));if(deg(phA)>15) continue;
+    return {p:{us,d,L,rB,rC,T},s:{T2,t1,t2,phC:deg(phC),phB:deg(phB),phA:deg(phA)}};
+  }
+  throw new Error("no valid problem");
+}
+function gtFigure(p){
+  const u=TU(p.us),k=60/p.rC,yB=95,rb=p.rB*k,rc=p.rC*k,yC=yB+rb+rc;
+  let b=CYL(150,520,yB,12)+RC(520,yB-rb,16,2*rb,{f:"#c9ced6",c:C.steelln})+RC(520,yC-rc,16,2*rc,{f:"#c9ced6",c:C.steelln})+CYL(536,700,yC,14)+WALLV(700,yC-50,yC+50,false)
+   +TV(140,yB,-1,`T = ${tq(p.T,p.us)} ${u.T}`)+TX(150,yB+34,"A",{s:15,i:1})+TX(528,yB-rb-8,"B",{s:15,i:1})+TX(528,yC+rc+18,"C",{s:15,i:1})+TX(690,yC+44,"D",{s:15,i:1})
+   +RC(330,yB+12,24,14,{f:"#eceae4",c:C.ln})+TX(342,yB+44,"bearing",{s:11,c:C.dim})
+   +DIMH(150,520,yB-48,`${lb_(p.L[0],p.us)} ${u.Lb}, d = ${p.d[0]} ${u.L}`,{up:1})+DIMH(536,700,yC+70,`${lb_(p.L[1],p.us)} ${u.Lb}, d = ${p.d[1]} ${u.L}`)
+   +TX(560,yB-rb+4,`r = ${p.rB} ${u.L}`,{s:12,c:C.dim,a:"start"})+TX(470,yC+4,`r = ${p.rC} ${u.L}`,{s:12,c:C.dim,a:"end"});
+  return SVG(760,yC+100,b);
+}
+function gtStatement(p){
+  const u=TU(p.us);
+  return `<p>The torque T = ${tq(p.T,p.us)} ${u.T} is applied at end ${iv("A")} of the solid steel shaft ${iv("AB")}, which turns freely in its bearings. Gear ${iv("B")} (radius ${p.rB} ${u.L}) meshes with gear ${iv("C")} (radius ${p.rC} ${u.L}) on the solid steel shaft ${iv("CD")}, which is built into the wall at ${iv("D")}. Shaft lengths and diameters are shown. Use ${Gstr("steel",p.us)}.</p>
+  <p>Find the maximum shear stress in each shaft and the angle of rotation of end ${iv("A")}.</p>`;
+}
+function gtSolution(p,s){
+  const u=TU(p.us);
+  return `<h3>1. Torques</h3><p>Shaft AB carries T. The tooth force between the gears is F = T/r<sub>B</sub>, so shaft CD carries T<sub>CD</sub> = F r<sub>C</sub> = T r<sub>C</sub>/r<sub>B</sub> = ${tq(s.T2,p.us)} ${u.T}.</p>
+  <h3>2. Stresses</h3><p>τ<sub>AB</sub> = 16T/(πd³) = ${st(s.t1,p.us)} ${u.S}; τ<sub>CD</sub> = ${st(s.t2,p.us)} ${u.S}.</p>
+  <h3>3. Rotations</h3><p>φ<sub>C</sub> = T<sub>CD</sub>L<sub>CD</sub>/(GJ<sub>CD</sub>) = ${sig(s.phC)}°. The gears roll on each other, so r<sub>B</sub>φ<sub>B</sub> = r<sub>C</sub>φ<sub>C</sub>: φ<sub>B</sub> = ${sig(s.phB)}°.</p>
+  <p class="eq">φ<sub>A</sub> = φ<sub>B</sub> + TL<sub>AB</sub>/(GJ<sub>AB</sub>) = ${sig(s.phA)}°</p>`;
+}
+const GT={name:"Two shafts connected by gears: stresses and rotation of the input end",
+  generate:gtGenerate,figure:gtFigure,statement:gtStatement,solution:gtSolution,
+  fields:p=>{const u=TU(p.us);return [{id:"t1",label:"Maximum shear stress in AB",unit:u.S},{id:"t2",label:"Maximum shear stress in CD",unit:u.S},{id:"phA",label:"Angle of rotation of A",unit:"degrees"}]},
+  truth:(p,s)=>({t1:s.t1*TU(p.us).sf,t2:s.t2*TU(p.us).sf,phA:s.phA}),note:"Answers within 2% are accepted."};
+
+// ===== 10. distributed torque on a cantilevered shaft
+function dtGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,u=TU(us),lin=r()<0.5,m=pick(r,["steel","aluminum"]),d=pick(r,us?[0.75,1,1.25,1.5,2]:[20,25,30,40,50]),L=pick(r,us?[3,4,5,6,8]:[1,1.5,2,2.5,3])*u.lb;
+    const t0=pick(r,us?range(20,400,20):range(50,1500,50));      // lb·in./in. or N·m/m (= N·mm/mm)
+    const T0=lin?t0*L/2:t0*L,tmax=16*T0/(Math.PI*d**3),G=Gm(m,us),J=Jc(d),th=lin?t0*L*L/(3*G*J):t0*L*L/(2*G*J);
+    if(tmax>(us?16000:110)||tmax<(us?2000:15)||deg(th)>20) continue;
+    return {p:{us,lin,m,d,L,t0},s:{T0,tmax,th:deg(th)}};
+  }
+  throw new Error("no valid problem");
+}
+function dtFigure(p){
+  const u=TU(p.us),x0=160,x1=580,yc=170;
+  let b=WALLV(x0-8,yc-80,yc+80,true)+CYL(x0,x1,yc,26,GFILL[p.m]);
+  const top=yc-44,hmax=58;
+  b+=`<polygon points="${x0},${top} ${x1},${top} ${x1},${top-hmax} ${x0},${top-(p.lin?0:hmax)}" fill="#f3d6d8" stroke="${C.load}" stroke-width="1.5"/>`;
+  for(let i=1;i<=7;i++){const x=x0+(x1-x0)*i/8;b+=`<path d="M${x-7},${yc-20} A9,26 0 1,0 ${x+7},${yc-20}" fill="none" stroke="${C.load}" stroke-width="1.4"/><polygon points="${x+7},${yc-20} ${x+2},${yc-27} ${x+11},${yc-27}" fill="${C.load}"/>`}
+  b+=TX((x0+x1)/2,yc-112,p.lin?`t = t<tspan baseline-shift="sub" font-size="10">B</tspan> x/L, t<tspan baseline-shift="sub" font-size="10">B</tspan> = ${p.t0} ${p.us?"lb·in./in.":"N·m/m"}`:`t = ${p.t0} ${p.us?"lb·in./in.":"N·m/m"} (uniform)`,{s:13,c:C.load})
+   +TX((x0+x1)/2,yc-128,"torque per unit length about the shaft axis",{s:12,c:C.dim})
+   +TX(x0+36,yc+52,"A (x = 0)",{s:14,i:1})+TX(x1,yc+52,"B (x = L)",{s:14,i:1})+DIMH(x0,x1,yc+80,`L = ${lb_(p.L,p.us)} ${u.Lb}, d = ${p.d} ${u.L}`);
+  return SVG(760,270,b);
+}
+function dtStatement(p){
+  const u=TU(p.us),tu=p.us?"lb·in./in.":"N·m/m";
+  return `<p>A solid ${p.m} shaft of diameter ${p.d} ${u.L} and length L = ${lb_(p.L,p.us)} ${u.Lb} is built into the wall at ${iv("A")} and free at ${iv("B")}. It carries a distributed torque ${p.lin?`whose intensity increases linearly from zero at ${iv("A")} to t<sub>B</sub> = ${p.t0} ${tu} at ${iv("B")}`:`of uniform intensity t = ${p.t0} ${tu}`}. Use ${Gstr(p.m,p.us)}.</p>
+  <p>Find the reactive torque at the wall, the maximum shear stress in the shaft, and the angle of rotation of the free end.</p>`;
+}
+function dtSolution(p,s){
+  const u=TU(p.us);
+  return `<h3>1. Internal torque</h3><p>The internal torque at x equals the distributed torque between x and the free end: ${p.lin?"T(x) = t<sub>B</sub>(L² − x²)/(2L)":"T(x) = t(L − x)"}. It is largest at the wall: T<sub>A</sub> = ${p.lin?"t<sub>B</sub>L/2":"tL"} = ${tq(s.T0,p.us)} ${u.T}.</p>
+  <h3>2. Maximum shear stress</h3><p class="eq">τ<sub>max</sub> = 16T<sub>A</sub>/(πd³) = ${st(s.tmax,p.us)} ${u.S}</p>
+  <h3>3. Angle of twist</h3><p class="eq">θ = ∫₀<sup>L</sup> T(x)dx/(GJ) = ${p.lin?"t<sub>B</sub>L²/(3GJ)":"tL²/(2GJ)"} = ${sig(s.th*Math.PI/180)} rad = ${sig(s.th)}°</p>`;
+}
+const DT={name:"Distributed torque on a cantilevered shaft",
+  generate:dtGenerate,figure:dtFigure,statement:dtStatement,solution:dtSolution,
+  fields:p=>{const u=TU(p.us);return [{id:"T0",label:"Reactive torque at the wall",unit:u.T},{id:"tmax",label:"Maximum shear stress",unit:u.S},{id:"th",label:"Angle of rotation of B",unit:"degrees"}]},
+  truth:(p,s)=>({T0:s.T0*TU(p.us).tf,tmax:s.tmax*TU(p.us).sf,th:s.th}),note:"Answers within 2% are accepted."};
+
+// ===== Chapter 4 beam engine
+// beam: {L, sup:{kind:"ss",xa,xb}|{kind:"fixL"}|{kind:"fixR"}|{kind:"hinge",xh,xc}, P:[{x,F}] (F down +), C:[{x,C}] (clockwise +), W:[{a,b,w1,w2}] (down +)}
+const U4=us=>us?{F:"lb",L:"ft",w:"lb/ft",M:"lb·ft"}:{F:"kN",L:"m",w:"kN/m",M:"kN·m"};
+const GQ=[[-0.7745966692414834,5/9],[0,8/9],[0.7745966692414834,5/9]];
+function wAt(d,s){return d.w1+(d.w2-d.w1)*(s-d.a)/(d.b-d.a)}
+function dFM(d,lo,hi,p){                     // force and ∫w(s)(s−p)ds of distributed load d over [lo,hi]
+  const a=Math.max(d.a,lo),b=Math.min(d.b,hi);if(b<=a)return [0,0];
+  let F=0,M=0;GQ.forEach(([t,wt])=>{const s=(a+b)/2+(b-a)/2*t,w=wAt(d,s)*wt*(b-a)/2;F+=w;M+=w*(s-p)});return [F,M]}
+function bmSolve(bm){
+  const R=[],K=[],sumF=(lo,hi)=>bm.P.filter(q=>q.x>lo&&q.x<=hi).reduce((a,q)=>a+q.F,0)+bm.W.reduce((a,d)=>a+dFM(d,lo,hi,0)[0],0);
+  const mom=(lo,hi,p)=>bm.P.filter(q=>q.x>lo&&q.x<=hi).reduce((a,q)=>a+q.F*(q.x-p),0)+bm.W.reduce((a,d)=>a+dFM(d,lo,hi,p)[1],0)+bm.C.filter(c=>c.x>lo&&c.x<=hi).reduce((a,c)=>a+c.C,0);
+  const s=bm.sup,L=bm.L,lo=-1,hi=L+1;
+  if(s.kind==="ss"){const Rb=mom(lo,hi,s.xa)/(s.xb-s.xa);R.push({x:s.xa,R:sumF(lo,hi)-Rb},{x:s.xb,R:Rb})}
+  else if(s.kind==="fixL"){R.push({x:0,R:sumF(lo,hi)});K.push({x:0,C:-mom(lo,hi,0)})}
+  else if(s.kind==="fixR"){R.push({x:L,R:sumF(lo,hi)});K.push({x:L,C:-mom(lo,hi,L)})}
+  else if(s.kind==="hinge"){const Rc=mom(s.xh,hi,s.xh)/(s.xc-s.xh);R.push({x:s.xc,R:Rc});
+    const R0=sumF(lo,hi)-Rc;R.push({x:0,R:R0});K.push({x:0,C:-(mom(lo,hi,0)-Rc*s.xc)})}
+  bm.R=R;bm.K=K;
+  bm.V=x=>R.filter(r=>r.x<x).reduce((a,r)=>a+r.R,0)-bm.P.filter(q=>q.x<x).reduce((a,q)=>a+q.F,0)-bm.W.reduce((a,d)=>a+dFM(d,-1,x,x)[0],0);
+  bm.M=x=>R.filter(r=>r.x<x).reduce((a,r)=>a+r.R*(x-r.x),0)-bm.P.filter(q=>q.x<x).reduce((a,q)=>a+q.F*(x-q.x),0)+bm.W.reduce((a,d)=>a+dFM(d,-1,x,x)[1],0)
+       +bm.C.filter(c=>c.x<x).reduce((a,c)=>a+c.C,0)+K.filter(c=>c.x<x).reduce((a,c)=>a+c.C,0);
+  const ev=new Set([0,L]);bm.P.forEach(q=>ev.add(q.x));bm.C.forEach(q=>ev.add(q.x));bm.W.forEach(d=>{ev.add(d.a);ev.add(d.b)});R.forEach(r=>ev.add(r.x));if(s.xh!==undefined)ev.add(s.xh);
+  bm.ev=[...ev].sort((a,b)=>a-b);
+  // extreme moments: event points (both sides) and zeros of V inside segments
+  const e=1e-9*L,cand=[];bm.ev.forEach(x=>{if(x>0)cand.push({x,m:bm.M(x-e)});if(x<L)cand.push({x,m:bm.M(x+e)})});
+  for(let i=0;i+1<bm.ev.length;i++){const a=bm.ev[i],b=bm.ev[i+1],N=400;let pa=a+e,va=bm.V(pa);
+    for(let k=1;k<=N;k++){const pb=a+(b-a)*k/N-(k===N?e:0),vb=bm.V(pb);
+      if(vb===0&&va!==0){cand.push({x:pb,m:bm.M(pb),z:1})}
+      else if(va*vb<0){let l=pa,h=pb;for(let it=0;it<80;it++){const m=(l+h)/2;if(bm.V(m)*va>0)l=m;else h=m}cand.push({x:(l+h)/2,m:bm.M((l+h)/2),z:1})}
+      pa=pb;va=vb}}
+  bm.cand=cand;
+  const mx=cand.reduce((a,c)=>c.m>a.m?c:a,{m:-Infinity}),mn=cand.reduce((a,c)=>c.m<a.m?c:a,{m:Infinity});
+  const msc=1e-7*Math.max(1e-9,Math.abs(mx.m),Math.abs(mn.m));bm.Mpos=mx.m>msc?mx:null;bm.Mneg=mn.m<-msc?mn:null;
+  let vm=0;bm.ev.forEach(x=>{[x-e,x+e].forEach(t=>{if(t>0&&t<L){const v=Math.abs(bm.V(t));if(v>vm)vm=v}})});bm.Vmax=vm;
+  return bm;
+}
+const fmtx=x=>Number.isInteger(x)?String(x):sig(x,3);
+// ----- drawing
+function bmDraw(bm,o={}){
+  const u=U4(bm.us),x0=90,W=560,sc=W/bm.L,X=x=>x0+x*sc,yb=bm.P.some(q=>bm.W.some(d=>q.x>=d.a&&q.x<=d.b))?186:150,th=12,mxw=Math.max(1e-9,...bm.W.map(d=>Math.max(Math.abs(d.w1),Math.abs(d.w2))));
+  let s="";const s0=bm.sup;
+  // distributed loads
+  bm.W.forEach(d=>{const h=v=>14+46*Math.abs(v)/mxw,ya=yb-th/2-6;
+    s+=`<polygon points="${X(d.a)},${ya} ${X(d.a)},${ya-h(d.w1)} ${X(d.b)},${ya-h(d.w2)} ${X(d.b)},${ya}" fill="#f3d6d8" stroke="${C.load}" stroke-width="1.2"/>`;
+    const n=Math.max(2,Math.round((d.b-d.a)*sc/28));for(let i=0;i<=n;i++){const x=d.a+(d.b-d.a)*i/n,hh=h(wAt(d,x));if(hh>16)s+=AR(X(x),ya-hh,X(x),ya,C.load,1.3)}
+    const lab=d.w1===d.w2?`${fmt(d.w1)} ${u.w}`:(d.w1===0?`${fmt(d.w2)} ${u.w}`:d.w2===0?`${fmt(d.w1)} ${u.w}`:`${fmt(d.w1)} to ${fmt(d.w2)} ${u.w}`);
+    s+=TX((X(d.a)+X(d.b))/2+(d.w1===0?20:d.w2===0?-20:0),ya-h(Math.max(d.w1,d.w2))-8,lab,{s:13,c:C.load})});
+  if(o.steps)o.steps.forEach(([a,c,h])=>{s+=RC(X(a),yb-h/2,X(c)-X(a),h,{f:"#f7e2c4",c:C.ln})});else s+=RC(X(0),yb-th/2,W,th,{f:"#f7e2c4",c:C.ln});
+  // supports
+  const pin=x=>`<polygon points="${X(x)},${yb+th/2} ${X(x)-11},${yb+th/2+18} ${X(x)+11},${yb+th/2+18}" fill="#eceae4" stroke="${C.ln}" stroke-width="1.3"/>`+HATCH(X(x)-16,yb+th/2+18,32,7);
+  const rol=x=>`<polygon points="${X(x)},${yb+th/2} ${X(x)-10},${yb+th/2+13} ${X(x)+10},${yb+th/2+13}" fill="#eceae4" stroke="${C.ln}" stroke-width="1.3"/>`+CI(X(x)-5,yb+th/2+17,4,{f:"#fff"})+CI(X(x)+5,yb+th/2+17,4,{f:"#fff"})+HATCH(X(x)-16,yb+th/2+21,32,7);
+  if(o.sups){o.sups.forEach(q=>{if(q.t==="pin")s+=pin(q.x);if(q.t==="roller")s+=rol(q.x);if(q.t==="wallL")s+=HATCH(X(0)-18,yb-50,18,100);if(q.t==="wallR")s+=HATCH(X(bm.L),yb-50,18,100);
+    if(q.t==="spring"){const x=X(q.x),y1=yb+th/2,y2=yb+th/2+60;let z=`M${x},${y1} L${x},${y1+8}`;for(let i=0;i<6;i++)z+=` L${x+(i%2?-8:8)},${y1+12+i*6}`;z+=` L${x},${y2-8} L${x},${y2}`;
+      s+=`<path d="${z}" fill="none" stroke="${C.steelln}" stroke-width="1.6"/>`+HATCH(x-16,y2,32,7)+(q.lab?TX(x+16,y1+30,q.lab,{s:12,c:C.dim,a:"start"}):"")}
+    if(q.t==="gap"){const x=X(q.x);s+=`<polygon points="${x},${yb+th/2+14} ${x-10},${yb+th/2+27} ${x+10},${yb+th/2+27}" fill="#eceae4" stroke="${C.ln}" stroke-width="1.3"/>`+HATCH(x-16,yb+th/2+27,32,7)+TX(x+16,yb+th/2+14,q.lab,{s:12,c:C.dim,a:"start"})}})}
+  else if(s0.kind==="ss")s+=pin(s0.xa)+rol(s0.xb);
+  if(s0.kind==="fixL"||s0.kind==="hinge")s+=HATCH(X(0)-18,yb-50,18,100);
+  if(s0.kind==="fixR")s+=HATCH(X(bm.L),yb-50,18,100);
+  if(s0.kind==="hinge")s+=rol(s0.xc)+CI(X(s0.xh),yb,6,{f:"#fff"});
+  // point loads and couples
+  const covered=x=>bm.W.some(d=>x>=d.a-1e-9&&x<=d.b+1e-9);
+  bm.P.forEach(q=>{const dn=q.F>0,top=covered(q.x)?112:74;s+=dn?AR(X(q.x),yb-th/2-top,X(q.x),yb-th/2-2,C.load,2.6):AR(X(q.x),yb+th/2+70,X(q.x),yb+th/2+2,C.load,2.6);
+    s+=TX(X(q.x)+(covered(q.x)?-6:6),dn?yb-th/2-top-6:yb+th/2+86,`${fmt(Math.abs(q.F))} ${u.F}`,{s:13,c:C.load,a:covered(q.x)?"end":"middle"})});
+  bm.C.forEach(c=>{const r=24,cx=X(c.x),cw=c.C>0,lab=`${fmt(Math.abs(c.C))} ${u.M}`;
+    if(!bm.W.length){const cy=yb-th/2-3,sx=cw?cx-r:cx+r,ex=cw?cx+r:cx-r;
+      s+=`<path d="M${sx},${cy} A${r},${r} 0 0,${cw?1:0} ${ex},${cy}" fill="none" stroke="${C.load}" stroke-width="2"/><polygon points="${ex},${cy+2} ${ex-5},${cy-9} ${ex+5},${cy-9}" fill="${C.load}"/>`+TX(cx,cy-r-8,lab,{s:13,c:C.load})}
+    else{const cy=yb+th/2+3,sx=cw?cx+r:cx-r,ex=cw?cx-r:cx+r;
+      s+=`<path d="M${sx},${cy} A${r},${r} 0 0,${cw?1:0} ${ex},${cy}" fill="none" stroke="${C.load}" stroke-width="2"/><polygon points="${ex},${cy-2} ${ex-5},${cy+9} ${ex+5},${cy+9}" fill="${C.load}"/>`+TX(cx+r+6,cy+r,lab,{s:13,c:C.load,a:"start"})}});
+  // labels and dimensions
+  const pts=o.labels||bmLabels(bm);
+  const hasW=t=>(o.sups||[]).some(q=>q.t===t),onSpring=x=>(o.sups||[]).some(q=>q.t==="spring"&&Math.abs(q.x-x)<1e-9),wallAt=x=>onSpring(x)?-16:(s0.kind==="fixL"||s0.kind==="hinge"||hasW("wallL"))&&x===0?14:(s0.kind==="fixR"||hasW("wallR"))&&x===bm.L?-14:0;
+  pts.forEach(([x,n])=>{s+=TX(X(x)+wallAt(x),yb+th/2+44,n,{s:14,i:1})});
+  const xs=pts.map(p=>p[0]);for(let i=0;i+1<xs.length;i++)s+=DIMH(X(xs[i]),X(xs[i+1]),yb+th/2+70,`${fmtx(xs[i+1]-xs[i])} ${u.L}`);
+  if(o.section!==undefined)s+=LN(X(o.section),yb-40,X(o.section),yb+40,{c:C.green,w:1.5,d:"5 3"})+TX(X(o.section),yb-46,"section",{s:12,c:C.green});
+  return SVG(760,yb+th/2+96,s);
+}
+function bmLabels(bm){const xs=[...new Set(bm.ev)].sort((a,b)=>a-b);return xs.map((x,i)=>[x,NODES[i]])}
+const ptName=(bm,x)=>{const l=bmLabels(bm).find(p=>Math.abs(p[0]-x)<1e-9);return l?l[1]:"x = "+fmtx(x)};
+// shear and moment diagrams
+function bmDiagram(bm,which){
+  const u=U4(bm.us),x0=90,W=560,sc=W/bm.L,X=x=>x0+x*sc,H=110,f=which==="V"?bm.V:bm.M,e=1e-9*bm.L;
+  const segs=[];for(let i=0;i+1<bm.ev.length;i++){const a=bm.ev[i],b=bm.ev[i+1],pts=[];for(let k=0;k<=60;k++){const x=a+(b-a)*k/60;pts.push([x,f(Math.min(Math.max(x,a+e),b-e))])}segs.push(pts)}
+  const all=segs.flat().map(p=>p[1]),mx=Math.max(1e-9,...all.map(Math.abs)),y0=20+H*Math.max(...all,0)/(Math.max(...all,0)-Math.min(...all,0)||1),k=H/(Math.max(...all,0)-Math.min(...all,0)||1),Y=v=>y0-v*k;
+  let s=LN(X(0),y0,X(bm.L),y0,{c:C.dim,w:1});
+  let path="M"+X(0)+","+y0;segs.forEach(pts=>{pts.forEach(([x,v])=>{path+=` L${X(x).toFixed(1)},${Y(v).toFixed(1)}`})});path+=` L${X(bm.L)},${y0} Z`;
+  s+=`<path d="${path}" fill="${which==="V"?"#dbe7f3":"#e3efe0"}" stroke="${which==="V"?"#2a5d8f":C.green}" stroke-width="1.8"/>`;
+  const labs=[];bm.ev.forEach(x=>{[x-e,x+e].forEach(t=>{if(t>0&&t<bm.L){const v=f(t);if(Math.abs(v)>mx*0.02&&!labs.some(l=>Math.abs(l.v-v)<mx*0.02&&Math.abs(l.x-x)<1e-9))labs.push({x,v})}})});
+  if(which==="M")bm.cand.filter(c=>c.z).forEach(c=>labs.push({x:c.x,v:c.m,z:1}));
+  labs.forEach(l=>{s+=CI(X(l.x),Y(l.v),2.5,{f:"#333",c:"#333"})+TX(X(l.x)+(l.z?0:4),Y(l.v)+(l.v>=0?-6:15),sig(l.v,3),{s:11,c:C.ink})});
+  bm.ev.forEach(x=>{s+=LN(X(x),12,X(x),H+30,{c:"#c8cdd4",w:.7,d:"2 3"})});
+  s+=TX(X(0)-8,y0+4,which==="V"?`V (${u.F})`:`M (${u.M})`,{s:12,c:C.dim,a:"end"});
+  return SVG(760,H+42,s);
+}
+function bmReactText(bm){const u=U4(bm.us);let t=bm.R.map(r=>`R<sub>${ptName(bm,r.x)}</sub> = ${sig(r.R,4)} ${u.F} (${r.R>=0?"up":"down"})`).join(", ");
+  if(bm.K.length)t+=`, wall moment ${sig(Math.abs(bm.K[0].C),4)} ${u.M} (${bm.K[0].C<0?"counterclockwise":"clockwise"} on the beam)`;return t}
+const SIGNNOTE="Sign convention: V is the sum of the external forces to the left of the section, upward positive; M is positive when it bends the beam concave upward (sagging).";
+
+// ===== Chapter 4 problem types
+const pos=(r,L,st,lo=st,hi=L-st)=>pick(r,range(Math.ceil(lo/st-1e-9)*st,hi,st));
+const Fv=(r,us,lo=1)=>pick(r,us?range(200,3000,100):range(5,60,5))*lo;
+const Wv=(r,us)=>pick(r,us?range(50,600,50):range(2,20,1));
+const Cv=(r,us)=>pick(r,us?range(500,6000,250):range(5,60,5));
+const Lv=(r,us,set)=>pick(r,set||(us?[6,8,9,10,12,14,16]:[3,4,5,6,8,10]));
+const sameRes=(a,b)=>Math.abs(a-b)<=0.02*Math.abs(b)+1e-9;
+const bmSol=(bm,extra="")=>`<h3>1. Reactions</h3><p>From the equilibrium of the whole beam${bm.sup.kind==="hinge"?" and, first, of the part to the right of the hinge (zero moment at the hinge)":""}: ${bmReactText(bm)}.</p>
+  <h3>2. Shear force and bending moment diagrams</h3><p class="note">${SIGNNOTE} The slope of the V diagram is −w; the slope of the M diagram is V. Concentrated forces cause jumps in V; couples cause jumps in M.</p>${bmDiagram(bm,"V")}${bmDiagram(bm,"M")}${extra}`;
+
+// ----- 1. simply supported beam with concentrated loads: V and M at a section
+function s1Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,L=Lv(r,us),n=pick(r,[2,3]),xs=new Set();while(xs.size<n)xs.add(pos(r,L,us?1:0.5));
+    const bm={us,L,sup:{kind:"ss",xa:0,xb:L},P:[...xs].sort((a,b)=>a-b).map(x=>({x,F:Fv(r,us)})),C:[],W:[]};
+    bmSolve(bm);
+    const cands=range(us?0.5:0.25,L-(us?0.5:0.25),us?0.5:0.25).filter(x=>!bm.ev.includes(x));const xs_=pick(r,cands);
+    const V=bm.V(xs_),M=bm.M(xs_);if(Math.abs(V)<0.05*bm.Vmax||M<0.1*bm.Mpos.m) continue;
+    bm.xs=xs_;return {p:bm,s:{V,M}};
+  }
+  throw new Error("no valid problem");
+}
+const S1={name:"Simply supported beam with concentrated loads: V and M at a section",generate:s1Generate,
+  figure:p=>bmDraw(p,{section:p.xs}),
+  statement:p=>{const u=U4(p.us);return `<p>The simply supported beam shown carries ${p.P.length} concentrated loads; neglect the weight of the beam.</p>
+  <p>Find the support reactions, the shear force and bending moment on the section ${fmtx(p.xs)} ${u.L} from the left end (dashed line), and the maximum bending moment and its location.</p><p class="note">${SIGNNOTE}</p>`},
+  solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Section at x = ${fmtx(p.xs)} ${u.L}</h3><p>From the free-body diagram of the part to the left of the section: V = ${sig(s.V,4)} ${u.F}, M = ${sig(s.M,4)} ${u.M}.</p>
+  <h3>4. Maximum moment</h3><p>The shear changes sign at x = ${fmtx(p.Mpos.x)} ${u.L}, where <span class="final">M<sub>max</sub> = ${sig(p.Mpos.m,4)} ${u.M}</span>.</p>`)},
+  fields:p=>{const u=U4(p.us);return [{id:"RA",label:"Reaction at the left support (up +)",unit:u.F,signed:true},{id:"RB",label:"Reaction at the right support (up +)",unit:u.F,signed:true},
+    {id:"V",label:"Shear force at the section (signed)",unit:u.F,signed:true},{id:"M",label:"Bending moment at the section (signed)",unit:u.M,signed:true},
+    {id:"Mm",label:"Maximum bending moment",unit:u.M},{id:"xm",label:"Location of the maximum moment, from the left end",unit:u.L}]},
+  truth:(p,s)=>({RA:p.R[0].R,RB:p.R[1].R,V:s.V,M:s.M,Mm:p.Mpos.m,xm:p.Mpos.x}),note:"Answers within 2% are accepted."};
+
+// ----- 2. overhanging beam with distributed and concentrated loads
+function s2Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,st=us?1:0.5,L=Lv(r,us,us?[8,10,12,14,16]:[4,5,6,8,10]);
+    const left=r()<0.35,xa=left?pos(r,L,st,st,L/3):0,xb=pos(r,L,st,Math.max(xa+L/2,L*0.55),L-st);
+    const wa=pick(r,[0,xa]),wb=pick(r,[xb,L]),W=[{a:wa,b:wb,w1:0,w2:0}];W[0].w1=W[0].w2=Wv(r,us);
+    const P=[{x:pick(r,[L,xb+(L-xb)/2,...range(st,L-st,st)]),F:Fv(r,us)}];
+    if(P[0].x===xa||P[0].x===xb) continue;
+    const bm={us,L,sup:{kind:"ss",xa,xb},P,C:[],W};bmSolve(bm);
+    if(!bm.Mpos||!bm.Mneg||bm.Mpos.m<0.15*Math.abs(bm.Mneg.m)||Math.abs(bm.Mneg.m)<0.15*bm.Mpos.m) continue;
+    if(bm.R.some(q=>q.R<=0)) continue;
+    return {p:bm,s:{}};
+  }
+  throw new Error("no valid problem");
+}
+const S2={name:"Overhanging beam with distributed and concentrated loads",generate:s2Generate,
+  figure:p=>bmDraw(p),
+  statement:p=>`<p>The overhanging beam shown is supported by a pin at ${iv(ptName(p,p.sup.xa))} and a roller at ${iv(ptName(p,p.sup.xb))}. It carries the uniformly distributed load and the concentrated load shown; neglect the weight of the beam.</p>
+  <p>Draw the shear force and bending moment diagrams by the area method. Find the reactions, the maximum shear force magnitude, the maximum positive bending moment and its location, and the maximum negative bending moment.</p><p class="note">${SIGNNOTE}</p>`,
+  solution:p=>{const u=U4(p.us);return bmSol(p,`<h3>3. Extreme values</h3><p>|V|<sub>max</sub> = ${sig(p.Vmax,4)} ${u.F}. The largest positive moment occurs where V = 0, at x = ${fmtx(p.Mpos.x)} ${u.L}: M = ${sig(p.Mpos.m,4)} ${u.M}. The largest negative moment is ${sig(p.Mneg.m,4)} ${u.M} at x = ${fmtx(p.Mneg.x)} ${u.L}.</p>`)},
+  fields:p=>{const u=U4(p.us);return [{id:"RA",label:`Reaction at ${ptName(p,p.sup.xa)} (up +)`,unit:u.F,signed:true},{id:"RB",label:`Reaction at ${ptName(p,p.sup.xb)} (up +)`,unit:u.F,signed:true},
+    {id:"Vm",label:"Maximum |V|",unit:u.F},{id:"Mp",label:"Maximum positive M",unit:u.M},{id:"xp",label:"Location of the maximum positive M, from the left end",unit:u.L},{id:"Mn",label:"Maximum negative M (signed)",unit:u.M,signed:true}]},
+  truth:p=>({RA:p.R[0].R,RB:p.R[1].R,Vm:p.Vmax,Mp:p.Mpos.m,xp:p.Mpos.x,Mn:p.Mneg.m}),note:"Answers within 2% are accepted."};
+
+// ----- 3. cantilever beam with mixed loads
+function s3Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,st=us?1:0.5,L=Lv(r,us,us?[6,8,9,10,12]:[2,3,4,5,6]),right=r()<0.5;
+    const a=pos(r,L,st,0,L-2*st),b=pos(r,L,st,a+st,L),W=[{a,b,w1:0,w2:0}];W[0].w1=W[0].w2=Wv(r,us);
+    const P=[{x:pos(r,L,st,st,L),F:Fv(r,us)*pick(r,[1,1,-1])}],C=r()<0.5?[{x:pos(r,L,st,st,L),C:Cv(r,us)*pick(r,[1,-1])}]:[];
+    if(right){P.forEach(q=>q.x=L-q.x);C.forEach(q=>q.x=L-q.x);W.forEach(d=>{const t=d.a;d.a=L-d.b;d.b=L-t});}
+    if(P.some(q=>q.x===0||q.x===L&&right)||C.some(c=>c.x===P[0].x||c.x===0||c.x===L)) continue;
+    const bm={us,L,sup:{kind:right?"fixR":"fixL"},P,C,W};bmSolve(bm);
+    const xs=pick(r,range(st/2,L-st/2,st/2).filter(x=>!bm.ev.includes(x)));
+    const V=bm.V(xs),M=bm.M(xs),Mw=right?bm.M(L-1e-9*L):bm.M(1e-9*L);
+    if(Math.abs(V)<0.05*bm.Vmax||Math.abs(M)<0.05*Math.max(Math.abs(bm.Mneg?.m||0),bm.Mpos?.m||0)||Math.abs(Mw)<1e-6) continue;
+    bm.xs=xs;const Mabs=Math.max(Math.abs(bm.Mneg?.m||0),bm.Mpos?.m||0);
+    return {p:bm,s:{V,M,Mw,Mabs}};
+  }
+  throw new Error("no valid problem");
+}
+const S3={name:"Cantilever beam: wall reactions, V and M at a section",generate:s3Generate,
+  figure:p=>bmDraw(p,{section:p.xs}),
+  statement:p=>{const u=U4(p.us);return `<p>The cantilever beam shown is built into the wall at its ${p.sup.kind==="fixR"?"right":"left"} end and carries the loads shown${p.C.length?", including a couple":""}; neglect the weight of the beam.</p>
+  <p>Find the vertical reaction at the wall, the bending moment in the beam at the wall, the shear force and bending moment on the section ${fmtx(p.xs)} ${u.L} from the left end, and the largest bending moment magnitude.</p><p class="note">${SIGNNOTE}</p>`},
+  solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Values asked</h3><p>Bending moment at the wall: M = ${sig(s.Mw,4)} ${u.M}. At x = ${fmtx(p.xs)} ${u.L}: V = ${sig(s.V,4)} ${u.F}, M = ${sig(s.M,4)} ${u.M}. Largest |M| = <span class="final">${sig(s.Mabs,4)} ${u.M}</span>.</p>`)},
+  fields:p=>{const u=U4(p.us);return [{id:"R",label:"Vertical reaction at the wall (up +)",unit:u.F,signed:true},{id:"Mw",label:"Bending moment at the wall (signed)",unit:u.M,signed:true},
+    {id:"V",label:"Shear force at the section (signed)",unit:u.F,signed:true},{id:"M",label:"Bending moment at the section (signed)",unit:u.M,signed:true},{id:"Ma",label:"Largest |M|",unit:u.M}]},
+  truth:(p,s)=>({R:p.R[0].R,Mw:s.Mw,V:s.V,M:s.M,Ma:s.Mabs}),note:"Answers within 2% are accepted."};
+
+// ----- 4. linearly varying load on a simply supported beam
+function s4Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,st=us?1:0.5,L=Lv(r,us),full=r()<0.6,a=full?0:pos(r,L,st,0,L/2),b=full?L:pos(r,L,st,a+L/3,L);
+    const w=Wv(r,us),inc=r()<0.5,W=[{a,b,w1:inc?0:w,w2:inc?w:0}],P=r()<0.5?[{x:pos(r,L,st),F:Fv(r,us)}]:[];
+    const bm={us,L,sup:{kind:"ss",xa:0,xb:L},P,C:[],W};bmSolve(bm);
+    const z=bm.cand.filter(c=>c.z);if(z.length!==1||!bm.Mpos||Math.abs(z[0].m-bm.Mpos.m)>1e-9*bm.Mpos.m) continue;
+    if(bm.ev.some(x=>Math.abs(x-z[0].x)<0.03*L)) continue;
+    return {p:bm,s:{xz:z[0].x}};
+  }
+  throw new Error("no valid problem");
+}
+const S4={name:"Linearly varying load: zero-shear location and maximum moment",generate:s4Generate,
+  figure:p=>bmDraw(p),
+  statement:p=>`<p>The simply supported beam shown carries a linearly varying distributed load${p.P.length?" and a concentrated load":""}; neglect the weight of the beam.</p>
+  <p>Find the support reactions, the location where the shear force is zero, and the maximum bending moment.</p><p class="note">${SIGNNOTE}</p>`,
+  solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Zero shear and maximum moment</h3><p>Within the loaded region the shear is a quadratic function of x; setting it to zero gives x = ${sig(s.xz,4)} ${u.L}. There, <span class="final">M<sub>max</sub> = ${sig(p.Mpos.m,4)} ${u.M}</span>.</p>`)},
+  fields:p=>{const u=U4(p.us);return [{id:"RA",label:"Reaction at the left support",unit:u.F,signed:true},{id:"RB",label:"Reaction at the right support",unit:u.F,signed:true},
+    {id:"xz",label:"Location of zero shear, from the left end",unit:u.L},{id:"Mm",label:"Maximum bending moment",unit:u.M}]},
+  truth:(p,s)=>({RA:p.R[0].R,RB:p.R[1].R,xz:s.xz,Mm:p.Mpos.m}),note:"Answers within 2% are accepted."};
+
+// ----- 5. beam with an applied couple
+function s5Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,st=us?1:0.5,L=Lv(r,us),xb=pick(r,[L,L,L-st,L-2*st]);
+    const C=[{x:pos(r,L,st),C:Cv(r,us)*pick(r,[1,-1])}],P=r()<0.6?[{x:pos(r,L,st),F:Fv(r,us)}]:[],W=P.length?[]:[{a:0,b:pick(r,[xb,L/2]),w1:0,w2:0}];
+    if(W.length)W[0].w1=W[0].w2=Wv(r,us);
+    if(P.length&&P[0].x===C[0].x||C[0].x===xb) continue;
+    const bm={us,L,sup:{kind:"ss",xa:0,xb},P,C,W};bmSolve(bm);
+    const e=1e-9*L,Ml=bm.M(C[0].x-e),Mr=bm.M(C[0].x+e);
+    if(Math.min(Math.abs(Ml),Math.abs(Mr))<0.05*Math.abs(C[0].C)) continue;
+    const Ma=Math.max(Math.abs(bm.Mneg?.m||0),bm.Mpos?.m||0);
+    return {p:bm,s:{Ml,Mr,Ma}};
+  }
+  throw new Error("no valid problem");
+}
+const S5={name:"Beam with an applied couple: jump in the moment diagram",generate:s5Generate,
+  figure:p=>bmDraw(p),
+  statement:p=>`<p>The beam shown is supported by a pin at ${iv(ptName(p,0))} and a roller at ${iv(ptName(p,p.sup.xb))}. It carries a couple at ${iv(ptName(p,p.C[0].x))} and the ${p.P.length?"concentrated":"distributed"} load shown; neglect the weight of the beam.</p>
+  <p>Find the reactions, the bending moment just to the left and just to the right of ${iv(ptName(p,p.C[0].x))}, and the largest bending moment magnitude.</p><p class="note">${SIGNNOTE}</p>`,
+  solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Jump at the couple</h3><p>Just left: M = ${sig(s.Ml,4)} ${u.M}; just right: M = ${sig(s.Mr,4)} ${u.M}. The jump equals the couple, ${sig(s.Mr-s.Ml,4)} ${u.M} (a clockwise couple increases M).</p><p class="final">Largest |M| = ${sig(s.Ma,4)} ${u.M}</p>`)},
+  fields:p=>{const u=U4(p.us),n=ptName(p,p.C[0].x);return [{id:"RA",label:`Reaction at ${ptName(p,0)} (up +)`,unit:u.F,signed:true},{id:"RB",label:`Reaction at ${ptName(p,p.sup.xb)} (up +)`,unit:u.F,signed:true},
+    {id:"Ml",label:`M just left of ${n} (signed)`,unit:u.M,signed:true},{id:"Mr",label:`M just right of ${n} (signed)`,unit:u.M,signed:true},{id:"Ma",label:"Largest |M|",unit:u.M}]},
+  truth:(p,s)=>({RA:p.R[0].R,RB:p.R[1].R,Ml:s.Ml,Mr:s.Mr,Ma:s.Ma}),note:"Answers within 2% are accepted."};
+
+// ----- 6. shear diagram given: recover the loads and the moment
+function s6Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,st=us?1:0.5,L=Lv(r,us,us?[8,10,12,14,16]:[4,5,6,8,10]);
+    const a=pos(r,L,st,0,L/2),b=pos(r,L,st,a+2*st,L),W=[{a,b,w1:0,w2:0}];W[0].w1=W[0].w2=Wv(r,us);
+    const P=[{x:pos(r,L,st),F:Fv(r,us)}];if(P[0].x>a&&P[0].x<b&&r()<0.5) continue;
+    const bm={us,L,sup:{kind:"ss",xa:0,xb:L},P,C:[],W};bmSolve(bm);
+    if(!bm.Mpos||bm.ev.length<4) continue;
+    return {p:bm,s:{}};
+  }
+  throw new Error("no valid problem");
+}
+function s6Figure(p){
+  const u=U4(p.us),x0=90,W=560,sc=W/p.L,X=x=>x0+x*sc;
+  let s=TX(380,16,"Shear force diagram (no couples act on the beam)",{s:13,c:C.dim})+`<g transform="translate(0,16)">${bmDiagram(p,"V").replace(/<svg[^>]*>|<\/svg>/g,"")}</g>`;
+  const pts=bmLabels(p);pts.forEach(([x,n])=>{s+=TX(X(x),186,n,{s:14,i:1})});
+  for(let i=0;i+1<pts.length;i++)s+=DIMH(X(pts[i][0]),X(pts[i+1][0]),206,`${fmtx(pts[i+1][0]-pts[i][0])} ${u.L}`);
+  return SVG(760,230,s);
+}
+const S6={name:"Shear diagram given: find the loads and the bending moment",generate:s6Generate,
+  figure:s6Figure,
+  statement:p=>{const u=U4(p.us),Pn=ptName(p,p.P[0].x);return `<p>The shear force diagram shown belongs to a beam that rests on simple supports at its ends ${iv(ptName(p,0))} and ${iv(ptName(p,p.L))}. No couples act on the beam, and it carries only downward concentrated forces and uniformly distributed loads.</p>
+  <p>Find the reaction at ${iv(ptName(p,0))}, the concentrated force at ${iv(Pn)}, the intensity of the distributed load between ${iv(ptName(p,p.W[0].a))} and ${iv(ptName(p,p.W[0].b))}, and the maximum bending moment and its location.</p><p class="note">${SIGNNOTE}</p>`},
+  solution:p=>{const u=U4(p.us);return `<h3>1. Loads from the shear diagram</h3><p>A jump in V equals a concentrated force (upward for a jump up). The slope of V equals −w.</p>
+  <p>Jump at ${ptName(p,0)}: R = ${sig(p.R[0].R,4)} ${u.F}. Drop at ${ptName(p,p.P[0].x)}: P = ${sig(p.P[0].F,4)} ${u.F}. Slope between ${ptName(p,p.W[0].a)} and ${ptName(p,p.W[0].b)}: w = ${sig(p.W[0].w1,4)} ${u.w}.</p>
+  <h3>2. Moment diagram</h3><p>M = 0 at the simple supports, and the change in M between two points equals the area of the V diagram between them.</p>${bmDiagram(p,"M")}
+  <p class="final">M<sub>max</sub> = ${sig(p.Mpos.m,4)} ${u.M} at x = ${fmtx(p.Mpos.x)} ${u.L}</p>`},
+  fields:p=>{const u=U4(p.us);return [{id:"R",label:`Reaction at ${ptName(p,0)}`,unit:u.F},{id:"P",label:`Concentrated force at ${ptName(p,p.P[0].x)}`,unit:u.F},
+    {id:"w",label:"Distributed load intensity",unit:u.w},{id:"Mm",label:"Maximum bending moment",unit:u.M},{id:"xm",label:"Location of the maximum moment, from the left end",unit:u.L}]},
+  truth:p=>({R:p.R[0].R,P:p.P[0].F,w:p.W[0].w1,Mm:p.Mpos.m,xm:p.Mpos.x}),note:"Answers within 2% are accepted."};
+
+// ----- 7. beam with an internal hinge
+function s7Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,st=us?1:0.5,L=Lv(r,us,us?[8,10,12,14,16]:[4,5,6,8,10]),xh=pos(r,L,st,L/4,L*0.6),xc=pick(r,[L,L,L-st]);
+    const W=[{a:pick(r,[0,xh]),b:pick(r,[xh,xc,L]),w1:0,w2:0}];W[0].w1=W[0].w2=Wv(r,us);if(W[0].b<=W[0].a) continue;
+    const P=[{x:pos(r,L,st,st,L),F:Fv(r,us)}];if(P[0].x===xh||P[0].x===xc) continue;
+    const bm={us,L,sup:{kind:"hinge",xh,xc},P,C:[],W};bmSolve(bm);
+    if(Math.abs(bm.M(xh))>1e-6*(1+Math.abs(bm.Mneg?.m||1))) throw new Error("hinge moment not zero");
+    const Mw=bm.M(1e-9*L),Ma=Math.max(Math.abs(bm.Mneg?.m||0),bm.Mpos?.m||0);if(bm.R[0].R<=0) continue;
+    return {p:bm,s:{Mw,Ma}};
+  }
+  throw new Error("no valid problem");
+}
+const S7={name:"Beam with an internal hinge: reactions and moment diagram",generate:s7Generate,
+  figure:p=>bmDraw(p),
+  statement:p=>`<p>The beam shown is built into the wall at ${iv(ptName(p,0))}, has an internal hinge at ${iv(ptName(p,p.sup.xh))}, and rests on a roller at ${iv(ptName(p,p.sup.xc))}. It carries the loads shown; neglect the weight of the beam. The hinge transmits force but no moment.</p>
+  <p>Find the roller reaction, the vertical reaction at the wall, the bending moment at the wall, and the largest bending moment magnitude.</p><p class="note">${SIGNNOTE}</p>`,
+  solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Values asked</h3><p>Moment at the wall: M = ${sig(s.Mw,4)} ${u.M}. The moment diagram passes through zero at the hinge. Largest |M| = <span class="final">${sig(s.Ma,4)} ${u.M}</span>.</p>`)},
+  fields:p=>{const u=U4(p.us);return [{id:"Rc",label:`Roller reaction at ${ptName(p,p.sup.xc)} (up +)`,unit:u.F,signed:true},{id:"R0",label:"Vertical wall reaction (up +)",unit:u.F,signed:true},
+    {id:"Mw",label:"Bending moment at the wall (signed)",unit:u.M,signed:true},{id:"Ma",label:"Largest |M|",unit:u.M}]},
+  truth:(p,s)=>({Rc:p.R[0].R,R0:p.R[1].R,Mw:s.Mw,Ma:s.Ma}),note:"Answers within 2% are accepted."};
+
+// ===== Chapter 5: stresses in beams. Section dims mm or in.; stresses MPa or psi.
+const SU=us=>us?{d:"in.",S:"psi",Mf:12,Vf:1}:{d:"mm",S:"MPa",Mf:1e6,Vf:1000};   // M(lb·ft)->lb·in, M(kN·m)->N·mm; V(lb)->lb, V(kN)->N
+function secProps(rects){                     // rects {x0,b,y0,y1} measured from the bottom
+  let A=0,Ay=0;rects.forEach(r=>{const a=r.b*(r.y1-r.y0);A+=a;Ay+=a*(r.y0+r.y1)/2});
+  const yb=Ay/A;let I=0;rects.forEach(r=>{const h=r.y1-r.y0,a=r.b*h,d=(r.y0+r.y1)/2-yb;I+=r.b*h**3/12+a*d*d});
+  const H=Math.max(...rects.map(r=>r.y1)),Q=y=>{let q=0;rects.forEach(r=>{const lo=Math.max(r.y0,y);if(r.y1>lo)q+=r.b*(r.y1-lo)*((r.y1+lo)/2-yb)});return q};
+  const t=y=>rects.filter(r=>y>=r.y0-1e-12&&y<=r.y1+1e-12).reduce((a,r)=>a+r.b,0);
+  return {A,yb,I,H,ct:H-yb,cb:yb,Q,t};
+}
+function secDraw(rects,labs,o={}){
+  const H=Math.max(...rects.map(r=>r.y1)),Wd=Math.max(...rects.map(r=>r.x0+r.b))-Math.min(...rects.map(r=>r.x0)),k=Math.min(170/H,220/Wd),x0=300-Wd*k/2-Math.min(...rects.map(r=>r.x0))*k,y0=20+H*k;
+  let s="";rects.forEach(r=>{s+=RC(x0+r.x0*k,y0-r.y1*k,r.b*k,(r.y1-r.y0)*k,{f:o.fill||"#f2d9b0",c:C.ln})});
+  const xl=300-Wd*k/2,xr=300+Wd*k/2;
+  (o.lines||[]).forEach(y=>{s+=LN(xl-16,y0-y*k,xr+16,y0-y*k,{c:C.green,w:1.6,d:"6 3"})});
+  if(o.Hl)s+=DIMV(xl-28,y0-H*k,y0,o.Hl,{left:1});
+  labs.forEach((l,i)=>{s+=TX(470,40+i*20,l,{s:13,c:C.dim,a:"start"})});
+  if(o.title)s+=TX(300,y0+24,o.title,{s:13,c:C.dim});
+  return SVG(760,y0+(o.title?36:16),s);
+}
+const R_=(x0,b,y0,y1)=>({x0,b,y0,y1});
+function secT(bf,tf,tw,hw,top){return top?[R_(-tw/2,tw,0,hw),R_(-bf/2,bf,hw,hw+tf)]:[R_(-bf/2,bf,0,tf),R_(-tw/2,tw,tf,tf+hw)]}
+function secI(bf,tf,tw,hw){return [R_(-bf/2,bf,0,tf),R_(-tw/2,tw,tf,tf+hw),R_(-bf/2,bf,tf+hw,2*tf+hw)]}
+function secBox(B,Hh,tf,tw){return [R_(-B/2,B,0,tf),R_(-B/2,tw,tf,Hh-tf),R_(B/2-tw,tw,tf,Hh-tf),R_(-B/2,B,Hh-tf,Hh)]}
+const sgn=v=>v>=0?"tension":"compression";
+const bmWith=(bm,sec)=>bmDraw(bm)+sec;
+// simple loaded beams for this chapter (reuse the Chapter 4 engine)
+function loadBeam(r,us,kind){
+  const st=us?1:0.5;
+  for(let k=0;k<5000;k++){
+    const L=pick(r,us?[8,10,12,14,16]:[3,4,5,6,8]);let bm;
+    if(kind==="ss"){const P=[{x:pos(r,L,st),F:Fv(r,us)}],W=r()<0.6?[{a:0,b:L,w1:0,w2:0}]:[];if(W.length)W[0].w1=W[0].w2=Wv(r,us);if(!W.length)P.push({x:pos(r,L,st),F:Fv(r,us)});
+      if(P.length===2&&P[0].x===P[1].x) continue;bm={us,L,sup:{kind:"ss",xa:0,xb:L},P,C:[],W}}
+    else{const xb=pos(r,L,st,L*0.55,L-st),W=[{a:0,b:pick(r,[xb,L]),w1:0,w2:0}];W[0].w1=W[0].w2=Wv(r,us);
+      bm={us,L,sup:{kind:"ss",xa:0,xb},P:[{x:L,F:Fv(r,us)}],C:[],W}}
+    bmSolve(bm);if(kind==="oh"&&(!bm.Mpos||!bm.Mneg||bm.Mpos.m<0.3*Math.abs(bm.Mneg.m)||Math.abs(bm.Mneg.m)<0.3*bm.Mpos.m)) continue;
+    if(bm.R.some(q=>q.R<=0)) continue;
+    return bm;
+  }
+  throw new Error("no beam");
+}
+const Mabs=bm=>Math.max(bm.Mpos?bm.Mpos.m:0,bm.Mneg?-bm.Mneg.m:0);
+
+// ----- 1. rectangular beam: flexure formula
+function f1Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,bm=loadBeam(r,us,"ss"),b=pick(r,us?[2,3,4,6]:[50,75,100,120,150]),h=pick(r,us?[6,8,10,12]:[150,200,250,300]);
+    const su=SU(us),I=b*h**3/12,M=bm.Mpos.m,smax=M*su.Mf*(h/2)/I;
+    if(smax<(us?500:4)||smax>(us?18000:120)) continue;
+    const xs=pick(r,range(us?1:0.5,bm.L-(us?1:0.5),us?1:0.5)),d=pick(r,(us?[0.5,1,1.5,2,2.5,3]:[25,40,50,60,75,100]).filter(v=>v<h&&Math.abs(v-h/2)>0.1*h));
+    const Ms=bm.M(xs),sp=-Ms*su.Mf*(h/2-d)/I;if(Math.abs(Ms)<0.2*M) continue;
+    bm.xs=xs;return {p:{us,bm,b,h,xs,d},s:{I,M,smax,Ms,sp}};
+  }
+  throw new Error("no valid problem");
+}
+const F1={name:"Rectangular beam: maximum bending stress and stress at a point",generate:f1Generate,
+  figure:p=>bmDraw(p.bm,{section:p.xs})+secDraw([R_(-p.b/2,p.b,0,p.h)],[`b = ${p.b} ${SU(p.us).d}`,`h = ${p.h} ${SU(p.us).d}`],{title:"Cross section",Hl:`h = ${p.h} ${SU(p.us).d}`}),
+  statement:p=>{const u=U4(p.us),su=SU(p.us);return `<p>The simply supported beam shown has a rectangular cross section ${p.b} ${su.d} wide and ${p.h} ${su.d} high; neglect its weight.</p>
+  <p>Find the maximum bending moment, the maximum bending stress, and the bending stress on the section ${fmtx(p.xs)} ${u.L} from the left end at a point ${p.d} ${su.d} below the top of the beam (tension positive).</p>`},
+  solution:(p,s)=>{const u=U4(p.us),su=SU(p.us);return `<h3>1. Bending moment</h3>${bmDiagram(p.bm,"M")}<p>M<sub>max</sub> = ${sig(s.M,4)} ${u.M}; at x = ${fmtx(p.xs)} ${u.L}, M = ${sig(s.Ms,4)} ${u.M}.</p>
+  <h3>2. Section properties</h3><p class="eq">I = bh³/12 = ${sig(s.I,4)} ${su.d}⁴, c = h/2 = ${sig(p.h/2,4)} ${su.d}</p>
+  <h3>3. Stresses</h3><p>σ<sub>max</sub> = M<sub>max</sub>c/I = ${sig(s.smax,4)} ${su.S}, tension at the bottom and compression at the top.</p>
+  <p>The point is y = h/2 − ${p.d} = ${sig(p.h/2-p.d,4)} ${su.d} ${p.h/2-p.d>0?"above":"below"} the neutral axis; σ = −My/I = <span class="final">${sig(s.sp,4)} ${su.S}</span>.</p>`},
+  fields:p=>{const u=U4(p.us),su=SU(p.us);return [{id:"M",label:"Maximum bending moment",unit:u.M},{id:"sm",label:"Maximum bending stress",unit:su.S},{id:"sp",label:"Stress at the point (signed, tension +)",unit:su.S,signed:true}]},
+  truth:(p,s)=>({M:s.M,sm:s.smax,sp:s.sp}),note:"Answers within 2% are accepted."};
+
+// ----- 2. T-section on an overhanging beam: maximum tension and compression
+function f2Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,bm=loadBeam(r,us,"oh"),top=r()<0.5,bf=pick(r,us?[4,6,8]:[100,150,200]),tf=pick(r,us?[1,1.5,2]:[20,25,30,40]),tw=pick(r,us?[1,1.5,2]:[20,25,30]),hw=pick(r,us?[4,6,8]:[100,150,200]);
+    if(bf<2.5*tw) continue;
+    const rects=secT(bf,tf,tw,hw,top),sp=secProps(rects),su=SU(us),Mp=bm.Mpos.m*su.Mf,Mn=-bm.Mneg.m*su.Mf;
+    const c=[{v:Mp*sp.cb/sp.I,t:"T",x:bm.Mpos.x},{v:Mp*sp.ct/sp.I,t:"C",x:bm.Mpos.x},{v:Mn*sp.ct/sp.I,t:"T",x:bm.Mneg.x},{v:Mn*sp.cb/sp.I,t:"C",x:bm.Mneg.x}];
+    const T=c[0].v>c[2].v?c[0]:c[2],Cc=c[1].v>c[3].v?c[1]:c[3];
+    if(Math.max(T.v,Cc.v)>(us?20000:150)||Math.max(T.v,Cc.v)<(us?2000:15)) continue;
+    if(Math.abs(c[0].v/c[2].v-1)<0.05||Math.abs(c[1].v/c[3].v-1)<0.05) continue;
+    return {p:{us,bm,top,bf,tf,tw,hw,rects},s:{sp,T,Cc}};
+  }
+  throw new Error("no valid problem");
+}
+const F2={name:"T-section beam: maximum tensile and compressive bending stresses",generate:f2Generate,
+  figure:p=>{const su=SU(p.us);return bmDraw(p.bm)+secDraw(p.rects,[`flange ${p.bf} × ${p.tf} ${su.d}`,`web ${p.tw} × ${p.hw} ${su.d}`,`flange at the ${p.top?"top":"bottom"}`],{title:"Cross section",Hl:`${p.tf+p.hw} ${su.d}`})},
+  statement:p=>{const u=U4(p.us),su=SU(p.us);return `<p>The overhanging beam shown has the T-shaped cross section shown, with the flange at the ${p.top?"top":"bottom"}; neglect the weight of the beam.</p>
+  <p>Find the distance from the bottom of the section to the neutral axis, the moment of inertia about the neutral axis, and the values and locations (distance from the left end) of the maximum tensile and maximum compressive bending stresses.</p>`},
+  solution:(p,s)=>{const u=U4(p.us),su=SU(p.us),sp=s.sp,bm=p.bm;return `<h3>1. Section properties</h3><p>ȳ = ΣAy/ΣA = ${sig(sp.yb,4)} ${su.d} from the bottom; I = Σ(I₀ + Ad²) = ${sig(sp.I,4)} ${su.d}⁴. Distances to the extreme fibers: c<sub>top</sub> = ${sig(sp.ct,4)}, c<sub>bot</sub> = ${sig(sp.cb,4)} ${su.d}.</p>
+  <h3>2. Moment diagram</h3>${bmDiagram(bm,"M")}<p>Largest positive M = ${sig(bm.Mpos.m,4)} ${u.M} at x = ${fmtx(bm.Mpos.x)} ${u.L}; largest negative M = ${sig(bm.Mneg.m,4)} ${u.M} at x = ${fmtx(bm.Mneg.x)} ${u.L}.</p>
+  <h3>3. Candidates</h3><p>Positive M puts the bottom in tension; negative M puts the top in tension. Both sections must be checked because the section is not symmetric.</p>
+  <table><tr><th>Section</th><th>Top fiber (${su.S})</th><th>Bottom fiber (${su.S})</th></tr>
+  <tr><td>x = ${fmtx(bm.Mpos.x)} (M &gt; 0)</td><td>${sig(-bm.Mpos.m*su.Mf*sp.ct/sp.I,4)}</td><td>${sig(bm.Mpos.m*su.Mf*sp.cb/sp.I,4)}</td></tr>
+  <tr><td>x = ${fmtx(bm.Mneg.x)} (M &lt; 0)</td><td>${sig(-bm.Mneg.m*su.Mf*sp.ct/sp.I,4)}</td><td>${sig(bm.Mneg.m*su.Mf*sp.cb/sp.I,4)}</td></tr></table>
+  <p class="final">Maximum tension ${sig(s.T.v,4)} ${su.S} at x = ${fmtx(s.T.x)} ${u.L}; maximum compression ${sig(s.Cc.v,4)} ${su.S} at x = ${fmtx(s.Cc.x)} ${u.L}.</p>`},
+  fields:p=>{const u=U4(p.us),su=SU(p.us);return [{id:"yb",label:"Neutral axis above the bottom",unit:su.d},{id:"I",label:"Moment of inertia",unit:su.d+"⁴"},{id:"T",label:"Maximum tensile stress",unit:su.S},{id:"xT",label:"Its location from the left end",unit:u.L},
+    {id:"C",label:"Maximum compressive stress (magnitude)",unit:su.S},{id:"xC",label:"Its location from the left end",unit:u.L}]},
+  truth:(p,s)=>({yb:s.sp.yb,I:s.sp.I,T:s.T.v,xT:s.T.x,C:s.Cc.v,xC:s.Cc.x}),note:"Answers within 2% are accepted."};
+
+// ----- 3. stepped cantilever of two rectangular segments
+function f3Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,st=us?1:0.5,L=pick(r,us?[6,8,10,12]:[2,3,4,5]),xb=pos(r,L,st,L*0.3,L*0.7),b=pick(r,us?[2,3,4]:[100,150,200]);
+    const h1=pick(r,us?[6,8,10,12]:[250,300,400,500]),h2=h1*pick(r,[0.5,0.6,0.67,0.75]);
+    const P=[{x:L,F:Fv(r,us)}],W=r()<0.5?[{a:0,b:L,w1:0,w2:0}]:[];if(W.length)W[0].w1=W[0].w2=Wv(r,us);
+    const bm={us,L,sup:{kind:"fixL"},P,C:[],W};bmSolve(bm);
+    const su=SU(us),hh=+h2.toFixed(us?2:0),M0=-bm.M(1e-9),M1=-bm.M(xb+1e-9),s0=6*M0*su.Mf/(b*h1*h1),s1=6*M1*su.Mf/(b*hh*hh);
+    if(Math.abs(s0/s1-1)<0.08||Math.max(s0,s1)>(us?18000:120)||Math.max(s0,s1)<(us?500:4)) continue;
+    bm.xs=xb;return {p:{us,bm,xb,b,h1,h2:hh},s:{M0,M1,s0,s1,sm:Math.max(s0,s1),where:s0>s1?"At the wall":"Just beyond the step"}};
+  }
+  throw new Error("no valid problem");
+}
+const F3={name:"Stepped cantilever: where the bending stress is largest",generate:f3Generate,
+  figure:p=>{const su=SU(p.us);return bmDraw(p.bm,{section:p.xb,steps:[[0,p.xb,26],[p.xb,p.bm.L,26*p.h2/p.h1]]})+SVG(760,30,TX(380,20,`Segment next to the wall: ${p.b} × ${p.h1} ${su.d}; outer segment (beyond the dashed line): ${p.b} × ${p.h2} ${su.d} (width × depth)`,{s:13,c:C.dim}))},
+  statement:p=>{const u=U4(p.us),su=SU(p.us);return `<p>The cantilever beam shown consists of two segments with rectangular cross sections of width ${p.b} ${su.d}. The segment between the wall and the step at x = ${fmtx(p.xb)} ${u.L} is ${p.h1} ${su.d} deep; the outer segment is ${p.h2} ${su.d} deep. Neglect the weight of the beam.</p>
+  <p>Find the maximum bending stress at the wall, the maximum bending stress just beyond the step, and where the largest bending stress in the beam occurs.</p>`},
+  solution:(p,s)=>{const u=U4(p.us),su=SU(p.us);return `<h3>1. Moment diagram</h3>${bmDiagram(p.bm,"M")}<p>|M| at the wall = ${sig(s.M0,4)} ${u.M}; |M| at the step = ${sig(s.M1,4)} ${u.M}.</p>
+  <h3>2. Stresses</h3><p>For a rectangle, σ = Mc/I = 6M/(bh²).</p><p>At the wall: σ = ${sig(s.s0,4)} ${su.S}. Just beyond the step (smaller depth): σ = ${sig(s.s1,4)} ${su.S}.</p>
+  <p class="final">Largest stress ${sig(s.sm,4)} ${su.S}: ${s.where.toLowerCase()}. The moment is largest at the wall, but the section modulus drops at the step.</p>`},
+  fields:p=>{const su=SU(p.us);return [{id:"s0",label:"Maximum stress at the wall",unit:su.S},{id:"s1",label:"Maximum stress just beyond the step",unit:su.S},{id:"w",label:"Location of the largest stress",unit:"",choices:["At the wall","Just beyond the step"]}]},
+  truth:(p,s)=>({s0:s.s0,s1:s.s1,w:s.where}),note:"Answers within 2% are accepted."};
+
+// ----- 4. glued planks: shear stress in the glue and in the wood
+function f4Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,bm=loadBeam(r,us,"ss"),n=pick(r,[2,3,4]),b=pick(r,us?[4,6,8]:[100,120,160]),t=pick(r,us?[2,3,4]:[50,60,80]);
+    const rects=[];for(let i=0;i<n;i++)rects.push(R_(-b/2,b,i*t,(i+1)*t));
+    const sp=secProps(rects),su=SU(us),V=bm.Vmax*su.Vf,glue=[];for(let i=1;i<n;i++)glue.push(i*t);
+    const tg=Math.max(...glue.map(y=>V*sp.Q(y)/(sp.I*b))),tm=V*sp.Q(sp.yb)/(sp.I*b);
+    if(tm>(us?500:4)||tm<(us?40:0.3)) continue;
+    return {p:{us,bm,n,b,t,rects},s:{sp,V,tg,tm,glue}};
+  }
+  throw new Error("no valid problem");
+}
+const F4={name:"Glued planks: maximum shear stress in the glue and in the wood",generate:f4Generate,
+  figure:p=>{const su=SU(p.us);return bmDraw(p.bm)+secDraw(p.rects,[`${p.n} planks, each ${p.b} × ${p.t} ${su.d}`,"glued along the dashed lines"],{title:"Cross section",lines:p.rects.slice(1).map(r=>r.y0),fill:"#f2d9b0"})},
+  statement:p=>{const su=SU(p.us);return `<p>The simply supported wood beam shown is made by gluing together ${p.n} planks, each ${p.b} ${su.d} wide and ${p.t} ${su.d} thick, stacked as shown. Neglect the weight of the beam.</p>
+  <p>Find the maximum shear force, the maximum shear stress in the glue, and the maximum shear stress in the wood.</p>`},
+  solution:(p,s)=>{const u=U4(p.us),su=SU(p.us),sp=s.sp;return `<h3>1. Maximum shear force</h3>${bmDiagram(p.bm,"V")}<p>|V|<sub>max</sub> = ${sig(p.bm.Vmax,4)} ${u.F}.</p>
+  <h3>2. Section</h3><p>I = b(${p.n}t)³/12 = ${sig(sp.I,4)} ${su.d}⁴; the neutral axis is at mid-depth.</p>
+  <h3>3. Shear stresses, τ = VQ/(Ib)</h3><p>Glue lines: ${s.glue.map(y=>`y = ${sig(y,3)} ${su.d}: Q = ${sig(sp.Q(y),4)} ${su.d}³`).join("; ")}. The largest glue stress is τ = ${sig(s.tg,4)} ${su.S}.</p>
+  <p>Neutral axis: Q = ${sig(sp.Q(sp.yb),4)} ${su.d}³, <span class="final">τ<sub>max</sub> = ${sig(s.tm,4)} ${su.S}</span> (${p.n%2===0?"here the neutral axis is a glue line":"in the wood"}).</p>`},
+  fields:p=>{const u=U4(p.us),su=SU(p.us);return [{id:"V",label:"Maximum shear force",unit:u.F},{id:"tg",label:"Maximum shear stress in the glue",unit:su.S},{id:"tm",label:"Maximum shear stress in the wood",unit:su.S}]},
+  truth:(p,s)=>({V:p.bm.Vmax,tg:s.tg,tm:s.tm}),note:"Answers within 2% are accepted."};
+
+// ----- 5. shear stress distribution in an I or T section
+function f5Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,isI=r()<0.55,bf=pick(r,us?[4,5,6,8,10]:[100,150,200,250]),tf=pick(r,us?[0.5,0.75,1]:[10,12,15,20]),tw=pick(r,us?[0.25,0.375,0.5]:[6,8,10,12]),hw=pick(r,us?[6,8,10,12,14]:[150,200,250,300,350]);
+    const rects=isI?secI(bf,tf,tw,hw):secT(bf,tf,tw,hw,true),sp=secProps(rects),V=pick(r,us?range(4000,30000,1000):range(20,200,10)),su=SU(us),Vn=V*su.Vf;
+    const yj=isI?tf+hw:hw,tj=Vn*sp.Q(yj-1e-9)/(sp.I*tw),tna=Vn*sp.Q(sp.yb)/(sp.I*sp.t(sp.yb));
+    if(!isI&&sp.yb>hw) continue;
+    let Vw=0;const y0=isI?tf:0,y1=isI?tf+hw:hw,N=2000;for(let i=0;i<N;i++){const y=y0+(i+0.5)*(y1-y0)/N;Vw+=Vn*sp.Q(y)/(sp.I*tw)*tw*(y1-y0)/N}
+    if(tna>(us?15000:100)||tna<(us?1000:8)) continue;
+    return {p:{us,isI,bf,tf,tw,hw,V,rects},s:{sp,tj,tna,pw:100*Vw/Vn}};
+  }
+  throw new Error("no valid problem");
+}
+const F5={name:"Shear stress distribution in an I- or T-section",generate:f5Generate,
+  figure:p=>{const su=SU(p.us);return secDraw(p.rects,[`flange${p.isI?"s":""} ${p.bf} × ${p.tf} ${su.d}`,`web ${p.tw} × ${p.hw} ${su.d}`,`V = ${fmt(p.V)} ${p.us?"lb":"kN"} (vertical)`],{title:p.isI?"I-section":"T-section, flange at the top",Hl:`${p.isI?2*p.tf+p.hw:p.tf+p.hw} ${su.d}`})},
+  statement:p=>{const su=SU(p.us);return `<p>A beam with the ${p.isI?"symmetric I":"T"}-shaped cross section shown (${p.isI?"two flanges":"flange"} ${p.bf} × ${p.tf} ${su.d}, web ${p.tw} ${su.d} thick and ${p.hw} ${su.d} high) carries a vertical shear force V = ${fmt(p.V)} ${p.us?"lb":"kN"} at a certain section.</p>
+  <p>Find the moment of inertia about the neutral axis, the shear stress in the web where it meets the ${p.isI?"top ":""}flange, the maximum shear stress, and the percentage of the shear force carried by the web.</p>`},
+  solution:(p,s)=>{const su=SU(p.us),sp=s.sp,yj=p.isI?p.tf+p.hw:p.hw;return `<h3>1. Section properties</h3><p>ȳ = ${sig(sp.yb,4)} ${su.d} from the bottom, I = ${sig(sp.I,4)} ${su.d}⁴.</p>
+  <h3>2. Web at the flange junction</h3><p>Q of the flange about the neutral axis: Q = ${sig(sp.Q(yj),4)} ${su.d}³. τ = VQ/(It<sub>w</sub>) = ${sig(s.tj,4)} ${su.S}.</p>
+  <h3>3. Neutral axis</h3><p>Q = ${sig(sp.Q(sp.yb),4)} ${su.d}³, <span class="final">τ<sub>max</sub> = ${sig(s.tna,4)} ${su.S}</span>.</p>
+  <h3>4. Share of the web</h3><p>Integrating τt<sub>w</sub> over the web height (the stress varies parabolically) gives ${sig(s.pw,3)}% of V. The flanges carry little shear because their width makes τ small and their depth is short.</p>`},
+  fields:p=>{const su=SU(p.us);return [{id:"I",label:"Moment of inertia",unit:su.d+"⁴"},{id:"tj",label:"Shear stress in the web at the flange",unit:su.S},{id:"tm",label:"Maximum shear stress",unit:su.S},{id:"pw",label:"Shear force carried by the web",unit:"%"}]},
+  truth:(p,s)=>({I:s.sp.I,tj:s.tj,tm:s.tna,pw:s.pw}),note:"Answers within 2% are accepted."};
+
+// ----- 6. allowable load from bending and shear (box or I section)
+function f6Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,st=us?1:0.5,L=pick(r,us?[6,8,10,12,16,20]:[2,3,4,5,6,8]),box=r()<0.5,steel=r()<0.5;
+    const a=pos(r,L,st),b2=pos(r,L,st);if(a===b2) continue;
+    const ca=pick(r,[1,2,3]),cb=pick(r,[1,2]);const bm={us,L,sup:{kind:"ss",xa:0,xb:L},P:[{x:Math.min(a,b2),F:ca},{x:Math.max(a,b2),F:cb}],C:[],W:[]};bmSolve(bm);
+    const rects=box?secBox(pick(r,us?[4,6,8]:[100,150,200]),pick(r,us?[8,10,12]:[200,250,300]),pick(r,us?[0.75,1]:[20,25]),pick(r,us?[0.75,1]:[20,25])):secI(pick(r,us?[4,6]:[100,150]),pick(r,us?[0.75,1]:[15,20]),pick(r,us?[0.5,0.75]:[10,12]),pick(r,us?[6,8,10]:[150,200,250]));
+    const sp=secProps(rects),su=SU(us),sw=steel?pick(r,us?[20000,24000]:[140,165]):pick(r,us?[1000,1200,1500]:[8,10,12]),tw=steel?pick(r,us?[12000,14500]:[80,100]):pick(r,us?[80,100,120]:[0.6,0.8,1.0]);
+    const Pb=sw*sp.I/(Mabs(bm)*su.Mf*Math.max(sp.ct,sp.cb))/(us?1:1),Ps=tw*sp.I*sp.t(sp.yb)/(bm.Vmax*su.Vf*sp.Q(sp.yb));
+    // P in lb (US) or kN (SI)
+    if(Math.abs(Pb/Ps-1)<0.1) continue;
+    if(Ps<Pb&&r()<0.5) continue;
+    return {p:{us,bm,box,rects,ca,cb,sw,tw,steel},s:{sp,Pb,Ps,Pm:Math.min(Pb,Ps),gov:Pb<Ps?"Bending":"Shear"}};
+  }
+  throw new Error("no valid problem");
+}
+const F6={name:"Allowable load from bending and shear (box or I section)",generate:f6Generate,
+  figure:p=>{const su=SU(p.us),r0=p.rects;const bmx=Object.assign({},p.bm);bmx.P=p.bm.P.map(q=>({x:q.x,F:q.F}));
+    let fig=bmDraw(p.bm).replace(/>(\d+) (lb|kN)</g,(m0,n)=>`>${n==="1"?"":n}P<`);
+    const lab=p.box?[`box: ${r0[0].b} × ${r0[3].y1} ${su.d} outside`,`top and bottom ${r0[0].y1-r0[0].y0} ${su.d} thick`,`sides ${r0[1].b} ${su.d} thick`]:[`flanges ${r0[0].b} × ${r0[0].y1} ${su.d}`,`web ${r0[1].b} × ${r0[1].y1-r0[1].y0} ${su.d}`];
+    return fig+secDraw(r0,lab,{title:"Cross section",Hl:`${r0[r0.length-1].y1} ${su.d}`})},
+  statement:p=>{const su=SU(p.us);return `<p>The simply supported ${p.steel?"steel":"wood"} beam shown, with the ${p.box?"box":"I"}-shaped cross section shown, carries the concentrated loads ${p.ca===1?"":p.ca}P and ${p.cb===1?"":p.cb}P. The working stresses are σ<sub>w</sub> = ${fmt(p.sw)} ${su.S} in bending and τ<sub>w</sub> = ${p.tw} ${su.S} in shear. Neglect the weight of the beam.</p>
+  <p>Find the moment of inertia of the section, the largest P allowed by bending, the largest P allowed by shear, the maximum allowable P, and the governing criterion.</p>`},
+  solution:(p,s)=>{const u=U4(p.us),su=SU(p.us),sp=s.sp;return `<h3>1. Shear and moment in terms of P</h3><p>Solving the beam with P = 1: |V|<sub>max</sub> = ${sig(p.bm.Vmax,4)}P, |M|<sub>max</sub> = ${sig(Mabs(p.bm),4)}P (P in ${u.F}, lengths in ${u.L}).</p>${bmDiagram(p.bm,"M")}
+  <h3>2. Section</h3><p>I = ${sig(sp.I,4)} ${su.d}⁴, c = ${sig(Math.max(sp.ct,sp.cb),4)} ${su.d}, Q at the neutral axis = ${sig(sp.Q(sp.yb),4)} ${su.d}³, width at the neutral axis t = ${sig(sp.t(sp.yb),4)} ${su.d}.</p>
+  <h3>3. Allowable P</h3><p>Bending: σ<sub>w</sub> = M<sub>max</sub>c/I ⇒ P = ${sig(s.Pb,4)} ${u.F}. Shear: τ<sub>w</sub> = V<sub>max</sub>Q/(It) ⇒ P = ${sig(s.Ps,4)} ${u.F}.</p><p class="final">P<sub>max</sub> = ${sig(s.Pm,4)} ${u.F}, governed by ${s.gov.toLowerCase()}.</p>`},
+  fields:p=>{const u=U4(p.us),su=SU(p.us);return [{id:"I",label:"Moment of inertia",unit:su.d+"⁴"},{id:"Pb",label:"P allowed by bending",unit:u.F},{id:"Ps",label:"P allowed by shear",unit:u.F},{id:"Pm",label:"Maximum allowable P",unit:u.F},{id:"gov",label:"Governing criterion",unit:"",choices:["Bending","Shear"]}]},
+  truth:(p,s)=>({I:s.sp.I,Pb:s.Pb,Ps:s.Ps,Pm:s.Pm,gov:s.gov}),note:"Answers within 2% are accepted."};
+
+// ----- 7. design of a rectangular timber beam for bending and shear
+function f7Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,st=us?1:0.5,L=pick(r,us?[4,6,8,10,12,16,20]:[1.5,2,3,4,5,6]);
+    const W=[{a:0,b:L,w1:0,w2:0}];W[0].w1=W[0].w2=Wv(r,us)*pick(r,[1,2]);const P=[{x:pos(r,L,st),F:Fv(r,us)*pick(r,[0.5,1,2])}];
+    const bm={us,L,sup:{kind:"ss",xa:0,xb:L},P,C:[],W};bmSolve(bm);
+    const b=pick(r,us?[2,3,4,6]:[100,150,200,250]),sw=pick(r,us?[1000,1200,1500]:[8,10,12]),tw=pick(r,us?[80,100,120]:[0.6,0.8,1.0]),su=SU(us);
+    const M=Mabs(bm)*su.Mf,V=bm.Vmax*su.Vf,hb=Math.sqrt(6*M/(b*sw)),hs=1.5*V/(b*tw);
+    if(Math.abs(hb/hs-1)<0.06||Math.max(hb,hs)>(us?24:600)) continue;
+    if(hs>hb&&r()<0.45) continue;
+    return {p:{us,bm,b,sw,tw},s:{M,V,hb,hs,h:Math.max(hb,hs),gov:hb>hs?"Bending":"Shear"}};
+  }
+  throw new Error("no valid problem");
+}
+const F7={name:"Design of a rectangular timber beam for bending and shear",generate:f7Generate,
+  figure:p=>bmDraw(p.bm),
+  statement:p=>{const su=SU(p.us);return `<p>A timber beam of rectangular cross section, ${p.b} ${su.d} wide, is to carry the loads shown on simple supports. The working stresses are ${fmt(p.sw)} ${su.S} in bending and ${p.tw} ${su.S} in shear. Neglect the weight of the beam.</p>
+  <p>Find the maximum bending moment and shear force, the smallest depth h that satisfies each working stress, the required depth, and the governing criterion.</p>`},
+  solution:(p,s)=>{const u=U4(p.us),su=SU(p.us);return `<h3>1. Maximum V and M</h3>${bmDiagram(p.bm,"V")}${bmDiagram(p.bm,"M")}<p>|V|<sub>max</sub> = ${sig(p.bm.Vmax,4)} ${u.F}, M<sub>max</sub> = ${sig(Mabs(p.bm),4)} ${u.M}.</p>
+  <h3>2. Depth for bending</h3><p class="eq">σ<sub>w</sub> = 6M/(bh²) ⇒ h = √(6M/(bσ<sub>w</sub>)) = ${sig(s.hb,4)} ${su.d}</p>
+  <h3>3. Depth for shear</h3><p class="eq">τ<sub>max</sub> = 1.5V/(bh) ⇒ h = 1.5V/(bτ<sub>w</sub>) = ${sig(s.hs,4)} ${su.d}</p>
+  <h3>4. Required depth</h3><p class="final">h = ${sig(s.h,4)} ${su.d}, governed by ${s.gov.toLowerCase()}.</p>`},
+  fields:p=>{const u=U4(p.us),su=SU(p.us);return [{id:"M",label:"Maximum bending moment",unit:u.M},{id:"V",label:"Maximum shear force",unit:u.F},{id:"hb",label:"Depth required for bending",unit:su.d},{id:"hs",label:"Depth required for shear",unit:su.d},{id:"h",label:"Required depth",unit:su.d},{id:"gov",label:"Governing criterion",unit:"",choices:["Bending","Shear"]}]},
+  truth:(p,s)=>({M:Mabs(p.bm),V:p.bm.Vmax,hb:s.hb,hs:s.hs,h:s.h,gov:s.gov}),note:"Answers within 2% are accepted."};
+
+// ----- 8. nail spacing in a built-up beam
+function f8Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,box=r()<0.5;let rects,labs,n,Qy;
+    if(box){const B=pick(r,us?[6,8,10]:[150,200,250]),t=pick(r,us?[1,1.5,2]:[25,40,50]),hs=pick(r,us?[6,8,10]:[150,200,250]),ts=pick(r,us?[1,1.5,2]:[25,40,50]);
+      rects=[R_(-B/2,B,0,t),R_(-B/2,ts,t,t+hs),R_(B/2-ts,ts,t,t+hs),R_(-B/2,B,t+hs,2*t+hs)];n=2;Qy=t+hs;labs=[`top and bottom planks ${B} × ${t} ${us?"in.":"mm"}`,`side planks ${ts} × ${hs} ${us?"in.":"mm"}`,"nails through the top and bottom planks"]}
+    else{const bf=pick(r,us?[6,8,10]:[150,200,250]),tf=pick(r,us?[1.5,2]:[40,50]),tw=pick(r,us?[1.5,2,3]:[40,50,75]),hw=pick(r,us?[6,8,10]:[150,200,250]);
+      rects=secT(bf,tf,tw,hw,true);n=1;Qy=hw;labs=[`flange plank ${bf} × ${tf} ${us?"in.":"mm"}`,`web plank ${tw} × ${hw} ${us?"in.":"mm"}`,"one row of nails through the flange"]}
+    const sp=secProps(rects),V=pick(r,us?range(500,4000,100):range(2,20,1)),F=pick(r,us?[100,150,200,250]:[0.5,0.7,1.0,1.2]),su=SU(us);
+    const q=V*su.Vf*sp.Q(Qy)/sp.I,s=n*F*su.Vf/q;
+    if(s>(us?12:300)||s<(us?0.75:20)) continue;
+    return {p:{us,box,rects,labs,n,Qy,V,F},s:{sp,Q:sp.Q(Qy),q,s}};
+  }
+  throw new Error("no valid problem");
+}
+const F8={name:"Built-up beam: spacing of nails from the shear flow",generate:f8Generate,
+  figure:p=>secDraw(p.rects,p.labs,{title:p.box?"Box beam of four planks":"T-beam of two planks",lines:p.box?[p.Qy]:[p.Qy],Hl:`${p.rects[p.rects.length-1].y1} ${p.us?"in.":"mm"}`}),
+  statement:p=>{const su=SU(p.us);return `<p>The ${p.box?"box":"T"}-beam shown is built up from wood planks fastened with nails${p.box?": at each nailed section there are two nails through the top plank, one into each side plank, and likewise through the bottom plank":", one nail at each nailed section through the flange into the web"}. Each nail can safely carry a shear force of ${p.F} ${p.us?"lb":"kN"}. The maximum vertical shear force in the beam is V = ${fmt(p.V)} ${p.us?"lb":"kN"}.</p>
+  <p>Find the moment of inertia of the section, the first moment Q of the ${p.box?"top plank":"flange"} about the neutral axis, the shear flow between the ${p.box?"top plank and the sides":"flange and the web"}, and the largest allowable nail spacing.</p>`},
+  solution:(p,s)=>{const su=SU(p.us),sp=s.sp;return `<h3>1. Section properties</h3><p>ȳ = ${sig(sp.yb,4)} ${su.d} from the bottom, I = ${sig(sp.I,4)} ${su.d}⁴.</p>
+  <h3>2. Shear flow</h3><p>The nails transfer the shear flow across the joint above y = ${sig(p.Qy,4)} ${su.d}; the part above has Q = ${sig(s.Q,4)} ${su.d}³.</p><p class="eq">q = VQ/I = ${sig(s.q,4)} ${p.us?"lb/in.":"N/mm"}</p>
+  <h3>3. Spacing</h3><p>${p.n} nail${p.n>1?"s":""} per section, each carrying F: q·s = ${p.n}F.</p><p class="final">s = ${p.n}F/q = ${sig(s.s,4)} ${su.d}</p>`},
+  fields:p=>{const su=SU(p.us);return [{id:"I",label:"Moment of inertia",unit:su.d+"⁴"},{id:"Q",label:"First moment Q",unit:su.d+"³"},{id:"q",label:"Shear flow",unit:p.us?"lb/in.":"N/mm"},{id:"s",label:"Largest nail spacing",unit:su.d}]},
+  truth:(p,s)=>({I:s.sp.I,Q:s.Q,q:s.q,s:s.s}),note:"Answers within 2% are accepted."};
+
+// ===== Chapter 6 deflection engine: exact integration of v'' = M/(EI) for piecewise-polynomial M
+// bm from bmSolve (kN, m or lb, ft); EI(x) in kN·m² or lb·ft²; bc: {kind:"ss",xa,xb,da,db} | {kind:"fixL"} | {kind:"fixR"}
+function deflSolve(bm,EIf,bc,extra=[]){
+  const L=bm.L,brk=new Set([...bm.ev,...extra,...(bm.EIbrk||[])]),xs=[];const b=[...brk].filter(x=>x>=0&&x<=L).sort((a,c)=>a-c);
+  for(let i=0;i+1<b.length;i++){const n=200;for(let k=0;k<n;k++)xs.push(b[i]+(b[i+1]-b[i])*k/n)}xs.push(L);
+  const e=1e-12*L,kap=s=>bm.M(s)/EIf(s),th=[0],v=[0];
+  for(let i=0;i+1<xs.length;i++){const a=xs[i],c=xs[i+1],h=c-a;let I1=0,I2=0;
+    GQ.forEach(([t,w])=>{const s=(a+c)/2+h/2*t,k=kap(Math.min(Math.max(s,a+e),c-e))*w*h/2;I1+=k;I2+=k*(c-s)});
+    th.push(th[i]+I1);v.push(v[i]+th[i]*h+I2)}
+  const loc=x=>{let i=xs.length-2;let lo=0,hi=xs.length-1;while(hi-lo>1){const m=(lo+hi)>>1;if(xs[m]<=x)lo=m;else hi=m}i=Math.min(lo,xs.length-2);
+    const a=xs[i],h=x-a;if(h<=0)return [th[i],v[i]];let I1=0,I2=0;GQ.forEach(([t,w])=>{const s=a+h/2*(1+t),k=kap(Math.min(Math.max(s,a+e),x-e))*w*h/2;I1+=k;I2+=k*(x-s)});
+    return [th[i]+I1,v[i]+th[i]*h+I2]};
+  // general solution v = vp + C1 x + C2
+  let C1,C2;
+  if(bc.kind==="fixL"){C1=0;C2=0}
+  else if(bc.kind==="fixR"){const [t,vv]=loc(L);C1=-t;C2=-vv-C1*L}
+  else{const va=loc(bc.xa)[1],vb=loc(bc.xb)[1],da=bc.da||0,db=bc.db||0;C1=((db-vb)-(da-va))/(bc.xb-bc.xa);C2=da-va-C1*bc.xa}
+  const V=x=>loc(x)[1]+C1*x+C2,TH=x=>loc(x)[0]+C1;
+  // extremes of v: ends, breakpoints, zeros of slope
+  const cand=[];b.forEach(x=>cand.push({x,v:V(x)}));
+  for(let i=0;i+1<xs.length;i++){const ta=TH(xs[i]),tb=TH(xs[i+1]);if(ta===0)cand.push({x:xs[i],v:V(xs[i])});
+    if(ta*tb<0){let l=xs[i],h=xs[i+1];for(let it=0;it<70;it++){const m=(l+h)/2;if(TH(m)*ta>0)l=m;else h=m}const x=(l+h)/2;cand.push({x,v:V(x),z:1})}}
+  const dn=cand.reduce((a,c)=>c.v<a.v?c:a,{v:Infinity}),up=cand.reduce((a,c)=>c.v>a.v?c:a,{v:-Infinity});
+  return {V,TH,dn,up,vmax:Math.abs(dn.v)>=Math.abs(up.v)?dn:up,C1,C2};
+}
+// units: EI from E and I; deflection display
+const DU=us=>us?{E:"× 10⁶ psi",I:"in.⁴",d:"in.",dv:12,EI:(E,I)=>E*1e6*I/144,EIu:"lb·ft²"}:{E:"GPa",I:"mm⁴",d:"mm",dv:1000,EI:(E,I)=>E*I*1e-6,EIu:"kN·m²"};
+const Ist=(I,us)=>us?`${sig(I,4)} in.⁴`:`${sig(I/1e6,4)} × 10⁶ mm⁴`;
+function deflPlot(bm,sol,o={}){
+  const u=DU(bm.us),x0=90,W=560,X=x=>x0+x*W/bm.L,N=300,pts=[];for(let i=0;i<=N;i++){const x=bm.L*i/N;pts.push([x,sol.V(x)*u.dv])}
+  const mx=Math.max(1e-12,...pts.map(p=>Math.abs(p[1]))),H=60,y0=20+H,Y=v=>y0-v/mx*H;
+  let s=LN(X(0),y0,X(bm.L),y0,{c:C.dim,w:1})+`<polyline points="${pts.map(p=>X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1)).join(" ")}" fill="none" stroke="#2a5d8f" stroke-width="2"/>`;
+  (o.marks||[]).forEach(x=>{let v=sol.V(x)*u.dv;if(Math.abs(v)<1e-9*mx)v=0;s+=CI(X(x),Y(v),3,{f:"#2a5d8f",c:"#2a5d8f"})+TX(X(x),Y(v)+(v<0?16:-7),sig(v,3),{s:11})});
+  s+=TX(X(0)-8,y0+4,`v (${u.d})`,{s:12,c:C.dim,a:"end"});
+  return SVG(760,2*H+40,s);
+}
+
+// ===== Chapter 6 problem types. Loads in kN or lb, lengths in m or ft.
+const MATS6=us=>[{n:"steel",E:us?29:200},{n:"aluminum",E:us?10:70},{n:"wood",E:us?1.6:12}];
+function secRect6(r,us,wood){return wood?{b:pick(r,us?[2,3,4,6]:[50,75,100,150]),h:pick(r,us?[6,8,10,12]:[150,200,250,300])}:null}
+function makeEI(r,us,mat){        // rectangle for wood; given I for metals
+  if(mat.n==="wood"){const b=pick(r,us?[2,3,4,6]:[50,75,100,150]),h=pick(r,us?[6,8,10,12]:[150,200,250,300]);return {b,h,I:b*h**3/12,rect:true}}
+  return {I:us?pick(r,[20,40,60,80,100,150,200,300]):pick(r,[2,5,10,20,40,60,100])*1e6,rect:false}}
+const secStr=(s,us)=>s.rect?`a rectangular cross section ${s.b} ${us?"in.":"mm"} wide and ${s.h} ${us?"in.":"mm"} deep (I = bh³/12)`:`I = ${Ist(s.I,us)}`;
+const radDeg=t=>`${sig(t,3)} rad = ${sig(t*180/Math.PI,3)}°`;
+const solHead=(bm,sec,mat,EI)=>{const u=DU(bm.us),U=U4(bm.us);return `<h3>1. Reactions and moment</h3><p>${bmReactText(bm)}.</p>${bmDiagram(bm,"M")}
+  <h3>2. Flexural rigidity</h3><p>I = ${Ist(sec.I,bm.us)}, E = ${mat.E} ${u.E}: EI = ${sig(EI,4)} ${u.EIu}.</p>
+  <h3>3. Elastic curve</h3><p>Integrate EIv″ = M(x) twice (bracket functions give one expression for the whole beam): EIv = ∫∫M dx dx + C₁x + C₂, with the constants fixed by the support conditions. Equivalent results follow from the moment-area method or superposition of table cases.</p>`};
+const okRange=(v,us,L)=>{const d=Math.abs(v)*DU(us).dv,Lmm=L*DU(us).dv;return d>Lmm/2000&&d<Lmm/80};
+
+// ----- 1. simply supported beam: maximum deflection, slope at A, deflection at a point
+function d1Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const st=us?1:0.5,L=pick(r,us?[8,10,12,14,16]:[3,4,5,6,8]),mat=pick(r,MATS6(us)),sec=makeEI(r,us,mat);
+    const P=[{x:pos(r,L,st),F:Fv(r,us)}],W=r()<0.5?[{a:0,b:L,w1:0,w2:0}]:[];if(W.length)W[0].w1=W[0].w2=Wv(r,us);else if(r()<0.5)P.push({x:pos(r,L,st),F:Fv(r,us)});
+    if(P.length>1&&P[0].x===P[1].x) continue;
+    const bm={us,L,sup:{kind:"ss",xa:0,xb:L},P,C:[],W};bmSolve(bm);const EI=DU(us).EI(mat.E,sec.I);
+    const xq=pick(r,range(st,L-st,st).filter(x=>!P.some(q=>q.x===x)).concat([L/2]));
+    const sol=deflSolve(bm,()=>EI,{kind:"ss",xa:0,xb:L},[xq]);if(!okRange(sol.vmax.v,us,L)) continue;
+    return {p:{bm,mat,sec,xq},s:{EI,sol,thA:sol.TH(0),vq:sol.V(xq)}};
+  }
+  throw new Error("no valid problem");
+}
+const D1={name:"Simply supported beam: maximum deflection and slope",generate:d1Generate,
+  figure:p=>bmDraw(p.bm,{section:p.xq}),
+  statement:p=>{const U=U4(p.bm.us);return `<p>The simply supported ${p.mat.n} beam shown has ${secStr(p.sec,p.bm.us)}. Use E = ${p.mat.E} ${DU(p.bm.us).E} and neglect the weight of the beam.</p>
+  <p>Find the slope at the left support, the deflection at x = ${fmtx(p.xq)} ${U.L} (dashed line), and the maximum deflection and its location.</p><p class="note">Deflections are positive upward; slopes are positive counterclockwise.</p>`},
+  solution:(p,s)=>{const u=DU(p.bm.us),U=U4(p.bm.us);return solHead(p.bm,p.sec,p.mat,s.EI)+deflPlot(p.bm,s.sol,{marks:[p.xq,s.sol.dn.x]})+
+  `<h3>4. Results</h3><p>Slope at A: θ<sub>A</sub> = ${radDeg(s.thA)}. At x = ${fmtx(p.xq)} ${U.L}: v = ${sig(s.vq*u.dv,4)} ${u.d}.</p><p class="final">Maximum deflection ${sig(s.sol.dn.v*u.dv,4)} ${u.d} at x = ${sig(s.sol.dn.x,4)} ${U.L}, where the slope is zero.</p>`},
+  fields:p=>{const u=DU(p.bm.us),U=U4(p.bm.us);return [{id:"th",label:"Slope at the left support (signed)",unit:"degrees",signed:true},{id:"vq",label:"Deflection at the marked section (signed)",unit:u.d,signed:true},
+    {id:"vm",label:"Maximum deflection (signed)",unit:u.d,signed:true},{id:"xm",label:"Its location from the left end",unit:U.L}]},
+  truth:(p,s)=>({th:s.thA*180/Math.PI,vq:s.vq*DU(p.bm.us).dv,vm:s.sol.dn.v*DU(p.bm.us).dv,xm:s.sol.dn.x}),note:"Answers within 2% are accepted; upward deflection and counterclockwise slope are positive."};
+
+// ----- 2. cantilever (possibly two segments with I and 2I)
+function d2Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const st=us?1:0.5,L=pick(r,us?[6,8,10,12]:[2,3,4,5]),mat=pick(r,MATS6(us).slice(0,2)),I0=us?pick(r,[20,40,60,80,150]):pick(r,[5,10,20,40,80,150])*1e6,step=r()<0.5;
+    const xb=step?pos(r,L,st,L*0.3,L*0.7):null;
+    const P=r()<0.7?[{x:pos(r,L,st,st,L),F:Fv(r,us)}]:[],W=[{a:pos(r,L,st,0,L-st),b:L,w1:0,w2:0}];W[0].w1=W[0].w2=Wv(r,us);if(r()<0.4)W[0].a=0;
+    const C=!P.length?[{x:L,C:Cv(r,us)*pick(r,[1,-1])}]:[];
+    const bm={us,L,sup:{kind:"fixL"},P,C,W};bmSolve(bm);bm.EIbrk=step?[xb]:[];
+    const EI0=DU(us).EI(mat.E,I0),EIf=x=>step&&x<xb?2*EI0:EI0;
+    const sol=deflSolve(bm,EIf,{kind:"fixL"});if(!okRange(sol.V(L),us,L)) continue;
+    return {p:{bm,mat,I0,step,xb},s:{EI0,sol,vL:sol.V(L),tL:sol.TH(L)}};
+  }
+  throw new Error("no valid problem");
+}
+const D2={name:"Cantilever beam (uniform or stepped I): deflection and slope at the free end",generate:d2Generate,
+  figure:p=>bmDraw(p.bm,p.step?{section:p.xb,steps:[[0,p.xb,18],[p.xb,p.bm.L,12]]}:{}),
+  statement:p=>{const U=U4(p.bm.us),u=DU(p.bm.us);return `<p>The ${p.mat.n} cantilever beam shown is built into the wall at ${iv("A")}. ${p.step?`Segment between the wall and x = ${fmtx(p.xb)} ${U.L} has moment of inertia 2I₀; the rest of the beam has I₀, with`:"Its moment of inertia is"} I₀ = ${Ist(p.I0,p.bm.us)}. Use E = ${p.mat.E} ${u.E}; neglect the weight of the beam.</p>
+  <p>Find the deflection and the slope at the free end.</p><p class="note">Deflections are positive upward; slopes are positive counterclockwise.</p>`},
+  solution:(p,s)=>{const u=DU(p.bm.us);return `<h3>1. Moment diagram</h3>${bmDiagram(p.bm,"M")}<h3>2. Integration</h3><p>EI₀ = ${sig(s.EI0,4)} ${u.EIu}. ${p.step?"Integrate v″ = M/(EI) segment by segment; the stiffer segment uses 2EI₀, and v and v′ are continuous at the step. ":""}At the wall v = 0 and v′ = 0, so the integration constants are zero (or the moment-area method gives the free-end values directly as the first and second moments of the M/EI diagram about the free end).</p>${deflPlot(p.bm,s.sol,{marks:[p.bm.L]})}
+  <p class="final">v = ${sig(s.vL*u.dv,4)} ${u.d}, θ = ${radDeg(s.tL)} at the free end.</p>`},
+  fields:p=>{const u=DU(p.bm.us);return [{id:"v",label:"Deflection at the free end (signed)",unit:u.d,signed:true},{id:"t",label:"Slope at the free end (signed)",unit:"degrees",signed:true}]},
+  truth:(p,s)=>({v:s.vL*DU(p.bm.us).dv,t:s.tL*180/Math.PI}),note:"Answers within 2% are accepted; upward deflection and counterclockwise slope are positive."};
+
+// ----- 3. overhanging beam: deflection at the tip and at midspan
+function d3Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const st=us?1:0.5,L=pick(r,us?[10,12,14,16]:[4,5,6,8]),xb=pos(r,L,st,L*0.6,L-st),mat=pick(r,MATS6(us).slice(0,2)),sec=makeEI(r,us,mat);
+    const P=[{x:L,F:Fv(r,us)}],W=r()<0.6?[{a:0,b:xb,w1:0,w2:0}]:[];if(W.length)W[0].w1=W[0].w2=Wv(r,us);
+    const bm={us,L,sup:{kind:"ss",xa:0,xb},P,C:[],W};bmSolve(bm);const EI=DU(us).EI(mat.E,sec.I),xm=xb/2;
+    const sol=deflSolve(bm,()=>EI,{kind:"ss",xa:0,xb},[xm]);const vt=sol.V(L),vm=sol.V(xm);
+    if(!okRange(vt,us,L)||Math.abs(vm)<0.1*Math.abs(vt)) continue;
+    return {p:{bm,mat,sec,xm},s:{EI,sol,vt,vm,tB:sol.TH(xb)}};
+  }
+  throw new Error("no valid problem");
+}
+const D3={name:"Overhanging beam: deflection at the free end and between the supports",generate:d3Generate,
+  figure:p=>bmDraw(p.bm,{section:p.xm}),
+  statement:p=>{const U=U4(p.bm.us);return `<p>The overhanging ${p.mat.n} beam shown has ${secStr(p.sec,p.bm.us)}; use E = ${p.mat.E} ${DU(p.bm.us).E} and neglect its weight.</p>
+  <p>Find the slope at the roller support, the deflection at the free end, and the deflection midway between the supports (dashed line).</p><p class="note">Deflections are positive upward; slopes are positive counterclockwise.</p>`},
+  solution:(p,s)=>{const u=DU(p.bm.us),U=U4(p.bm.us),xb=p.bm.sup.xb;return solHead(p.bm,p.sec,p.mat,s.EI)+deflPlot(p.bm,s.sol,{marks:[p.xm,p.bm.L]})+
+  `<h3>4. Results</h3><p>Slope at the roller: θ = ${radDeg(s.tB)}. The free end moves by the overhang acting as a cantilever plus the rotation of the beam at the roller: v = θ·(overhang) + v<sub>cantilever</sub>.</p><p class="final">Free end: v = ${sig(s.vt*u.dv,4)} ${u.d}; midway between supports: v = ${sig(s.vm*u.dv,4)} ${u.d}.</p>`},
+  fields:p=>{const u=DU(p.bm.us);return [{id:"t",label:"Slope at the roller (signed)",unit:"degrees",signed:true},{id:"vt",label:"Deflection at the free end (signed)",unit:u.d,signed:true},{id:"vm",label:"Deflection midway between supports (signed)",unit:u.d,signed:true}]},
+  truth:(p,s)=>({t:s.tB*180/Math.PI,vt:s.vt*DU(p.bm.us).dv,vm:s.vm*DU(p.bm.us).dv}),note:"Answers within 2% are accepted; upward deflection and counterclockwise slope are positive."};
+
+// ----- 4. partial or linearly varying load: midspan and maximum deflection
+function d4Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const st=us?1:0.5,L=pick(r,us?[8,10,12,16]:[4,5,6,8]),mat=pick(r,MATS6(us)),sec=makeEI(r,us,mat),lin=r()<0.4;
+    const a=lin?0:pos(r,L,st,0,L/2),b=lin?L:pos(r,L,st,a+L/4,L);if(!lin&&a===0&&b===L) continue;
+    const w=Wv(r,us),inc=r()<0.5,W=[{a,b,w1:lin&&!inc?w:lin?0:w,w2:lin&&inc?w:lin?0:w}];
+    const bm={us,L,sup:{kind:"ss",xa:0,xb:L},P:[],C:[],W};bmSolve(bm);const EI=DU(us).EI(mat.E,sec.I);
+    const sol=deflSolve(bm,()=>EI,{kind:"ss",xa:0,xb:L},[L/2]);if(!okRange(sol.dn.v,us,L)||Math.abs(sol.dn.x-L/2)<0.02*L) continue;
+    return {p:{bm,mat,sec,lin},s:{EI,sol,vc:sol.V(L/2)}};
+  }
+  throw new Error("no valid problem");
+}
+const D4={name:"Partial or linearly varying load: midspan and maximum deflection",generate:d4Generate,
+  figure:p=>bmDraw(p.bm),
+  statement:p=>`<p>The simply supported ${p.mat.n} beam shown carries ${p.lin?"a linearly varying":"a uniformly distributed load over part of its length"} load and has ${secStr(p.sec,p.bm.us)}. Use E = ${p.mat.E} ${DU(p.bm.us).E}; neglect the weight of the beam.</p>
+  <p>Find the midspan deflection, and the maximum deflection and its location.</p><p class="note">Deflections are positive upward.</p>`,
+  solution:(p,s)=>{const u=DU(p.bm.us),U=U4(p.bm.us);return solHead(p.bm,p.sec,p.mat,s.EI)+deflPlot(p.bm,s.sol,{marks:[p.bm.L/2,s.sol.dn.x]})+
+  `<h3>4. Results</h3><p>Midspan: v = ${sig(s.vc*u.dv,4)} ${u.d}. The maximum deflection is where v′ = 0, which is not at midspan because the load is not symmetric.</p><p class="final">v<sub>max</sub> = ${sig(s.sol.dn.v*u.dv,4)} ${u.d} at x = ${sig(s.sol.dn.x,4)} ${U.L}</p>`},
+  fields:p=>{const u=DU(p.bm.us),U=U4(p.bm.us);return [{id:"vc",label:"Midspan deflection (signed)",unit:u.d,signed:true},{id:"vm",label:"Maximum deflection (signed)",unit:u.d,signed:true},{id:"xm",label:"Its location from the left end",unit:U.L}]},
+  truth:(p,s)=>({vc:s.vc*DU(p.bm.us).dv,vm:s.sol.dn.v*DU(p.bm.us).dv,xm:s.sol.dn.x}),note:"Answers within 2% are accepted."};
+
+// ----- 5. design for stiffness: required I and depth
+function d5Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const st=us?1:0.5,cant=r()<0.4,L=pick(r,us?[8,10,12,16,20]:[3,4,5,6,8]),wood=r()<0.5,E=wood?(us?1.6:12):(us?29:200);
+    const W=[{a:0,b:L,w1:0,w2:0}];W[0].w1=W[0].w2=Wv(r,us);const P=r()<0.5?[{x:cant?L:pos(r,L,st),F:Fv(r,us)}]:[];
+    const bm={us,L,sup:cant?{kind:"fixL"}:{kind:"ss",xa:0,xb:L},P,C:[],W};bmSolve(bm);
+    const ratio=pick(r,cant?[180,240]:[240,360,480]),EI1=DU(us).EI(E,1);
+    const sol=deflSolve(bm,()=>EI1,cant?{kind:"fixL"}:{kind:"ss",xa:0,xb:L});
+    const v1=Math.abs(sol.vmax.v)*DU(us).dv,vall=L*DU(us).dv/ratio,Ireq=v1/vall,b=pick(r,us?[3,4,6,8]:[75,100,150,200]),h=Math.cbrt(12*Ireq/b);
+    if(h>(us?30:800)||h<(us?3:80)) continue;
+    return {p:{bm,cant,wood,E,ratio,b},s:{v1,vall,Ireq,h,sol}};
+  }
+  throw new Error("no valid problem");
+}
+const D5={name:"Design for stiffness: required moment of inertia and depth",generate:d5Generate,
+  figure:p=>bmDraw(p.bm),
+  statement:p=>{const u=DU(p.bm.us);return `<p>The ${p.cant?"cantilever":"simply supported"} ${p.wood?"wood":"steel"} beam shown (E = ${p.E} ${u.E}) must not deflect more than L/${p.ratio} under the loads shown. Neglect the weight of the beam.</p>
+  <p>Find the allowable deflection, the smallest moment of inertia that satisfies the limit, and the smallest depth h of a rectangular section ${p.b} ${p.bm.us?"in.":"mm"} wide.</p>`},
+  solution:(p,s)=>{const u=DU(p.bm.us);return `<h3>1. Deflection for unit EI</h3><p>Deflection is inversely proportional to I. With I = 1 ${u.I}, the largest deflection would be ${sig(s.v1,4)} ${u.d}.</p>${deflPlot(p.bm,s.sol)}
+  <h3>2. Allowable deflection</h3><p>δ<sub>allow</sub> = L/${p.ratio} = ${sig(s.vall,4)} ${u.d}.</p>
+  <h3>3. Required I and depth</h3><p>I<sub>req</sub> = (deflection for unit I)/δ<sub>allow</sub> = ${sig(s.Ireq,4)} ${u.I}.</p><p class="final">h = (12I/b)<sup>1/3</sup> = ${sig(s.h,4)} ${p.bm.us?"in.":"mm"}</p>`},
+  fields:p=>{const u=DU(p.bm.us);return [{id:"va",label:"Allowable deflection",unit:u.d},{id:"I",label:"Required moment of inertia",unit:u.I},{id:"h",label:"Required depth",unit:p.bm.us?"in.":"mm"}]},
+  truth:(p,s)=>({va:s.vall,I:s.Ireq,h:s.h}),note:"Answers within 2% are accepted."};
+
+// ----- 6. beam on an elastic support (spring or rod)
+function d6Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const st=us?1:0.5,L=pick(r,us?[8,10,12,14]:[3,4,5,6]),mat=pick(r,MATS6(us).slice(0,2)),sec=makeEI(r,us,mat);
+    const P=[{x:pos(r,L,st),F:Fv(r,us)}],bm={us,L,sup:{kind:"ss",xa:0,xb:L},P,C:[],W:[]};bmSolve(bm);
+    const EI=DU(us).EI(mat.E,sec.I),kk=pick(r,us?[2000,5000,10000,20000,50000]:[200,500,1000,2000,5000]);     // lb/in. or kN/m
+    const Rb=bm.R[1].R,dB=-Rb/(us?kk*12:kk);     // ft or m
+    const sol=deflSolve(bm,()=>EI,{kind:"ss",xa:0,xb:L,db:dB});const sol0=deflSolve(bm,()=>EI,{kind:"ss",xa:0,xb:L});
+    const xp=P[0].x,vp=sol.V(xp),vp0=sol0.V(xp),share=100*(vp-vp0)/vp;
+    if(!okRange(vp,us,L)||share<10||share>70) continue;
+    return {p:{bm,mat,sec,kk,xp},s:{EI,sol,vp,vp0,dB,share,Rb}};
+  }
+  throw new Error("no valid problem");
+}
+const D6={name:"Beam on an elastic support: spring contribution to the deflection",generate:d6Generate,
+  figure:p=>{let f=bmDraw(p.bm);return f+SVG(760,26,TX(380,18,`The support at the right end is a spring of stiffness k = ${fmt(p.kk)} ${p.bm.us?"lb/in.":"kN/m"} (drawn as a roller).`,{s:13,c:C.dim}))},
+  statement:p=>{const U=U4(p.bm.us);return `<p>The ${p.mat.n} beam shown is pinned at the left end and rests on a spring of stiffness k = ${fmt(p.kk)} ${p.bm.us?"lb/in.":"kN/m"} at the right end. It has ${secStr(p.sec,p.bm.us)}; use E = ${p.mat.E} ${DU(p.bm.us).E} and neglect its weight.</p>
+  <p>Find the compression of the spring, the deflection under the load, and the percentage of that deflection caused by the spring.</p>`},
+  solution:(p,s)=>{const u=DU(p.bm.us);return `<h3>1. Spring force</h3><p>The beam is statically determinate: the spring carries R = ${sig(s.Rb,4)} ${U4(p.bm.us).F} and compresses ${sig(-s.dB*u.dv,4)} ${u.d}.</p>
+  <h3>2. Superposition</h3><p>Total deflection = deflection of the beam on rigid supports + rigid-body rotation about the pin caused by the spring compression, which varies linearly from zero at the pin to the full compression at the spring.</p>${deflPlot(p.bm,s.sol,{marks:[p.xp]})}
+  <p>Rigid supports: v = ${sig(s.vp0*u.dv,4)} ${u.d}. Spring part: ${sig((s.vp-s.vp0)*u.dv,4)} ${u.d}.</p><p class="final">v = ${sig(s.vp*u.dv,4)} ${u.d} under the load; the spring causes ${sig(s.share,3)}%.</p>`},
+  fields:p=>{const u=DU(p.bm.us);return [{id:"c",label:"Compression of the spring",unit:u.d},{id:"v",label:"Deflection under the load (signed)",unit:u.d,signed:true},{id:"pc",label:"Share caused by the spring",unit:"%"}]},
+  truth:(p,s)=>({c:-s.dB*DU(p.bm.us).dv,v:s.vp*DU(p.bm.us).dv,pc:s.share}),note:"Answers within 2% are accepted."};
+
+// ----- 7. superposition: force at the tip that makes the midspan deflection zero
+function d7Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const st=us?1:0.5,L=pick(r,us?[10,12,14,16]:[4,5,6,8]),xb=pos(r,L,st,L*0.6,L-st),mat=pick(r,MATS6(us).slice(0,2)),sec=makeEI(r,us,mat),w=Wv(r,us);
+    const EI=DU(us).EI(mat.E,sec.I),xm=xb/2;
+    const mk=(F,ww)=>{const bm={us,L,sup:{kind:"ss",xa:0,xb},P:F?[{x:L,F}]:[],C:[],W:ww?[{a:0,b:xb,w1:ww,w2:ww}]:[]};bmSolve(bm);return [bm,deflSolve(bm,()=>EI,{kind:"ss",xa:0,xb},[xm])]};
+    const [,sw]=mk(0,w),[,s1]=mk(1,0),P=-sw.V(xm)/s1.V(xm),[bm,sol]=mk(P,w);
+    const vt=sol.V(L);if(P<=0||!okRange(vt,us,L)||Math.abs(sol.V(xm))>1e-9*Math.abs(vt)+1e-15) continue;
+    bm.P=[{x:L,F:P}];const disp=JSON.parse(JSON.stringify({L}));
+    return {p:{bm,mat,sec,xm,w,xb},s:{EI,P,sol,vt,vw:sw.V(xm),v1:s1.V(xm)}};
+  }
+  throw new Error("no valid problem");
+}
+const D7={name:"Superposition: tip force that removes the midspan deflection",generate:d7Generate,
+  figure:p=>bmDraw(p.bm,{section:p.xm}).replace(/>([\d,.]+) (lb|kN)</,">P<"),
+  statement:p=>{const U=U4(p.bm.us);return `<p>The overhanging ${p.mat.n} beam shown carries a uniform load of ${fmt(p.w)} ${U.w} between the supports and a force P at the free end. It has ${secStr(p.sec,p.bm.us)}; use E = ${p.mat.E} ${DU(p.bm.us).E} and neglect its weight.</p>
+  <p>Find the force P for which the deflection midway between the supports (dashed line) is zero, and the deflection of the free end under that force.</p>`},
+  solution:(p,s)=>{const u=DU(p.bm.us),U=U4(p.bm.us);return `<h3>1. Superposition at midspan</h3><p>Uniform load alone: v = ${sig(s.vw*u.dv,4)} ${u.d} (downward). Unit tip force alone: v = ${sig(s.v1*u.dv,4)} ${u.d} per ${U.F} (upward, since the tip load lifts the span).</p>
+  <p class="eq">v<sub>w</sub> + P·v<sub>1</sub> = 0 ⇒ P = ${sig(s.P,4)} ${U.F}</p>
+  <h3>2. Free end</h3>${deflPlot(p.bm,s.sol,{marks:[p.xm,p.bm.L]})}<p class="final">v at the free end = ${sig(s.vt*u.dv,4)} ${u.d}</p>`},
+  fields:p=>{const u=DU(p.bm.us),U=U4(p.bm.us);return [{id:"P",label:"Force P",unit:U.F},{id:"vt",label:"Deflection at the free end (signed)",unit:u.d,signed:true}]},
+  truth:(p,s)=>({P:s.P,vt:s.vt*DU(p.bm.us).dv}),note:"Answers within 2% are accepted; upward deflection is positive."};
+
+// ===== Chapter 7: statically indeterminate beams by superposition of redundants
+// base: {us,L,sup (primary, determinate),P,C,W}; red: [{x,kind:"F"|"C",target,flex}] ; EI constant
+function indSolve(base,red,EI){
+  const bc=base.sup.kind==="ss"?{kind:"ss",xa:base.sup.xa,xb:base.sup.xb}:{kind:base.sup.kind};
+  const xq=red.map(q=>q.x),resp=(bm,q)=>{const s=deflSolve(bm,()=>EI,bc,xq);return q.kind==="F"?s.V(q.x):s.TH(q.x)};
+  const mk=(P,C,W)=>bmSolve({us:base.us,L:base.L,sup:base.sup,P,C,W});
+  const b0=mk(base.P,base.C,base.W),n=red.length,A=[],rhs=[];
+  const unit=red.map(q=>q.kind==="F"?mk([{x:q.x,F:-1}],[],[]):mk([],[{x:q.x,C:1}],[]));
+  for(let i=0;i<n;i++){A.push(red.map((_,j)=>resp(unit[j],red[i])+(i===j&&red[i].flex?red[i].flex:0)));rhs.push((red[i].target||0)-resp(b0,red[i]))}
+  // Gaussian elimination
+  const M=A.map((r,i)=>[...r,rhs[i]]);for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(M[r][c])>Math.abs(M[p][c]))p=r;[M[c],M[p]]=[M[p],M[c]];
+    for(let r=0;r<n;r++)if(r!==c){const f=M[r][c]/M[c][c];for(let k=c;k<=n;k++)M[r][k]-=f*M[c][k]}}
+  const R=M.map((r,i)=>r[n]/r[i]);
+  const P=[...base.P],C=[...base.C];red.forEach((q,i)=>{if(q.kind==="F")P.push({x:q.x,F:-R[i]});else C.push({x:q.x,C:R[i]})});
+  const bm=mk(P,C,base.W);bm.redR=R;const sol=deflSolve(bm,()=>EI,bc);
+  return {bm,sol,R,unit,b0};
+}
+// display beam: original loads with the true supports
+function indDisp(base,bm,sups){return {us:base.us,L:base.L,sup:{kind:"none"},P:base.P,C:base.C,W:base.W,ev:bm.ev,sups}}
+const indDraw=(base,bm,sups,o={})=>bmDraw(indDisp(base,bm,sups),Object.assign({sups},o));
+
+// ===== Chapter 13: inelastic action. Base units: SI N, mm, MPa; US kips, in., ksi.
+const IU=us=>us?{F:"kips",d:"in.",S:"ksi",T:"kip·in.",M:"kip·in.",Mf:1,Ff:1,L:"ft",lb:12}:{F:"kN",d:"mm",S:"MPa",T:"kN·m",M:"kN·m",Mf:1e6,Ff:1000,L:"m",lb:1000};
+
+// ----- 1. elastoplastic torsion of a solid or hollow shaft
+function torq(c,b,tau,rho){   // torque with elastic core radius rho (b <= rho <= c)
+  return 2*Math.PI*tau/3*(c**3-rho**3)+tau/rho*Math.PI*(rho**4-b**4)/2}
+function p1Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const u=IU(us),hollow=r()<0.4,d=pick(r,us?[1,1.5,2,2.5,3,4]:[25,40,50,60,80,100]),c=d/2,b=hollow?c*pick(r,[0.4,0.5,0.6]):0,tau=pick(r,us?[18,20,24,30]:[120,140,160,200]),G=us?11500:80000,L=pick(r,us?[2,3,4,5]:[0.5,1,1.5,2])*u.lb;
+    const J=Math.PI*(c**4-b**4)/2,Typ=tau*J/c,TL=2*Math.PI*tau*(c**3-b**3)/3,f=pick(r,[0.25,0.4,0.5,0.6,0.75]),T=Typ+f*(TL-Typ);
+    let lo=Math.max(b,1e-9*c),hi=c;for(let i=0;i<100;i++){const m=(lo+hi)/2;if(torq(c,b,tau,m)>T)lo=m;else hi=m}const rho=(lo+hi)/2;
+    const th=tau*L/(G*rho),tres=tau-T*c/J,tcore=tau-T*rho/J;if(Math.abs(tres)>tau) continue;
+    return {p:{us,hollow,d,b2:2*b,tau,G,L,T:T/u.Mf},s:{J,Typ,TL,rho,th:th*180/Math.PI,tres,tcore}};
+  }
+  throw new Error("no valid problem");
+}
+const P1={name:"Elastoplastic torsion: yield and limit torques, elastic core, residual stress",generate:p1Generate,
+  figure:p=>{const u=IU(p.us),k=110/p.d,cx=200,cy=150;let s=CI(cx,cy,p.d*k/2,{f:"#f3d6d8",c:C.steelln})+CI(cx,cy,p.d*k/2*(p.hollow?(1+p.b2/p.d)/2:0.55),{f:"#dfe4ea",c:C.steelln,w:1})+(p.hollow?CI(cx,cy,p.b2*k/2,{f:"#fff",c:C.steelln}):"")
+     +TX(cx,cy+p.d*k/2+22,p.hollow?`outer d = ${p.d} ${u.d}, inner d = ${sig(p.b2,3)} ${u.d}`:`d = ${p.d} ${u.d}`,{s:12,c:C.dim})+TX(cx,cy-p.d*k/2-12,"plastic zone (shaded) and elastic core",{s:12,c:C.dim})
+     +HATCH(380,90,16,120)+CYL(396,640,150,30,"#dfe4ea")+TV(676,150,1,`T = ${sig(p.T,3)} ${u.T}`)+TX(520,205,`L = ${sig(p.L/u.lb,3)} ${u.L}`,{s:12,c:C.dim});return SVG(760,300,s)},
+  statement:p=>{const u=IU(p.us);return `<p>A ${p.hollow?"hollow":"solid"} circular shaft (${p.hollow?`outer diameter ${p.d} ${u.d}, inner diameter ${sig(p.b2,3)} ${u.d}`:`diameter ${p.d} ${u.d}`}, length ${sig(p.L/u.lb,3)} ${u.L}) is made of an elastic-perfectly plastic material with τ<sub>yp</sub> = ${p.tau} ${u.S} and G = ${p.us?"11.5 × 10⁶ psi":"80 GPa"}.</p>
+  <p>Find the yield torque and the limit torque. For the applied torque T = ${sig(p.T,3)} ${u.T}, find the radius of the elastic core and the angle of twist. Then find the residual shear stress at the outer surface after T is removed.</p>`},
+  solution:(p,s)=>{const u=IU(p.us),c=p.d/2,b=p.b2/2;return `<h3>1. Yield and limit torques</h3><p>T<sub>yp</sub> = τ<sub>yp</sub>J/c = ${sig(s.Typ/u.Mf,4)} ${u.T}. When the whole section is plastic, T<sub>L</sub> = (2π/3)τ<sub>yp</sub>(c³ − b³) = ${sig(s.TL/u.Mf,4)} ${u.T}</p>
+  <h3>2. Elastic core</h3><p>With an elastic core of radius ρ, the stress is τ<sub>yp</sub>ρ'/ρ inside the core and τ<sub>yp</sub> outside it:</p><p class="eq">T = (2π/3)τ<sub>yp</sub>(c³ − ρ³) + (π τ<sub>yp</sub>/(2ρ))(ρ⁴ − b⁴)</p>
+  <p>Solving for ρ: <span class="final">ρ = ${sig(s.rho,4)} ${u.d}</span>. The core boundary is at the yield strain, so θ = τ<sub>yp</sub>L/(Gρ) = ${sig(s.th,4)}°.</p>
+  <h3>3. Residual stress</h3><p>Unloading is elastic: subtract Tρ'/J. At the surface, τ<sub>res</sub> = τ<sub>yp</sub> − Tc/J = <span class="final">${sig(s.tres,4)} ${u.S}</span> (opposite in sense to the loading stress if negative). At the core boundary, τ<sub>res</sub> = ${sig(s.tcore,4)} ${u.S}</p>`},
+  fields:p=>{const u=IU(p.us);return [{id:"Typ",label:"Yield torque",unit:u.T},{id:"TL",label:"Limit torque",unit:u.T},{id:"rho",label:"Elastic core radius",unit:u.d},{id:"th",label:"Angle of twist",unit:"degrees"},{id:"tr",label:"Residual stress at the surface (signed, + in the loading sense)",unit:u.S,signed:true}]},
+  truth:(p,s)=>({Typ:s.Typ/IU(p.us).Mf,TL:s.TL/IU(p.us).Mf,rho:s.rho,th:s.th,tr:s.tres}),note:"Answers within 2% are accepted."};
+
+// ----- 2. shape factor of a composite section (plastic neutral axis)
+function plastic(rects,sy){
+  const sp=secProps(rects),A=sp.A;   // plastic neutral axis: area below = A/2
+  const below=y=>rects.reduce((a,q)=>a+q.b*Math.max(0,Math.min(q.y1,y)-q.y0),0);let lo=0,hi=sp.H;for(let i=0;i<100;i++){const m=(lo+hi)/2;if(below(m)<A/2)lo=m;else hi=m}const yp=(lo+hi)/2;
+  let Z=0;rects.forEach(q=>{const a0=Math.min(q.y1,yp),b0=Math.max(q.y0,yp);if(a0>q.y0)Z+=q.b*(a0-q.y0)*(yp-(q.y0+a0)/2);if(q.y1>b0)Z+=q.b*(q.y1-b0)*((q.y1+b0)/2-yp)});
+  return {sp,yp,Z,S:sp.I/Math.max(sp.ct,sp.cb),Myp:sy*sp.I/Math.max(sp.ct,sp.cb),ML:sy*Z};
+}
+function p2Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const u=IU(us),kind=pick(r,["T","I","box"]),sy=pick(r,us?[36,50]:[250,350]);let rects,txt;
+    if(kind==="T"){const bf=pick(r,us?[4,5,6,8]:[100,120,150,200]),tf=pick(r,us?[0.75,1]:[15,20,25]),tw=pick(r,us?[0.75,1]:[15,20,25]),hw=pick(r,us?[5,6,8]:[120,150,200]);rects=secT(bf,tf,tw,hw,true);txt=`T-section: flange ${bf} × ${tf} ${u.d}, web ${tw} × ${hw} ${u.d}`}
+    else if(kind==="I"){const bf=pick(r,us?[4,6,8]:[100,150,200]),tf=pick(r,us?[0.5,0.75,1]:[12,15,20]),tw=pick(r,us?[0.375,0.5]:[8,10,12]),hw=pick(r,us?[6,8,10,12]:[150,200,250,300]);rects=secI(bf,tf,tw,hw);txt=`I-section: flanges ${bf} × ${tf} ${u.d}, web ${tw} × ${hw} ${u.d}`}
+    else{const B=pick(r,us?[4,6,8]:[100,150,200]),H=pick(r,us?[6,8,10]:[150,200,250]),t=pick(r,us?[0.375,0.5,0.75]:[10,12,16]);rects=secBox(B,H,t,t);txt=`box section ${B} × ${H} ${u.d} outside, wall thickness ${t} ${u.d}`}
+    const o=plastic(rects,sy);
+    return {p:{us,kind,rects,txt,sy},s:o};
+  }
+  throw new Error("no valid problem");
+}
+const P2={name:"Plastic bending: yield moment, limit moment, shape factor",generate:p2Generate,
+  figure:p=>secDraw(p.rects,[p.txt.split(": ")[0],p.txt.split(": ")[1]||"",`σ_yp = ${p.sy} ${IU(p.us).S}`].filter(Boolean).map(t=>t.replace("σ_yp","σyp")),{title:"Cross section",Hl:`${p.rects[p.rects.length-1].y1} ${IU(p.us).d}`}),
+  statement:p=>{const u=IU(p.us);return `<p>A beam has the ${p.txt} shown, made of an elastic-perfectly plastic material with σ<sub>yp</sub> = ${p.sy} ${u.S}. Bending is about the horizontal axis.</p>
+  <p>Find the elastic neutral axis and the yield moment M<sub>yp</sub>, the plastic neutral axis and the limit moment M<sub>L</sub>, and the ratio M<sub>L</sub>/M<sub>yp</sub>.</p>`},
+  solution:(p,s)=>{const u=IU(p.us),sp=s.sp;return `<h3>1. Yield moment</h3><p>Elastic neutral axis (centroid): ȳ = ${sig(sp.yb,4)} ${u.d} from the bottom; I = ${sig(sp.I,4)} ${u.d}⁴; c = ${sig(Math.max(sp.ct,sp.cb),4)} ${u.d}</p><p class="eq">M<sub>yp</sub> = σ<sub>yp</sub>I/c = ${sig(s.Myp/u.Mf,4)} ${u.M}</p>
+  <h3>2. Limit moment</h3><p>The plastic neutral axis divides the area into equal halves: y<sub>p</sub> = ${sig(s.yp,4)} ${u.d} from the bottom. With Q<sub>T</sub> + Q<sub>C</sub> the sum of the first moments of the two halves about that axis = ${sig(s.Z,4)} ${u.d}³ (Eq. 13.6):</p><p class="eq">M<sub>L</sub> = σ<sub>yp</sub>(Q<sub>T</sub> + Q<sub>C</sub>) = ${sig(s.ML/u.Mf,4)} ${u.M}</p>
+  <h3>3. Shape factor</h3><p class="final">M<sub>L</sub>/M<sub>yp</sub> = ${sig(s.ML/s.Myp,4)}</p>`},
+  fields:p=>{const u=IU(p.us);return [{id:"yb",label:"Elastic neutral axis above the bottom",unit:u.d},{id:"Myp",label:"Yield moment",unit:u.M},{id:"yp",label:"Plastic neutral axis above the bottom",unit:u.d},{id:"ML",label:"Limit moment",unit:u.M},{id:"r",label:"ML / Myp",unit:""}]},
+  truth:(p,s)=>({yb:s.sp.yb,Myp:s.Myp/IU(p.us).Mf,yp:s.yp,ML:s.ML/IU(p.us).Mf,r:s.ML/s.Myp}),note:"Answers within 2% are accepted."};
+
+// ----- 3. elastoplastic rectangular beam: elastic core and residual stress
+function p3Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const u=IU(us),b=pick(r,us?[1,1.5,2,3]:[25,40,50,75]),h=pick(r,us?[3,4,6,8]:[75,100,150,200]),sy=pick(r,us?[36,50]:[250,350]),E=us?29000:200000;
+    const Myp=sy*b*h*h/6,ML=sy*b*h*h/4,f=pick(r,[0.2,0.4,0.5,0.6,0.8]),M=Myp+f*(ML-Myp),e=Math.sqrt(3*(h*h/4-M/(sy*b))),I=b*h**3/12;
+    const sr=-sy+M*(h/2)/I,sc=-sy+M*e/I,kap=sy/(E*e);if(Math.abs(sr)>sy) continue;
+    return {p:{us,b,h,sy,E,M:M/u.Mf},s:{Myp,ML,e,sr,sc,R:1/kap}};
+  }
+  throw new Error("no valid problem");
+}
+const P3={name:"Elastoplastic rectangular beam: elastic core, curvature, residual stress",generate:p3Generate,
+  figure:p=>{const u=IU(p.us),k=180/p.h,x0=120,y0=60,W=p.b*k,H=p.h*k;let s=RC(x0,y0,W,H,{f:"#dfe4ea",c:C.steelln})+TX(x0+W/2,y0+H+22,`${p.b} × ${p.h} ${u.d}`,{s:12,c:C.dim})+DIMV(x0-24,y0,y0+H,`h = ${p.h} ${u.d}`,{left:1});
+    const xs=420,X=v=>xs+v*90;s+=LN(xs,y0-10,xs,y0+H+10,{c:C.dim,w:1})+`<polygon points="${xs},${y0} ${X(-1)},${y0} ${X(-1)},${y0+H*0.25} ${X(1)},${y0+H*0.75} ${X(1)},${y0+H} ${xs},${y0+H}" fill="#f3d6d8" stroke="${C.load}" stroke-width="1.5"/>`
+     +TX(X(1)+8,y0+H-4,"σyp",{s:12,c:C.load,a:"start"})+TX(X(-1)-8,y0+14,"−σyp",{s:12,c:C.load,a:"end"})+TX(xs,y0+H+40,"stress distribution (elastic core in the middle)",{s:12,c:C.dim});
+    return SVG(760,y0+H+60,s)},
+  statement:p=>{const u=IU(p.us);return `<p>A beam with a rectangular cross section ${p.b} ${u.d} wide and ${p.h} ${u.d} deep is made of an elastic-perfectly plastic material with σ<sub>yp</sub> = ${p.sy} ${u.S} and E = ${p.us?"29 × 10⁶ psi":"200 GPa"}. It is bent by a positive moment M = ${sig(p.M,3)} ${u.M}</p>
+  <p>Find M<sub>yp</sub> and M<sub>L</sub>, the depth 2e of the elastic core, the radius of curvature, and the residual stress at the top fiber after M is removed (tension positive).</p>`},
+  solution:(p,s)=>{const u=IU(p.us);return `<h3>1. Yield and limit moments</h3><p>M<sub>yp</sub> = σ<sub>yp</sub>bh²/6 = ${sig(s.Myp/u.Mf,4)} ${u.M}; M<sub>L</sub> = σ<sub>yp</sub>bh²/4 = ${sig(s.ML/u.Mf,4)} ${u.M}</p>
+  <h3>2. Elastic core</h3><p>With the core extending a distance e on each side of the neutral axis:</p><p class="eq">M = σ<sub>yp</sub>b(h²/4 − e²/3) ⇒ e = ${sig(s.e,4)} ${u.d}, core depth 2e = ${sig(2*s.e,4)} ${u.d}</p>
+  <h3>3. Curvature</h3><p>The strain at y = e is the yield strain: 1/R = ε<sub>yp</sub>/e = σ<sub>yp</sub>/(Ee), so R = ${sig(s.R,4)} ${u.d}</p>
+  <h3>4. Residual stress</h3><p>Unloading is elastic (subtract My/I). Top fiber: σ<sub>res</sub> = −σ<sub>yp</sub> + M(h/2)/I = <span class="final">${sig(s.sr,4)} ${u.S}</span>. At the edge of the core: −σ<sub>yp</sub> + Me/I = ${sig(s.sc,4)} ${u.S}</p>`},
+  fields:p=>{const u=IU(p.us);return [{id:"Myp",label:"Yield moment",unit:u.M},{id:"ML",label:"Limit moment",unit:u.M},{id:"c",label:"Depth of the elastic core 2e",unit:u.d},{id:"R",label:"Radius of curvature",unit:u.d},{id:"sr",label:"Residual stress at the top fiber (signed)",unit:u.S,signed:true}]},
+  truth:(p,s)=>({Myp:s.Myp/IU(p.us).Mf,ML:s.ML/IU(p.us).Mf,c:2*s.e,R:s.R,sr:s.sr}),note:"Answers within 2% are accepted."};
+
+// ----- 4. three rods on a rigid bar: yield load, limit load, residual stresses
+function p4Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const u=IU(us),mats=[{n:"aluminum",E:us?10000:70000,sy:us?48:330},{n:"steel",E:us?29000:200000,sy:us?42:290}],sw=r()<0.5,outer=mats[sw?0:1],mid=mats[sw?1:0];
+    const Ao=pick(r,us?[0.5,0.75,1,1.5]:[300,400,600,800,900]),Am=pick(r,us?[0.5,0.75,1,1.5]:[300,400,600,800,900]),Lo=pick(r,us?[8,10,12,14]:[200,250,300,350]),Lm=pick(r,us?[8,10,12,14]:[200,250,300,350]);
+    const ko=outer.E*Ao/Lo,km=mid.E*Am/Lm,K=2*ko+km,Py=Math.min(outer.sy*Ao*K/ko,mid.sy*Am*K/km),PL=2*outer.sy*Ao+mid.sy*Am;
+    const ro=outer.sy*Ao-PL*ko/K,rm=mid.sy*Am-PL*km/K,so=ro/Ao,sm=rm/Am;
+    if(Math.abs(so)>outer.sy||Math.abs(sm)>mid.sy||Math.abs(sm)<0.05*mid.sy) continue;
+    return {p:{us,outer,mid,Ao,Am,Lo,Lm},s:{ko,km,K,Py,PL,so,sm}};
+  }
+  throw new Error("no valid problem");
+}
+const P4={name:"Three rods on a rigid bar: yield load, limit load, residual stresses",generate:p4Generate,
+  figure:p=>{const u=IU(p.us),Lmx=Math.max(p.Lo,p.Lm),k=160/Lmx,yb=230,xs=[220,380,540];let s="";
+    xs.forEach((x,i)=>{const L=(i===1?p.Lm:p.Lo)*k;s+=HATCH(x-30,yb-L-16,60,16)+LN(x,yb-L,x,yb,{c:(i===1?p.mid:p.outer).n==="steel"?C.steelln:"#a0703a",w:6})+TX(x+10,yb-L/2,`${i===1?p.mid.n:p.outer.n}`,{s:12,c:C.dim,a:"start"})+TX(x+10,yb-L/2+15,`A = ${i===1?p.Am:p.Ao} ${p.us?"in.²":"mm²"}`,{s:12,c:C.dim,a:"start"})+TX(x+10,yb-L/2+30,`L = ${i===1?p.Lm:p.Lo} ${u.d}`,{s:12,c:C.dim,a:"start"})});
+    s+=RC(170,yb,420,20,{f:"#c9ced6",c:C.steelln})+AR(380,yb+20,380,yb+80)+TX(392,yb+64,"P",{s:14,i:1,c:C.load,a:"start"});return SVG(760,yb+100,s)},
+  statement:p=>{const u=IU(p.us);return `<p>Three equally spaced vertical rods are attached to a rigid horizontal bar that carries the load P at its middle. The outer rods are ${p.outer.n} (E = ${fmt(p.outer.E)} ${u.S}, σ<sub>yp</sub> = ${p.outer.sy} ${u.S}); the middle rod is ${p.mid.n} (E = ${fmt(p.mid.E)} ${u.S}, σ<sub>yp</sub> = ${p.mid.sy} ${u.S}). Areas and lengths are shown; the materials are elastic-perfectly plastic. Neglect the weight of the bar.</p>
+  <p>Find the load at which yielding first occurs, the limit load P<sub>L</sub>, and the residual stresses in the outer and middle rods after P is raised to P<sub>L</sub> and removed (tension positive).</p>`},
+  solution:(p,s)=>{const u=IU(p.us),F=u.F;return `<h3>1. Elastic response</h3><p>The rigid bar imposes equal elongations, so each rod carries force in proportion to k = EA/L: k<sub>outer</sub> = ${sig(s.ko/u.Ff,4)}, k<sub>middle</sub> = ${sig(s.km/u.Ff,4)} ${F}/${u.d}</p>
+  <p>First yield: the rod that reaches σ<sub>yp</sub>A first, at <span class="final">P<sub>yp</sub> = ${sig(s.Py/u.Ff,4)} ${F}</span>.</p>
+  <h3>2. Limit load</h3><p>All three rods yield: P<sub>L</sub> = 2(σ<sub>yp</sub>A)<sub>outer</sub> + (σ<sub>yp</sub>A)<sub>middle</sub> = <span class="final">${sig(s.PL/u.Ff,4)} ${F}</span>.</p>
+  <h3>3. Residual stresses</h3><p>Removing P<sub>L</sub> is an elastic unloading that divides P<sub>L</sub> in proportion to k. Subtracting these forces from the yield forces:</p><p class="final">σ<sub>outer</sub> = ${sig(s.so,4)} ${u.S}, σ<sub>middle</sub> = ${sig(s.sm,4)} ${u.S}</p><p>Check: 2σ<sub>outer</sub>A<sub>outer</sub> + σ<sub>middle</sub>A<sub>middle</sub> = 0 (no external load).</p>`},
+  fields:p=>{const u=IU(p.us);return [{id:"Py",label:"Load at first yield",unit:u.F},{id:"PL",label:"Limit load",unit:u.F},{id:"so",label:"Residual stress in each outer rod (signed)",unit:u.S,signed:true},{id:"sm",label:"Residual stress in the middle rod (signed)",unit:u.S,signed:true}]},
+  truth:(p,s)=>({Py:s.Py/IU(p.us).Ff,PL:s.PL/IU(p.us).Ff,so:s.so,sm:s.sm}),note:"Answers within 2% are accepted."};
+
+// ----- 5. limit analysis of indeterminate beams
+function p5Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const u=IU(us),st=us?1:0.5,L=pick(r,us?[8,10,12,16,20]:[3,4,5,6,8]),kind=pick(r,["ff","pc"]),udl=r()<0.5,a=udl?0:pos(r,L,st,L*0.25,L*0.75);
+    const b=pick(r,us?[2,3,4]:[50,75,100]),h=pick(r,us?[6,8,10,12]:[150,200,250,300]),sy=pick(r,us?[36,50]:[250,350]),Myp=sy*b*h*h/6,ML=sy*b*h*h/4;   // kip·in. or N·mm
+    const cv=us?12:1e6,MLc=ML/cv,Mypc=Myp/cv;   // moments in kip·ft or kN·m to match L in ft or m
+    let PL;
+    if(kind==="ff")PL=udl?16*MLc/L**2:2*MLc*L/(a*(L-a));
+    else PL=udl?2*(3+2*Math.SQRT2)*MLc/L**2:MLc*(L+a)/(a*(L-a));
+    const base={us,L,sup:{kind:"fixL"},P:udl?[]:[{x:a,F:1}],C:[],W:udl?[{a:0,b:L,w1:1,w2:1}]:[]};
+    const red=kind==="ff"?[{x:L,kind:"F"},{x:L,kind:"C"}]:[{x:L,kind:"F"}],o=indSolve(base,red,1);
+    const Mu=Math.max(o.bm.Mpos?o.bm.Mpos.m:0,o.bm.Mneg?-o.bm.Mneg.m:0),Py=Mypc/Mu;
+    return {p:{us,L,kind,udl,a,b,h,sy,base},s:{Myp,ML,PL,Py,Mu,ratio:PL/Py,o}};
+  }
+  throw new Error("no valid problem");
+}
+const P5={name:"Limit analysis of indeterminate beams: limit load and yield load",generate:p5Generate,
+  figure:p=>{const disp={...p.base,P:p.udl?[]:[{x:p.a,F:1}],W:p.udl?[{a:0,b:p.L,w1:1,w2:1}]:[]};const bm=bmSolve({...disp,P:[...disp.P],W:[...disp.W],C:[]});
+    let f=indDraw(disp,bm,p.kind==="ff"?[{t:"wallL"},{t:"wallR"}]:[{t:"wallL"},{t:"roller",x:p.L}]);f=f.replace(/>1 (lb|kN|kips)</,">P<").replace(/>1 (lb\/ft|kN\/m|kips\/ft)</,">w<");
+    return f+SVG(760,30,TX(380,18,`rectangular section ${p.b} × ${p.h} ${p.us?"in.":"mm"} (width × depth), σyp = ${p.sy} ${p.us?"ksi":"MPa"}`,{s:12,c:C.dim}))},
+  statement:p=>{const u=IU(p.us),Lw=p.udl?(p.us?"kips/ft":"kN/m"):u.F;return `<p>The ${p.kind==="ff"?"beam with built-in ends":"propped cantilever (built in at the left end, roller at the right)"} shown has span ${p.L} ${u.L} and carries ${p.udl?"a uniformly distributed load w over its full length":`a concentrated load P at ${fmtx(p.a)} ${u.L} from the left end`}. The cross section is a ${p.b} × ${p.h} ${u.d} rectangle of elastic-perfectly plastic material with σ<sub>yp</sub> = ${p.sy} ${u.S}</p>
+  <p>Find the yield moment and the limit moment of the section, the load at which yielding first occurs, the limit load (collapse load), and their ratio.</p>`},
+  solution:(p,s)=>{const u=IU(p.us),Lw=p.udl?(p.us?"kips/ft":"kN/m"):u.F,X=p.udl?"w":"P";return `<h3>1. Section</h3><p>M<sub>yp</sub> = σ<sub>yp</sub>bh²/6 = ${sig(s.Myp/u.Mf,4)} ${u.M}; M<sub>L</sub> = σ<sub>yp</sub>bh²/4 = ${sig(s.ML/u.Mf,4)} ${u.M}</p>
+  <h3>2. First yield (elastic analysis)</h3><p>From the statically indeterminate solution (Chapter 7), the largest elastic moment is |M|<sub>max</sub> = ${sig(s.Mu/(p.udl?p.L*p.L:p.L),4)}${X}L${p.udl?"²":""}. Setting it equal to M<sub>yp</sub>: <span class="final">${X}<sub>yp</sub> = ${sig(s.Py,4)} ${Lw}</span>.</p>${bmDiagram(s.o.bm,"M").replace(/M \((kN·m|lb·ft)\)/,"M per unit load")}
+  <h3>3. Collapse mechanism</h3><p>${p.kind==="ff"?(p.udl?"Hinges form at both ends and at midspan: 2M<sub>L</sub> = wL²/8, so w<sub>L</sub> = 16M<sub>L</sub>/L².":"Hinges form at both ends and under the load (virtual work): P<sub>L</sub> = 2M<sub>L</sub>L/(ab).")
+    :(p.udl?"Hinges form at the wall and in the span where the shear is zero, at (√2 − 1)L = 0.414L from the roller. Equilibrium of the mechanism gives w<sub>L</sub> = 2(3 + 2√2)M<sub>L</sub>/L² = 11.66M<sub>L</sub>/L² (that is, M<sub>L</sub> = 0.0858w<sub>L</sub>L²).":"Hinges form at the wall and under the load (virtual work): P<sub>L</sub> = M<sub>L</sub>(L + a)/[a(L − a)].")}</p>
+  <p class="final">${X}<sub>L</sub> = ${sig(s.PL,4)} ${Lw}; ${X}<sub>L</sub>/${X}<sub>yp</sub> = ${sig(s.ratio,4)}</p><p>The ratio exceeds the shape factor 1.5 because, after the first hinge forms, moment redistributes to other sections.</p>`},
+  fields:p=>{const u=IU(p.us),Lw=p.udl?(p.us?"kips/ft":"kN/m"):u.F;return [{id:"Myp",label:"Yield moment",unit:u.M},{id:"ML",label:"Limit moment",unit:u.M},{id:"Py",label:"Load at first yield",unit:Lw},{id:"PL",label:"Limit load",unit:Lw},{id:"r",label:"Limit load / yield load",unit:""}]},
+  truth:(p,s)=>({Myp:s.Myp/IU(p.us).Mf,ML:s.ML/IU(p.us).Mf,Py:s.Py,PL:s.PL,r:s.ratio}),note:"Answers within 2% are accepted."};
+
+const TEMPLATES={"plastic-torsion":P1,"shape-factor":P2,"elastoplastic-beam":P3,"rods-residual":P4,"limit-analysis":P5};
+
+const $=id=>document.getElementById(id);
+let curKey,curSeed,cur;
+function render(key,seed){
+  curKey=key;curSeed=seed;const T=TEMPLATES[key];cur=T.generate(seed);const {p,s}=cur;
+  $("typeSel").value=key;$("seedIn").value=seed;history.replaceState(null,"","#"+key+"-"+seed);
+  $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=T.statement(p,s);
+  $("answers").innerHTML=T.fields(p,s).map(f=>f.choices
+    ?`<label>${f.label}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
+    :`<label>${f.label}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
+  $("ansNote").textContent=T.note||"";$("solution").innerHTML=T.solution(p,s);
+  $("solution").style.display="none";$("solBtn").textContent="Show solution";
+}
+function check(){
+  const T=TEMPLATES[curKey],{p,s}=cur,tr=T.truth(p,s);
+  T.fields(p,s).forEach(f=>{
+    const el=$("m_"+f.id),raw=$("a_"+f.id).value.trim();let ok=false;
+    if(f.choices)ok=raw===tr[f.id];
+    else{const v=parseFloat(raw.replace(/,/g,"")),t=tr[f.id];
+      if(isFinite(v)&&f.abs!==undefined) ok=Math.abs(v-t)<=f.abs;
+      else if(isFinite(v)) ok=f.signed?Math.abs(v-t)<=0.02*Math.abs(t)+1e-9:Math.abs(Math.abs(v)-Math.abs(t))<=0.02*Math.abs(t)+1e-9;
+      if(isFinite(v)&&f.signed&&f.abs===undefined&&Math.abs(v)>0&&Math.sign(v)!==Math.sign(t)) ok=false}
+    el.textContent=raw===""?"":ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");
+  });
+}
+const newSeed=()=>1+Math.floor(Math.random()*999999);
+$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
+$("typeSel").onchange=e=>render(e.target.value,newSeed());
+$("newBtn").onclick=()=>render(curKey,newSeed());
+$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+$("checkBtn").onclick=check;
+$("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+(function(){const m=/^#([a-z0-9-]+?)-(\d+)$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]])render(m[1],parseInt(m[2],10));else render(Object.keys(TEMPLATES)[0],newSeed())})();
+
+</script>
+</body>
+</html>
