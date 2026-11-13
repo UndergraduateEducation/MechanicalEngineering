@@ -15,7 +15,5 @@ h2 a{color:var(--ink);text-decoration:none} h2 a:hover{color:var(--accent)}
 .btn:hover{filter:brightness(1.1)}
 .how{font-size:.95rem;color:var(--muted)}
 footer{padding:18px 24px 40px;color:var(--muted);font-family:system-ui,sans-serif;font-size:.8rem}
-.card.soon{border-left-color:var(--line)}
-.card.soon h2{color:var(--muted)}
 .back{font-family:system-ui,sans-serif;font-size:.85rem;margin:0 0 .6em}
 .back a{color:var(--accent)}
