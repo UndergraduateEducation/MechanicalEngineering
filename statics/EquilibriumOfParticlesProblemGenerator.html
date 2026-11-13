@@ -41,14 +41,19 @@
   select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
   .answers input{width:8em}
   .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
 </style>
 </head>
 <body>
 <header>
   <h1>Equilibrium of Particles Problem Generator</h1>
-  <div class="sub">Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem.</div>
 </header>
 <main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
+  </div>
   <div class="card bar">
     <label for="typeSel">Problem type</label><select id="typeSel"></select>
   </div>
