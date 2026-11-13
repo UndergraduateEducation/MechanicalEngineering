@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Friction Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --load:#aa1e28; --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+</style>
+</head>
+<body>
+<header>
+  <h1>Friction Problem Generator</h1>
+</header>
+<main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
+  </div>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+// ----- helpers
+const rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+const cs=d=>Math.cos(rad(d)), sn=d=>Math.sin(rad(d));
+const sub=(a,b)=>a.map((x,i)=>x-b[i]);
+const nrm=a=>Math.hypot(...a);
+const unit=a=>{const n=nrm(a);return a.map(x=>x/n)};
+const det3=m=>m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])-m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])+m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+function solve3(M,b){const D=det3(M);return [0,1,2].map(j=>{const X=M.map((row,i)=>row.map((v,k)=>k===j?b[i]:v));return det3(X)/D})}
+
+function fmt(v,d=0){if(Math.abs(v)<0.5*10**-d)v=0;return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+const sig=(x,n=4)=>{if(Math.abs(x)<1e-9)return "0";const d=Math.max(0,n-1-Math.floor(Math.log10(Math.abs(x))));return Number(x).toFixed(Math.min(d,8)).replace("-","−")};
+const fv=(v,n=4)=>"("+v.map(x=>sig(x,n)).join(", ")+")";
+const ang=t=>sig(t,3).replace(/\.0+$/,"")+"°";
+const FU=p=>p.us?"lbf":"N", LU=p=>p.us?"ft":"m", SU=p=>p.us?"in":"mm", KU=p=>p.us?"lbf/in":"N/mm";
+const eq=s=>`<span class="eq">${s}</span>`;
+const it=v=>`<tspan font-style="italic">${v}</tspan>`;
+const sb=(a,b)=>`${it(a)}<tspan baseline-shift="sub" font-size="12">${b}</tspan>`;
+
+// ----- figure toolkit
+const COL={k:"#222",r:"#aa1e28",b:"#2b5d8a",g:"#1e5a32",m:"#7d5014",x:"#888"};
+function draw(els,W=560,H=340){
+  const pts=[];els.forEach(e=>{[e.a,e.b,e.p].forEach(q=>q&&pts.push(q));(e.pts||[]).forEach(q=>pts.push(q));
+    if(e.t==="arc"){pts.push([e.p[0]+e.r,e.p[1]+e.r],[e.p[0]-e.r,e.p[1]-e.r])}});
+  const x0=Math.min(...pts.map(q=>q[0])),x1=Math.max(...pts.map(q=>q[0])),y0=Math.min(...pts.map(q=>q[1])),y1=Math.max(...pts.map(q=>q[1]));
+  const mx=90,my=50,s=Math.min((W-2*mx)/Math.max(x1-x0,1e-6),(H-2*my)/Math.max(y1-y0,1e-6));
+  const X=q=>mx+(q[0]-x0)*s+(W-2*mx-(x1-x0)*s)/2, Y=q=>H-my-(q[1]-y0)*s-(H-2*my-(y1-y0)*s)/2, f1=v=>v.toFixed(1);
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="16" style="max-height:${H+40}px"><defs>`;
+  for(const k in COL)o+=`<marker id="vx${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="${k==="r"?5:6}" markerHeight="${k==="r"?5:6}" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="${COL[k]}"/></marker>`;
+  o+=`<marker id="vxd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker></defs>`;
+  els.forEach(e=>{
+    const c=e.c||"k";
+    if(e.t==="pt"){const px=X(e.p),py=Y(e.p);o+=`<circle cx="${f1(px)}" cy="${f1(py)}" r="${e.r||3.6}" fill="${COL[c]}"/>`;
+      if(e.l)o+=`<text x="${f1(px+(e.dx??8))}" y="${f1(py+(e.dy??-8))}" text-anchor="${e.an||"start"}" class="halo">${e.l}</text>`;return}
+    if(e.t==="txt"){o+=`<text x="${f1(X(e.p))}" y="${f1(Y(e.p))}" text-anchor="${e.an||"middle"}" class="halo">${e.l}</text>`;return}
+    if(e.t==="poly"){o+=`<polygon points="${e.pts.map(q=>f1(X(q))+","+f1(Y(q))).join(" ")}" fill="${e.fill||"#eec878"}" stroke="#7d5014" stroke-width="1.6"/>`;return}
+    if(e.t==="pulley"){const px=X(e.p),py=Y(e.p);o+=`<circle cx="${f1(px)}" cy="${f1(py)}" r="${e.r||12}" fill="#fff" stroke="#222" stroke-width="1.8"/><circle cx="${f1(px)}" cy="${f1(py)}" r="2.5" fill="#222"/>`;return}
+    if(e.t==="arc"){const n=[];for(let t=e.t0;t<=e.t1+1e-6;t+=2)n.push(f1(X([e.p[0]+e.r*cs(t),0]))+","+f1(Y([0,e.p[1]+e.r*sn(t)])));
+      o+=`<polyline points="${n.join(" ")}" fill="none" stroke="#222" stroke-width="1.1"/>`;
+      if(e.l){const m=(e.t0+e.t1)/2,rr=e.r+(e.lr||0)/s;o+=`<text x="${f1(X([e.p[0]+rr*cs(m),0])+(cs(m)>=0?6:-6))}" y="${f1(Y([0,e.p[1]+rr*sn(m)])+5)}" text-anchor="${cs(m)>=0?"start":"end"}" font-size="14" class="halo">${e.l}</text>`}return}
+    const ax=X(e.a),ay=Y(e.a),bx=X(e.b),by=Y(e.b),dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1;
+    if(e.t==="hatch"){const sd=e.side||1,nx=-dy/L*sd,ny=dx/L*sd,ux=dx/L,uy=dy/L;
+      o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="#222" stroke-width="2.2"/>`;
+      for(let d=4;d<L;d+=9){const qx=ax+ux*d,qy=ay+uy*d;o+=`<line x1="${f1(qx)}" y1="${f1(qy)}" x2="${f1(qx+nx*9+ux*7)}" y2="${f1(qy+ny*9+uy*7)}" stroke="#555" stroke-width="1"/>`}return}
+    if(e.t==="spring"){const ux=dx/L,uy=dy/L,nx=-uy,ny=ux,a=Math.min(.16*L,22),n=9,cl=L-2*a,P=[[ax,ay],[ax+ux*a,ay+uy*a]];
+      for(let i=0;i<n;i++){const d=a+cl*(i+.5)/n,sg=i%2?-1:1;P.push([ax+ux*d+nx*8*sg,ay+uy*d+ny*8*sg])}
+      P.push([bx-ux*a,by-uy*a],[bx,by]);o+=`<polyline points="${P.map(q=>f1(q[0])+","+f1(q[1])).join(" ")}" fill="none" stroke="#464b55" stroke-width="2"/>`;return}
+    if(e.t==="dim"){o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="#222" stroke-width="0.9" marker-start="url(#vxd)" marker-end="url(#vxd)"/>`;
+      if(e.l){let nx=-dy/L,ny=dx/L;if(e.flip){nx=-nx;ny=-ny}o+=`<text x="${f1((ax+bx)/2+nx*13)}" y="${f1((ay+by)/2+ny*13+5)}" text-anchor="middle" class="halo">${e.l}</text>`}return}
+    const head=e.t==="ln"?"":` marker-end="url(#vx${c})"`;
+    o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="${COL[c]}" stroke-width="${e.w||(c==="r"||c==="b"||c==="g"?2.6:1.4)}" ${e.d?'stroke-dasharray="5 4"':""}${head}/>`;
+    if(e.l&&e.mid){const mxp=(ax+bx)/2,myp=(ay+by)/2;let nx=-dy/L,ny=dx/L;if(ny>0){nx=-nx;ny=-ny}
+      o+=`<text x="${f1(mxp+nx*16)}" y="${f1(myp+ny*16+5)}" text-anchor="${nx>.3?"start":nx<-.3?"end":"middle"}" fill="${COL[c]}" class="halo">${e.l}</text>`}
+    else if(e.l){const ux=dx/L,uy=dy/L,an=Math.abs(ux)<.3?"middle":ux>0?"start":"end";
+      o+=`<text x="${f1(bx+ux*(e.off??12))}" y="${f1(by+uy*(e.off??12)+(uy>.5?14:uy<-.5?-2:5))}" text-anchor="${an}" fill="${COL[c]}" class="halo">${e.l}</text>`}
+  });
+  return o+"</svg>";
+}
+const P3=q=>[q[1]-0.42*q[0],q[2]-0.3*q[0]];
+function axes3(pts){const e=Math.max(2,...pts.flat().map(Math.abs))+1.2;
+  return [["x",[e,0,0]],["y",[0,e,0]],["z",[0,0,e]]].map(([n,v])=>({a:P3([0,0,0]),b:P3(v),l:`<tspan font-style="italic">${n}</tspan>`,c:"x",d:1,w:1.1,off:10}))}
+const lab3=(n,q,dx,dy,an)=>({t:"pt",p:P3(q),l:`<tspan font-style="italic">${n}</tspan>(${q.join(", ")})`,dx,dy,an});
+const sk3=(pts,extra)=>draw([...axes3(pts),...extra],580,380);
+const Wl=(p,n="W")=>`${it(n)} = ${p.W??p.F} ${FU(p)}`;
+
+// ----- templates
+const ri=(r,a,b)=>a+Math.floor(r()*(b-a+1));
+const sbt=(a,b)=>`<tspan font-style="italic">${a}</tspan><tspan baseline-shift="sub" font-size="12">${b}</tspan>`;
+const MU=p=>p.us?"lbf·ft":"N·m", mu2=v=>v.toFixed(2);
+const TEMPLATES={};
+const floor=(x0,x1)=>({t:"hatch",a:[x0,0],b:[x1,0],side:1});
+const rect=(x0,y0,x1,y1,f)=>({t:"poly",pts:[[x0,y0],[x1,y0],[x1,y1],[x0,y1]],fill:f});
+
+// 1. block on an incline
+TEMPLATES["block-incline-friction"]={
+  name:"Block on an inclined plane: does it slip?",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={us:r()<.5,th:ri(r,12,40),mus:pick(r,range(.20,.60,.05)),W:pick(r,range(100,1000,50))};p.muk=Math.round((p.mus-.05)*100)/100;
+      const t=Math.tan(rad(p.th));if(Math.abs(t-p.mus)<.04) continue;
+      const N=p.W*cs(p.th),Freq=p.W*sn(p.th),Fmax=p.mus*N,slips=Freq>Fmax,F=slips?p.muk*N:Freq;
+      return {p,s:{N,Freq,Fmax,slips,state:slips?"slips":"stays at rest",F}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A block of weight <i>W</i> = ${p.W} ${FU(p)} rests on a plane inclined at ${p.th}° to the horizontal. The coefficients of friction between the block and the plane are <i>μ<sub>s</sub></i> = ${mu2(p.mus)} (static) and <i>μ<sub>k</sub></i> = ${mu2(p.muk)} (kinetic). Determine the normal force <i>N</i>, the friction force required for equilibrium, the largest friction force the surface can supply, whether the block slips, and the friction force that actually acts on the block.</p>`,
+  figure:p=>{const c=cs(p.th),s=sn(p.th),S=8,Pq=(u,v)=>[u*c-v*s,u*s+v*c],G=Pq(4,.8);
+    return draw([{t:"poly",pts:[[0,0],[S*c,0],[S*c,S*s]],fill:"#e9e9e9"},floor(-.5,S*c+.5),{t:"poly",pts:[Pq(3,0),Pq(5,0),Pq(5,1.6),Pq(3,1.6)]},{a:G,b:[G[0],G[1]-1.5],c:"r"},{t:"txt",p:Pq(4,2.3),l:`${it("W")} = ${p.W} ${FU(p)}`},
+      {t:"arc",p:[0,0],r:2.6,t0:0,t1:p.th,l:ang(p.th),lr:6}],640,380)},
+  solution:(p,s)=>`<h3>1. Free body diagram and equilibrium</h3>
+  <p>The block is acted on by its weight <i>W</i>, the normal force <i>N</i>, and the friction force <i>F</i>, which acts up the plane. Taking axes along and perpendicular to the plane:</p>
+  <p>${eq(`ΣF<sub>⊥</sub> = 0: N = W cos ${p.th}° = ${sig(s.N)} ${FU(p)}`)}</p>
+  <p>${eq(`ΣF<sub>∥</sub> = 0: F<sub>req</sub> = W sin ${p.th}° = ${sig(s.Freq)} ${FU(p)}`)}</p>
+  <h3>2. Friction capacity</h3>
+  <p>${eq(`F<sub>max</sub> = μ<sub>s</sub>N = ${mu2(p.mus)}(${sig(s.N)}) = ${sig(s.Fmax)} ${FU(p)}`)}</p>
+  <p>Since <i>F</i><sub>req</sub> ${s.slips?">":"≤"} <i>F</i><sub>max</sub>, the block <b>${s.state}</b>. ${s.slips?`Once it slides, the friction force is the kinetic value ${eq(`F = μ<sub>k</sub>N = ${mu2(p.muk)}(${sig(s.N)}) = ${sig(s.F)} ${FU(p)}`)}`:`The friction force equals the value required for equilibrium, ${eq(`F = ${sig(s.F)} ${FU(p)}`)}, which is less than the maximum.`}</p>
+  <p class="final">N = ${sig(s.N,3)} ${FU(p)}; F<sub>req</sub> = ${sig(s.Freq,3)} ${FU(p)}; F<sub>max</sub> = ${sig(s.Fmax,3)} ${FU(p)}; the block ${s.state}; F = ${sig(s.F,3)} ${FU(p)}.</p>
+  <p class="note">The block is at the point of slipping when tan θ = μ<sub>s</sub>, that is, θ = ${sig(deg(Math.atan(p.mus)),3)}° for this surface.</p>`,
+  fields:p=>[{id:"N",label:"Normal force N",unit:FU(p)},{id:"Freq",label:"Friction force required for equilibrium",unit:FU(p)},{id:"Fmax",label:"Maximum friction force F<sub>max</sub>",unit:FU(p)},{id:"state",label:"The block",choices:["slips","stays at rest"]},{id:"F",label:"Friction force actually acting",unit:FU(p)}],
+  truth:s=>({N:s.N,Freq:s.Freq,Fmax:s.Fmax,state:s.state,F:s.F}),
+  note:"Compare the force required for equilibrium with the maximum available."
+};
+
+// 2. push or pull a block at an angle
+TEMPLATES["push-pull-block"]={
+  name:"Force at an angle needed to start a block sliding",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={us:r()<.5,push:r()<.5,al:ri(r,10,40),mu:pick(r,range(.20,.60,.05)),W:pick(r,range(100,1000,50))};
+      const c=cs(p.al),s=sn(p.al),d=p.push?c-p.mu*s:c+p.mu*s;
+      if(d<.25) continue;const P=p.mu*p.W/d,N=p.push?p.W+P*s:p.W-P*s;
+      if(N<.3*p.W) continue;
+      return {p,s:{P,N,F:P*c}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A crate of weight <i>W</i> = ${p.W} ${FU(p)} rests on a horizontal floor, where the coefficient of static friction is <i>μ<sub>s</sub></i> = ${mu2(p.mu)}. A force <i>P</i> is applied at ${p.al}° ${p.push?"below":"above"} the horizontal, ${p.push?"pushing":"pulling"} the crate to the right. Determine the force <i>P</i> at which sliding is impending, together with the normal force <i>N</i> and the friction force <i>F</i> at that instant.</p>`,
+  figure:p=>{const c=cs(p.al),s=sn(p.al),e=[floor(-3,6),rect(0,0,3,2,"#eec878"),{t:"txt",p:[1.5,.8],l:`${it("W")} = ${p.W} ${FU(p)}`}];
+    if(p.push){e.push({a:[-2.6*c,2+2.6*s],b:[0,2],c:"r"},{t:"txt",p:[-2.6*c-.1,2+2.6*s+.35],l:it("P"),an:"end"},{a:[0,2],b:[-1.8,2],t:"ln",c:"x",d:1,w:1},{t:"arc",p:[0,2],r:1.5,t0:180-p.al,t1:180,l:ang(p.al),lr:4})}
+    else e.push({a:[3,1],b:[3+2.6*c,1+2.6*s],c:"r",l:it("P"),off:10},{a:[3,1],b:[5.2,1],t:"ln",c:"x",d:1,w:1},{t:"arc",p:[3,1],r:1.5,t0:0,t1:p.al,l:ang(p.al),lr:4});
+    return draw(e,640,360)},
+  solution:(p,s)=>`<h3>1. Impending motion</h3>
+  <p>With sliding impending, the friction force is at its limit, <i>F</i> = <i>μ<sub>s</sub>N</i>, and it acts to the left.</p>
+  <h3>2. Equilibrium</h3>
+  <p>${eq(`ΣF<sub>y</sub> = 0: N ${p.push?"=":"="} W ${p.push?"+":"&minus;"} P sin ${p.al}°`)}</p>
+  <p>${eq(`ΣF<sub>x</sub> = 0: P cos ${p.al}° = μ<sub>s</sub>N = μ<sub>s</sub>(W ${p.push?"+":"&minus;"} P sin ${p.al}°)`)}</p>
+  <p>Solving for <i>P</i>: ${eq(`P = μ<sub>s</sub>W / (cos ${p.al}° ${p.push?"&minus;":"+"} μ<sub>s</sub> sin ${p.al}°) = ${sig(s.P)} ${FU(p)}`)}</p>
+  <p>${eq(`N = ${sig(s.N)} ${FU(p)}`)} ${eq(`F = μ<sub>s</sub>N = P cos ${p.al}° = ${sig(s.F)} ${FU(p)}`)}</p>
+  <p class="final">P = ${sig(s.P,3)} ${FU(p)}; N = ${sig(s.N,3)} ${FU(p)}; F = ${sig(s.F,3)} ${FU(p)}.</p>`,
+  fields:p=>[{id:"P",label:"Force P for impending sliding",unit:FU(p)},{id:"N",label:"Normal force N",unit:FU(p)},{id:"F",label:"Friction force F",unit:FU(p)}],
+  truth:s=>({P:s.P,N:s.N,F:s.F}),
+  note:"Pushing increases the normal force; pulling at an angle decreases it."
+};
+
+// 3. slide or tip
+TEMPLATES["tip-or-slip"]={
+  name:"Sliding or tipping of a block",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={us:r()<.5,b:ri(r,2,4),h:ri(r,4,9),mu:pick(r,range(.20,.70,.05)),W:pick(r,range(100,1000,50))};p.a=ri(r,2,p.h-1);
+      const Ps=p.mu*p.W,Pt=p.W*p.b/(2*p.a);if(Math.abs(Ps-Pt)<.1*Math.min(Ps,Pt)) continue;
+      return {p,s:{Ps,Pt,mode:Ps<Pt?"slides":"tips",P:Math.min(Ps,Pt)}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A uniform block of weight <i>W</i> = ${p.W} ${FU(p)}, width <i>b</i> = ${p.b} ${LU(p)} and height <i>h</i> = ${p.h} ${LU(p)}, rests on a horizontal floor with coefficient of static friction <i>μ<sub>s</sub></i> = ${mu2(p.mu)}. A horizontal force <i>P</i> is applied to the left face at a height <i>a</i> = ${p.a} ${LU(p)} above the floor and is slowly increased. Determine the force <i>P</i><sub>slide</sub> for which sliding would start, the force <i>P</i><sub>tip</sub> for which the block would start to tip, what happens first, and the force at which motion starts.</p>`,
+  figure:p=>{const e=[floor(-3.5,p.b+1),rect(0,0,p.b,p.h,"#eec878"),{t:"txt",p:[p.b/2,p.a<p.h/2?p.h*.72:p.h*.3],l:`${it("W")} = ${p.W} ${FU(p)}`},{a:[-2.8,p.a],b:[0,p.a],c:"r"},{t:"txt",p:[-2.9,p.a],l:it("P"),an:"end"},
+      {t:"dim",a:[0,-1.0],b:[p.b,-1.0],l:`${p.b} ${LU(p)}`,flip:1},{t:"dim",a:[p.b+.6,0],b:[p.b+.6,p.h],l:`${p.h} ${LU(p)}`},{t:"dim",a:[-1.2,0],b:[-1.2,p.a],l:`${p.a} ${LU(p)}`,flip:1}];
+    return draw(e,600,420)},
+  solution:(p,s)=>`<h3>1. Sliding</h3>
+  <p>The normal force is <i>N</i> = <i>W</i>, so the largest friction force is <i>μ<sub>s</sub>W</i>, and ${eq(`P<sub>slide</sub> = μ<sub>s</sub>W = ${mu2(p.mu)}(${p.W}) = ${sig(s.Ps)} ${FU(p)}`)}</p>
+  <h3>2. Tipping</h3>
+  <p>At the point of tipping, the floor reaction acts at the lower right corner. Taking moments about that corner, with the normal force and friction force having no moment about it:</p>
+  <p>${eq(`P<sub>tip</sub> a = W b/2: P<sub>tip</sub> = W b / (2a) = ${p.W}(${p.b}) / (2·${p.a}) = ${sig(s.Pt)} ${FU(p)}`)}</p>
+  <h3>3. Which occurs first</h3>
+  <p>The smaller of the two forces governs. Here <i>P</i><sub>slide</sub> ${s.Ps<s.Pt?"<":">"} <i>P</i><sub>tip</sub>, so the block <b>${s.mode}</b> first, at <i>P</i> = ${sig(s.P)} ${FU(p)}.</p>
+  <p class="final">P<sub>slide</sub> = ${sig(s.Ps,3)} ${FU(p)}; P<sub>tip</sub> = ${sig(s.Pt,3)} ${FU(p)}; the block ${s.mode} first, at P = ${sig(s.P,3)} ${FU(p)}.</p>`,
+  fields:p=>[{id:"Ps",label:"P<sub>slide</sub>",unit:FU(p)},{id:"Pt",label:"P<sub>tip</sub>",unit:FU(p)},{id:"mode",label:"The block first",choices:["slides","tips"]},{id:"P",label:"Force at which motion starts",unit:FU(p)}],
+  truth:s=>({Ps:s.Ps,Pt:s.Pt,mode:s.mode,P:s.P}),
+  note:"Tipping is about the lower corner on the far side from the force."
+};
+
+// 4. ladder
+TEMPLATES["ladder-friction"]={
+  name:"Ladder with a smooth wall and a rough floor",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={us:r()<.5,L:ri(r,12,24),th:ri(r,55,75),mu:pick(r,range(.20,.50,.05)),W:pick(r,range(20,60,5)),Wp:pick(r,range(120,220,10))};
+      const N=p.W+p.Wp,Fmax=p.mu*N,sm=(Fmax*p.L*sn(p.th)-p.W*p.L*cs(p.th)/2)/(p.Wp*cs(p.th));
+      if(sm<.25*p.L||sm>.9*p.L) continue;
+      return {p,s:{N,Fmax,sm}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A uniform ladder of length <i>L</i> = ${p.L} ${LU(p)} and weight <i>W</i> = ${p.W} ${FU(p)} leans against a smooth vertical wall at ${p.th}° to the floor. The coefficient of static friction at the floor is <i>μ<sub>s</sub></i> = ${mu2(p.mu)}. A person of weight <i>W<sub>p</sub></i> = ${p.Wp} ${FU(p)} climbs the ladder. Determine the floor normal force <i>N</i>, the largest friction force the floor can supply, and the greatest distance <i>s</i> along the ladder from the foot that the person can climb before the ladder slips.</p>`,
+  figure:p=>{const c=cs(p.th),s=sn(p.th),Lg=10,x0=Lg*c,H=Lg*s,u=.64,G=[x0-u*Lg*c,u*Lg*s],M=[x0-.5*Lg*c,.5*Lg*s];
+    return draw([floor(-.5,x0+1.2),{t:"hatch",a:[0,0],b:[0,H+.6],side:-1},{a:[x0,0],b:[0,H],c:"m",t:"ln",w:5},{t:"pt",p:[x0,0],l:it("B"),dx:6,dy:-8,r:4},
+      {a:M,b:[M[0],M[1]-1.8],c:"r"},{t:"txt",p:[M[0]+.4,M[1]+.3],l:`${it("W")} = ${p.W} ${FU(p)}`,an:"start"},
+      {a:G,b:[G[0],G[1]-1.8],c:"r"},{t:"txt",p:[G[0]+.4,G[1]+.3],l:sbt("W","p")+` = ${p.Wp} ${FU(p)}`,an:"start"},
+      {t:"arc",p:[x0,0],r:2.2,t0:180-p.th,t1:180,l:ang(p.th),lr:6},{t:"txt",p:[.3,2.2],l:`${it("L")} = ${p.L} ${LU(p)}`,an:"start"}],640,420)},
+  solution:(p,s)=>`<h3>1. Floor normal force</h3>
+  <p>The wall is smooth, so it exerts only a horizontal force <i>N<sub>w</sub></i>. Vertical equilibrium of the ladder and person gives ${eq(`N = W + W<sub>p</sub> = ${sig(s.N)} ${FU(p)}`)}</p>
+  <h3>2. Limiting friction</h3>
+  <p>${eq(`F<sub>max</sub> = μ<sub>s</sub>N = ${mu2(p.mu)}(${sig(s.N)}) = ${sig(s.Fmax)} ${FU(p)}`)}</p>
+  <h3>3. Impending slip</h3>
+  <p>Horizontal equilibrium requires <i>N<sub>w</sub></i> = <i>F</i>, so at impending slip <i>N<sub>w</sub></i> = <i>F</i><sub>max</sub>. Taking moments about the foot of the ladder:</p>
+  <p>${eq(`N<sub>w</sub> L sin ${p.th}° = W (L/2) cos ${p.th}° + W<sub>p</sub> s cos ${p.th}°`)}</p>
+  <p>${eq(`s = [F<sub>max</sub> L sin ${p.th}° &minus; W L cos ${p.th}°/2] / (W<sub>p</sub> cos ${p.th}°) = ${sig(s.sm)} ${LU(p)}`)}</p>
+  <p class="final">N = ${sig(s.N,3)} ${FU(p)}; F<sub>max</sub> = ${sig(s.Fmax,3)} ${FU(p)}; s<sub>max</sub> = ${sig(s.sm,3)} ${LU(p)} (${sig(100*s.sm/p.L,3)}% of the length).</p>`,
+  fields:p=>[{id:"N",label:"Floor normal force N",unit:FU(p)},{id:"Fmax",label:"Maximum floor friction force",unit:FU(p)},{id:"sm",label:"Greatest distance s along the ladder",unit:LU(p)}],
+  truth:s=>({N:s.N,Fmax:s.Fmax,sm:s.sm}),
+  note:"Distance s is measured along the ladder from the foot."
+};
+
+// 5. stacked blocks with a rope
+TEMPLATES["stacked-blocks-rope"]={
+  name:"Two blocks with friction on two surfaces",
+  generate(seed){const r=mulberry32(seed);
+    const p={us:r()<.5,WA:pick(r,range(100,500,25)),WB:pick(r,range(50,300,25)),m1:pick(r,range(.25,.60,.05)),m2:pick(r,range(.15,.40,.05))};
+    const T=p.m1*p.WB,Nf=p.WA+p.WB,Ff=p.m2*Nf,P=T+Ff;return {p,s:{T,Nf,Ff,P}};},
+  statement:p=>`<p>Block <i>B</i> (weight ${p.WB} ${FU(p)}) rests on block <i>A</i> (weight ${p.WA} ${FU(p)}), and <i>A</i> rests on a horizontal floor. Block <i>B</i> is tied to a wall by a horizontal rope. The coefficient of static friction is <i>μ</i><sub>1</sub> = ${mu2(p.m1)} between <i>A</i> and <i>B</i> and <i>μ</i><sub>2</sub> = ${mu2(p.m2)} between <i>A</i> and the floor. A horizontal force <i>P</i> pulls <i>A</i> to the right. Determine the rope tension <i>T</i>, the floor friction force, and the force <i>P</i> at which sliding of <i>A</i> is impending.</p>`,
+  figure:p=>draw([{t:"hatch",a:[-3.5,0],b:[6.5,0],side:1},{t:"hatch",a:[-3.5,0],b:[-3.5,3.4],side:-1},rect(0,0,4.4,1.3,"#eec878"),rect(1,1.3,3.4,2.5,"#f1ead6"),{t:"txt",p:[2.2,.5],l:`${it("A")}: ${p.WA} ${FU(p)}`},{t:"txt",p:[2.2,1.75],l:`${it("B")}: ${p.WB} ${FU(p)}`},
+      {a:[1,1.9],b:[-3.5,1.9],t:"ln",c:"m",w:1.8},{t:"txt",p:[-1.2,2.25],l:it("T")},{a:[4.4,.65],b:[6.4,.65],c:"r",l:it("P"),off:8}],640,340),
+  solution:(p,s)=>`<h3>1. Free body diagram of B</h3>
+  <p>Block <i>B</i> does not move. The rope pulls it to the left with <i>T</i>, so the friction force from <i>A</i> acts to the right, and at impending slip it is at its limit. Block <i>B</i> presses on <i>A</i> with its weight, so <i>N</i><sub>1</sub> = <i>W<sub>B</sub></i>.</p>
+  <p>${eq(`T = μ<sub>1</sub>N<sub>1</sub> = μ<sub>1</sub>W<sub>B</sub> = ${mu2(p.m1)}(${p.WB}) = ${sig(s.T)} ${FU(p)}`)}</p>
+  <h3>2. Free body diagram of A</h3>
+  <p>The floor normal force supports both blocks: ${eq(`N<sub>2</sub> = W<sub>A</sub> + W<sub>B</sub> = ${sig(s.Nf)} ${FU(p)}`)}, and the floor friction force at impending slip is ${eq(`F<sub>2</sub> = μ<sub>2</sub>N<sub>2</sub> = ${sig(s.Ff)} ${FU(p)}`)}</p>
+  <p>Block <i>A</i> also feels the friction force <i>T</i> from <i>B</i>, acting to the left on <i>A</i>. Then</p>
+  <p>${eq(`ΣF<sub>x</sub> = 0: P = T + F<sub>2</sub> = ${sig(s.T)} + ${sig(s.Ff)} = ${sig(s.P)} ${FU(p)}`)}</p>
+  <p class="final">T = ${sig(s.T,3)} ${FU(p)}; F<sub>2</sub> = ${sig(s.Ff,3)} ${FU(p)}; P = ${sig(s.P,3)} ${FU(p)}.</p>`,
+  fields:p=>[{id:"T",label:"Rope tension T",unit:FU(p)},{id:"Ff",label:"Floor friction force",unit:FU(p)},{id:"P",label:"Force P for impending slip",unit:FU(p)}],
+  truth:s=>({T:s.T,Ff:s.Ff,P:s.P}),
+  note:"Both interfaces are at their friction limits when sliding of A is impending."
+};
+
+// 6. wedge
+TEMPLATES["wedge-friction"]={
+  name:"Wedge used to raise a block",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={us:r()<.5,W:pick(r,range(500,3000,100)),th:ri(r,6,20),m1:pick(r,range(.10,.40,.05)),m2:pick(r,range(.10,.40,.05))};
+      const ph=deg(Math.atan(p.m1)),P=p.W*(Math.tan(rad(p.th+ph))+p.m2),Pr=p.W*(p.m2-Math.tan(rad(p.th-ph)));
+      if(Math.abs(Pr)<.04*p.W) continue;
+      return {p,s:{ph,P,Pr,lock:Pr>0?"yes":"no"}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A block of weight <i>W</i> = ${p.W} ${FU(p)} is raised by driving a wedge with a ${p.th}° angle under it with a horizontal force <i>P</i>. The block is held by smooth vertical guides. The coefficient of static friction is <i>μ</i><sub>1</sub> = ${mu2(p.m1)} between the wedge and the block and <i>μ</i><sub>2</sub> = ${mu2(p.m2)} between the wedge and the floor. Neglect the weight of the wedge. Determine the force <i>P</i> that starts to raise the block, the force needed to withdraw the wedge afterwards (positive if a pull is required, negative if the wedge would come out by itself), and whether the wedge is self-locking.</p>`,
+  figure:p=>{const t=Math.tan(rad(p.th)),Wd=6,H=Wd*t,sf=x=>H*(1-x/Wd),x1=.4,x2=2.6,yt=sf(x1)+2;
+    return draw([floor(-1,Wd+1),{t:"poly",pts:[[0,0],[Wd,0],[0,H]],fill:"#d9dde6"},{t:"poly",pts:[[x1,sf(x1)],[x2,sf(x2)],[x2,sf(x1)+2],[x1,sf(x1)+2]]},{t:"hatch",a:[x2+.15,sf(x2)+.3],b:[x2+.15,yt+.4],side:1},
+      {a:[x1+1,yt+1.8],b:[x1+1,yt],c:"r"},{t:"txt",p:[x1+1.15,yt+1.9],l:`${it("W")} = ${p.W} ${FU(p)}`,an:"start"},{a:[-2.6,H/2],b:[0,H/2],c:"r"},{t:"txt",p:[-2.7,H/2],l:it("P"),an:"end"},
+      {t:"arc",p:[Wd,0],r:2,t0:180-p.th,t1:180,l:ang(p.th),lr:6}],640,380)},
+  solution:(p,s)=>`<h3>1. Friction angle</h3>
+  <p>${eq(`φ = tan<sup>&minus;1</sup>μ<sub>1</sub> = ${sig(s.ph)}°`)} The resultant of the normal and friction forces at the wedge-block surface is inclined at <i>φ</i> to the normal of that surface.</p>
+  <h3>2. Raising the block</h3>
+  <p>The guides are smooth, so the force from the wedge on the block, <i>R</i>, has a vertical component <i>W</i>. Its direction makes an angle <i>θ</i> + <i>φ</i> with the vertical, so its horizontal component is <i>W</i> tan(<i>θ</i> + <i>φ</i>). The wedge feels the same horizontal force to the left, together with the floor normal force <i>N</i> = <i>W</i> and the floor friction force <i>μ</i><sub>2</sub><i>W</i> to the left:</p>
+  <p>${eq(`P = W[tan(θ + φ) + μ<sub>2</sub>] = ${p.W}[tan(${p.th}° + ${sig(s.ph)}°) + ${mu2(p.m2)}] = ${sig(s.P)} ${FU(p)}`)}</p>
+  <h3>3. Withdrawing the wedge</h3>
+  <p>When the wedge moves out, both friction forces reverse. The block pushes the wedge out with the horizontal force <i>W</i> tan(<i>θ</i> &minus; <i>φ</i>), and the floor friction <i>μ</i><sub>2</sub><i>W</i> resists. The force needed to pull the wedge out is</p>
+  <p>${eq(`P<sub>out</sub> = W[μ<sub>2</sub> &minus; tan(θ &minus; φ)] = ${sig(s.Pr)} ${FU(p)}`)}</p>
+  <p>${s.Pr>0?"This is positive, so a pull is required: the wedge is self-locking.":"This is negative, so the wedge comes out by itself: it is not self-locking."}</p>
+  <p class="final">P = ${sig(s.P,3)} ${FU(p)}; P<sub>out</sub> = ${sig(s.Pr,3)} ${FU(p)}; self-locking: ${s.lock}.</p>`,
+  fields:p=>[{id:"P",label:"Force P to raise the block",unit:FU(p)},{id:"Pr",label:"Force to withdraw the wedge (pull positive)",unit:FU(p),signed:true},{id:"lock",label:"Is the wedge self-locking?",choices:["yes","no"]}],
+  truth:s=>({P:s.P,Pr:s.Pr,lock:s.lock}),
+  note:"The guides are smooth; friction acts on the inclined surface (μ1) and on the floor (μ2)."
+};
+
+// 7. rope around a post
+TEMPLATES["rope-post"]={
+  name:"Rope wrapped around a fixed post",
+  generate(seed){const r=mulberry32(seed);
+    const mode=pick(r,["hold","load","mu"]),p={us:r()<.5,mode,mu:pick(r,range(.15,.45,.05)),k:pick(r,[1,1.5,2,2.5,3]),};p.be=180*p.k;
+    const e=Math.exp(p.mu*rad(p.be));
+    p.Fl=pick(r,range(20,150,10));
+    if(mode==="hold"){p.Tl=Math.round(p.Fl*e/10)*10;return {p,s:{be:rad(p.be),F:p.Tl/Math.exp(p.mu*rad(p.be))}}}
+    if(mode==="load")return {p,s:{be:rad(p.be),T:p.Fl*e}};
+    p.Tl=Math.round(p.Fl*e/10)*10;return {p,s:{be:rad(p.be),mu:Math.log(p.Tl/p.Fl)/rad(p.be)}};},
+  statement:p=>{const tail=p.mode==="hold"?`holds a load <i>T</i> = ${p.Tl} ${FU(p)}. The coefficient of static friction is <i>μ<sub>s</sub></i> = ${mu2(p.mu)}. Determine the contact angle <i>β</i> in radians and the smallest force <i>F</i> at the free end that holds the load.`:p.mode==="load"?`is held by a force <i>F</i> = ${p.Fl} ${FU(p)} at the free end. The coefficient of static friction is <i>μ<sub>s</sub></i> = ${mu2(p.mu)}. Determine the contact angle <i>β</i> in radians and the largest load <i>T</i> that can be held.`:`holds a load <i>T</i> = ${p.Tl} ${FU(p)} with a force <i>F</i> = ${p.Fl} ${FU(p)} at the free end. Determine the contact angle <i>β</i> in radians and the smallest coefficient of static friction <i>μ<sub>s</sub></i> for which this is possible.`;
+    return `<p>A rope is wrapped ${p.k} turn${p.k===1?"":"s"} around a fixed rough post, so the contact angle is ${p.be}°. The rope ${tail}</p>`},
+  figure:p=>{const lk=p.mode==="hold"?`${it("T")} = ${p.Tl} ${FU(p)}`:p.mode==="load"?`${it("T")} = ?`:`${it("T")} = ${p.Tl} ${FU(p)}`,rk=p.mode==="hold"?`${it("F")} = ?`:`${it("F")} = ${p.Fl} ${FU(p)}`;
+    return draw([{t:"arc",p:[0,0],r:1.2,t0:0,t1:360},{t:"arc",p:[0,0],r:1.35,t0:0,t1:180},{a:[-1.35,0],b:[-1.35,-2.8],c:"m",t:"ln",w:2.4},{a:[1.35,0],b:[1.35,-2.8],c:"m",t:"ln",w:2.4},{a:[-1.35,-2.8],b:[-1.35,-4.2],c:"r"},{a:[1.35,-2.8],b:[1.35,-4.2],c:"r"},
+      {t:"txt",p:[-1.55,-3.9],l:lk,an:"end"},{t:"txt",p:[1.55,-3.9],l:rk,an:"start"},{t:"txt",p:[0,0],l:`${it("β")} = ${p.be}°`}],600,400)},
+  solution:(p,s)=>{const e=`e<sup>μ<sub>s</sub>β</sup>`;return `<h3>1. Contact angle</h3>
+  <p>${eq(`β = ${p.be}° = ${sig(s.be,4)} rad`)}</p>
+  <h3>2. Belt friction equation</h3>
+  <p>At impending slip, the tension on the side toward which the rope tends to slip is related to the tension on the other side by ${eq(`T = F ${e}`)}</p>
+  ${p.mode==="hold"?`<p>${eq(`F = T e<sup>&minus;μ<sub>s</sub>β</sup> = ${p.Tl} e<sup>&minus;${mu2(p.mu)}(${sig(s.be,4)})</sup> = ${sig(s.F)} ${FU(p)}`)}</p>`:p.mode==="load"?`<p>${eq(`T = F ${e} = ${p.Fl} e<sup>${mu2(p.mu)}(${sig(s.be,4)})</sup> = ${sig(s.T)} ${FU(p)}`)}</p>`:`<p>${eq(`μ<sub>s</sub> = ln(T/F)/β = ln(${p.Tl}/${p.Fl})/${sig(s.be,4)} = ${sig(s.mu,3)}`)}</p>`}
+  <p class="final">β = ${sig(s.be,4)} rad; ${p.mode==="hold"?`F = ${sig(s.F,3)} ${FU(p)}`:p.mode==="load"?`T = ${sig(s.T,3)} ${FU(p)}`:`μ<sub>s</sub> = ${sig(s.mu,3)}`}.</p>`},
+  fields:p=>[{id:"be",label:"Contact angle β (radians)",unit:"rad"},p.mode==="hold"?{id:"F",label:"Smallest holding force F",unit:FU(p)}:p.mode==="load"?{id:"T",label:"Largest load T",unit:FU(p)}:{id:"mu",label:"Smallest coefficient μ<sub>s</sub>",unit:""}],
+  truth:s=>({be:s.be,F:s.F,T:s.T,mu:s.mu}),
+  note:"The angle β must be in radians in the exponent."
+};
+
+// 8. flat belt drive
+TEMPLATES["belt-drive"]={
+  name:"Flat belt on a pulley: tension, torque, and power",
+  generate(seed){const r=mulberry32(seed);
+    const us=r()<.5,p={us,be:pick(r,[130,140,150,160,170,180]),mu:pick(r,range(.20,.50,.05)),T1:us?pick(r,range(100,400,10)):pick(r,range(400,1500,50)),r:us?pick(r,[3,4,5,6,8]):pick(r,[75,100,125,150,200]),n:pick(r,[300,600,900,1200,1750])};
+    const T2=p.T1*Math.exp(-p.mu*rad(p.be)),Tq=us?(p.T1-T2)*p.r:(p.T1-T2)*p.r/1000,Pw=us?Tq*p.n/63025:Tq*p.n*2*Math.PI/60/1000;
+    return {p,s:{T2,Tq,Pw}};},
+  statement:p=>`<p>A flat belt drives a pulley of radius ${p.r} ${p.us?"in":"mm"} that turns at ${p.n} rpm. The belt contacts ${p.be}° of the pulley and the coefficient of static friction is <i>μ<sub>s</sub></i> = ${mu2(p.mu)}. The belt is on the point of slipping when the tension on the tight side is <i>T</i><sub>1</sub> = ${p.T1} ${FU(p)}. Neglect the mass of the belt. Determine the tension <i>T</i><sub>2</sub> on the slack side, the torque transmitted, and the power transmitted.</p>`,
+  figure:p=>{const R=1.2,a1=180-p.be/2,a2=180+p.be/2,Q1=[R*cs(a1),R*sn(a1)],Q2=[R*cs(a2),R*sn(a2)],d1=[sn(a1),-cs(a1)],d2=[-sn(a2),cs(a2)],Ln=3.4;
+    const E1=[Q1[0]+Ln*d1[0],Q1[1]+Ln*d1[1]],E2=[Q2[0]+Ln*d2[0],Q2[1]+Ln*d2[1]],A1=[E1[0]+1.3*d1[0],E1[1]+1.3*d1[1]],A2=[E2[0]+1.3*d2[0],E2[1]+1.3*d2[1]];
+    return draw([{t:"arc",p:[0,0],r:R,t0:0,t1:360},{a:Q1,b:E1,c:"m",t:"ln",w:2.4},{a:Q2,b:E2,c:"m",t:"ln",w:2.4},{a:E1,b:A1,c:"r",l:sbt("T",1)+` = ${p.T1} ${FU(p)}`,off:6},{a:E2,b:A2,c:"r",l:sbt("T",2)+" = ?",off:6},{t:"txt",p:[0,-.1],l:`${it("n")} = ${p.n} rpm`},{t:"txt",p:[0,-.55],l:`${it("β")} = ${p.be}°`}],640,380)},
+  solution:(p,s)=>`<h3>1. Belt friction equation</h3>
+  <p>${eq(`T<sub>1</sub> = T<sub>2</sub> e<sup>μ<sub>s</sub>β</sup>`)} with ${eq(`β = ${p.be}° = ${sig(rad(p.be),4)} rad`)} so</p>
+  <p>${eq(`T<sub>2</sub> = T<sub>1</sub> e<sup>&minus;μ<sub>s</sub>β</sup> = ${p.T1} e<sup>&minus;${mu2(p.mu)}(${sig(rad(p.be),4)})</sup> = ${sig(s.T2)} ${FU(p)}`)}</p>
+  <h3>2. Torque</h3>
+  <p>${eq(`T = (T<sub>1</sub> &minus; T<sub>2</sub>) r = (${p.T1} &minus; ${sig(s.T2)})(${p.r}${p.us?"":"/1000"}) = ${sig(s.Tq)} ${p.us?"lbf·in":"N·m"}`)}</p>
+  <h3>3. Power</h3>
+  <p>${p.us?eq(`Power = T n / 63025 = (${sig(s.Tq)})(${p.n})/63025 = ${sig(s.Pw)} hp`):eq(`Power = T ω = (${sig(s.Tq)})(${p.n})(2π/60) = ${sig(s.Pw*1000)} W = ${sig(s.Pw)} kW`)}</p>
+  <p class="final">T<sub>2</sub> = ${sig(s.T2,3)} ${FU(p)}; torque = ${sig(s.Tq,3)} ${p.us?"lbf·in":"N·m"}; power = ${sig(s.Pw,3)} ${p.us?"hp":"kW"}.</p>`,
+  fields:p=>[{id:"T2",label:"Slack-side tension T<sub>2</sub>",unit:FU(p)},{id:"Tq",label:"Torque transmitted",unit:p.us?"lbf·in":"N·m"},{id:"Pw",label:"Power transmitted",unit:p.us?"hp":"kW"}],
+  truth:s=>({T2:s.T2,Tq:s.Tq,Pw:s.Pw}),
+  note:"Use 1 hp = 63025 lbf·in·rpm for the US unit calculation."
+};
+
+// ===== page
+let curKey="block-incline-friction", cur=null, curFields=[];
+const $=id=>document.getElementById(id);
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key];
+  cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
+  $("fig").innerHTML=T.figure(p,s);
+  $("statement").innerHTML=T.statement(p,s);
+  $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent="Answers within 2% are accepted. "+T.note;
+  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
+  $("solBtn").textContent="Show solution";
+}
+
+function check(){
+  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
+  curFields.forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scaleOf(f.unit):0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+if(typeof document!=="undefined"){
+  const newSeed=()=>1+Math.floor(Math.random()*999999);
+  $("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
+  $("typeSel").onchange=e=>render(e.target.value,newSeed());
+  $("newBtn").onclick=()=>render(curKey,newSeed());
+  $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+  $("checkBtn").onclick=check;
+  $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+    s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+  (function(){
+    const m=/^#([a-z0-9-]+)-(\d+)$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
+    else render("block-incline-friction",newSeed());
+  })();
+}
+if(typeof module!=="undefined")module.exports={TEMPLATES};
+
+</script>
+</body>
+</html>
