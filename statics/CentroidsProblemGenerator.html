@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Centroids and Distributed Force Systems Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --load:#aa1e28; --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+</style>
+</head>
+<body>
+<header>
+  <h1>Centroids and Distributed Force Systems Problem Generator</h1>
+</header>
+<main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
+  </div>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+// ----- helpers
+const rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+const cs=d=>Math.cos(rad(d)), sn=d=>Math.sin(rad(d));
+const sub=(a,b)=>a.map((x,i)=>x-b[i]);
+const nrm=a=>Math.hypot(...a);
+const unit=a=>{const n=nrm(a);return a.map(x=>x/n)};
+const det3=m=>m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])-m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])+m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+function solve3(M,b){const D=det3(M);return [0,1,2].map(j=>{const X=M.map((row,i)=>row.map((v,k)=>k===j?b[i]:v));return det3(X)/D})}
+
+function fmt(v,d=0){if(Math.abs(v)<0.5*10**-d)v=0;return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+const sig=(x,n=4)=>{if(Math.abs(x)<1e-9)return "0";const d=Math.max(0,n-1-Math.floor(Math.log10(Math.abs(x))));return Number(x).toFixed(Math.min(d,8)).replace("-","−")};
+const fv=(v,n=4)=>"("+v.map(x=>sig(x,n)).join(", ")+")";
+const ang=t=>sig(t,3).replace(/\.0+$/,"")+"°";
+const FU=p=>p.us?"lbf":"N", LU=p=>p.us?"ft":"m", SU=p=>p.us?"in":"mm", KU=p=>p.us?"lbf/in":"N/mm";
+const eq=s=>`<span class="eq">${s}</span>`;
+const it=v=>`<tspan font-style="italic">${v}</tspan>`;
+const sb=(a,b)=>`${it(a)}<tspan baseline-shift="sub" font-size="12">${b}</tspan>`;
+
+// ----- figure toolkit
+const COL={k:"#222",r:"#aa1e28",b:"#2b5d8a",g:"#1e5a32",m:"#7d5014",x:"#888"};
+function draw(els,W=560,H=340){
+  const pts=[];els.forEach(e=>{[e.a,e.b,e.p].forEach(q=>q&&pts.push(q));(e.pts||[]).forEach(q=>pts.push(q));
+    if(e.t==="arc"){pts.push([e.p[0]+e.r,e.p[1]+e.r],[e.p[0]-e.r,e.p[1]-e.r])}});
+  const x0=Math.min(...pts.map(q=>q[0])),x1=Math.max(...pts.map(q=>q[0])),y0=Math.min(...pts.map(q=>q[1])),y1=Math.max(...pts.map(q=>q[1]));
+  const mx=90,my=50,s=Math.min((W-2*mx)/Math.max(x1-x0,1e-6),(H-2*my)/Math.max(y1-y0,1e-6));
+  const X=q=>mx+(q[0]-x0)*s+(W-2*mx-(x1-x0)*s)/2, Y=q=>H-my-(q[1]-y0)*s-(H-2*my-(y1-y0)*s)/2, f1=v=>v.toFixed(1);
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="16" style="max-height:${H+40}px"><defs>`;
+  for(const k in COL)o+=`<marker id="vx${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="${k==="r"?5:6}" markerHeight="${k==="r"?5:6}" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="${COL[k]}"/></marker>`;
+  o+=`<marker id="vxd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker></defs>`;
+  els.forEach(e=>{
+    const c=e.c||"k";
+    if(e.t==="pt"){const px=X(e.p),py=Y(e.p);o+=`<circle cx="${f1(px)}" cy="${f1(py)}" r="${e.r||3.6}" fill="${COL[c]}"/>`;
+      if(e.l)o+=`<text x="${f1(px+(e.dx??8))}" y="${f1(py+(e.dy??-8))}" text-anchor="${e.an||"start"}" class="halo">${e.l}</text>`;return}
+    if(e.t==="txt"){o+=`<text x="${f1(X(e.p))}" y="${f1(Y(e.p))}" text-anchor="${e.an||"middle"}" class="halo">${e.l}</text>`;return}
+    if(e.t==="poly"){o+=`<polygon points="${e.pts.map(q=>f1(X(q))+","+f1(Y(q))).join(" ")}" fill="${e.fill||"#eec878"}" stroke="#7d5014" stroke-width="1.6"/>`;return}
+    if(e.t==="pulley"){const px=X(e.p),py=Y(e.p);o+=`<circle cx="${f1(px)}" cy="${f1(py)}" r="${e.r||12}" fill="#fff" stroke="#222" stroke-width="1.8"/><circle cx="${f1(px)}" cy="${f1(py)}" r="2.5" fill="#222"/>`;return}
+    if(e.t==="arc"){const n=[];for(let t=e.t0;t<=e.t1+1e-6;t+=2)n.push(f1(X([e.p[0]+e.r*cs(t),0]))+","+f1(Y([0,e.p[1]+e.r*sn(t)])));
+      o+=`<polyline points="${n.join(" ")}" fill="none" stroke="#222" stroke-width="1.1"/>`;
+      if(e.l){const m=(e.t0+e.t1)/2,rr=e.r+(e.lr||0)/s;o+=`<text x="${f1(X([e.p[0]+rr*cs(m),0])+(cs(m)>=0?6:-6))}" y="${f1(Y([0,e.p[1]+rr*sn(m)])+5)}" text-anchor="${cs(m)>=0?"start":"end"}" font-size="14" class="halo">${e.l}</text>`}return}
+    const ax=X(e.a),ay=Y(e.a),bx=X(e.b),by=Y(e.b),dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1;
+    if(e.t==="hatch"){const sd=e.side||1,nx=-dy/L*sd,ny=dx/L*sd,ux=dx/L,uy=dy/L;
+      o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="#222" stroke-width="2.2"/>`;
+      for(let d=4;d<L;d+=9){const qx=ax+ux*d,qy=ay+uy*d;o+=`<line x1="${f1(qx)}" y1="${f1(qy)}" x2="${f1(qx+nx*9+ux*7)}" y2="${f1(qy+ny*9+uy*7)}" stroke="#555" stroke-width="1"/>`}return}
+    if(e.t==="spring"){const ux=dx/L,uy=dy/L,nx=-uy,ny=ux,a=Math.min(.16*L,22),n=9,cl=L-2*a,P=[[ax,ay],[ax+ux*a,ay+uy*a]];
+      for(let i=0;i<n;i++){const d=a+cl*(i+.5)/n,sg=i%2?-1:1;P.push([ax+ux*d+nx*8*sg,ay+uy*d+ny*8*sg])}
+      P.push([bx-ux*a,by-uy*a],[bx,by]);o+=`<polyline points="${P.map(q=>f1(q[0])+","+f1(q[1])).join(" ")}" fill="none" stroke="#464b55" stroke-width="2"/>`;return}
+    if(e.t==="dim"){o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="#222" stroke-width="0.9" marker-start="url(#vxd)" marker-end="url(#vxd)"/>`;
+      if(e.l){let nx=-dy/L,ny=dx/L;if(e.flip){nx=-nx;ny=-ny}o+=`<text x="${f1((ax+bx)/2+nx*13)}" y="${f1((ay+by)/2+ny*13+5)}" text-anchor="middle" class="halo">${e.l}</text>`}return}
+    const head=e.t==="ln"?"":` marker-end="url(#vx${c})"`;
+    o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="${COL[c]}" stroke-width="${e.w||(c==="r"||c==="b"||c==="g"?2.6:1.4)}" ${e.d?'stroke-dasharray="5 4"':""}${head}/>`;
+    if(e.l&&e.mid){const mxp=(ax+bx)/2,myp=(ay+by)/2;let nx=-dy/L,ny=dx/L;if(ny>0){nx=-nx;ny=-ny}
+      o+=`<text x="${f1(mxp+nx*16)}" y="${f1(myp+ny*16+5)}" text-anchor="${nx>.3?"start":nx<-.3?"end":"middle"}" fill="${COL[c]}" class="halo">${e.l}</text>`}
+    else if(e.l){const ux=dx/L,uy=dy/L,an=Math.abs(ux)<.3?"middle":ux>0?"start":"end";
+      o+=`<text x="${f1(bx+ux*(e.off??12))}" y="${f1(by+uy*(e.off??12)+(uy>.5?14:uy<-.5?-2:5))}" text-anchor="${an}" fill="${COL[c]}" class="halo">${e.l}</text>`}
+  });
+  return o+"</svg>";
+}
+const P3=q=>[q[1]-0.42*q[0],q[2]-0.3*q[0]];
+function axes3(pts){const e=Math.max(2,...pts.flat().map(Math.abs))+1.2;
+  return [["x",[e,0,0]],["y",[0,e,0]],["z",[0,0,e]]].map(([n,v])=>({a:P3([0,0,0]),b:P3(v),l:`<tspan font-style="italic">${n}</tspan>`,c:"x",d:1,w:1.1,off:10}))}
+const lab3=(n,q,dx,dy,an)=>({t:"pt",p:P3(q),l:`<tspan font-style="italic">${n}</tspan>(${q.join(", ")})`,dx,dy,an});
+const sk3=(pts,extra)=>draw([...axes3(pts),...extra],580,380);
+const Wl=(p,n="W")=>`${it(n)} = ${p.W??p.F} ${FU(p)}`;
+
+// ----- templates
+const ri=(r,a,b)=>a+Math.floor(r()*(b-a+1));
+const sbt=(a,b)=>`<tspan font-style="italic">${a}</tspan><tspan baseline-shift="sub" font-size="12">${b}</tspan>`;
+const WU=p=>p.us?"lbf/ft":"N/m", AU=p=>p.us?"ft²":"m²", VU=p=>p.us?"ft³":"m³";
+const TEMPLATES={};
+const arcPts=(c,r,t0,t1,n=28)=>{const o=[];for(let i=0;i<=n;i++){const t=t0+(t1-t0)*i/n;o.push([c[0]+r*cs(t),c[1]+r*sn(t)])}return o};
+const pinS=(x,k)=>[{t:"poly",pts:[[x,0],[x-.45*k,-.8*k],[x+.45*k,-.8*k]]},{t:"hatch",a:[x-.8*k,-.8*k],b:[x+.8*k,-.8*k],side:1}];
+const rollS=(x,k)=>[{t:"pulley",p:[x,-.3*k],r:7},{t:"hatch",a:[x-.8*k,-.62*k],b:[x+.8*k,-.62*k],side:1}];
+const axes2=(x1,y1,x0=-.8,y0=-.8)=>[{a:[x0,0],b:[x1,0],t:"ln",c:"x",d:1,w:1},{a:[0,y0],b:[0,y1],t:"ln",c:"x",d:1,w:1},{t:"txt",p:[x1+.25,-.25],l:it("x"),an:"start"},{t:"txt",p:[.25,y1+.2],l:it("y"),an:"start"}];
+const poly=(pts,fill)=>({t:"poly",pts,fill:fill||"#f1ead6"});
+const ptab=(rows,p,unitA)=>{const SA=rows.reduce((a,q)=>a+q.A,0),SX=rows.reduce((a,q)=>a+q.A*q.x,0),SY=rows.reduce((a,q)=>a+q.A*q.y,0);
+  return `<table><tr><th>Part</th><th>A (${unitA})</th><th>x̄ (${LU(p)})</th><th>ȳ (${LU(p)})</th><th>A·x̄</th><th>A·ȳ</th></tr>`+rows.map(q=>`<tr><td>${q.n}</td><td>${sig(q.A)}</td><td>${sig(q.x)}</td><td>${sig(q.y)}</td><td>${sig(q.A*q.x)}</td><td>${sig(q.A*q.y)}</td></tr>`).join("")+`<tr><td><b>Sum</b></td><td>${sig(SA)}</td><td></td><td></td><td>${sig(SX)}</td><td>${sig(SY)}</td></tr></table>`};
+
+// 1. composite area
+TEMPLATES["centroid-composite-area"]={
+  name:"Centroid of a composite area",
+  generate(seed){const r=mulberry32(seed);
+    const kind=pick(r,["tri","semi","hole"]),p={us:r()<.5,kind,w:pick(r,[4,6,8]),h:ri(r,3,7)};
+    let rows=[{n:"Rectangle",A:p.w*p.h,x:p.w/2,y:p.h/2}];
+    if(kind==="tri"){p.t=ri(r,2,6);p.ht=ri(r,2,p.h+1);rows.push({n:"Triangle",A:p.t*p.ht/2,x:p.w+p.t/3,y:p.ht/3})}
+    if(kind==="semi"){p.rr=p.w/2;rows.push({n:"Semicircle",A:Math.PI*p.rr*p.rr/2,x:p.w/2,y:p.h+4*p.rr/(3*Math.PI)})}
+    if(kind==="hole"){p.rr=ri(r,1,Math.floor(Math.min(p.w,p.h)/2));p.xc=ri(r,p.rr+0,p.w-p.rr);p.yc=ri(r,p.rr,p.h-p.rr);rows.push({n:"Circular hole",A:-Math.PI*p.rr*p.rr,x:p.xc,y:p.yc})}
+    const A=rows.reduce((a,q)=>a+q.A,0),xb=rows.reduce((a,q)=>a+q.A*q.x,0)/A,yb=rows.reduce((a,q)=>a+q.A*q.y,0)/A;
+    return {p,s:{rows,A,xb,yb}};},
+  statement:p=>`<p>A flat plate of uniform thickness is made of a rectangle ${p.w} ${LU(p)} wide and ${p.h} ${LU(p)} high${p.kind==="tri"?`, with a right triangle attached to its right side. The triangle has a base of ${p.t} ${LU(p)} along the bottom edge and a height of ${p.ht} ${LU(p)} at the rectangle`:p.kind==="semi"?`, with a semicircle of diameter ${p.w} ${LU(p)} attached to its top edge`:`, with a circular hole of radius ${p.rr} ${LU(p)} cut out. The center of the hole is at (${p.xc}, ${p.yc}) ${LU(p)}`}. The origin is at the lower left corner of the rectangle. Determine the coordinates of the centroid of the plate.</p>`,
+  figure:p=>{const e=[poly([[0,0],[p.w,0],[p.w,p.h],[0,p.h]])];
+    if(p.kind==="tri")e.push(poly([[p.w,0],[p.w+p.t,0],[p.w,p.ht]],"#e7dcc0"),{t:"dim",a:[p.w,-.9],b:[p.w+p.t,-.9],l:`${p.t} ${LU(p)}`,flip:1},{t:"dim",a:[p.w+p.t+.6,0],b:[p.w+p.t+.6,p.ht],l:`${p.ht} ${LU(p)}`});
+    if(p.kind==="semi")e.push(poly([...arcPts([p.w/2,p.h],p.rr,0,180)],"#e7dcc0"),{t:"txt",p:[p.w/2,p.h+p.rr/2],l:`${it("r")} = ${p.rr} ${LU(p)}`});
+    if(p.kind==="hole")e.push(poly(arcPts([p.xc,p.yc],p.rr,0,360,36),"#ffffff"),{t:"pt",p:[p.xc,p.yc],r:3},{t:"txt",p:[p.xc,p.yc-p.rr-.45],l:`${it("r")} = ${p.rr} ${LU(p)}`});
+    e.push(...axes2(p.w+(p.kind==="tri"?p.t:0)+1.5,p.h+(p.kind==="semi"?p.rr:0)+1),{t:"dim",a:[0,-.9],b:[p.w,-.9],l:`${p.w} ${LU(p)}`,flip:1},{t:"dim",a:[-.9,0],b:[-.9,p.h],l:`${p.h} ${LU(p)}`,flip:1});
+    return draw(e,620,380)},
+  solution:(p,s)=>`<h3>1. Divide the plate into simple parts</h3>
+  <p>The plate is the rectangle${p.kind==="hole"?" minus the circular hole, which is treated as a part with negative area":p.kind==="tri"?" plus the triangle":" plus the semicircle"}. The centroid of each part is known: ${p.kind==="tri"?"a right triangle has its centroid one third of the base from the right-angle side and one third of the height above the base":p.kind==="semi"?"a semicircle of radius <i>r</i> has its centroid 4<i>r</i>/(3π) from its diameter":"a circle has its centroid at its center"}.</p>
+  <h3>2. Tabulate</h3>
+  ${ptab(s.rows,p,AU(p))}
+  <h3>3. Centroid of the whole plate</h3>
+  <p>${eq(`x̄ = ΣA<sub>i</sub>x̄<sub>i</sub> / ΣA<sub>i</sub> = ${sig(s.xb)} ${LU(p)}`)} ${eq(`ȳ = ΣA<sub>i</sub>ȳ<sub>i</sub> / ΣA<sub>i</sub> = ${sig(s.yb)} ${LU(p)}`)}</p>
+  <p class="final">x̄ = ${sig(s.xb,3)} ${LU(p)}, ȳ = ${sig(s.yb,3)} ${LU(p)}; total area ${sig(s.A,3)} ${AU(p)}.</p>`,
+  fields:p=>[{id:"xb",label:"Centroid x̄",unit:LU(p)},{id:"yb",label:"Centroid ȳ",unit:LU(p)}],
+  truth:s=>({xb:s.xb,yb:s.yb}),
+  note:"Measure from the lower left corner of the rectangle."
+};
+
+// 2. centroid by integration
+TEMPLATES["centroid-integration"]={
+  name:"Centroid of the area under a power curve (integration)",
+  generate(seed){const r=mulberry32(seed);
+    const p={us:r()<.5,a:ri(r,3,8),b:ri(r,2,7),n:pick(r,[2,3,4])};
+    const A=p.a*p.b/(p.n+1),xb=(p.n+1)*p.a/(p.n+2),yb=(p.n+1)*p.b/(2*(2*p.n+1));
+    return {p,s:{A,xb,yb}};},
+  statement:p=>`<p>Consider the area under the curve <i>y</i> = <i>k</i><i>x</i><sup>${p.n}</sup> between <i>x</i> = 0 and <i>x</i> = ${p.a} ${LU(p)}, where the curve passes through the point (${p.a}, ${p.b}) ${LU(p)}. Find the area and the coordinates of its centroid by integration.</p>`,
+  figure:p=>{const pts=[[0,0]];for(let i=0;i<=40;i++){const x=p.a*i/40;pts.push([x,p.b*Math.pow(x/p.a,p.n)])}pts.push([p.a,0]);
+    return draw([poly(pts),...axes2(p.a+1.2,p.b+1),{t:"pt",p:[p.a,p.b],l:`(${p.a}, ${p.b})`,dx:8,dy:-8},{t:"txt",p:[p.a*.45,p.b*.75],l:`${it("y")} = ${it("k")}${it("x")}<tspan baseline-shift="super" font-size="12">${p.n}</tspan>`},{t:"dim",a:[0,-.9],b:[p.a,-.9],l:`${p.a} ${LU(p)}`,flip:1}],620,360)},
+  solution:(p,s)=>`<h3>1. Constant of the curve</h3>
+  <p>${eq(`k = ${p.b}/${p.a}<sup>${p.n}</sup>`)}, so <i>y</i> = <i>b</i>(<i>x</i>/<i>a</i>)<sup>${p.n}</sup> with <i>a</i> = ${p.a} and <i>b</i> = ${p.b}.</p>
+  <h3>2. Area</h3>
+  <p>${eq(`A = ∫<sub>0</sub><sup>a</sup> y dx = ab/${p.n+1} = ${sig(s.A)} ${AU(p)}`)}</p>
+  <h3>3. First moments</h3>
+  <p>${eq(`∫ x dA = ∫<sub>0</sub><sup>a</sup> x y dx = a²b/${p.n+2}`)} so ${eq(`x̄ = ${p.n+1}a/${p.n+2} = ${sig(s.xb)} ${LU(p)}`)}</p>
+  <p>For a thin vertical strip, the centroid is at height <i>y</i>/2, so ${eq(`∫ ȳ dA = ∫<sub>0</sub><sup>a</sup> (y/2) y dx = ab²/${2*(2*p.n+1)}`)} and ${eq(`ȳ = ${p.n+1}b/${2*(2*p.n+1)} = ${sig(s.yb)} ${LU(p)}`)}</p>
+  <p class="final">A = ${sig(s.A,3)} ${AU(p)}, x̄ = ${sig(s.xb,3)} ${LU(p)}, ȳ = ${sig(s.yb,3)} ${LU(p)}.</p>`,
+  fields:p=>[{id:"A",label:"Area A",unit:AU(p)},{id:"xb",label:"Centroid x̄",unit:LU(p)},{id:"yb",label:"Centroid ȳ",unit:LU(p)}],
+  truth:s=>({A:s.A,xb:s.xb,yb:s.yb}),
+  note:"The area is under the curve, above the x axis."
+};
+
+// 3. centroid of a wire (line)
+TEMPLATES["centroid-wire"]={
+  name:"Centroid of a bent wire (line)",
+  generate(seed){const r=mulberry32(seed);
+    const p={us:r()<.5,a:ri(r,5,10),b:ri(r,3,8)};p.rr=ri(r,1,Math.floor(p.a/2));
+    const rows=[{n:"Horizontal segment",A:p.a,x:p.a/2,y:0},{n:"Vertical segment",A:p.b,x:p.a,y:p.b/2},{n:"Semicircular arc",A:Math.PI*p.rr,x:p.a-p.rr,y:p.b+2*p.rr/Math.PI}];
+    const L=rows.reduce((a,q)=>a+q.A,0),xb=rows.reduce((a,q)=>a+q.A*q.x,0)/L,yb=rows.reduce((a,q)=>a+q.A*q.y,0)/L;
+    return {p,s:{rows,L,xb,yb}};},
+  statement:p=>`<p>A thin uniform wire is bent into three connected pieces: a horizontal straight segment of length ${p.a} ${LU(p)} along the <i>x</i> axis from the origin, a vertical straight segment of length ${p.b} ${LU(p)} rising from its right end, and a semicircular arc of radius ${p.rr} ${LU(p)} that starts at the top of the vertical segment and curves up and back to the left, with its diameter horizontal. Determine the coordinates of the centroid of the wire.</p>`,
+  figure:p=>{const e=[{a:[0,0],b:[p.a,0],c:"m",t:"ln",w:4},{a:[p.a,0],b:[p.a,p.b],c:"m",t:"ln",w:4}],ap=arcPts([p.a-p.rr,p.b],p.rr,0,180,24);
+    for(let i=1;i<ap.length;i++)e.push({a:ap[i-1],b:ap[i],c:"m",t:"ln",w:4});
+    e.push(...axes2(p.a+1.5,p.b+p.rr+1),{t:"dim",a:[0,-1.6],b:[p.a,-1.6],l:`${p.a} ${LU(p)}`,flip:1},{t:"dim",a:[p.a+.8,0],b:[p.a+.8,p.b],l:`${p.b} ${LU(p)}`},{t:"txt",p:[p.a-p.rr,p.b+p.rr+.4],l:`${it("r")} = ${p.rr} ${LU(p)}`});
+    return draw(e,620,380)},
+  solution:(p,s)=>`<h3>1. Parts of the wire</h3>
+  <p>For a line, each part contributes its length in place of an area. The centroid of a straight segment is at its midpoint, and the centroid of a semicircular arc of radius <i>r</i> is 2<i>r</i>/π from its diameter, on the side of the arc.</p>
+  <h3>2. Tabulate</h3>
+  ${ptab(s.rows,p,LU(p)).replace("A (","L (")}
+  <h3>3. Centroid</h3>
+  <p>${eq(`x̄ = ΣL<sub>i</sub>x̄<sub>i</sub> / ΣL<sub>i</sub> = ${sig(s.xb)} ${LU(p)}`)} ${eq(`ȳ = ΣL<sub>i</sub>ȳ<sub>i</sub> / ΣL<sub>i</sub> = ${sig(s.yb)} ${LU(p)}`)}</p>
+  <p class="final">x̄ = ${sig(s.xb,3)} ${LU(p)}, ȳ = ${sig(s.yb,3)} ${LU(p)}; total length ${sig(s.L,3)} ${LU(p)}.</p>`,
+  fields:p=>[{id:"xb",label:"Centroid x̄",unit:LU(p)},{id:"yb",label:"Centroid ȳ",unit:LU(p)}],
+  truth:s=>({xb:s.xb,yb:s.yb}),
+  note:"Measure from the left end of the horizontal segment."
+};
+
+// 4. Pappus-Guldinus
+TEMPLATES["pappus-guldinus"]={
+  name:"Theorems of Pappus and Guldinus: volume and surface area",
+  generate(seed){const r=mulberry32(seed);
+    const p={us:r()<.5,r:ri(r,2,6),H:ri(r,3,8),d:ri(r,2,6)};
+    const Ls=Math.hypot(p.r,p.d),V=Math.PI*p.r*p.r*p.H+Math.PI*p.r*p.r*p.d/3,S=2*Math.PI*p.r*p.H+Math.PI*p.r*Ls;
+    return {p,s:{Ls,V,S}};},
+  statement:p=>`<p>A tank is formed by rotating the plane region shown through 360° about the vertical <i>y</i> axis. The region is a rectangle of width ${p.r} ${LU(p)} and height ${p.H} ${LU(p)} resting on a triangle of the same width and depth ${p.d} ${LU(p)}. Use the theorems of Pappus and Guldinus to find the volume of the solid, and the area of its curved outer surface (the cylindrical side and the conical bottom; the flat top is not included).</p>`,
+  figure:p=>draw([poly([[0,0],[p.r,0],[p.r,p.H],[0,p.H]]),poly([[0,0],[p.r,0],[0,-p.d]],"#e7dcc0"),{a:[0,-p.d-1],b:[0,p.H+1],t:"ln",c:"b",d:1,w:1.4},{t:"txt",p:[.25,p.H+1.3],l:it("y"),an:"start"},
+    {t:"dim",a:[0,p.H+.9],b:[p.r,p.H+.9],l:`${p.r} ${LU(p)}`},{t:"dim",a:[p.r+.6,0],b:[p.r+.6,p.H],l:`${p.H} ${LU(p)}`},{t:"dim",a:[p.r+.6,-p.d],b:[p.r+.6,0],l:`${p.d} ${LU(p)}`},{t:"txt",p:[-.3,p.H/2],l:"axis of rotation",an:"end"}],620,380),
+  solution:(p,s)=>`<h3>1. Volume (second theorem)</h3>
+  <p>The volume equals the area of the region times the distance traveled by its centroid, 2π<i>x̄</i>, taken part by part.</p>
+  <p>Rectangle: ${eq(`A = ${p.r}(${p.H}) = ${p.r*p.H}`)}, <i>x̄</i> = ${sig(p.r/2)}, so ${eq(`V<sub>1</sub> = 2π(${sig(p.r/2)})(${p.r*p.H}) = ${sig(Math.PI*p.r*p.r*p.H)} ${VU(p)}`)}</p>
+  <p>Triangle: ${eq(`A = ½(${p.r})(${p.d}) = ${sig(p.r*p.d/2)}`)}, <i>x̄</i> = ${p.r}/3 = ${sig(p.r/3)}, so ${eq(`V<sub>2</sub> = 2π(${sig(p.r/3)})(${sig(p.r*p.d/2)}) = ${sig(Math.PI*p.r*p.r*p.d/3)} ${VU(p)}`)}</p>
+  <p>${eq(`V = V<sub>1</sub> + V<sub>2</sub> = ${sig(s.V)} ${VU(p)}`)}</p>
+  <h3>2. Surface area (first theorem)</h3>
+  <p>The area equals the length of the generating line times the distance traveled by its centroid.</p>
+  <p>Vertical side: <i>L</i> = ${p.H}, <i>x̄</i> = ${p.r}, so ${eq(`S<sub>1</sub> = 2π(${p.r})(${p.H}) = ${sig(2*Math.PI*p.r*p.H)} ${AU(p)}`)}</p>
+  <p>Sloping side: ${eq(`L = √(${p.r}² + ${p.d}²) = ${sig(s.Ls)} ${LU(p)}`)}, <i>x̄</i> = ${sig(p.r/2)}, so ${eq(`S<sub>2</sub> = 2π(${sig(p.r/2)})(${sig(s.Ls)}) = ${sig(Math.PI*p.r*s.Ls)} ${AU(p)}`)}</p>
+  <p class="final">V = ${sig(s.V,3)} ${VU(p)}, S = ${sig(s.S,3)} ${AU(p)}.</p>`,
+  fields:p=>[{id:"V",label:"Volume V",unit:VU(p)},{id:"S",label:"Curved surface area S",unit:AU(p)}],
+  truth:s=>({V:s.V,S:s.S}),
+  note:"The flat top of the cylinder is not part of S."
+};
+
+// 5. trapezoidal distributed load on a beam
+TEMPLATES["trapezoid-load-beam"]={
+  name:"Trapezoidal distributed load: resultant and reactions",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const us=r()<.5,p={us,L:ri(r,4,12),w1:us?pick(r,range(20,150,10)):pick(r,range(200,1500,100)),w2:us?pick(r,range(20,150,10)):pick(r,range(200,1500,100))};
+      if(p.w1===p.w2) continue;
+      const R=(p.w1+p.w2)*p.L/2,xb=p.L*(p.w1+2*p.w2)/(3*(p.w1+p.w2));
+      return {p,s:{R,xb,Ay:R*(p.L-xb)/p.L,By:R*xb/p.L}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A beam of length ${p.L} ${LU(p)} is supported by a pin at <i>A</i> (left end) and a roller at <i>B</i> (right end). It carries a downward distributed load that varies linearly from <i>w</i><sub>1</sub> = ${p.w1} ${WU(p)} at <i>A</i> to <i>w</i><sub>2</sub> = ${p.w2} ${WU(p)} at <i>B</i>. Determine the magnitude of the equivalent resultant force, its distance from <i>A</i>, and the vertical reactions at <i>A</i> and <i>B</i>.</p>`,
+  figure:p=>{const k=Math.max(.35,p.L/12),m=Math.max(p.w1,p.w2),h1=2*p.w1/m,h2=2*p.w2/m,e=[{a:[0,0],b:[p.L,0],c:"m",t:"ln",w:5},{t:"pt",p:[0,0],l:it("A"),dx:-16,dy:-8,r:4},{t:"pt",p:[p.L,0],l:it("B"),dx:6,dy:-10,r:4},...pinS(0,k),...rollS(p.L,k),poly([[0,.15],[0,.15+h1],[p.L,.15+h2],[p.L,.15]],"#f4d6d6")];
+    for(let i=0;i<=4;i++){const x=p.L*i/4,h=h1+(h2-h1)*i/4;e.push({a:[x,.15+h],b:[x,.15],c:"r",w:1.6})}
+    e.push({t:"txt",p:[0,.15+h1+.45],l:sbt("w",1)+" = "+p.w1+" "+WU(p),an:"start"},{t:"txt",p:[p.L,.15+h2+.45],l:sbt("w",2)+" = "+p.w2+" "+WU(p),an:"end"},{t:"dim",a:[0,-2.6*k],b:[p.L,-2.6*k],l:`${p.L} ${LU(p)}`,flip:1});
+    return draw(e,620,360)},
+  solution:(p,s)=>`<h3>1. Resultant</h3>
+  <p>The resultant equals the area of the trapezoid: ${eq(`R = ½(w<sub>1</sub> + w<sub>2</sub>)L = ½(${p.w1} + ${p.w2})(${p.L}) = ${sig(s.R)} ${FU(p)}`)}</p>
+  <h3>2. Line of action</h3>
+  <p>Splitting the trapezoid into a rectangle of height <i>w</i><sub>1</sub> and a triangle of height <i>w</i><sub>2</sub> &minus; <i>w</i><sub>1</sub>, or integrating, gives the distance from <i>A</i> to the centroid of the trapezoid:</p>
+  <p>${eq(`x̄ = L(w<sub>1</sub> + 2w<sub>2</sub>) / [3(w<sub>1</sub> + w<sub>2</sub>)] = ${sig(s.xb)} ${LU(p)}`)}</p>
+  <h3>3. Reactions</h3>
+  <p>${eq(`ΣM<sub>A</sub> = 0: ${p.L}B<sub>y</sub> &minus; R x̄ = 0`)} so ${eq(`B<sub>y</sub> = ${sig(s.By)} ${FU(p)}`)} ${eq(`A<sub>y</sub> = R &minus; B<sub>y</sub> = ${sig(s.Ay)} ${FU(p)}`)}</p>
+  <p class="final">R = ${sig(s.R,3)} ${FU(p)} at ${sig(s.xb,3)} ${LU(p)} from A; A<sub>y</sub> = ${sig(s.Ay,3)} ${FU(p)}; B<sub>y</sub> = ${sig(s.By,3)} ${FU(p)}.</p>`,
+  fields:p=>[{id:"R",label:"Resultant R",unit:FU(p)},{id:"xb",label:"Distance of R from A",unit:LU(p)},{id:"Ay",label:"Reaction A<sub>y</sub>",unit:FU(p)},{id:"By",label:"Reaction B<sub>y</sub>",unit:FU(p)}],
+  truth:s=>({R:s.R,xb:s.xb,Ay:s.Ay,By:s.By}),
+  note:"Both reactions act upward; enter magnitudes."
+};
+
+// 6. fluid pressure on a vertical gate
+TEMPLATES["fluid-gate"]={
+  name:"Fluid pressure on a vertical rectangular gate",
+  generate(seed){const r=mulberry32(seed);
+    const us=r()<.5,p={us,b:ri(r,2,6),d1:ri(r,0,3),g:us?62.4:9810};p.d2=p.d1+ri(r,2,5);
+    const F=p.g*p.b*(p.d2*p.d2-p.d1*p.d1)/2,yc=2*(Math.pow(p.d2,3)-Math.pow(p.d1,3))/(3*(p.d2*p.d2-p.d1*p.d1));
+    return {p,s:{F,yc,e:p.d2-yc}};},
+  statement:p=>`<p>A vertical rectangular gate of width <i>b</i> = ${p.b} ${LU(p)} holds back water. The top edge of the gate is ${p.d1} ${LU(p)} below the water surface and the bottom edge is ${p.d2} ${LU(p)} below the surface. The specific weight of water is <i>γ</i> = ${p.us?"62.4 lbf/ft³":"9810 N/m³"}. Atmospheric pressure acts on both sides and cancels. Determine the resultant force of the water on the gate, the depth below the surface at which the resultant acts, and the distance of its line of action above the bottom edge.</p>`,
+  figure:p=>{const e=[{a:[0,-p.d2-.8],b:[0,0.5],t:"ln",c:"k",w:1.2},{a:[0,-p.d1],b:[0,-p.d2],c:"m",t:"ln",w:7},{a:[-5,0],b:[0,0],t:"ln",c:"b",w:1.8},{t:"txt",p:[-2.5,.45],l:"water surface"}];
+    const gs=3.4/(p.g===62.4?62.4*p.d2:9810*p.d2);
+    for(let i=0;i<=4;i++){const d=p.d1+(p.d2-p.d1)*i/4,L=p.g*d*gs;if(L>.1)e.push({a:[-L,-d],b:[-.1,-d],c:"b",w:1.8})}
+    e.push({a:[-Math.max(.05,p.g*p.d1*gs),-p.d1],b:[-p.g*p.d2*gs,-p.d2],t:"ln",c:"b",d:1,w:1},{t:"dim",a:[1,0],b:[1,-p.d1],l:p.d1>0?`${p.d1} ${LU(p)}`:""},{t:"dim",a:[1.9,0],b:[1.9,-p.d2],l:`${p.d2} ${LU(p)}`},{t:"txt",p:[-.4,-p.d2-1.2],l:`${it("b")} = ${p.b} ${LU(p)} (into the page)`,an:"start"});
+    if(p.d1===0)e.pop(),e.pop(),e.push({t:"dim",a:[1.9,0],b:[1.9,-p.d2],l:`${p.d2} ${LU(p)}`},{t:"txt",p:[-.4,-p.d2-1.2],l:`${it("b")} = ${p.b} ${LU(p)}`,an:"start"});
+    return draw(e,620,380)},
+  solution:(p,s)=>`<h3>1. Pressure distribution</h3>
+  <p>The gauge pressure at depth <i>y</i> is <i>p</i> = <i>γy</i>, and the load per unit height of the gate is <i>γby</i>. The resultant is the area under this trapezoidal (or triangular) load diagram.</p>
+  <h3>2. Resultant force</h3>
+  <p>${eq(`F = ∫<sub>d<sub>1</sub></sub><sup>d<sub>2</sub></sup> γ b y dy = ½γb(d<sub>2</sub>² &minus; d<sub>1</sub>²) = ${sig(s.F)} ${FU(p)}`)}</p>
+  <h3>3. Line of action</h3>
+  <p>The depth of the resultant is the centroid of the load diagram: ${eq(`ȳ = ∫ y·y dy / ∫ y dy = 2(d<sub>2</sub>³ &minus; d<sub>1</sub>³) / [3(d<sub>2</sub>² &minus; d<sub>1</sub>²)] = ${sig(s.yc)} ${LU(p)}`)}</p>
+  <p>Above the bottom edge: ${eq(`e = d<sub>2</sub> &minus; ȳ = ${p.d2} &minus; ${sig(s.yc)} = ${sig(s.e)} ${LU(p)}`)}</p>
+  <p class="final">F = ${sig(s.F,3)} ${FU(p)}, acting ${sig(s.yc,3)} ${LU(p)} below the surface, which is ${sig(s.e,3)} ${LU(p)} above the bottom edge.</p>`,
+  fields:p=>[{id:"F",label:"Resultant force F",unit:FU(p)},{id:"yc",label:"Depth of the resultant below the surface",unit:LU(p)},{id:"e",label:"Height of the resultant above the bottom edge",unit:LU(p)}],
+  truth:s=>({F:s.F,yc:s.yc,e:s.e}),
+  note:"Use gauge pressure; atmospheric pressure cancels."
+};
+
+// 7. center of mass of a composite solid (3D)
+TEMPLATES["composite-solid-3d"]={
+  name:"Center of mass of a composite solid (block and cylinder)",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const a=ri(r,4,8),b=ri(r,4,8),c=ri(r,2,5),rr=ri(r,1,Math.floor(Math.min(a,b)/2));
+      const p={us:r()<.5,a,b,c,rr,hc:ri(r,2,6),xc:ri(r,rr,a-rr),yc:ri(r,rr,b-rr)};
+      const rows=[{n:"Block",A:a*b*c,x:a/2,y:b/2,z:c/2},{n:"Cylinder",A:Math.PI*rr*rr*p.hc,x:p.xc,y:p.yc,z:c+p.hc/2}];
+      const V=rows.reduce((s,q)=>s+q.A,0),xb=rows.reduce((s,q)=>s+q.A*q.x,0)/V,yb=rows.reduce((s,q)=>s+q.A*q.y,0)/V,zb=rows.reduce((s,q)=>s+q.A*q.z,0)/V;
+      return {p,s:{rows,V,xb,yb,zb}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A solid of uniform density consists of a rectangular block of dimensions ${p.a} ${LU(p)} (<i>x</i>) by ${p.b} ${LU(p)} (<i>y</i>) by ${p.c} ${LU(p)} (<i>z</i>) with one corner at the origin, and a circular cylinder of radius ${p.rr} ${LU(p)} and height ${p.hc} ${LU(p)} standing on the top face. The axis of the cylinder is vertical and passes through <i>x</i> = ${p.xc} ${LU(p)}, <i>y</i> = ${p.yc} ${LU(p)}. The <i>z</i> axis points up. Determine the coordinates of the center of mass of the solid.</p>`,
+  figure:p=>{const {a,b,c}=p,P=q=>P3(q),e=[],E=(u,v)=>e.push({a:P(u),b:P(v),c:"m",t:"ln",w:2.4});
+    [[0,0,0],[a,0,0],[a,b,0],[0,b,0]].forEach((q,i,A)=>E(q,A[(i+1)%4]));
+    [[0,0,c],[a,0,c],[a,b,c],[0,b,c]].forEach((q,i,A)=>E(q,A[(i+1)%4]));
+    [[0,0],[a,0],[a,b],[0,b]].forEach(q=>E([q[0],q[1],0],[q[0],q[1],c]));
+    const ring=z=>Array.from({length:37},(_,i)=>P([p.xc+p.rr*cs(i*10),p.yc+p.rr*sn(i*10),z]));
+    e.push({t:"poly",pts:ring(c),fill:"#e7dcc0"},{t:"poly",pts:ring(c+p.hc),fill:"#e7dcc0"});
+    [0,90,180,270].forEach(t=>e.push({a:P([p.xc+p.rr*cs(t),p.yc+p.rr*sn(t),c]),b:P([p.xc+p.rr*cs(t),p.yc+p.rr*sn(t),c+p.hc]),c:"m",t:"ln",w:2}));
+    return draw([...axes3([[a,b,c+p.hc]]),...e],580,380)},
+  solution:(p,s)=>`<h3>1. Parts</h3>
+  <p>The solid is a block and a cylinder. Each part has a known volume and a center of mass at its geometric center: the block at (${p.a/2}, ${p.b/2}, ${p.c/2}) ${LU(p)}, and the cylinder on its axis at half its height above the top face of the block.</p>
+  <h3>2. Tabulate</h3>
+  <table><tr><th>Part</th><th>V (${VU(p)})</th><th>x̄</th><th>ȳ</th><th>z̄</th></tr>${s.rows.map(q=>`<tr><td>${q.n}</td><td>${sig(q.A)}</td><td>${sig(q.x)}</td><td>${sig(q.y)}</td><td>${sig(q.z)}</td></tr>`).join("")}</table>
+  <h3>3. Center of mass</h3>
+  <p>${eq(`x̄ = ΣV<sub>i</sub>x̄<sub>i</sub> / ΣV<sub>i</sub> = ${sig(s.xb)} ${LU(p)}`)} ${eq(`ȳ = ΣV<sub>i</sub>ȳ<sub>i</sub> / ΣV<sub>i</sub> = ${sig(s.yb)} ${LU(p)}`)} ${eq(`z̄ = ΣV<sub>i</sub>z̄<sub>i</sub> / ΣV<sub>i</sub> = ${sig(s.zb)} ${LU(p)}`)}</p>
+  <p class="final">(x̄, ȳ, z̄) = (${sig(s.xb,3)}, ${sig(s.yb,3)}, ${sig(s.zb,3)}) ${LU(p)}; total volume ${sig(s.V,3)} ${VU(p)}.</p>`,
+  fields:p=>[{id:"xb",label:"x̄",unit:LU(p)},{id:"yb",label:"ȳ",unit:LU(p)},{id:"zb",label:"z̄",unit:LU(p)}],
+  truth:s=>({xb:s.xb,yb:s.yb,zb:s.zb}),
+  note:"Measure from the corner of the block at the origin."
+};
+
+// ===== page
+let curKey="centroid-composite-area", cur=null, curFields=[];
+const $=id=>document.getElementById(id);
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key];
+  cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
+  $("fig").innerHTML=T.figure(p,s);
+  $("statement").innerHTML=T.statement(p,s);
+  $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent="Answers within 2% are accepted. "+T.note;
+  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
+  $("solBtn").textContent="Show solution";
+}
+
+function check(){
+  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
+  curFields.forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scaleOf(f.unit):0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+if(typeof document!=="undefined"){
+  const newSeed=()=>1+Math.floor(Math.random()*999999);
+  $("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
+  $("typeSel").onchange=e=>render(e.target.value,newSeed());
+  $("newBtn").onclick=()=>render(curKey,newSeed());
+  $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+  $("checkBtn").onclick=check;
+  $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+    s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+  (function(){
+    const m=/^#([a-z0-9-]+)-(\d+)$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
+    else render("centroid-composite-area",newSeed());
+  })();
+}
+if(typeof module!=="undefined")module.exports={TEMPLATES};
+
+</script>
+</body>
+</html>
