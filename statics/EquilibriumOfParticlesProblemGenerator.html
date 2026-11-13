@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Equilibrium of Particles Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --load:#aa1e28; --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<header>
+  <h1>Equilibrium of Particles Problem Generator</h1>
+  <div class="sub">Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem.</div>
+</header>
+<main>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+// ----- helpers
+const rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+const cs=d=>Math.cos(rad(d)), sn=d=>Math.sin(rad(d));
+const sub=(a,b)=>a.map((x,i)=>x-b[i]);
+const nrm=a=>Math.hypot(...a);
+const unit=a=>{const n=nrm(a);return a.map(x=>x/n)};
+const det3=m=>m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])-m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])+m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+function solve3(M,b){const D=det3(M);return [0,1,2].map(j=>{const X=M.map((row,i)=>row.map((v,k)=>k===j?b[i]:v));return det3(X)/D})}
+
+function fmt(v,d=0){if(Math.abs(v)<0.5*10**-d)v=0;return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+const sig=(x,n=4)=>{if(Math.abs(x)<1e-9)return "0";const d=Math.max(0,n-1-Math.floor(Math.log10(Math.abs(x))));return Number(x).toFixed(Math.min(d,8)).replace("-","−")};
+const fv=(v,n=4)=>"("+v.map(x=>sig(x,n)).join(", ")+")";
+const ang=t=>sig(t,3).replace(/\.0+$/,"")+"°";
+const FU=p=>p.us?"lbf":"N", LU=p=>p.us?"ft":"m", SU=p=>p.us?"in":"mm", KU=p=>p.us?"lbf/in":"N/mm";
+const eq=s=>`<span class="eq">${s}</span>`;
+const it=v=>`<tspan font-style="italic">${v}</tspan>`;
+const sb=(a,b)=>`${it(a)}<tspan baseline-shift="sub" font-size="12">${b}</tspan>`;
+
+// ----- figure toolkit
+const COL={k:"#222",r:"#aa1e28",b:"#2b5d8a",g:"#1e5a32",m:"#7d5014",x:"#888"};
+function draw(els,W=560,H=340){
+  const pts=[];els.forEach(e=>{[e.a,e.b,e.p].forEach(q=>q&&pts.push(q));(e.pts||[]).forEach(q=>pts.push(q));
+    if(e.t==="arc"){pts.push([e.p[0]+e.r,e.p[1]+e.r],[e.p[0]-e.r,e.p[1]-e.r])}});
+  const x0=Math.min(...pts.map(q=>q[0])),x1=Math.max(...pts.map(q=>q[0])),y0=Math.min(...pts.map(q=>q[1])),y1=Math.max(...pts.map(q=>q[1]));
+  const mx=90,my=50,s=Math.min((W-2*mx)/Math.max(x1-x0,1e-6),(H-2*my)/Math.max(y1-y0,1e-6));
+  const X=q=>mx+(q[0]-x0)*s+(W-2*mx-(x1-x0)*s)/2, Y=q=>H-my-(q[1]-y0)*s-(H-2*my-(y1-y0)*s)/2, f1=v=>v.toFixed(1);
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="16" style="max-height:${H+40}px"><defs>`;
+  for(const k in COL)o+=`<marker id="vx${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="${k==="r"?5:6}" markerHeight="${k==="r"?5:6}" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="${COL[k]}"/></marker>`;
+  o+=`<marker id="vxd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z" fill="#222"/></marker></defs>`;
+  els.forEach(e=>{
+    const c=e.c||"k";
+    if(e.t==="pt"){const px=X(e.p),py=Y(e.p);o+=`<circle cx="${f1(px)}" cy="${f1(py)}" r="${e.r||3.6}" fill="${COL[c]}"/>`;
+      if(e.l)o+=`<text x="${f1(px+(e.dx??8))}" y="${f1(py+(e.dy??-8))}" text-anchor="${e.an||"start"}" class="halo">${e.l}</text>`;return}
+    if(e.t==="txt"){o+=`<text x="${f1(X(e.p))}" y="${f1(Y(e.p))}" text-anchor="${e.an||"middle"}" class="halo">${e.l}</text>`;return}
+    if(e.t==="poly"){o+=`<polygon points="${e.pts.map(q=>f1(X(q))+","+f1(Y(q))).join(" ")}" fill="${e.fill||"#eec878"}" stroke="#7d5014" stroke-width="1.6"/>`;return}
+    if(e.t==="pulley"){const px=X(e.p),py=Y(e.p);o+=`<circle cx="${f1(px)}" cy="${f1(py)}" r="${e.r||12}" fill="#fff" stroke="#222" stroke-width="1.8"/><circle cx="${f1(px)}" cy="${f1(py)}" r="2.5" fill="#222"/>`;return}
+    if(e.t==="arc"){const n=[];for(let t=e.t0;t<=e.t1+1e-6;t+=2)n.push(f1(X([e.p[0]+e.r*cs(t),0]))+","+f1(Y([0,e.p[1]+e.r*sn(t)])));
+      o+=`<polyline points="${n.join(" ")}" fill="none" stroke="#222" stroke-width="1.1"/>`;
+      if(e.l){const m=(e.t0+e.t1)/2,rr=e.r+(e.lr||0)/s;o+=`<text x="${f1(X([e.p[0]+rr*cs(m),0])+(cs(m)>=0?6:-6))}" y="${f1(Y([0,e.p[1]+rr*sn(m)])+5)}" text-anchor="${cs(m)>=0?"start":"end"}" font-size="14" class="halo">${e.l}</text>`}return}
+    const ax=X(e.a),ay=Y(e.a),bx=X(e.b),by=Y(e.b),dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1;
+    if(e.t==="hatch"){const sd=e.side||1,nx=-dy/L*sd,ny=dx/L*sd,ux=dx/L,uy=dy/L;
+      o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="#222" stroke-width="2.2"/>`;
+      for(let d=4;d<L;d+=9){const qx=ax+ux*d,qy=ay+uy*d;o+=`<line x1="${f1(qx)}" y1="${f1(qy)}" x2="${f1(qx+nx*9+ux*7)}" y2="${f1(qy+ny*9+uy*7)}" stroke="#555" stroke-width="1"/>`}return}
+    if(e.t==="spring"){const ux=dx/L,uy=dy/L,nx=-uy,ny=ux,a=Math.min(.16*L,22),n=9,cl=L-2*a,P=[[ax,ay],[ax+ux*a,ay+uy*a]];
+      for(let i=0;i<n;i++){const d=a+cl*(i+.5)/n,sg=i%2?-1:1;P.push([ax+ux*d+nx*8*sg,ay+uy*d+ny*8*sg])}
+      P.push([bx-ux*a,by-uy*a],[bx,by]);o+=`<polyline points="${P.map(q=>f1(q[0])+","+f1(q[1])).join(" ")}" fill="none" stroke="#464b55" stroke-width="2"/>`;return}
+    if(e.t==="dim"){o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="#222" stroke-width="0.9" marker-start="url(#vxd)" marker-end="url(#vxd)"/>`;
+      if(e.l){let nx=-dy/L,ny=dx/L;if(e.flip){nx=-nx;ny=-ny}o+=`<text x="${f1((ax+bx)/2+nx*13)}" y="${f1((ay+by)/2+ny*13+5)}" text-anchor="middle" class="halo">${e.l}</text>`}return}
+    const head=e.t==="ln"?"":` marker-end="url(#vx${c})"`;
+    o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="${COL[c]}" stroke-width="${e.w||(c==="r"||c==="b"||c==="g"?2.6:1.4)}" ${e.d?'stroke-dasharray="5 4"':""}${head}/>`;
+    if(e.l&&e.mid){const mxp=(ax+bx)/2,myp=(ay+by)/2;let nx=-dy/L,ny=dx/L;if(ny>0){nx=-nx;ny=-ny}
+      o+=`<text x="${f1(mxp+nx*16)}" y="${f1(myp+ny*16+5)}" text-anchor="${nx>.3?"start":nx<-.3?"end":"middle"}" fill="${COL[c]}" class="halo">${e.l}</text>`}
+    else if(e.l){const ux=dx/L,uy=dy/L,an=Math.abs(ux)<.3?"middle":ux>0?"start":"end";
+      o+=`<text x="${f1(bx+ux*(e.off??12))}" y="${f1(by+uy*(e.off??12)+(uy>.5?14:uy<-.5?-2:5))}" text-anchor="${an}" fill="${COL[c]}" class="halo">${e.l}</text>`}
+  });
+  return o+"</svg>";
+}
+const P3=q=>[q[1]-0.42*q[0],q[2]-0.3*q[0]];
+function axes3(pts){const e=Math.max(2,...pts.flat().map(Math.abs))+1.2;
+  return [["x",[e,0,0]],["y",[0,e,0]],["z",[0,0,e]]].map(([n,v])=>({a:P3([0,0,0]),b:P3(v),l:`<tspan font-style="italic">${n}</tspan>`,c:"x",d:1,w:1.1,off:10}))}
+const lab3=(n,q,dx,dy)=>({t:"pt",p:P3(q),l:`<tspan font-style="italic">${n}</tspan>(${q.join(", ")})`,dx,dy});
+const sk3=(pts,extra)=>draw([...axes3(pts),...extra],580,380);
+const Wl=(p,n="W")=>`${it(n)} = ${p.W} ${FU(p)}`;
+
+// ----- templates
+const TEMPLATES={};
+
+// 1. two cables and a weight
+TEMPLATES["two-cables-weight"]={
+  name:"Weight supported by two cables",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={us:r()<.5,W:pick(r,range(100,900,10)),a:pick(r,range(25,70,5)),b:pick(r,range(25,70,5))};
+      if(p.a===p.b) continue;
+      const sab=sn(p.a+p.b);
+      return {p,s:{sab,T1:p.W*cs(p.b)/sab,T2:p.W*cs(p.a)/sab}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A weight <i>W</i> = ${p.W} ${FU(p)} hangs from ring <i>C</i>, which is supported by cables <i>CA</i> and <i>CB</i> attached to a horizontal ceiling. Cable <i>CA</i> makes an angle <i>α</i> = ${p.a}° with the horizontal and cable <i>CB</i> makes an angle <i>β</i> = ${p.b}° with the horizontal, as shown. Neglect the weights of the cables and the ring. Determine the tension in each cable.</p>`,
+  figure:p=>{const H=3,A=[-H/Math.tan(rad(p.a)),H],B=[H/Math.tan(rad(p.b)),H];
+    return draw([{t:"hatch",a:[A[0]-.6,H],b:[B[0]+.6,H],side:-1},{a:[0,0],b:A,c:"m",t:"ln",w:2.4},{a:[0,0],b:B,c:"m",t:"ln",w:2.4},
+      {a:[0,0],b:[-A[0]-.2,0],t:"ln",c:"x",d:1,w:1},{a:[0,0],b:[B[0]+.2,0],t:"ln",c:"x",d:1,w:1},
+      {t:"pt",p:A,l:it("A"),dx:-14,dy:-10},{t:"pt",p:B,l:it("B"),dx:6,dy:-10},{t:"pt",p:[0,0],l:it("C"),dx:8,dy:16,r:4.5},
+      {t:"arc",p:[0,0],r:.55,t0:180-p.a,t1:180,l:ang(p.a)},{t:"arc",p:[0,0],r:.55,t0:0,t1:p.b,l:ang(p.b)},
+      {a:[0,0],b:[0,-1.7],c:"r",l:Wl(p),off:10}])},
+  solution:(p,s)=>`<h3>1. Free body diagram of ring C</h3>
+  <p>Three forces act on the ring: the weight <i>W</i> downward, <i>T<sub>CA</sub></i> along <i>CA</i> (up and to the left), and <i>T<sub>CB</sub></i> along <i>CB</i> (up and to the right).</p>
+  <h3>2. Equilibrium equations</h3>
+  <p>${eq(`ΣF<sub>x</sub> = 0: &minus;T<sub>CA</sub> cos ${ang(p.a)} + T<sub>CB</sub> cos ${ang(p.b)} = 0`)}</p>
+  <p>${eq(`ΣF<sub>y</sub> = 0: T<sub>CA</sub> sin ${ang(p.a)} + T<sub>CB</sub> sin ${ang(p.b)} &minus; ${p.W} = 0`)}</p>
+  <h3>3. Solve</h3>
+  <p>Eliminating one unknown gives ${eq(`T<sub>CA</sub> = W cos β / sin(α + β) = ${sig(s.T1)} ${FU(p)}`)} ${eq(`T<sub>CB</sub> = W cos α / sin(α + β) = ${sig(s.T2)} ${FU(p)}`)}</p>
+  <p class="final">T<sub>CA</sub> = ${sig(s.T1,3)} ${FU(p)}, T<sub>CB</sub> = ${sig(s.T2,3)} ${FU(p)}.</p>`,
+  fields:p=>[{id:"T1",label:"Tension in cable CA",unit:FU(p)},{id:"T2",label:"Tension in cable CB",unit:FU(p)}],
+  truth:s=>({T1:s.T1,T2:s.T2}),
+  note:"Enter magnitudes."
+};
+
+// 2. allowable load with cable capacities
+TEMPLATES["allowable-load"]={
+  name:"Largest weight two cables can support",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={us:r()<.5,a:pick(r,range(25,70,5)),b:pick(r,range(25,70,5)),M1:pick(r,range(300,1500,50)),M2:pick(r,range(300,1500,50))};
+      const sab=sn(p.a+p.b),W1=p.M1*sab/cs(p.b),W2=p.M2*sab/cs(p.a);
+      if(Math.abs(W1-W2)/Math.min(W1,W2)<.1) continue;
+      const gov=W1<W2?"CA":"CB",W=Math.min(W1,W2);
+      return {p,s:{W1,W2,W,gov,T1:W*cs(p.b)/sab,T2:W*cs(p.a)/sab,sab}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>Ring <i>C</i> is supported by cables <i>CA</i> and <i>CB</i> attached to a horizontal ceiling, with <i>α</i> = ${p.a}° and <i>β</i> = ${p.b}° measured from the horizontal as shown. A weight <i>W</i> hangs from the ring. Cable <i>CA</i> can safely carry a tension of ${p.M1} ${FU(p)} and cable <i>CB</i> can safely carry ${p.M2} ${FU(p)}. Determine the largest weight <i>W</i> that can be hung, which cable reaches its limit first, and the tension in the other cable at that weight.</p>`,
+  figure:p=>{const H=3,A=[-H/Math.tan(rad(p.a)),H],B=[H/Math.tan(rad(p.b)),H];
+    return draw([{t:"hatch",a:[A[0]-.6,H],b:[B[0]+.6,H],side:-1},{a:[0,0],b:A,c:"m",t:"ln",w:2.4},{a:[0,0],b:B,c:"m",t:"ln",w:2.4},
+      {a:[0,0],b:[-A[0]-.2,0],t:"ln",c:"x",d:1,w:1},{a:[0,0],b:[B[0]+.2,0],t:"ln",c:"x",d:1,w:1},
+      {t:"pt",p:A,l:it("A"),dx:-14,dy:-10},{t:"pt",p:B,l:it("B"),dx:6,dy:-10},{t:"pt",p:[0,0],l:it("C"),dx:8,dy:16,r:4.5},
+      {t:"arc",p:[0,0],r:.55,t0:180-p.a,t1:180,l:ang(p.a)},{t:"arc",p:[0,0],r:.55,t0:0,t1:p.b,l:ang(p.b)},
+      {a:[0,0],b:[0,-1.7],c:"r",l:it("W"),off:10}])},
+  solution:(p,s)=>`<h3>1. Tensions in terms of W</h3>
+  <p>From equilibrium of ring <i>C</i>, ${eq(`T<sub>CA</sub> = W cos β / sin(α + β) = ${sig(p.b&&cs(p.b)/s.sab)} W`)} and ${eq(`T<sub>CB</sub> = W cos α / sin(α + β) = ${sig(cs(p.a)/s.sab)} W`)}.</p>
+  <h3>2. Weight at which each cable reaches its limit</h3>
+  <p>${eq(`W<sub>CA</sub> = ${p.M1} sin(α + β) / cos β = ${sig(s.W1)} ${FU(p)}`)} ${eq(`W<sub>CB</sub> = ${p.M2} sin(α + β) / cos α = ${sig(s.W2)} ${FU(p)}`)}</p>
+  <p>The smaller value governs, so cable <i>${s.gov}</i> reaches its limit first.</p>
+  <p class="final">W<sub>max</sub> = ${sig(s.W,3)} ${FU(p)}; cable ${s.gov} governs; the other cable carries ${sig(s.gov==="CA"?s.T2:s.T1,3)} ${FU(p)}.</p>`,
+  fields:p=>[{id:"W",label:"Largest weight W",unit:FU(p)},{id:"gov",label:"Cable that reaches its limit first",unit:"",choices:["CA","CB"]},{id:"To",label:"Tension in the other cable",unit:FU(p)}],
+  truth:s=>({W:s.W,gov:s.gov,To:s.gov==="CA"?s.T2:s.T1}),
+  note:"Enter the weight and the other cable's tension as magnitudes."
+};
+
+// 3. ring with a pulley
+TEMPLATES["pulley-ring"]={
+  name:"Ring supported through a frictionless pulley",
+  generate(seed){const r=mulberry32(seed);
+    const p={us:r()<.5,W1:pick(r,range(100,600,10)),phi:pick(r,range(20,60,5)),theta:pick(r,range(25,65,5))};
+    const T=p.W1*cs(p.phi)/cs(p.theta),W2=p.W1*sn(p.phi)+T*sn(p.theta);
+    return {p,s:{T,W2,Rp:p.W1*Math.sqrt(2+2*sn(p.phi))}};},
+  statement:p=>`<p>Ring <i>C</i> is held in equilibrium by cable <i>CD</i>, a weight <i>W</i><sub>2</sub> that hangs from the ring, and a cable that runs from the ring over a frictionless pulley at <i>P</i> to a block of weight <i>W</i><sub>1</sub> = ${p.W1} ${FU(p)}. Segment <i>CP</i> makes an angle <i>φ</i> = ${p.phi}° with the horizontal, and cable <i>CD</i> makes an angle <i>θ</i> = ${p.theta}° with the horizontal. Neglect the weights of the cables, ring, and pulley. Determine the tension in cable <i>CD</i>, the weight <i>W</i><sub>2</sub>, and the magnitude of the force that the cable exerts on the pulley.</p>`,
+  figure:p=>{const D=[-4,4*Math.tan(rad(p.theta))],Pp=[4.5,4.5*Math.tan(rad(p.phi))],Bk=[Pp[0]+.9,Pp[1]-2.4];
+    return draw([{t:"hatch",a:[-4,-.4],b:[-4,D[1]+.8],side:-1},{a:[0,0],b:D,c:"m",t:"ln",w:2.4},{a:[0,0],b:Pp,c:"m",t:"ln",w:2.4},
+      {a:[Pp[0]+.35,Pp[1]-.05],b:[Pp[0]+.35,Bk[1]+.25],c:"m",t:"ln",w:2.4},
+      {a:Pp,b:[Pp[0]+.5,Pp[1]+.9],t:"ln",c:"x",w:1.6},{t:"pulley",p:Pp},
+      {t:"poly",pts:[[Bk[0]-.2,Bk[1]+.25],[Bk[0]+.9,Bk[1]+.25],[Bk[0]+.9,Bk[1]-.5],[Bk[0]-.2,Bk[1]-.5]]},
+      {t:"txt",p:[Bk[0]+1.15,Bk[1]-.1],l:sb("W",1)+" = "+p.W1+" "+FU(p),an:"start"},
+      {t:"pt",p:[0,0],l:it("C"),dx:8,dy:16,r:4.5},{t:"pt",p:D,l:it("D"),dx:8,dy:-6},{t:"pt",p:Pp,l:it("P"),dx:-14,dy:-18,r:1},
+      {a:[0,0],b:[0,-1.8],c:"r",l:sb("W",2),off:10},
+      {t:"arc",p:[0,0],r:.9,t0:180-p.theta,t1:180,l:ang(p.theta)},{t:"arc",p:[0,0],r:1.1,t0:0,t1:p.phi,l:ang(p.phi)},
+      {a:[0,0],b:[-2.2,0],t:"ln",c:"x",d:1,w:1},{a:[0,0],b:[2.2,0],t:"ln",c:"x",d:1,w:1}])},
+  solution:(p,s)=>`<h3>1. Tension in the pulley cable</h3>
+  <p>The pulley is frictionless and the cable is continuous, so the tension on both sides of the pulley equals the weight of the block: ${eq(`T<sub>CP</sub> = W<sub>1</sub> = ${p.W1} ${FU(p)}`)}.</p>
+  <h3>2. Free body diagram of ring C</h3>
+  <p>The ring is acted on by <i>T<sub>CP</sub></i> (up and to the right at ${ang(p.phi)}), <i>T<sub>CD</sub></i> (up and to the left at ${ang(p.theta)}), and <i>W</i><sub>2</sub> downward.</p>
+  <p>${eq(`ΣF<sub>x</sub> = 0: ${p.W1} cos ${ang(p.phi)} &minus; T<sub>CD</sub> cos ${ang(p.theta)} = 0`)}</p>
+  <p>${eq(`ΣF<sub>y</sub> = 0: ${p.W1} sin ${ang(p.phi)} + T<sub>CD</sub> sin ${ang(p.theta)} &minus; W<sub>2</sub> = 0`)}</p>
+  <p>${eq(`T<sub>CD</sub> = ${sig(s.T)} ${FU(p)}`)} ${eq(`W<sub>2</sub> = ${sig(s.W2)} ${FU(p)}`)}</p>
+  <h3>3. Force on the pulley</h3>
+  <p>The two cable segments pull on the pulley with ${p.W1} ${FU(p)} each, one toward the ring (direction ${ang(180+p.phi)}) and one straight down. Their vector sum has magnitude ${eq(`R<sub>P</sub> = W<sub>1</sub>√(2 + 2 sin φ) = ${sig(s.Rp)} ${FU(p)}`)}.</p>
+  <p class="final">T<sub>CD</sub> = ${sig(s.T,3)} ${FU(p)}, W<sub>2</sub> = ${sig(s.W2,3)} ${FU(p)}, R<sub>P</sub> = ${sig(s.Rp,3)} ${FU(p)}.</p>`,
+  fields:p=>[{id:"T",label:"Tension in cable CD",unit:FU(p)},{id:"W2",label:"Weight W₂",unit:FU(p)},{id:"Rp",label:"Force on the pulley",unit:FU(p)}],
+  truth:s=>({T:s.T,W2:s.W2,Rp:s.Rp}),
+  note:"Enter magnitudes."
+};
+
+// 4. smooth incline
+TEMPLATES["smooth-incline"]={
+  name:"Block on a smooth incline held by a cable",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={us:r()<.5,W:pick(r,range(100,900,10)),th:pick(r,range(15,45,5)),al:pick(r,range(10,40,5))};
+      const T=p.W*sn(p.th)/cs(p.al),N=p.W*cs(p.th)-T*sn(p.al);
+      if(N<.1*p.W) continue;
+      return {p,s:{T,N}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A block of weight <i>W</i> = ${p.W} ${FU(p)} rests on a smooth plane inclined at <i>θ</i> = ${p.th}° to the horizontal. It is held at rest by a cable that makes an angle <i>α</i> = ${p.al}° with the incline, measured from the direction up the slope, as shown. Treat the block as a particle. Determine the tension <i>T</i> in the cable and the normal force <i>N</i> exerted by the plane on the block.</p>`,
+  figure:p=>{const L=6,t=p.th,u=[cs(t),sn(t)],n=[-sn(t),cs(t)],c0=[L*.55*u[0],L*.55*u[1]],h=.3,
+      cen=[c0[0]+n[0]*h,c0[1]+n[1]*h],q=(a,b)=>[c0[0]+u[0]*a+n[0]*b,c0[1]+u[1]*a+n[1]*b],td=[cs(t+p.al),sn(t+p.al)];
+    return draw([{a:[-.5,0],b:[L*u[0]+.5,0],t:"ln",c:"k",w:1.4},{t:"hatch",a:[0,0],b:[L*u[0],L*u[1]],side:1},{a:[L*u[0],0],b:[L*u[0],L*u[1]],t:"ln",c:"k",w:1.4},
+      {t:"poly",pts:[q(-.45,0),q(.45,0),q(.45,.6),q(-.45,.6)]},
+      {a:cen,b:[cen[0]+2.6*td[0],cen[1]+2.6*td[1]],c:"b",l:it("T"),off:8},
+      {a:cen,b:[cen[0],cen[1]-1.2],c:"r"},{t:"txt",p:[cen[0]+.3,cen[1]-1.45],l:Wl(p),an:"start"},
+      {a:cen,b:[cen[0]+1.7*n[0],cen[1]+1.7*n[1]],c:"g",l:it("N"),off:8},
+      {t:"arc",p:[L*u[0],0],r:1.1,t0:180-t,t1:180,l:ang(t),lr:6},
+      {t:"arc",p:cen,r:1.0,t0:t,t1:t+p.al,l:ang(p.al),lr:4},
+      {a:cen,b:[cen[0]+1.3*u[0],cen[1]+1.3*u[1]],t:"ln",c:"x",d:1,w:1}])},
+  solution:(p,s)=>`<h3>1. Free body diagram</h3>
+  <p>The block is acted on by its weight (vertical), the cable tension <i>T</i> (at ${ang(p.al)} above the slope), and the normal force <i>N</i> (perpendicular to the plane). The plane is smooth, so there is no friction.</p>
+  <h3>2. Axes along and perpendicular to the incline</h3>
+  <p>${eq(`ΣF<sub>∥</sub> = 0: T cos ${ang(p.al)} &minus; W sin ${ang(p.th)} = 0`)} so ${eq(`T = ${sig(s.T)} ${FU(p)}`)}</p>
+  <p>${eq(`ΣF<sub>⊥</sub> = 0: N + T sin ${ang(p.al)} &minus; W cos ${ang(p.th)} = 0`)} so ${eq(`N = ${sig(s.N)} ${FU(p)}`)}</p>
+  <p class="final">T = ${sig(s.T,3)} ${FU(p)}, N = ${sig(s.N,3)} ${FU(p)}.</p>
+  <p class="note">Choosing axes along and perpendicular to the incline decouples the equations; each contains one unknown.</p>`,
+  fields:p=>[{id:"T",label:"Cable tension T",unit:FU(p)},{id:"N",label:"Normal force N",unit:FU(p)}],
+  truth:s=>({T:s.T,N:s.N}),
+  note:"Enter magnitudes."
+};
+
+// 5. spring and cable support a weight
+TEMPLATES["spring-ring"]={
+  name:"Ring held by a spring and a cable",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const us=r()<.5,p={us,theta:pick(r,range(30,70,5)),
+        W:us?pick(r,range(20,200,5)):pick(r,range(100,800,10)),k:us?pick(r,range(10,60,2)):pick(r,range(2,20,1)),L0:us?pick(r,range(8,20,1)):pick(r,range(100,300,10))};
+      const T=p.W/sn(p.theta),Fs=p.W/Math.tan(rad(p.theta)),d=Fs/p.k;
+      if(d<.1*p.L0||d>.6*p.L0) continue;
+      return {p,s:{T,Fs,d,L:p.L0+d}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>Ring <i>C</i> carries a weight <i>W</i> = ${p.W} ${FU(p)}. It is held by a horizontal spring attached to a wall and by a cable <i>CD</i> that makes an angle <i>θ</i> = ${p.theta}° with the horizontal, as shown. The spring has stiffness <i>k</i> = ${p.k} ${KU(p)} and an unstretched length <i>L</i><sub>0</sub> = ${p.L0} ${SU(p)}. Neglect the weights of the spring, cable, and ring. Determine the tension in the cable, the force in the spring, the stretch of the spring, and the length of the spring in the equilibrium position.</p>`,
+  figure:p=>{const Lc=6,D=[Lc+3/Math.tan(rad(p.theta)),3];
+    return draw([{t:"hatch",a:[0,-.9],b:[0,1.3],side:1},{t:"spring",a:[0,0],b:[Lc,0]},{a:[Lc,0],b:D,c:"m",t:"ln",w:2.4},
+      {t:"hatch",a:[Lc-1,3],b:[D[0]+1,3],side:-1},
+      {t:"pt",p:[Lc,0],l:it("C"),dx:6,dy:20,r:4.5},{t:"pt",p:D,l:it("D"),dx:8,dy:-10},
+      {a:[Lc,0],b:[Lc,-1.6],c:"r",l:Wl(p),off:10},{t:"arc",p:[Lc,0],r:.9,t0:0,t1:p.theta,l:ang(p.theta)},
+      {a:[Lc,0],b:[Lc+1.8,0],t:"ln",c:"x",d:1,w:1},
+      {t:"txt",p:[Lc/2,-.9],l:`${it("k")} = ${p.k} ${KU(p)}, ${sb("L",0)} = ${p.L0} ${SU(p)}`}])},
+  solution:(p,s)=>`<h3>1. Free body diagram of ring C</h3>
+  <p>The ring is acted on by the weight <i>W</i> downward, the cable tension <i>T</i> (up and to the right at ${ang(p.theta)}), and the spring force <i>F<sub>s</sub></i> (to the left, toward the wall, because the spring is stretched).</p>
+  <h3>2. Equilibrium</h3>
+  <p>${eq(`ΣF<sub>y</sub> = 0: T sin ${ang(p.theta)} &minus; ${p.W} = 0`)} so ${eq(`T = ${sig(s.T)} ${FU(p)}`)}</p>
+  <p>${eq(`ΣF<sub>x</sub> = 0: T cos ${ang(p.theta)} &minus; F<sub>s</sub> = 0`)} so ${eq(`F<sub>s</sub> = ${sig(s.Fs)} ${FU(p)}`)}</p>
+  <h3>3. Spring</h3>
+  <p>${eq(`δ = F<sub>s</sub>/k = ${sig(s.Fs)}/${p.k} = ${sig(s.d)} ${SU(p)}`)} ${eq(`L = L<sub>0</sub> + δ = ${p.L0} + ${sig(s.d)} = ${sig(s.L)} ${SU(p)}`)}</p>
+  <p class="final">T = ${sig(s.T,3)} ${FU(p)}, F<sub>s</sub> = ${sig(s.Fs,3)} ${FU(p)}, δ = ${sig(s.d,3)} ${SU(p)}, L = ${sig(s.L,3)} ${SU(p)}.</p>`,
+  fields:p=>[{id:"T",label:"Cable tension T",unit:FU(p)},{id:"Fs",label:"Spring force F<sub>s</sub>",unit:FU(p)},{id:"d",label:"Spring stretch δ",unit:SU(p)},{id:"L",label:"Spring length L",unit:SU(p)}],
+  truth:s=>({T:s.T,Fs:s.Fs,d:s.d,L:s.L}),
+  note:"Enter magnitudes."
+};
+
+// 6. bar and cable at a pin
+TEMPLATES["bar-cable-boom"]={
+  name:"Bar and cable supporting a load at a joint",
+  generate(seed){const r=mulberry32(seed);
+    const p={us:r()<.5,W:pick(r,range(200,1500,50)),b:pick(r,range(2,6,1)),h:pick(r,range(1,4,1))};
+    p.H=p.h+pick(r,range(1,4,1));
+    const Lb=Math.hypot(p.b,p.h),Lc=Math.hypot(p.b,p.H-p.h);
+    return {p,s:{Lb,Lc,Fb:p.W*Lb/p.H,T:p.W*Lc/p.H}};},
+  statement:p=>`<p>A load <i>W</i> = ${p.W} ${FU(p)} hangs from joint <i>B</i>, which is held by bar <i>AB</i> and cable <i>BC</i>. The bar is pinned to a vertical wall at <i>A</i> and the cable is attached to the wall at <i>C</i>, ${p.H} ${LU(p)} above <i>A</i>. Joint <i>B</i> is ${p.b} ${LU(p)} from the wall and ${p.h} ${LU(p)} above <i>A</i>. Neglect the weights of the bar and the cable. Treat the bar as a two-force member and determine the force in the bar, stating whether it is in tension or compression, and the tension in the cable.</p>`,
+  figure:p=>{const A=[0,0],B=[p.b,p.h],C=[0,p.H];
+    return draw([{t:"hatch",a:[0,-.7],b:[0,p.H+.7],side:1},{a:A,b:B,c:"m",t:"ln",w:5},{a:C,b:B,c:"k",t:"ln",w:1.8},
+      {t:"pt",p:A,l:it("A"),dx:-14,dy:16},{t:"pt",p:B,l:it("B"),dx:8,dy:-8,r:4.5},{t:"pt",p:C,l:it("C"),dx:-14,dy:-6},
+      {a:B,b:[B[0],B[1]-1.4],c:"r",l:Wl(p),off:10},
+      {t:"dim",a:[-1.3,0],b:[-1.3,p.H],l:`${p.H} ${LU(p)}`,flip:1},{t:"dim",a:[0,-1.1],b:[p.b,-1.1],l:`${p.b} ${LU(p)}`,flip:1},
+      {t:"dim",a:[p.b+1,0],b:[p.b+1,p.h],l:`${p.h} ${LU(p)}`}])},
+  solution:(p,s)=>`<h3>1. Geometry</h3>
+  <p>${eq(`L<sub>AB</sub> = √(${p.b}² + ${p.h}²) = ${sig(s.Lb)} ${LU(p)}`)} ${eq(`L<sub>BC</sub> = √(${p.b}² + ${p.H-p.h}²) = ${sig(s.Lc)} ${LU(p)}`)}</p>
+  <h3>2. Free body diagram of joint B</h3>
+  <p>The bar is a two-force member, so its force is along <i>AB</i>; assume it is in compression, so it pushes on <i>B</i> away from <i>A</i>. The cable pulls on <i>B</i> toward <i>C</i>.</p>
+  <p>${eq(`ΣF<sub>x</sub> = 0: F<sub>AB</sub>(${p.b}/${sig(s.Lb)}) &minus; T<sub>BC</sub>(${p.b}/${sig(s.Lc)}) = 0`)}</p>
+  <p>${eq(`ΣF<sub>y</sub> = 0: F<sub>AB</sub>(${p.h}/${sig(s.Lb)}) + T<sub>BC</sub>(${p.H-p.h}/${sig(s.Lc)}) &minus; ${p.W} = 0`)}</p>
+  <h3>3. Solve</h3>
+  <p>The first equation gives <i>F<sub>AB</sub></i>/<i>L<sub>AB</sub></i> = <i>T<sub>BC</sub></i>/<i>L<sub>BC</sub></i>. Substituting into the second, the vertical terms add to ${p.H} ${LU(p)}, so each ratio equals <i>W</i>/${p.H}.</p>
+  <p>${eq(`F<sub>AB</sub> = W L<sub>AB</sub>/${p.H} = ${sig(s.Fb)} ${FU(p)}`)} ${eq(`T<sub>BC</sub> = W L<sub>BC</sub>/${p.H} = ${sig(s.T)} ${FU(p)}`)}</p>
+  <p class="final">The bar carries ${sig(s.Fb,3)} ${FU(p)} in compression (the positive value confirms the assumption); the cable tension is ${sig(s.T,3)} ${FU(p)}.</p>`,
+  fields:p=>[{id:"Fb",label:"Force in bar AB (compression positive)",unit:FU(p),signed:true},{id:"T",label:"Tension in cable BC",unit:FU(p)}],
+  truth:s=>({Fb:s.Fb,T:s.T}),
+  note:"Report the bar force with compression positive."
+};
+
+// 7. two particles joined by a cable: multiple free body diagrams
+TEMPLATES["two-particles-chain"]={
+  name:"Two rings on one cable: multiple free body diagrams",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={us:r()<.5,WA:pick(r,range(100,600,10)),t1:pick(r,range(40,75,5)),t2:pick(r,range(10,35,5)),t3:pick(r,range(20,65,5))};
+      if(p.t1-p.t2<15) continue;
+      const T1=p.WA*cs(p.t2)/sn(p.t1-p.t2),T2=T1*cs(p.t1)/cs(p.t2),T3=T2*cs(p.t2)/cs(p.t3),WB=T2*sn(p.t2+p.t3)/cs(p.t3);
+      return {p,s:{T1,T2,T3,WB}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>Two rings, <i>A</i> and <i>B</i>, are joined by a cable and hang from a single cable that is fixed at its two ends, as shown. Ring <i>A</i> carries a weight <i>W<sub>A</sub></i> = ${p.WA} ${FU(p)}. The three cable segments make angles of ${p.t1}° (left of <i>A</i>), ${p.t2}° (between <i>A</i> and <i>B</i>), and ${p.t3}° (right of <i>B</i>) with the horizontal. Neglect the weights of the cables and rings. Determine the tension in each of the three segments, <i>T</i><sub>1</sub> (left), <i>T</i><sub>2</sub> (middle), and <i>T</i><sub>3</sub> (right), and the weight <i>W<sub>B</sub></i> carried by ring <i>B</i>.</p>`,
+  figure:p=>{const A=[0,0],P1=[-3*cs(p.t1),3*sn(p.t1)],B=[3*cs(p.t2),-3*sn(p.t2)],P2=[B[0]+2.8*cs(p.t3),B[1]+2.8*sn(p.t3)];
+    return draw([{a:A,b:P1,c:"m",t:"ln",w:2.4},{a:A,b:B,c:"m",t:"ln",w:2.4},{a:B,b:P2,c:"m",t:"ln",w:2.4},
+      {t:"pt",p:P1,l:"",r:5},{t:"pt",p:P2,l:"",r:5},{t:"pt",p:A,l:it("A"),dx:6,dy:-10,r:4.5},{t:"pt",p:B,l:it("B"),dx:8,dy:18,r:4.5},
+      {a:A,b:[0,-1.5],c:"r",l:sb("W","A")+" = "+p.WA+" "+FU(p),off:10},{a:B,b:[B[0],B[1]-1.5],c:"r",l:sb("W","B"),off:10},
+      {a:A,b:[-1.8,0],t:"ln",c:"x",d:1,w:1},{a:A,b:[1.8,0],t:"ln",c:"x",d:1,w:1},{a:B,b:[B[0]-1.6,B[1]],t:"ln",c:"x",d:1,w:1},{a:B,b:[B[0]+1.8,B[1]],t:"ln",c:"x",d:1,w:1},
+      {t:"arc",p:A,r:.8,t0:180-p.t1,t1:180,l:ang(p.t1)},{t:"arc",p:A,r:.8,t0:-p.t2,t1:0,l:ang(p.t2)},
+      {t:"arc",p:B,r:.8,t0:180-p.t2,t1:180,l:ang(p.t2)},{t:"arc",p:B,r:.8,t0:0,t1:p.t3,l:ang(p.t3)}])},
+  solution:(p,s)=>`<h3>1. Free body diagram of ring A (two unknowns)</h3>
+  <p>${eq(`ΣF<sub>x</sub> = 0: &minus;T<sub>1</sub> cos ${ang(p.t1)} + T<sub>2</sub> cos ${ang(p.t2)} = 0`)}</p>
+  <p>${eq(`ΣF<sub>y</sub> = 0: T<sub>1</sub> sin ${ang(p.t1)} &minus; T<sub>2</sub> sin ${ang(p.t2)} &minus; ${p.WA} = 0`)}</p>
+  <p>${eq(`T<sub>1</sub> = W<sub>A</sub> cos ${ang(p.t2)} / sin(${ang(p.t1)} &minus; ${ang(p.t2)}) = ${sig(s.T1)} ${FU(p)}`)} ${eq(`T<sub>2</sub> = T<sub>1</sub> cos ${ang(p.t1)} / cos ${ang(p.t2)} = ${sig(s.T2)} ${FU(p)}`)}</p>
+  <h3>2. Free body diagram of ring B</h3>
+  <p>Cable segment 2 pulls on <i>B</i> with the same tension <i>T</i><sub>2</sub> that it exerts on <i>A</i>, directed up and to the left.</p>
+  <p>${eq(`ΣF<sub>x</sub> = 0: &minus;T<sub>2</sub> cos ${ang(p.t2)} + T<sub>3</sub> cos ${ang(p.t3)} = 0`)} so ${eq(`T<sub>3</sub> = ${sig(s.T3)} ${FU(p)}`)}</p>
+  <p>${eq(`ΣF<sub>y</sub> = 0: T<sub>2</sub> sin ${ang(p.t2)} + T<sub>3</sub> sin ${ang(p.t3)} &minus; W<sub>B</sub> = 0`)} so ${eq(`W<sub>B</sub> = ${sig(s.WB)} ${FU(p)}`)}</p>
+  <p class="final">T<sub>1</sub> = ${sig(s.T1,3)}, T<sub>2</sub> = ${sig(s.T2,3)}, T<sub>3</sub> = ${sig(s.T3,3)}, W<sub>B</sub> = ${sig(s.WB,3)} ${FU(p)}.</p>`,
+  fields:p=>[{id:"T1",label:"Tension T₁ (left segment)",unit:FU(p)},{id:"T2",label:"Tension T₂ (middle segment)",unit:FU(p)},{id:"T3",label:"Tension T₃ (right segment)",unit:FU(p)},{id:"WB",label:"Weight W<sub>B</sub>",unit:FU(p)}],
+  truth:s=>({T1:s.T1,T2:s.T2,T3:s.T3,WB:s.WB}),
+  note:"Enter magnitudes."
+};
+
+// 8. parallel springs: statically indeterminate
+TEMPLATES["parallel-springs"]={
+  name:"Weight on two parallel springs (statically indeterminate)",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const us=r()<.5,p={us,W:us?pick(r,range(50,400,10)):pick(r,range(200,1500,50)),k1:us?pick(r,range(20,100,5)):pick(r,range(5,40,1)),k2:us?pick(r,range(20,100,5)):pick(r,range(5,40,1))};
+      if(p.k1===p.k2) continue;
+      const d=p.W/(p.k1+p.k2);
+      return {p,s:{d,F1:p.k1*d,F2:p.k2*d}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A weight <i>W</i> = ${p.W} ${FU(p)} rests on a rigid platform supported by two vertical springs of the same unstretched length. Spring 1 has stiffness <i>k</i><sub>1</sub> = ${p.k1} ${KU(p)} and spring 2 has stiffness <i>k</i><sub>2</sub> = ${p.k2} ${KU(p)}. The weight is positioned so that the platform stays level. Equilibrium alone gives one equation for the two spring forces. Use the fact that both springs are compressed by the same amount to determine the force in each spring and the compression of the platform. Neglect the weight of the platform.</p>`,
+  figure:p=>draw([{t:"hatch",a:[-1.5,0],b:[1.5,0],side:-1},{t:"spring",a:[-.9,0],b:[-.9,2.4]},{t:"spring",a:[.9,0],b:[.9,2.4]},
+    {a:[-1.3,2.4],b:[1.3,2.4],c:"m",t:"ln",w:5},{a:[0,3.9],b:[0,2.55],c:"r"},{t:"txt",p:[0,4.3],l:Wl(p)},
+    {t:"txt",p:[-1.9,1.2],l:sb("k",1)+" = "+p.k1,an:"end"},{t:"txt",p:[1.9,1.2],l:sb("k",2)+" = "+p.k2,an:"start"}]),
+  solution:(p,s)=>`<h3>1. Equilibrium</h3>
+  <p>The spring forces support the weight: ${eq(`F<sub>1</sub> + F<sub>2</sub> = W = ${p.W} ${FU(p)}`)}. This is one equation in two unknowns, so the problem is statically indeterminate.</p>
+  <h3>2. Compatibility and force-deformation relations</h3>
+  <p>Both springs have the same unstretched length and the platform stays level, so they are compressed by the same amount <i>δ</i>. For linear springs, ${eq(`F<sub>1</sub> = k<sub>1</sub>δ`)} and ${eq(`F<sub>2</sub> = k<sub>2</sub>δ`)}.</p>
+  <h3>3. Solve</h3>
+  <p>${eq(`(k<sub>1</sub> + k<sub>2</sub>)δ = W`)} so ${eq(`δ = ${p.W}/(${p.k1} + ${p.k2}) = ${sig(s.d)} ${SU(p)}`)}</p>
+  <p>${eq(`F<sub>1</sub> = k<sub>1</sub>δ = ${sig(s.F1)} ${FU(p)}`)} ${eq(`F<sub>2</sub> = k<sub>2</sub>δ = ${sig(s.F2)} ${FU(p)}`)}</p>
+  <p class="final">F<sub>1</sub> = ${sig(s.F1,3)} ${FU(p)}, F<sub>2</sub> = ${sig(s.F2,3)} ${FU(p)}, δ = ${sig(s.d,3)} ${SU(p)}.</p>
+  <p class="note">The stiffer spring carries the larger share, in proportion to its stiffness.</p>`,
+  fields:p=>[{id:"F1",label:"Force in spring 1",unit:FU(p)},{id:"F2",label:"Force in spring 2",unit:FU(p)},{id:"d",label:"Compression δ",unit:SU(p)}],
+  truth:s=>({F1:s.F1,F2:s.F2,d:s.d}),
+  note:"Enter magnitudes."
+};
+
+// 9. tripod of three cables, 3D
+TEMPLATES["tripod-3d"]={
+  name:"Weight supported by three cables in space",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const an=()=>[pick(r,range(-4,4,1)),pick(r,range(-4,4,1)),pick(r,range(3,6,1))];
+      const p={us:r()<.5,W:pick(r,range(200,1500,50)),A:an(),B:an(),C:an()};
+      const lam=[p.A,p.B,p.C].map(unit),M=[0,1,2].map(i=>lam.map(l=>l[i]));
+      const D=det3(M);
+      if(Math.abs(D)<.2) continue;
+      const T=solve3(M,[0,0,p.W]);
+      if(T.some(t=>t<=0.05*p.W||t>6*p.W)) continue;
+      return {p,s:{lam,T}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A weight <i>W</i> = ${p.W} ${FU(p)} hangs from point <i>O</i> at the origin and is supported by three cables <i>OA</i>, <i>OB</i>, and <i>OC</i> attached to a ceiling at <i>A</i>(${p.A.join(", ")}) ${LU(p)}, <i>B</i>(${p.B.join(", ")}) ${LU(p)}, and <i>C</i>(${p.C.join(", ")}) ${LU(p)}. The <i>z</i> axis points up. Neglect the weights of the cables. Determine the tension in each cable.</p>`,
+  figure:p=>sk3([p.A,p.B,p.C],[{a:P3([0,0,0]),b:P3(p.A),c:"m",t:"ln",w:2.4},{a:P3([0,0,0]),b:P3(p.B),c:"m",t:"ln",w:2.4},{a:P3([0,0,0]),b:P3(p.C),c:"m",t:"ln",w:2.4},
+    lab3("A",p.A,-6,-12),lab3("B",p.B,8,-10),lab3("C",p.C,22,-4),{t:"pt",p:P3([0,0,0]),l:it("O"),dx:8,dy:16,r:4.5},
+    {a:P3([0,0,0]),b:P3([0,0,-2.2]),c:"r",l:Wl(p),off:10}]),
+  solution:(p,s)=>`<h3>1. Unit vectors from O toward each anchor</h3>
+  <p>${eq(`λ<sub>OA</sub> = ${fv(s.lam[0])}`)} ${eq(`λ<sub>OB</sub> = ${fv(s.lam[1])}`)} ${eq(`λ<sub>OC</sub> = ${fv(s.lam[2])}`)}</p>
+  <h3>2. Equilibrium of the joint</h3>
+  <p>${eq(`T<sub>A</sub> λ<sub>OA</sub> + T<sub>B</sub> λ<sub>OB</sub> + T<sub>C</sub> λ<sub>OC</sub> + (0, 0, &minus;${p.W}) = 0`)}</p>
+  <p>The three scalar equations are</p>
+  <p>${eq(`${sig(s.lam[0][0])}T<sub>A</sub> + ${sig(s.lam[1][0])}T<sub>B</sub> + ${sig(s.lam[2][0])}T<sub>C</sub> = 0`)}</p>
+  <p>${eq(`${sig(s.lam[0][1])}T<sub>A</sub> + ${sig(s.lam[1][1])}T<sub>B</sub> + ${sig(s.lam[2][1])}T<sub>C</sub> = 0`)}</p>
+  <p>${eq(`${sig(s.lam[0][2])}T<sub>A</sub> + ${sig(s.lam[1][2])}T<sub>B</sub> + ${sig(s.lam[2][2])}T<sub>C</sub> = ${p.W}`)}</p>
+  <h3>3. Solve</h3>
+  <p>Solving the three equations by Cramer's rule or elimination gives</p>
+  <p class="final">T<sub>A</sub> = ${sig(s.T[0],3)} ${FU(p)}, T<sub>B</sub> = ${sig(s.T[1],3)} ${FU(p)}, T<sub>C</sub> = ${sig(s.T[2],3)} ${FU(p)}.</p>`,
+  fields:p=>[{id:"TA",label:"Tension in cable OA",unit:FU(p)},{id:"TB",label:"Tension in cable OB",unit:FU(p)},{id:"TC",label:"Tension in cable OC",unit:FU(p)}],
+  truth:s=>({TA:s.T[0],TB:s.T[1],TC:s.T[2]}),
+  note:"Enter magnitudes."
+};
+
+// 10. mast with two guy cables, 3D
+TEMPLATES["mast-cables-3d"]={
+  name:"Mast held by two guy cables under a horizontal load",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const g=()=>[pick(r,range(-5,5,1)),pick(r,range(-5,5,1)),0];
+      const p={us:r()<.5,h:pick(r,range(3,6,1)),A:g(),C:g(),P:pick(r,range(200,1000,50)),phi:pick(r,range(0,345,15))};
+      if(nrm(p.A)<2.5||nrm(p.C)<2.5) continue;
+      const B=[0,0,p.h],la=unit(sub(p.A,B)),lc=unit(sub(p.C,B)),Px=p.P*cs(p.phi),Py=p.P*sn(p.phi);
+      const d=la[0]*lc[1]-lc[0]*la[1];
+      if(Math.abs(d)<.25) continue;
+      const TA=(-Px*lc[1]+Py*lc[0])/d,TC=(-la[0]*Py+la[1]*Px)/d;
+      if(TA<=.05*p.P||TC<=.05*p.P||TA>8*p.P||TC>8*p.P) continue;
+      return {p,s:{la,lc,TA,TC,Fm:-(TA*la[2]+TC*lc[2])}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A vertical mast <i>OB</i> of height ${p.h} ${LU(p)} stands on a ground pivot at <i>O</i> at the origin. Two guy cables run from the top <i>B</i> to ground anchors at <i>A</i>(${p.A.join(", ")}) ${LU(p)} and <i>C</i>(${p.C.join(", ")}) ${LU(p)}. A horizontal force <i>P</i> = ${p.P} ${FU(p)} acts at <i>B</i> in the <i>xy</i> plane, ${p.phi===0?"in the +<i>x</i> direction":`${p.phi}° counterclockwise from the +<i>x</i> axis, viewed from above`}. The mast is a two-force member that can only carry a force along its axis. Neglect the weights of the mast and the cables. Determine the tension in each cable and the compressive force in the mast.</p>`,
+  figure:p=>{const B=[0,0,p.h],tip=[B[0]+2.6*cs(p.phi),B[1]+2.6*sn(p.phi),B[2]];
+    return sk3([p.A,p.C,B],[{a:P3([0,0,0]),b:P3(B),c:"m",t:"ln",w:5},{a:P3(B),b:P3(p.A),c:"k",t:"ln",w:1.8},{a:P3(B),b:P3(p.C),c:"k",t:"ln",w:1.8},
+      lab3("A",p.A,-10,16),lab3("C",p.C,8,16),{t:"pt",p:P3(B),l:it("B"),dx:8,dy:-8,r:4.5},
+      {a:P3(B),b:P3(tip),c:"r",l:`${it("P")} = ${p.P} ${FU(p)}`,off:10}])},
+  solution:(p,s)=>`<h3>1. Unit vectors from B</h3>
+  <p>${eq(`λ<sub>BA</sub> = ${fv(s.la)}`)} ${eq(`λ<sub>BC</sub> = ${fv(s.lc)}`)}</p>
+  <h3>2. Equilibrium of joint B</h3>
+  <p>The forces on <i>B</i> are the load <b>P</b> = (${sig(p.P*cs(p.phi))}, ${sig(p.P*sn(p.phi))}, 0) ${FU(p)}, the two cable tensions along <i>λ<sub>BA</sub></i> and <i>λ<sub>BC</sub></i>, and the mast force <i>F<sub>m</sub></i> directed up along the axis (compression pushes on <i>B</i>).</p>
+  <p>${eq(`x: ${sig(s.la[0])}T<sub>A</sub> + ${sig(s.lc[0])}T<sub>C</sub> + ${sig(p.P*cs(p.phi))} = 0`)}</p>
+  <p>${eq(`y: ${sig(s.la[1])}T<sub>A</sub> + ${sig(s.lc[1])}T<sub>C</sub> + ${sig(p.P*sn(p.phi))} = 0`)}</p>
+  <p>The two horizontal equations contain only the cable tensions, so they are solved first: ${eq(`T<sub>A</sub> = ${sig(s.TA)} ${FU(p)}`)} ${eq(`T<sub>C</sub> = ${sig(s.TC)} ${FU(p)}`)}</p>
+  <h3>3. Mast force</h3>
+  <p>${eq(`z: ${sig(s.la[2])}T<sub>A</sub> + ${sig(s.lc[2])}T<sub>C</sub> + F<sub>m</sub> = 0`)} so ${eq(`F<sub>m</sub> = ${sig(s.Fm)} ${FU(p)}`)}</p>
+  <p class="final">T<sub>A</sub> = ${sig(s.TA,3)} ${FU(p)}, T<sub>C</sub> = ${sig(s.TC,3)} ${FU(p)}, F<sub>m</sub> = ${sig(s.Fm,3)} ${FU(p)} (compression).</p>`,
+  fields:p=>[{id:"TA",label:"Tension in cable BA",unit:FU(p)},{id:"TC",label:"Tension in cable BC",unit:FU(p)},{id:"Fm",label:"Compressive force in the mast",unit:FU(p)}],
+  truth:s=>({TA:s.TA,TC:s.TC,Fm:s.Fm}),
+  note:"Enter magnitudes."
+};
+
+// ===== page
+let curKey="two-cables-weight", cur=null, curFields=[];
+const $=id=>document.getElementById(id);
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key];
+  cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
+  $("fig").innerHTML=T.figure(p,s);
+  $("statement").innerHTML=T.statement(p,s);
+  $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent="Answers within 2% are accepted. "+T.note;
+  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
+  $("solBtn").textContent="Show solution";
+}
+
+function check(){
+  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
+  curFields.forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scaleOf(f.unit):0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+if(typeof document!=="undefined"){
+  const newSeed=()=>1+Math.floor(Math.random()*999999);
+  $("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
+  $("typeSel").onchange=e=>render(e.target.value,newSeed());
+  $("newBtn").onclick=()=>render(curKey,newSeed());
+  $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+  $("checkBtn").onclick=check;
+  $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+    s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+  (function(){
+    const m=/^#([a-z0-9-]+)-(\d+)$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
+    else render("two-cables-weight",newSeed());
+  })();
+}
+if(typeof module!=="undefined")module.exports={TEMPLATES};
+
+</script>
+</body>
+</html>
