@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statics Chapter 2: Vectors, Force and Position (Problem Generator)</title>
+<style>
+:root{--bg:#fff;--fg:#1d1d1f;--mut:#6b6b70;--card:#f5f5f7;--bd:#d2d2d7;--ac:#0b57d0;--ok:#1a7f37;--bad:#c62828;--f1:#0b57d0;--f2:#b3261e;--f3:#7a4fb5}
+@media(prefers-color-scheme:dark){:root{--bg:#1c1c1e;--fg:#f2f2f7;--mut:#a1a1a6;--card:#2c2c2e;--bd:#48484a;--ac:#8ab4f8;--ok:#5dd17a;--bad:#ff8a80;--f1:#8ab4f8;--f2:#ff8a80;--f3:#c8a8f0}}
+body{font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--fg);max-width:880px;margin:0 auto;padding:16px}
+h1{font-size:1.35rem;margin:.2em 0}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:10px;margin:10px 0}
+select,input,button{font:inherit;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--fg)}
+button{cursor:pointer;background:var(--ac);color:#fff;border-color:var(--ac)}
+button.sec{background:var(--bg);color:var(--ac)}
+#prob{border:1px solid var(--bd);border-radius:8px;padding:14px;margin:10px 0}
+#prob h2{font-size:1.05rem;margin:0 0 6px}
+#fig svg{width:100%;max-width:460px;height:auto;display:block;margin:8px auto;background:var(--card);border-radius:6px}
+.ans{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
+.ans label{display:flex;align-items:center;gap:6px}
+.ans input{width:110px}
+.ans input.ok{border-color:var(--ok);background:rgba(26,127,55,.12)}
+.ans input.bad{border-color:var(--bad);background:rgba(198,40,40,.12)}
+#sol{background:var(--card);border-radius:8px;padding:10px 14px;margin-top:10px}
+#sol p{margin:.4em 0}
+.mut{color:var(--mut);font-size:.9rem}
+svg text{fill:var(--fg);font:13px system-ui,sans-serif}
+</style>
+</head>
+<body>
+<h1>Statics Chapter 2: Vectors, Force and Position</h1>
+<p class="mut">Randomized practice problems on vector addition, components, Cartesian vectors in 2D and 3D, the dot product, and the cross product. All problems are original; parameters are generated from a seed, so the same seed reproduces the same problem. Enter answers to three significant digits.</p>
+<div class="bar">
+ <label>Problem type <select id="type"></select></label>
+ <label>Units <select id="units"><option value="US">U.S. Customary (lb, ft)</option><option value="SI">SI (N, m)</option></select></label>
+ <label>Seed <input id="seed" type="number" style="width:100px"></label>
+ <button id="new">New problem</button>
+</div>
+<div id="prob">
+ <h2 id="title"></h2>
+ <div id="text"></div>
+ <div id="fig"></div>
+ <div class="ans" id="ans"></div>
+ <button id="chk">Check answers</button> <button id="shw" class="sec">Show solution</button> <span id="msg" class="mut"></span>
+ <div id="sol" hidden></div>
+</div>
+
+<script>
+// ===== generator core =====
+let R;
+function mk(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const ri=(a,b)=>a+Math.floor(R()*(b-a+1));
+const rs=(a,b,s)=>Math.round((a+R()*(b-a))/s)*s;
+const rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+const cs=d=>Math.cos(rad(d)), sn=d=>Math.sin(rad(d));
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const crs=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const nrm=a=>Math.hypot(a[0],a[1],a[2]);
+const f=x=>{if(Math.abs(x)<1e-9)return '0';const d=Math.max(0,2-Math.floor(Math.log10(Math.abs(x))));return x.toFixed(Math.min(d,6))};
+const fv=v=>'('+v.map(f).join(', ')+')';
+const pt=(n,p,u)=>`${n}(${p.join(', ')}) ${u}`;
+const rv=(a,b)=>[ri(a,b),ri(a,b),ri(a,b)];
+let U={F:'lb',L:'ft'};
+
+// ===== drawing =====
+function draw(els,W=440,H=300){
+  const pts=[];els.forEach(e=>{if(e.a)pts.push(e.a);if(e.b)pts.push(e.b);if(e.p)pts.push(e.p)});
+  let x0=Math.min(...pts.map(p=>p[0])),x1=Math.max(...pts.map(p=>p[0])),y0=Math.min(...pts.map(p=>p[1])),y1=Math.max(...pts.map(p=>p[1]));
+  const m=38,s=Math.min((W-2*m)/Math.max(x1-x0,1e-6),(H-2*m)/Math.max(y1-y0,1e-6));
+  const X=p=>m+(p[0]-x0)*s+(W-2*m-(x1-x0)*s)/2, Y=p=>H-m-(p[1]-y0)*s-(H-2*m-(y1-y0)*s)/2;
+  const col={a:'var(--fg)',1:'var(--f1)',2:'var(--f2)',3:'var(--f3)'};
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><defs>`;
+  for(const k in col)o+=`<marker id="h${k}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="${col[k]}"/></marker>`;
+  o+='</defs>';
+  els.forEach(e=>{
+    const c=col[e.c||'a'];
+    if(e.t==='pt'){o+=`<circle cx="${X(e.p)}" cy="${Y(e.p)}" r="3.5" fill="${c}"/><text x="${X(e.p)+6}" y="${Y(e.p)-6}">${e.l||''}</text>`;return}
+    const ax=X(e.a),ay=Y(e.a),bx=X(e.b),by=Y(e.b),dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1;
+    o+=`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="${c}" stroke-width="${e.w||2}" ${e.d?'stroke-dasharray="5 4"':''} ${e.t==='ln'?'':`marker-end="url(#h${e.c||'a'})"`}/>`;
+    if(e.l)o+=`<text x="${bx+dx/L*13-8}" y="${by+dy/L*13+4}">${e.l}</text>`;
+  });
+  return o+'</svg>';
+}
+const P3=p=>[p[1]-0.42*p[0],p[2]-0.3*p[0]];
+function axes3(pts,ext){
+  const e=Math.max(...pts.flat().map(Math.abs),2)+1,o=[];
+  [['x',[e,0,0]],['y',[0,e,0]],['z',[0,0,e]]].forEach(([n,v])=>o.push({a:P3([0,0,0]),b:P3(v),l:n,d:1,w:1}));
+  return o;
+}
+const A2=(a,b,l,c,d)=>({a,b,l,c,d});
+
+// ===== problem generators =====
+const G=[];
+const add=(n,fn)=>G.push({n,fn});
+
+add('Resultant of two forces (2D)',()=>{
+  let F1,F2,t1,t2,Rx,Ry,Rm;
+  do{F1=rs(100,900,10);F2=rs(100,900,10);t1=ri(10,80);t2=R()<.5?ri(100,170):-ri(10,80);
+   Rx=F1*cs(t1)+F2*cs(t2);Ry=F1*sn(t1)+F2*sn(t2);Rm=Math.hypot(Rx,Ry)}while(Rm<.4*(F1+F2));
+  const th=deg(Math.atan2(Ry,Rx)),s=1/Math.max(F1,F2);
+  return{text:`Two forces act on a ring. <b>F</b><sub>1</sub> has magnitude ${F1} ${U.F} and points at ${t1}° counterclockwise from the +x axis; <b>F</b><sub>2</sub> has magnitude ${F2} ${U.F} and points at ${t2}° counterclockwise from the +x axis. Determine the magnitude R of the resultant force and the angle θ it makes with the +x axis (counterclockwise positive, −180° &lt; θ ≤ 180°).`,
+   svg:draw([A2([0,0],[1.2,0],'x','a',1),A2([0,0],[0,1.2],'y','a',1),A2([0,0],[F1*s*cs(t1),F1*s*sn(t1)],'F₁',1),A2([0,0],[F2*s*cs(t2),F2*s*sn(t2)],'F₂',2)]),
+   ans:[{l:'R',v:Rm,u:U.F},{l:'θ',v:th,u:'deg',tol:.6}],
+   sol:[`Resolve each force into Cartesian components.`,`R<sub>x</sub> = F<sub>1</sub>cos ${t1}° + F<sub>2</sub>cos ${t2}° = ${f(F1*cs(t1))} + ${f(F2*cs(t2))} = ${f(Rx)} ${U.F}`,`R<sub>y</sub> = F<sub>1</sub>sin ${t1}° + F<sub>2</sub>sin ${t2}° = ${f(F1*sn(t1))} + ${f(F2*sn(t2))} = ${f(Ry)} ${U.F}`,`R = √(R<sub>x</sub>² + R<sub>y</sub>²) = ${f(Rm)} ${U.F}; θ = atan2(R<sub>y</sub>, R<sub>x</sub>) = ${f(th)}°`]};
+});
+
+add('Resolution into non-orthogonal components (2D)',()=>{
+  let F=rs(200,900,10),al=ri(-30,100),b1,b2,det;
+  do{b1=ri(-60,60)}while(b1===al);
+  do{b2=b1+(R()<.5?1:-1)*ri(40,140);det=sn(b2-b1)}while(Math.abs(det)<.35||b1===al||b2===al);
+  const a=F*sn(b2-al)/det,b=F*sn(al-b1)/det,s=1/Math.max(F,Math.abs(a),Math.abs(b),1)*1.0;
+  return{text:`A force <b>F</b> of magnitude ${F} ${U.F} acts at ${al}° counterclockwise from the +x axis. Resolve <b>F</b> into components <b>F</b><sub>u</sub> and <b>F</b><sub>v</sub> directed along axis u (at ${b1}° from +x) and axis v (at ${b2}° from +x). Report the signed magnitudes F<sub>u</sub> and F<sub>v</sub>; a negative value means the component points opposite to the axis direction.`,
+   svg:draw([A2([0,0],[1.3,0],'x','a',1),A2([0,0],[0,1.3],'y','a',1),A2([0,0],[1.3*cs(b1),1.3*sn(b1)],'u','a',1),A2([0,0],[1.3*cs(b2),1.3*sn(b2)],'v','a',1),A2([0,0],[cs(al),sn(al)],'F',1)]),
+   ans:[{l:'F<sub>u</sub>',v:a,u:U.F},{l:'F<sub>v</sub>',v:b,u:U.F}],
+   sol:[`Write F = F<sub>u</sub> û + F<sub>v</sub> v̂ with û = (cos ${b1}°, sin ${b1}°) and v̂ = (cos ${b2}°, sin ${b2}°).`,`x: F<sub>u</sub>cos ${b1}° + F<sub>v</sub>cos ${b2}° = ${f(F*cs(al))}`,`y: F<sub>u</sub>sin ${b1}° + F<sub>v</sub>sin ${b2}° = ${f(F*sn(al))}`,`Solving the two equations (determinant sin(${b2}° − ${b1}°) = ${f(det)}): F<sub>u</sub> = ${f(a)} ${U.F}, F<sub>v</sub> = ${f(b)} ${U.F}.`]};
+});
+
+add('Force vector from position vectors (2D)',()=>{
+  let A,B,d;do{A=[ri(-4,4),ri(-4,4)];B=[ri(-4,4),ri(-4,4)];d=Math.hypot(B[0]-A[0],B[1]-A[1])}while(d<2.5);
+  const F=rs(100,900,10),dx=B[0]-A[0],dy=B[1]-A[1];
+  return{text:`A cable pulls on a bracket at ${pt('A',A,U.L)} with a tensile force of ${F} ${U.F} directed toward point ${pt('B',B,U.L)}. Write the force as a Cartesian vector and report its components F<sub>x</sub> and F<sub>y</sub> and the cable length d between A and B.`,
+   svg:draw([A2([-5,0],[5,0],'x','a',1),A2([0,-5],[0,5],'y','a',1),{t:'pt',p:A,l:'A'},{t:'pt',p:B,l:'B'},A2(A,B,'F',1)]),
+   ans:[{l:'F<sub>x</sub>',v:F*dx/d,u:U.F},{l:'F<sub>y</sub>',v:F*dy/d,u:U.F},{l:'d',v:d,u:U.L}],
+   sol:[`Position vector from A to B: <b>r</b><sub>AB</sub> = (${dx}, ${dy}) ${U.L}, so d = √(${dx}² + ${dy}²) = ${f(d)} ${U.L}.`,`Unit vector λ = <b>r</b><sub>AB</sub>/d = (${f(dx/d)}, ${f(dy/d)}).`,`<b>F</b> = F λ = ${F}(${f(dx/d)}, ${f(dy/d)}) = (${f(F*dx/d)}, ${f(F*dy/d)}) ${U.F}.`]};
+});
+
+add('Resultant with a direction constraint (2D)',()=>{
+  const F1=rs(150,700,10),t1=ri(20,70),t2=ri(110,160),F2=-F1*cs(t1)/cs(t2),Ry=F1*sn(t1)+F2*sn(t2);
+  return{text:`A bolt is loaded by two forces. <b>F</b><sub>1</sub> has magnitude ${F1} ${U.F} at ${t1}° counterclockwise from the +x axis. <b>F</b><sub>2</sub> acts at ${t2}° counterclockwise from the +x axis and its magnitude is adjustable. Determine the magnitude of <b>F</b><sub>2</sub> such that the resultant of the two forces acts along the y axis, and report the magnitude R of that resultant.`,
+   svg:draw([A2([0,0],[1.2,0],'x','a',1),A2([0,0],[0,1.2],'y','a',1),A2([0,0],[cs(t1),sn(t1)],'F₁',1),A2([0,0],[.8*cs(t2),.8*sn(t2)],'F₂',2)]),
+   ans:[{l:'F<sub>2</sub>',v:F2,u:U.F},{l:'R',v:Math.abs(Ry),u:U.F}],
+   sol:[`The x component of the resultant must vanish: F<sub>1</sub>cos ${t1}° + F<sub>2</sub>cos ${t2}° = 0.`,`F<sub>2</sub> = −F<sub>1</sub>cos ${t1}° / cos ${t2}° = ${f(F2)} ${U.F}.`,`R = |F<sub>1</sub>sin ${t1}° + F<sub>2</sub>sin ${t2}°| = ${f(Math.abs(Ry))} ${U.F}.`]};
+});
+
+add('Direction angles and force components (3D)',()=>{
+  let a,b,c2;do{a=ri(35,145);b=ri(35,145);c2=1-cs(a)**2-cs(b)**2}while(c2<.12);
+  const sg=R()<.5?1:-1,cg=sg*Math.sqrt(c2),g=deg(Math.acos(cg)),F=rs(200,900,10);
+  return{text:`A force of magnitude ${F} ${U.F} has direction angles α = ${a}° and β = ${b}° measured from the +x and +y axes. The angle γ from the +z axis is ${sg>0?'acute':'obtuse'}. Determine γ and the Cartesian components F<sub>x</sub>, F<sub>y</sub>, F<sub>z</sub>.`,
+   svg:'',
+   ans:[{l:'γ',v:g,u:'deg',tol:.6},{l:'F<sub>x</sub>',v:F*cs(a),u:U.F},{l:'F<sub>y</sub>',v:F*cs(b),u:U.F},{l:'F<sub>z</sub>',v:F*cg,u:U.F}],
+   sol:[`Direction cosines satisfy cos²α + cos²β + cos²γ = 1, so cos²γ = 1 − ${f(cs(a)**2)} − ${f(cs(b)**2)} = ${f(c2)}.`,`${sg>0?'Acute':'Obtuse'} γ gives cos γ = ${f(cg)}, so γ = ${f(g)}°.`,`F<sub>x</sub> = F cos α = ${f(F*cs(a))}, F<sub>y</sub> = F cos β = ${f(F*cs(b))}, F<sub>z</sub> = F cos γ = ${f(F*cg)} ${U.F}.`]};
+});
+
+function sketch3(pts,extra){return draw([...axes3(pts),...extra])}
+
+add('Cable force from position vectors (3D)',()=>{
+  let A,B;do{A=rv(-6,6);B=rv(-6,6)}while(nrm(sub(B,A))<4);
+  const F=rs(200,1500,10),r=sub(B,A),d=nrm(r),Fv=r.map(x=>F*x/d);
+  return{text:`A cable runs from ${pt('A',A,U.L)} to ${pt('B',B,U.L)} and carries a tension of ${F} ${U.F}. Write the force that the cable exerts on its attachment at A as a Cartesian vector, and report F<sub>x</sub>, F<sub>y</sub>, F<sub>z</sub> and the cable length d.`,
+   svg:sketch3([A,B],[{t:'pt',p:P3(A),l:'A'},{t:'pt',p:P3(B),l:'B'},A2(P3(A),P3(B),'F',1)]),
+   ans:[{l:'F<sub>x</sub>',v:Fv[0],u:U.F},{l:'F<sub>y</sub>',v:Fv[1],u:U.F},{l:'F<sub>z</sub>',v:Fv[2],u:U.F},{l:'d',v:d,u:U.L}],
+   sol:[`<b>r</b><sub>AB</sub> = B − A = ${fv(r)} ${U.L}; d = |<b>r</b><sub>AB</sub>| = ${f(d)} ${U.L}.`,`λ = <b>r</b><sub>AB</sub>/d = ${fv(r.map(x=>x/d))}.`,`<b>F</b> = Fλ = ${fv(Fv)} ${U.F}.`]};
+});
+
+add('Resultant of two cable forces (3D)',()=>{
+  let O=[0,0,ri(4,7)],A,B,F1=rs(200,800,10),F2=rs(200,800,10);
+  do{A=[ri(-5,5),ri(-5,5),0];B=[ri(-5,5),ri(-5,5),0]}while(nrm(sub(A,B))<3||nrm(sub(A,O))===0);
+  const u=sub(A,O),v=sub(B,O),f1=u.map(x=>F1*x/nrm(u)),f2=v.map(x=>F2*x/nrm(v)),S=f1.map((x,i)=>x+f2[i]);
+  return{text:`Two cables attached to a boom tip at ${pt('O',O,U.L)} run to anchors at ${pt('A',A,U.L)} and ${pt('B',B,U.L)} on the ground. The tensions are ${F1} ${U.F} in cable OA and ${F2} ${U.F} in cable OB. Determine the Cartesian components of the resultant of the two cable forces acting on the boom tip and its magnitude R.`,
+   svg:sketch3([O,A,B],[{t:'pt',p:P3(O),l:'O'},{t:'pt',p:P3(A),l:'A'},{t:'pt',p:P3(B),l:'B'},A2(P3(O),P3(A),'F₁',1),A2(P3(O),P3(B),'F₂',2)]),
+   ans:[{l:'R<sub>x</sub>',v:S[0],u:U.F},{l:'R<sub>y</sub>',v:S[1],u:U.F},{l:'R<sub>z</sub>',v:S[2],u:U.F},{l:'R',v:nrm(S),u:U.F}],
+   sol:[`<b>r</b><sub>OA</sub> = ${fv(u)}, |<b>r</b><sub>OA</sub>| = ${f(nrm(u))}; <b>F</b><sub>1</sub> = ${F1}<b>r</b><sub>OA</sub>/|<b>r</b><sub>OA</sub>| = ${fv(f1)} ${U.F}.`,`<b>r</b><sub>OB</sub> = ${fv(v)}, |<b>r</b><sub>OB</sub>| = ${f(nrm(v))}; <b>F</b><sub>2</sub> = ${fv(f2)} ${U.F}.`,`<b>R</b> = <b>F</b><sub>1</sub> + <b>F</b><sub>2</sub> = ${fv(S)} ${U.F}; R = ${f(nrm(S))} ${U.F}.`]};
+});
+
+add('Angle between two lines (dot product)',()=>{
+  let A,B,C,c;do{A=rv(-5,5);B=rv(-5,5);C=rv(-5,5);const u=sub(B,A),v=sub(C,A);c=dot(u,v)/(nrm(u)*nrm(v));
+   if(!(nrm(u)>2&&nrm(v)>2&&Math.abs(c)<.97))c=2}while(c===2);
+  const u=sub(B,A),v=sub(C,A),th=deg(Math.acos(c));
+  return{text:`Two straight members AB and AC of a space frame meet at joint ${pt('A',A,U.L)}. The far ends are at ${pt('B',B,U.L)} and ${pt('C',C,U.L)}. Using the dot product, determine the angle θ between the members at A (0° ≤ θ ≤ 180°).`,
+   svg:sketch3([A,B,C],[{t:'pt',p:P3(A),l:'A'},{t:'pt',p:P3(B),l:'B'},{t:'pt',p:P3(C),l:'C'},A2(P3(A),P3(B),'', 1),A2(P3(A),P3(C),'',2)]),
+   ans:[{l:'θ',v:th,u:'deg',tol:.6}],
+   sol:[`<b>r</b><sub>AB</sub> = ${fv(u)}, <b>r</b><sub>AC</sub> = ${fv(v)}.`,`<b>r</b><sub>AB</sub> · <b>r</b><sub>AC</sub> = ${f(dot(u,v))}; |<b>r</b><sub>AB</sub>| = ${f(nrm(u))}, |<b>r</b><sub>AC</sub>| = ${f(nrm(v))}.`,`cos θ = ${f(c)}, so θ = ${f(th)}°.`]};
+});
+
+add('Parallel and perpendicular components of a force (3D)',()=>{
+  let A,B,Fv;do{A=rv(-5,5);B=rv(-5,5)}while(nrm(sub(B,A))<4);
+  do{Fv=[ri(-9,9)*10,ri(-9,9)*10,ri(-9,9)*10]}while(nrm(Fv)<60);
+  const r=sub(B,A),d=nrm(r),lam=r.map(x=>x/d),par=dot(Fv,lam),perp=Math.sqrt(Math.max(nrm(Fv)**2-par**2,0));
+  return{text:`A force <b>F</b> = ${fv(Fv)} ${U.F} acts at a point on a straight rod AB, with A at ${pt('',A,U.L)} and B at ${pt('',B,U.L)}. Determine the component of <b>F</b> parallel to the rod (signed, positive in the direction from A to B) and the magnitude of the component perpendicular to the rod.`,
+   svg:sketch3([A,B],[{t:'pt',p:P3(A),l:'A'},{t:'pt',p:P3(B),l:'B'},{a:P3(A),b:P3(B),t:'ln',c:'a',w:3},A2(P3(A),P3(A.map((x,i)=>x+Fv[i]/Math.max(...Fv.map(Math.abs))*2)),'F',1)]),
+   ans:[{l:'F<sub>∥</sub>',v:par,u:U.F},{l:'F<sub>⊥</sub>',v:perp,u:U.F}],
+   sol:[`λ<sub>AB</sub> = ${fv(r)}/${f(d)} = ${fv(lam)}.`,`F<sub>∥</sub> = <b>F</b> · λ<sub>AB</sub> = ${f(par)} ${U.F}.`,`F<sub>⊥</sub> = √(F² − F<sub>∥</sub>²) = √(${f(nrm(Fv))}² − ${f(par)}²) = ${f(perp)} ${U.F}.`]};
+});
+
+add('Shortest distance from a point to a line',()=>{
+  let A,B,P,d,t;do{A=rv(-5,5);B=rv(-5,5);P=rv(-5,5);const r=sub(B,A),q=sub(P,A);d=nrm(crs(r,q))/nrm(r);t=dot(q,r)/dot(r,r)}while(nrm(sub(B,A))<4||d<1.5);
+  const r=sub(B,A),q=sub(P,A),lam=r.map(x=>x/nrm(r)),par=dot(q,lam);
+  return{text:`A straight conduit passes through ${pt('A',A,U.L)} and ${pt('B',B,U.L)}. A sensor is mounted at ${pt('P',P,U.L)}. Determine the shortest distance from P to the line AB.`,
+   svg:sketch3([A,B,P],[{t:'pt',p:P3(A),l:'A'},{t:'pt',p:P3(B),l:'B'},{t:'pt',p:P3(P),l:'P'},{a:P3(A),b:P3(B),t:'ln',c:'a',w:3},A2(P3(A),P3(P),'',1,1)]),
+   ans:[{l:'d',v:d,u:U.L}],
+   sol:[`<b>r</b><sub>AB</sub> = ${fv(r)}, <b>r</b><sub>AP</sub> = ${fv(q)}.`,`Component of <b>r</b><sub>AP</sub> along AB: ${f(par)} ${U.L}; |<b>r</b><sub>AP</sub>| = ${f(nrm(q))} ${U.L}.`,`d = √(|<b>r</b><sub>AP</sub>|² − (<b>r</b><sub>AP</sub> · λ<sub>AB</sub>)²) = ${f(d)} ${U.L}. Check with the cross product: |<b>r</b><sub>AB</sub> × <b>r</b><sub>AP</sub>| / |<b>r</b><sub>AB</sub>| = ${f(nrm(crs(r,q))/nrm(r))} ${U.L}.`]};
+});
+
+add('Plate area and unit normal (cross product)',()=>{
+  let A,B,C,n;do{A=rv(-5,5);B=rv(-5,5);C=rv(-5,5);n=crs(sub(B,A),sub(C,A))}while(nrm(n)<4);
+  const area=nrm(n)/2,nh=n.map(x=>x/nrm(n));
+  return{text:`A triangular gusset plate has corners at ${pt('A',A,U.L)}, ${pt('B',B,U.L)}, and ${pt('C',C,U.L)}. Using the cross product, determine the area of the plate and the components n<sub>x</sub>, n<sub>y</sub>, n<sub>z</sub> of the unit vector <b>n</b> normal to the plate, with <b>n</b> in the direction of <b>r</b><sub>AB</sub> × <b>r</b><sub>AC</sub>.`,
+   svg:sketch3([A,B,C],[{t:'pt',p:P3(A),l:'A'},{t:'pt',p:P3(B),l:'B'},{t:'pt',p:P3(C),l:'C'},{a:P3(A),b:P3(B),t:'ln',w:2},{a:P3(B),b:P3(C),t:'ln',w:2},{a:P3(C),b:P3(A),t:'ln',w:2}]),
+   ans:[{l:'Area',v:area,u:U.L+'²'},{l:'n<sub>x</sub>',v:nh[0],u:''},{l:'n<sub>y</sub>',v:nh[1],u:''},{l:'n<sub>z</sub>',v:nh[2],u:''}],
+   sol:[`<b>r</b><sub>AB</sub> = ${fv(sub(B,A))}, <b>r</b><sub>AC</sub> = ${fv(sub(C,A))}.`,`<b>r</b><sub>AB</sub> × <b>r</b><sub>AC</sub> = ${fv(n)} ${U.L}²; its magnitude is ${f(nrm(n))} ${U.L}².`,`Triangle area = ½|<b>r</b><sub>AB</sub> × <b>r</b><sub>AC</sub>| = ${f(area)} ${U.L}².`,`<b>n</b> = (<b>r</b><sub>AB</sub> × <b>r</b><sub>AC</sub>)/|<b>r</b><sub>AB</sub> × <b>r</b><sub>AC</sub>| = ${fv(nh)}.`]};
+});
+
+add('Parallelepiped volume (scalar triple product)',()=>{
+  let a,b,c,T;do{a=rv(-5,5);b=rv(-5,5);c=rv(-5,5);T=dot(a,crs(b,c))}while(Math.abs(T)<10);
+  return{text:`Three edge vectors of a skewed block, measured from one corner, are <b>a</b> = ${fv(a)} ${U.L}, <b>b</b> = ${fv(b)} ${U.L}, and <b>c</b> = ${fv(c)} ${U.L}. Evaluate the scalar triple product <b>a</b> · (<b>b</b> × <b>c</b>) and give the volume of the block. A negative triple product indicates a left-handed ordering of (<b>a</b>, <b>b</b>, <b>c</b>).`,
+   svg:sketch3([a,b,c],[A2(P3([0,0,0]),P3(a),'a',1),A2(P3([0,0,0]),P3(b),'b',2),A2(P3([0,0,0]),P3(c),'c',3)]),
+   ans:[{l:'a·(b×c)',v:T,u:U.L+'³'},{l:'Volume',v:Math.abs(T),u:U.L+'³'}],
+   sol:[`<b>b</b> × <b>c</b> = ${fv(crs(b,c))} ${U.L}².`,`<b>a</b> · (<b>b</b> × <b>c</b>) = ${f(T)} ${U.L}³.`,`Volume = |<b>a</b> · (<b>b</b> × <b>c</b>)| = ${f(Math.abs(T))} ${U.L}³; the ordering is ${T>0?'right':'left'}-handed.`]};
+});
+
+// ===== UI =====
+if(typeof document!=='undefined'){
+  const $=i=>document.getElementById(i);
+  let cur;
+  G.forEach((g,i)=>{const o=document.createElement('option');o.value=i;o.textContent='2.'+(i+1)+'  '+g.n;$('type').appendChild(o)});
+  function gen(){
+    const seed=parseInt($('seed').value)||1;R=mk(seed*7919+parseInt($('type').value)*104729);
+    U=$('units').value==='US'?{F:'lb',L:'ft'}:{F:'N',L:'m'};
+    const g=G[$('type').value];cur=g.fn();
+    $('title').textContent='Problem 2.'+(+$('type').value+1)+': '+g.n+'  (seed '+seed+')';
+    $('text').innerHTML=cur.text;$('fig').innerHTML=cur.svg;
+    $('ans').innerHTML=cur.ans.map((a,i)=>`<label>${a.l} = <input id="a${i}" inputmode="decimal"> ${a.u||''}</label>`).join('');
+    $('sol').hidden=true;$('sol').innerHTML=cur.sol.map(s=>'<p>'+s+'</p>').join('');$('msg').textContent='';
+  }
+  function check(){
+    let ok=0;cur.ans.forEach((a,i)=>{
+      const sc=Math.max(...cur.ans.filter(b=>b.u===a.u).map(b=>Math.abs(b.v)));
+      const tol=a.tol||Math.max(.01*Math.abs(a.v),.005*sc),x=parseFloat($('a'+i).value);
+      const good=Math.abs(x-a.v)<=tol;$('a'+i).className=isNaN(x)?'':(good?'ok':'bad');if(good)ok++});
+    $('msg').textContent=ok+' of '+cur.ans.length+' correct';
+  }
+  $('new').onclick=()=>{$('seed').value=Math.floor(Math.random()*99999)+1;gen()};
+  $('type').onchange=$('units').onchange=$('seed').onchange=gen;
+  $('chk').onclick=check;$('shw').onclick=()=>{$('sol').hidden=!$('sol').hidden};
+  $('seed').value=Math.floor(Math.random()*99999)+1;gen();
+}
+if(typeof module!=='undefined')module.exports={G,mk,set:r=>{R=r},setU:u=>{U=u}};
+</script>
+</body>
+</html>

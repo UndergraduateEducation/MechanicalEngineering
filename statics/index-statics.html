@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statics: Problem Generator</title>
+<style>
+  :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#fff;--accent:#1e5a32;--part:#eec878;--partline:#7d5014}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 Georgia,"Times New Roman",serif}
+  header,main,footer{max-width:900px;margin:0 auto;padding:0 24px}
+  header{padding-top:42px;padding-bottom:6px;border-bottom:3px solid var(--part)}
+  h1{font-size:2rem;font-weight:600;margin:0 0 .3em}
+  .lede{color:var(--muted);margin:0 0 1.2em;max-width:46em}
+  .card{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--part);border-radius:10px;padding:18px 22px;margin:22px 0}
+  .card.soon{background:transparent;border-style:dashed;border-left-style:dashed}
+  .card.soon h2{color:var(--muted)}
+  .head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .num{font-family:system-ui,sans-serif;font-weight:700;color:var(--partline);font-size:1.1rem}
+  h2{font-size:1.3rem;font-weight:600;margin:0}
+  h2 a{color:var(--ink);text-decoration:none} h2 a:hover{color:var(--accent)}
+  .card p{margin:.5em 0}
+  .btn{display:inline-block;font-family:system-ui,sans-serif;font-size:.9rem;background:var(--accent);color:#fff;text-decoration:none;border-radius:7px;padding:7px 16px}
+  .btn:hover{filter:brightness(1.1)}
+  .how{font-size:.95rem;color:var(--muted)}
+  footer{padding:18px 24px 40px;color:var(--muted);font-family:system-ui,sans-serif;font-size:.8rem}
+</style>
+</head>
+<body>
+<header>
+  <h1>Statics: Problem Generator</h1>
+  <p class="lede">Practice problems for an undergraduate statics course, generated on demand. Each problem is a fresh variant of a classic textbook exercise, with its own numbers, geometry and figure, an answer checker, and a worked solution.</p>
+</header>
+<main>
+  <section class="how">
+    <h2 style="font-size:1.1rem">How to use</h2>
+    <p>Choose a chapter, pick a problem type, and press <b>New problem</b>. Enter your answers and press <b>Check answers</b>; numerical answers within 2% are accepted. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Chapters marked in preparation will be added as they are completed.</p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">2</span><h2><a href="VectorsProblemGenerator.html">Vectors: Force and Position</a></h2></div>
+    <p>Resultants and components in a plane, force vectors from position vectors, direction angles, cables in space, the dot product for angles and projections, the cross product for areas and normals, and the scalar triple product.</p>
+    <p class="go"><a class="btn" href="VectorsProblemGenerator.html">Open the vectors generator</a></p>
+  </section>
+  <section class="card soon">
+    <div class="head"><span class="num">3</span><h2>Equilibrium of Particles</h2></div>
+    <p>Free body diagrams of particles, cables, bars, pulleys, and springs, in two and three dimensions.</p>
+    <p class="how">In preparation.</p>
+  </section>
+  <section class="card soon">
+    <div class="head"><span class="num">4</span><h2>Moment of a Force and Equivalent Force Systems</h2></div>
+    <p>Scalar and vector moments, moment about a line, couples, and equivalent and wrench force systems.</p>
+    <p class="how">In preparation.</p>
+  </section>
+  <section class="card soon">
+    <div class="head"><span class="num">5</span><h2>Equilibrium of Bodies</h2></div>
+    <p>Reactions, free body diagrams, two-force and three-force members, static determinacy, and equilibrium in two and three dimensions.</p>
+    <p class="how">In preparation.</p>
+  </section>
+  <section class="card soon">
+    <div class="head"><span class="num">6</span><h2>Structural Analysis and Machines</h2></div>
+    <p>Trusses by the method of joints and the method of sections, space trusses, frames, and machines.</p>
+    <p class="how">In preparation.</p>
+  </section>
+  <section class="card soon">
+    <div class="head"><span class="num">7</span><h2>Centroids and Distributed Force Systems</h2></div>
+    <p>Centroids and centers of mass of composite shapes, theorems of Pappus and Guldinus, distributed loads, and fluid pressure.</p>
+    <p class="how">In preparation.</p>
+  </section>
+  <section class="card soon">
+    <div class="head"><span class="num">8</span><h2>Internal Forces</h2></div>
+    <p>Internal forces in members, and shear and moment diagrams for beams.</p>
+    <p class="how">In preparation.</p>
+  </section>
+  <section class="card soon">
+    <div class="head"><span class="num">9</span><h2>Friction</h2></div>
+    <p>Coulomb friction, impending slip, wedges, multiple contact surfaces, and belts on cylinders.</p>
+    <p class="how">In preparation.</p>
+  </section>
+  <section class="card soon">
+    <div class="head"><span class="num">10</span><h2>Moments of Inertia</h2></div>
+    <p>Area moments of inertia, the parallel axis theorem, and composite areas.</p>
+    <p class="how">In preparation.</p>
+  </section>
+</main>
+<footer>The problems are for practice. Answers and solutions are computed in the page itself.</footer>
+</body>
+</html>
