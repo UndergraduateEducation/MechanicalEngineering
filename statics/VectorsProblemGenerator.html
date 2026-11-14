@@ -43,6 +43,7 @@
   .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
   .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
   .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -53,6 +54,7 @@
   <div class="card howto">
     <h2>How to use</h2>
     <p>Pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
+    <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
   </div>
   <div class="card bar">
     <label for="typeSel">Problem type</label><select id="typeSel"></select>
@@ -69,7 +71,6 @@
     <div class="bar" style="margin-top:12px">
       <button id="checkBtn">Check answers</button>
       <button class="ghost" id="solBtn">Show solution</button>
-      <button class="ghost" id="reportBtn" style="display:none">Report an error</button>
       <span class="note" id="ansNote"></span>
     </div>
   </div>
@@ -487,7 +488,7 @@ if(typeof document!=="undefined"){
   $("newBtn").onclick=()=>render(curKey,newSeed());
   $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
   $("checkBtn").onclick=check;
-  if(FORM.url)$("reportBtn").style.display="";
+  if(FORM.url)$("reportRow").style.display="";
   $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
   $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
     s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
