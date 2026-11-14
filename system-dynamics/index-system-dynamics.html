@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Dynamics: Problem Generator</title>
+<style>
+  :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#fff;--accent:#1e5a32;--part:#eec878;--partline:#7d5014}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 Georgia,"Times New Roman",serif}
+  header,main,footer{max-width:900px;margin:0 auto;padding:0 24px}
+  header{padding-top:42px;padding-bottom:6px;border-bottom:3px solid var(--part)}
+  h1{font-size:2rem;font-weight:600;margin:0 0 .3em}
+  .lede{color:var(--muted);margin:0 0 1.2em;max-width:46em}
+  .card{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--part);border-radius:10px;padding:18px 22px;margin:22px 0}
+  .card.soon{background:transparent;border-style:dashed;border-left-style:dashed}
+  .card.soon h2{color:var(--muted)}
+  .head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .num{font-family:system-ui,sans-serif;font-weight:700;color:var(--partline);font-size:1.1rem}
+  h2{font-size:1.3rem;font-weight:600;margin:0}
+  h2 a{color:var(--ink);text-decoration:none} h2 a:hover{color:var(--accent)}
+  .card p{margin:.5em 0}
+  .btn{display:inline-block;font-family:system-ui,sans-serif;font-size:.9rem;background:var(--accent);color:#fff;text-decoration:none;border-radius:7px;padding:7px 16px}
+  .btn:hover{filter:brightness(1.1)}
+  .how{font-size:.95rem;color:var(--muted)}
+  footer{padding:18px 24px 40px;color:var(--muted);font-family:system-ui,sans-serif;font-size:.8rem}
+</style>
+</head>
+<body>
+<header>
+  <h1>System Dynamics: Problem Generator</h1>
+  <p class="lede">Problems in the style of a standard undergraduate system dynamics and control course, generated on demand. Each has its own numbers, geometry and figure, an answer checker, and a worked solution.</p>
+</header>
+<main>
+  <section class="how">
+    <h2 style="font-size:1.1rem">How to use</h2>
+    <p>Choose a chapter, pick a problem type, and press <b>New problem</b>. Enter your answers and press <b>Check answers</b>; numerical answers within 2% are accepted. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Chapters marked in preparation will be added as they are completed.</p>
+  </section>
+  <section class="card">
+    <div class="head"><h2><a href="LaplaceTransformProblemGenerator.html">Laplace Transform</a></h2></div>
+    <p>Laplace transforms of sinusoids, damped sinusoids, and shifted functions; the initial-value and final-value theorems; inverse transforms with distinct, repeated, and complex poles and with a time delay; and second-order equations with initial conditions and forcing.</p>
+    <p class="go"><a class="btn" href="LaplaceTransformProblemGenerator.html">Open the Laplace transform generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><h2><a href="MechanicalSystemsProblemGenerator.html">Mechanical Systems</a></h2></div>
+    <p>Rotational and translational dynamics, equivalent springs and dampers, and natural frequencies and free vibration of spring, mass, damper, lever, pulley, and pendulum systems.</p>
+    <p class="go"><a class="btn" href="MechanicalSystemsProblemGenerator.html">Open the mechanical systems generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><h2><a href="TransferFunctionModelingProblemGenerator.html">Transfer-Function Modeling</a></h2></div>
+    <p>Transfer functions, poles, and static gain from differential equations; step, impulse, and pulse responses of damper, spring, and mass systems; and base excitation.</p>
+    <p class="go"><a class="btn" href="TransferFunctionModelingProblemGenerator.html">Open the transfer-function modeling generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><h2><a href="StateSpaceModelingProblemGenerator.html">State-Space Modeling</a></h2></div>
+    <p>State-space models from differential equations and transfer functions, canonical and diagonal forms, the state-transition matrix, and responses to initial states and constant inputs.</p>
+    <p class="go"><a class="btn" href="StateSpaceModelingProblemGenerator.html">Open the state-space modeling generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><h2><a href="ElectricalSystemsProblemGenerator.html">Electrical and Electromechanical Systems</a></h2></div>
+    <p>Resistor networks, capacitor discharge, RLC circuits, impedance, operational-amplifier circuits, armature-controlled dc motors, and electrical analogs of mechanical systems.</p>
+    <p class="go"><a class="btn" href="ElectricalSystemsProblemGenerator.html">Open the electrical systems generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><h2><a href="FluidThermalSystemsProblemGenerator.html">Fluid and Thermal Systems</a></h2></div>
+    <p>Liquid-level systems, interacting tanks, turbulent outflow and linearization, compressed air, heated and stirred tanks, and hydraulic presses.</p>
+    <p class="go"><a class="btn" href="FluidThermalSystemsProblemGenerator.html">Open the fluid and thermal systems generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><h2><a href="TimeDomainAnalysisProblemGenerator.html">Time-Domain Analysis of Dynamic Systems</a></h2></div>
+    <p>Damping from the logarithmic decrement and step tests, step, ramp, and impulse responses of first- and second-order systems, and responses of state-space models.</p>
+    <p class="go"><a class="btn" href="TimeDomainAnalysisProblemGenerator.html">Open the time-domain analysis generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><h2><a href="FrequencyDomainAnalysisProblemGenerator.html">Frequency-Domain Analysis of Dynamic Systems</a></h2></div>
+    <p>Steady-state response to sinusoidal inputs, rotating unbalance, vibration isolation and transmissibility, dynamic vibration absorbers, modes of two-degree-of-freedom systems, and seismic instruments.</p>
+    <p class="go"><a class="btn" href="FrequencyDomainAnalysisProblemGenerator.html">Open the frequency-domain analysis generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><h2><a href="TimeDomainControlProblemGenerator.html">Time-Domain Analysis and Design of Control Systems</a></h2></div>
+    <p>Closed-loop transfer functions, block-diagram reduction, transient specifications, steady-state error, Routh stability, root locus, and PID tuning.</p>
+    <p class="go"><a class="btn" href="TimeDomainControlProblemGenerator.html">Open the time-domain control generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><h2><a href="FrequencyDomainControlProblemGenerator.html">Frequency-Domain Analysis and Design of Control Systems</a></h2></div>
+    <p>Bode plots, resonant peak, gain and phase margins, gain for a specified margin, stability with dead time, and lead compensation.</p>
+    <p class="go"><a class="btn" href="FrequencyDomainControlProblemGenerator.html">Open the frequency-domain control generator</a></p>
+  </section>
+</main>
+<footer>The problems are for practice. Answers and solutions are computed in the page itself.</footer>
+</body>
+</html>
