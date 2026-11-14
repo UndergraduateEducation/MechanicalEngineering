@@ -146,6 +146,7 @@ function axes3(pts){const e=Math.max(2,...pts.flat().map(Math.abs))+1.2;
   return [["x",[e,0,0]],["y",[0,e,0]],["z",[0,0,e]]].map(([n,v])=>({a:P3([0,0,0]),b:P3(v),l:`<tspan font-style="italic">${n}</tspan>`,c:"x",d:1,w:1.1,off:10}))}
 const lab3=(n,q,dx,dy,an)=>({t:"pt",p:P3(q),l:`<tspan font-style="italic">${n}</tspan>(${q.join(", ")})`,dx,dy,an});
 const sk3=(pts,extra)=>draw([...axes3(pts),...extra],580,380);
+const sep=pts=>{let m=1e9;for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){const a=P3(pts[i]),b=P3(pts[j]);m=Math.min(m,Math.hypot(a[0]-b[0],a[1]-b[1]))}return m};
 const Wl=(p,n="W")=>`${it(n)} = ${p.W??p.F} ${FU(p)}`;
 
 // ----- templates
@@ -219,6 +220,8 @@ TEMPLATES["moment-two-points"]={
 function geo3(r){for(let k=0;k<5000;k++){
   const P=[ri(r,-3,5),ri(r,-3,5),ri(r,0,5)],Q=[ri(r,-3,5),ri(r,-3,5),ri(r,0,5)],d=sub(Q,P);
   if(nrm(d)<2.5||nrm(P)<2.5) continue;
+  const lm=unit(d),tp=P.map((v,i)=>v+3.4*lm[i]),pa=P3(P),pb=P3(tp);
+  if(sep([P,Q,[0,0,0]])<3.2||Math.hypot(pa[0]-pb[0],pa[1]-pb[1])<2.2||sep([tp,Q,[0,0,0]])<2.2) continue;
   return {P,Q,d};}
   throw new Error("no valid problem")}
 TEMPLATES["moment-3d"]={
@@ -232,8 +235,8 @@ TEMPLATES["moment-3d"]={
     throw new Error("no valid problem");},
   statement:p=>`<p>A force of magnitude <i>F</i> = ${p.F} ${FU(p)} acts at point <i>P</i>(${p.P.join(", ")}) ${LU(p)} and is directed along the line from <i>P</i> toward <i>Q</i>(${p.Q.join(", ")}) ${LU(p)}. The <i>z</i> axis points up. Determine the moment of the force about the origin <i>O</i> as a vector, and its magnitude.</p>`,
   figure:p=>{const lam=unit(sub(p.Q,p.P)),tip=p.P.map((v,i)=>v+3.4*lam[i]);
-    return sk3([p.P,p.Q,tip],[{a:P3([0,0,0]),b:P3(p.P),t:"ln",d:1,w:1.2},{a:P3(p.P),b:P3(tip),c:"r",l:Wl(p,"F"),off:10},
-      {a:P3(p.P),b:P3(p.Q),t:"ln",c:"x",d:1,w:1},lab3("P",p.P,-8,-12,"end"),{t:"pt",p:P3(p.Q),l:`${it("Q")}(${p.Q.join(", ")})`,dx:8,dy:-8},{t:"pt",p:P3([0,0,0]),l:it("O"),dx:8,dy:16,r:4.5}])},
+    return sk3([p.P,p.Q,tip],[{a:P3([0,0,0]),b:P3(p.P),t:"ln",d:1,w:1.2},{a:P3(p.P),b:P3(tip),c:"r",l:Wl(p,"F"),mid:1},
+      {a:P3(p.P),b:P3(p.Q),t:"ln",c:"x",d:1,w:1},(P3(p.Q)[0]>=P3(p.P)[0]?lab3("P",p.P,-9,17,"end"):lab3("P",p.P,9,17,"start")),{t:"pt",p:P3(p.Q),l:`${it("Q")}(${p.Q.join(", ")})`,dx:P3(p.Q)[0]>=P3(p.P)[0]?9:-9,dy:-9,an:P3(p.Q)[0]>=P3(p.P)[0]?"start":"end"},{t:"pt",p:P3([0,0,0]),l:it("O"),dx:8,dy:16,r:4.5}])},
   solution:(p,s)=>`<h3>1. Force vector</h3>
   <p>${eq(`λ<sub>PQ</sub> = ${fv(unit(sub(p.Q,p.P)))}`)} ${eq(`<b>F</b> = F λ<sub>PQ</sub> = ${fv(s.F)} ${FU(p)}`)}</p>
   <h3>2. Position vector and cross product</h3>
@@ -252,14 +255,15 @@ TEMPLATES["moment-about-line"]={
     for(let k=0;k<5000;k++){
       const g=geo3(r),p={us:r()<.5,F:pick(r,range(50,500,10)),P:g.P,Q:g.Q,B:[ri(r,-4,5),ri(r,-4,5),ri(r,0,5)]};
       if(nrm(p.B)<3) continue;
+      if(sep([p.P,p.B,[0,0,0]])<3.2) continue;
       const lam=unit(sub(p.Q,p.P)),F=lam.map(x=>x*p.F),M=crs(p.P,F),ax=unit(p.B),Ml=dot(ax,M),Mm=nrm(M),Mp=Math.sqrt(Math.max(0,Mm*Mm-Ml*Ml));
       if(Math.abs(Ml)<.15*Mm||Mp<.15*Mm) continue;
       return {p,s:{F,M,ax,Ml,Mm,Mp}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>A force of magnitude <i>F</i> = ${p.F} ${FU(p)} acts at <i>P</i>(${p.P.join(", ")}) ${LU(p)}, directed from <i>P</i> toward <i>Q</i>(${p.Q.join(", ")}) ${LU(p)}. A shaft runs along the line <i>OB</i> from the origin to <i>B</i>(${p.B.join(", ")}) ${LU(p)}. The <i>z</i> axis points up. Determine the moment of the force about the line <i>OB</i> (positive when its vector points from <i>O</i> toward <i>B</i>), and the magnitude of the part of the moment about <i>O</i> that is perpendicular to the shaft.</p>`,
   figure:p=>{const lam=unit(sub(p.Q,p.P)),tip=p.P.map((v,i)=>v+3.4*lam[i]);
-    return sk3([p.P,p.B,tip],[{a:P3([0,0,0]),b:P3(p.B),c:"m",t:"ln",w:4},{a:P3([0,0,0]),b:P3(p.P),t:"ln",d:1,w:1.2},{a:P3(p.P),b:P3(tip),c:"r",l:Wl(p,"F"),off:10},
-      lab3("P",p.P,-8,-12,"end"),{t:"pt",p:P3(p.B),l:`${it("B")}(${p.B.join(", ")})`,dx:8,dy:-8},{t:"pt",p:P3([0,0,0]),l:it("O"),dx:8,dy:16,r:4.5}])},
+    return sk3([p.P,p.B,tip],[{a:P3([0,0,0]),b:P3(p.B),c:"m",t:"ln",w:4},{a:P3([0,0,0]),b:P3(p.P),t:"ln",d:1,w:1.2},{a:P3(p.P),b:P3(tip),c:"r",l:Wl(p,"F"),mid:1},
+      (P3(p.Q)[0]>=P3(p.P)[0]?lab3("P",p.P,-9,17,"end"):lab3("P",p.P,9,17,"start")),{t:"pt",p:P3(p.B),l:`${it("B")}(${p.B.join(", ")})`,dx:8,dy:-8},{t:"pt",p:P3([0,0,0]),l:it("O"),dx:8,dy:16,r:4.5}])},
   solution:(p,s)=>`<h3>1. Moment about O</h3>
   <p>${eq(`<b>F</b> = ${fv(s.F)} ${FU(p)}`)} ${eq(`<b>M</b><sub>O</sub> = <b>r</b><sub>OP</sub> × <b>F</b> = ${fv(s.M)} ${MU(p)}`)}</p>
   <h3>2. Unit vector along the axis</h3>

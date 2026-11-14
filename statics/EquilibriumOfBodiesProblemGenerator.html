@@ -160,7 +160,9 @@ const gnd=(x,y,k)=>({t:"hatch",a:[x-.8*k,y],b:[x+.8*k,y],side:1});
 const pinS=(x,k)=>[{t:"poly",pts:[[x,0],[x-.45*k,-.8*k],[x+.45*k,-.8*k]]},gnd(x,-.8*k,k)];
 const rollS=(x,k)=>[{t:"pulley",p:[x,-.3*k],r:7},gnd(x,-.62*k,k)];
 const beamBase=(L,k)=>[{a:[0,0],b:[L,0],c:"m",t:"ln",w:5},{t:"pt",p:[0,0],l:it("A"),dx:-16,dy:-8,r:4},{t:"pt",p:[L,0],l:it("B"),dx:6,dy:-10,r:4}];
-const dimsBelow=(L,xs,y0,p)=>xs.map((x,i)=>({t:"dim",a:[0,y0-.5*i],b:[x,y0-.5*i],l:`${x} ${LU(p)}`,flip:1}));
+const dimsBelow=(L,xs,y0,p,tipY=-.95)=>{const u=[...new Set(xs)].sort((a,b)=>a-b),e=[],y1=y0+1.1*(L<=7?.9:.8),yy=i=>y1-.95*i;
+  u.forEach((x,i)=>{const y=yy(i);if(x>.001)e.push({t:"ln",a:[x,x>=L-.001?tipY:-.2],b:[x,y-.2],c:"x",w:.8,d:1});
+    e.push({t:"dim",a:[0,y],b:[x,y],l:`${x} ${LU(p)}`,flip:1})});return e};
 const cpl=(c,s)=>c>0?"↺ ":"↻ ";
 
 // 1. beam with pin and roller: point loads, inclined force, couple
@@ -168,7 +170,7 @@ TEMPLATES["beam-pin-roller"]={
   name:"Beam on a pin and a roller (point loads and a couple)",
   generate(seed){const r=mulberry32(seed);
     for(let k=0;k<5000;k++){
-      const L=ri(r,5,10),xs=[];while(xs.length<3){const x=ri(r,1,L-1);if(!xs.includes(x))xs.push(x)}
+      const L=ri(r,8,11),xs=[];while(xs.length<3){const x=ri(r,1,L-1);if(xs.every(v=>Math.abs(v-x)>=3))xs.push(x);else if(r()<.02)xs.length=0}
       const p={us:r()<.5,L,a1:xs[0],a2:xs[1],a3:xs[2],P1:pick(r,range(100,800,50)),P2:pick(r,range(100,800,50)),th:pick(r,range(215,325,5)),C:pick(r,range(100,1000,50))*pick(r,[1,-1])};
       const P2x=p.P2*cs(p.th),P2y=p.P2*sn(p.th),By=-(p.a1*(-p.P1)+p.a2*P2y+p.C)/L,Ax=-P2x,Ay=p.P1-P2y-By,tot=p.P1+p.P2;
       if(By<.1*tot||Math.abs(Ay)<.05*tot||Math.abs(Ax)<.05*tot) continue;
@@ -178,7 +180,7 @@ TEMPLATES["beam-pin-roller"]={
   figure:p=>{const k=Math.max(.35,p.L/12),e=[...beamBase(p.L,k),...pinS(0,k),...rollS(p.L,k)];
     e.push({a:[p.a1,1.5],b:[p.a1,.15],c:"r"},{t:"txt",p:[p.a1,1.85],l:sbt("P",1)+" = "+p.P1+" "+FU(p),an:p.a1<p.a2?"end":"start"});
     const dx=cs(p.th),dy=sn(p.th);e.push({a:[p.a2-1.7*dx,-1.7*dy],b:[p.a2,0],c:"r"},{t:"txt",p:[p.a2-1.7*dx,-1.7*dy+(dy<0?.4:-.7)],l:sbt("P",2)+" = "+p.P2+" "+FU(p),an:p.a1<p.a2?"start":"end"});
-    e.push({t:"txt",p:[p.a3,1.2],l:`${cpl(p.C)}${Math.abs(p.C)} ${MU(p)}`},{t:"pt",p:[p.a3,0],r:3.2});
+    e.push({t:"txt",p:[p.a3,3.1],l:`${cpl(p.C)}${Math.abs(p.C)} ${MU(p)}`},{t:"ln",a:[p.a3,.15],b:[p.a3,2.8],c:"x",w:.8,d:1},{t:"pt",p:[p.a3,0],r:3.2});
     e.push(...dimsBelow(p.L,[p.a1,p.a2,p.a3,p.L],-2.4*k-1.2,p));
     return draw(e,600,380)},
   solution:(p,s)=>`<h3>1. Free body diagram</h3>
@@ -231,7 +233,7 @@ TEMPLATES["cantilever-triangular"]={
   name:"Cantilever with a triangular load, tip force, and couple",
   generate(seed){const r=mulberry32(seed);
     for(let k=0;k<5000;k++){
-      const us=r()<.5,L=ri(r,4,9),a=ri(r,2,L),p={us,L,a,w0:us?pick(r,range(20,150,10)):pick(r,range(200,1500,100)),P:pick(r,range(100,800,50)),th:pick(r,range(215,325,5)),C:pick(r,range(100,1000,50))*pick(r,[1,-1])};
+      const us=r()<.5,L=ri(r,4,9),a=ri(r,2,L-2),p={us,L,a,w0:us?pick(r,range(20,150,10)):pick(r,range(200,1500,100)),P:pick(r,range(100,800,50)),th:pick(r,range(215,325,5)),C:pick(r,range(100,1000,50))*pick(r,[1,-1])};
       const Px=p.P*cs(p.th),Py=p.P*sn(p.th),Fw=p.w0*a/2,Ax=-Px,Ay=Fw-Py,MA=Fw*a/3-p.L*Py-p.C;
       if(Math.abs(Ax)<.05*p.P||Math.abs(MA)<.1*(Fw*a/3+L*p.P)) continue;
       return {p,s:{Px,Py,Fw,Ax,Ay,MA}};}
@@ -241,9 +243,9 @@ TEMPLATES["cantilever-triangular"]={
     e.push({t:"poly",pts:[[0,.15],[0,1.3],[p.a,.15]],fill:"#f4d6d6"});
     for(let x=0;x<p.a-.01;x+=Math.max(.5,p.a/4)){const h=1.3*(1-x/p.a);if(h>.25)e.push({a:[x,.15+h-.15],b:[x,.15],c:"r",w:1.6})}
     e.push({t:"txt",p:[.2,1.7],l:`${sbt("w",0)} = ${p.w0} ${WU(p)}`,an:"start"});
-    e.push({a:[p.L-1.7*dx,-1.7*dy],b:[p.L,0],c:"r"},{t:"txt",p:[p.L-1.7*dx,-1.7*dy+(dy<0?.4:-.7)],l:`${it("P")} = ${p.P} ${FU(p)}`});
-    e.push({t:"txt",p:[p.L/2,1.2],l:`${cpl(p.C)}${Math.abs(p.C)} ${MU(p)}`},{t:"pt",p:[p.L/2,0],r:3.2});
-    e.push({t:"dim",a:[0,-2.4],b:[p.a,-2.4],l:`${p.a} ${LU(p)}`,flip:1},{t:"dim",a:[0,-2.9],b:[p.L,-2.9],l:`${p.L} ${LU(p)}`,flip:1});
+    e.push({a:[p.L-1.7*dx,-1.7*dy],b:[p.L,0],c:"r"},{t:"txt",p:[p.L-1.7*dx,-1.7*dy+(dy<0?.4:-.7)],l:`${it("P")} = ${p.P} ${FU(p)}`,an:"start"});
+    const xc=(p.a+p.L)/2;e.push({t:"txt",p:[xc,3.1],l:`${cpl(p.C)}${Math.abs(p.C)} ${MU(p)}`},{t:"ln",a:[xc,.15],b:[xc,2.8],c:"x",w:.8,d:1},{t:"pt",p:[xc,0],r:3.2});
+    e.push(...dimsBelow(p.L,[p.a,p.L],-2.3,p,-.2));
     return draw(e,600,360)},
   solution:(p,s)=>`<h3>1. Equivalent force of the triangular load</h3>
   <p>${eq(`F<sub>w</sub> = ½ w<sub>0</sub> a = ½(${p.w0})(${p.a}) = ${sig(s.Fw)} ${FU(p)}`)}, acting at the centroid of the triangle, ${p.a}/3 = ${sig(p.a/3)} ${LU(p)} from the wall.</p>
@@ -264,7 +266,7 @@ TEMPLATES["beam-cable"]={
   name:"Weighted beam pinned at a wall and held by a cable",
   generate(seed){const r=mulberry32(seed);
     for(let k=0;k<5000;k++){
-      const L=ri(r,4,10),p={us:r()<.5,L,Wb:pick(r,range(100,500,50)),P:pick(r,range(100,600,50)),a:ri(r,1,L),th:pick(r,range(30,70,5))};
+      const L=ri(r,7,10),p={us:r()<.5,L,Wb:pick(r,range(100,500,50)),P:pick(r,range(100,600,50)),a:ri(r,4,L-3),th:pick(r,range(30,55,5))};
       const T=(p.Wb*L/2+p.P*p.a)/(L*sn(p.th)),Ax=T*cs(p.th),Ay=p.Wb+p.P-T*sn(p.th);
       if(Math.abs(Ay)<.05*(p.Wb+p.P)) continue;
       return {p,s:{T,Ax,Ay,A:Math.hypot(Ax,Ay)}};}
@@ -272,9 +274,9 @@ TEMPLATES["beam-cable"]={
   statement:p=>`<p>A uniform horizontal beam of length ${p.L} ${LU(p)} and weight <i>W</i> = ${p.Wb} ${FU(p)} is pinned to a wall at <i>A</i>. A cable attached at the free end <i>B</i> runs up to the wall at an angle <i>θ</i> = ${p.th}° above the beam. A load <i>P</i> = ${p.P} ${FU(p)} hangs from the beam at ${p.a} ${LU(p)} from <i>A</i>. Determine the cable tension and the pin reaction components <i>A<sub>x</sub></i> (right positive) and <i>A<sub>y</sub></i> (up positive).</p>`,
   figure:p=>{const k=Math.max(.35,p.L/12),H=p.L*Math.tan(rad(p.th)),e=[{t:"hatch",a:[0,-1],b:[0,H+.8],side:-1},{a:[0,0],b:[p.L,0],c:"m",t:"ln",w:5},{a:[p.L,0],b:[0,H],c:"k",t:"ln",w:1.8},
       {t:"pt",p:[0,0],l:it("A"),dx:10,dy:18,r:4},{t:"pt",p:[p.L,0],l:it("B"),dx:6,dy:18,r:4},{t:"pt",p:[0,H],r:3.5},
-      {a:[p.a,1.5],b:[p.a,.15],c:"r"},{t:"txt",p:[p.a,1.85],l:`${it("P")} = ${p.P} ${FU(p)}`},{a:[p.L/2,-.12],b:[p.L/2,-1.4],c:"r",w:2},{t:"txt",p:[p.L/2+.3,-1.75],l:`${it("W")} = ${p.Wb} ${FU(p)}`,an:"start"},
+      {a:[p.a,1.3],b:[p.a,.15],c:"r"},{t:"txt",p:[p.a-.2,.75],l:`${it("P")} = ${p.P} ${FU(p)}`,an:"end"},{a:[p.L/2,-.12],b:[p.L/2,-1.4],c:"r",w:2},{t:"txt",p:[p.L/2+.3,-1.2],l:`${it("W")} = ${p.Wb} ${FU(p)}`,an:"start"},
       {t:"arc",p:[p.L,0],r:1.3,t0:180-p.th,t1:180,l:ang(p.th)},{t:"dim",a:[0,-2.8],b:[p.L,-2.8],l:`${p.L} ${LU(p)}`,flip:1}];
-    return draw(e,600,380)},
+    return draw(e,600,440)},
   solution:(p,s)=>`<h3>1. Moments about A</h3>
   <p>The weight acts at the midpoint of the beam. The vertical component of the tension, <i>T</i> sin ${ang(p.th)}, acts at <i>B</i>; its horizontal component passes through <i>A</i>.</p>
   <p>${eq(`ΣM<sub>A</sub> = 0: T sin ${ang(p.th)} (${p.L}) &minus; ${p.Wb}(${p.L/2}) &minus; ${p.P}(${p.a}) = 0`)} so ${eq(`T = ${sig(s.T)} ${FU(p)}`)}</p>
