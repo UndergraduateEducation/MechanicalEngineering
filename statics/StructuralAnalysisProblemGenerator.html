@@ -119,6 +119,7 @@ function draw(els,W=560,H=340){
       if(e.l)o+=`<text x="${f1(px+(e.dx??8))}" y="${f1(py+(e.dy??-8))}" text-anchor="${e.an||"start"}" class="halo">${e.l}</text>`;return}
     if(e.t==="txt"){o+=`<text x="${f1(X(e.p))}" y="${f1(Y(e.p))}" text-anchor="${e.an||"middle"}" class="halo">${e.l}</text>`;return}
     if(e.t==="poly"){o+=`<polygon points="${e.pts.map(q=>f1(X(q))+","+f1(Y(q))).join(" ")}" fill="${e.fill||"#eec878"}" stroke="#7d5014" stroke-width="1.6"/>`;return}
+    if(e.t==="roll"){const px=X(e.p),py=Y(e.p),cy=py+12,gy=py+19;o+=`<circle cx="${f1(px)}" cy="${f1(cy)}" r="7" fill="#fff" stroke="#222" stroke-width="1.8"/><circle cx="${f1(px)}" cy="${f1(cy)}" r="2.5" fill="#222"/><line x1="${f1(px-30)}" y1="${f1(gy)}" x2="${f1(px+30)}" y2="${f1(gy)}" stroke="#222" stroke-width="2.2"/>`;for(let d=-28;d<30;d+=9)o+=`<line x1="${f1(px+d)}" y1="${f1(gy)}" x2="${f1(px+d-7)}" y2="${f1(gy+9)}" stroke="#555" stroke-width="1"/>`;return}
     if(e.t==="pulley"){const px=X(e.p),py=Y(e.p);o+=`<circle cx="${f1(px)}" cy="${f1(py)}" r="${e.r||12}" fill="#fff" stroke="#222" stroke-width="1.8"/><circle cx="${f1(px)}" cy="${f1(py)}" r="2.5" fill="#222"/>`;return}
     if(e.t==="arc"){const n=[];for(let t=e.t0;t<=e.t1+1e-6;t+=2)n.push(f1(X([e.p[0]+e.r*cs(t),0]))+","+f1(Y([0,e.p[1]+e.r*sn(t)])));
       o+=`<polyline points="${n.join(" ")}" fill="none" stroke="#222" stroke-width="1.1"/>`;
@@ -157,7 +158,7 @@ const sbt=(a,b)=>`<tspan font-style="italic">${a}</tspan><tspan baseline-shift="
 const TC=v=>Math.abs(v)<1e-9?"zero force":v>0?"tension":"compression";
 const TEMPLATES={};
 const pinS=(x,y,k)=>[{t:"poly",pts:[[x,y],[x-.45*k,y-.8*k],[x+.45*k,y-.8*k]]},{t:"hatch",a:[x-.8*k,y-.8*k],b:[x+.8*k,y-.8*k],side:1}];
-const rollS=(x,y,k)=>[{t:"pulley",p:[x,y-.3*k],r:7},{t:"hatch",a:[x-.8*k,y-.62*k],b:[x+.8*k,y-.62*k],side:1}];
+const rollS=(x,y,k)=>[{t:"roll",p:[x,y]}];
 function trussEls(N,M,s){const e=[];
   M.forEach(([a,b])=>e.push({a:N[a],b:N[b],c:"m",t:"ln",w:4}));
   const xs=Object.values(N).map(q=>q[0]),x0=Math.min(...xs),x1=Math.max(...xs);
