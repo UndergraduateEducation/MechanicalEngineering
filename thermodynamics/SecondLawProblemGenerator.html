@@ -349,8 +349,8 @@ TEMPLATES["heat-pump-house"]={
 // 4. cycle and the Clausius inequality
 TEMPLATES["cycle-entropy-check"]={
   name:"Classifying a cycle as reversible, irreversible, or impossible",
-  generate(seed){const r=mulberry32(seed),p={Th:pick(r,[500,600,800,1000]),Tc:pick(r,[300,350,400]),Qh:pick(r,[100,200,300,500])};
-    const mode=pick(r,["rev","irr","imp"]),Qrev=p.Qh*p.Tc/p.Th,f=mode==="rev"?1:mode==="irr"?pick(r,[1.15,1.3,1.5]):pick(r,[.6,.75,.9]);p.Qc=+(Qrev*f).toPrecision(3);
+  generate(seed){const r=mulberry32(seed),p={Th:pick(r,[500,600,800,1000]),Tc:pick(r,[300,350,400]),Qh:pick(r,[100,200,300,500])};if(p.Th===500&&p.Tc===400)p.Tc=350;
+    const mode=pick(r,["rev","irr","imp"]),Qrev=p.Qh*p.Tc/p.Th,f=mode==="rev"?1:mode==="irr"?pick(r,[1.1,1.2,1.3]):pick(r,[.6,.75,.9]);p.Qc=+(Qrev*f).toPrecision(3);
     const sg=p.Qc/p.Tc-p.Qh/p.Th;return {p,s:{W:p.Qh-p.Qc,sg,cls:Math.abs(sg)<1e-3*p.Qh/p.Th?"Reversible":sg>0?"Irreversible":"Impossible"}}},
   statement:p=>`<p>A power cycle receives ${p.Qh} kW by heat transfer from a reservoir at ${p.Th} K and rejects ${p.Qc} kW by heat transfer to a reservoir at ${p.Tc} K. There are no other heat transfers. Determine the net power developed, in kW, and the rate of entropy production of the cycle, in kW/K, and classify the cycle as reversible, irreversible, or impossible.</p>`,
   figure:p=>hetFig("engine",`${p.Th} K`,`${p.Tc} K`,sbt("Q","H")+` = ${p.Qh} kW`,sbt("Q","C")+` = ${p.Qc} kW`,sbt("W","cycle")),

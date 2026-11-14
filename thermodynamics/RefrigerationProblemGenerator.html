@@ -381,8 +381,9 @@ TEMPLATES["vcr-pressures"]={
 // reversed Brayton
 TEMPLATES["gas-refrigeration"]={
   name:"Ideal gas refrigeration cycle (reversed Brayton)",
-  generate(seed){const r=mulberry32(seed),p={T1:pick(r,[250,260,270,280]),T3:pick(r,[290,300,310,320]),rp:pick(r,[2,3,4,5]),Qc:pick(r,[5,10,20,50])};
-    const h1=AIR.h(p.T1),T2=AIR.TofPr(AIR.Pr(p.T1)*p.rp),h2=AIR.h(T2),h3=AIR.h(p.T3),T4=AIR.TofPr(AIR.Pr(p.T3)/p.rp),h4=AIR.h(T4),qL=h1-h4,wc=h2-h1,wt=h3-h4,wn=wc-wt,cop=qL/wn,m=p.Qc/qL;return {p,s:{T2,T4,qL,wc,wt,wn,cop,m,W:m*wn}}},
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<999;k++){const p={T1:pick(r,[250,260,270,280]),T3:pick(r,[290,300,310,320]),rp:pick(r,[2,3,4,5]),Qc:pick(r,[5,10,20,50])};
+    const h1=AIR.h(p.T1),T2=AIR.TofPr(AIR.Pr(p.T1)*p.rp),h2=AIR.h(T2),h3=AIR.h(p.T3),T4=AIR.TofPr(AIR.Pr(p.T3)/p.rp),h4=AIR.h(T4);if(T4>p.T1-15)continue;const qL=h1-h4,wc=h2-h1,wt=h3-h4,wn=wc-wt,cop=qL/wn,m=p.Qc/qL;return {p,s:{T2,T4,qL,wc,wt,wn,cop,m,W:m*wn}}}},
   statement:p=>`<p>Air enters the compressor of an ideal gas refrigeration cycle at ${p.T1} K and 100 kPa. The compressor pressure ratio is ${p.rp}. Air enters the turbine at ${p.T3} K after being cooled at constant pressure. Use variable specific heats for the air. The refrigerating capacity is ${p.Qc} kW. Determine the minimum temperature in the cycle, in K, the coefficient of performance, the mass flow rate of air, in kg/s, and the net power input, in kW.</p>`,
   figure:(p,s)=>{const iso=pp=>{const a=[];for(let T=200;T<=400;T+=10)a.push([AIR.s0(T)-Rr*lnr(pp/100),T]);return a};const S=(T,pp)=>AIR.s0(T)-Rr*lnr(pp/100);return plot2({xl:"s (kJ/kg·K)",yl:"T (K)",curves:[{pts:iso(100),col:"#2b5d8a",d:true},{pts:iso(100*p.rp),col:"#2b5d8a",d:true}],points:[{p:[S(p.T1,100),p.T1],l:"1",dx:8,dy:-6},{p:[S(s.T2,100*p.rp),s.T2],l:"2",dx:-14,dy:-6},{p:[S(p.T3,100*p.rp),p.T3],l:"3",dx:-14,dy:-6},{p:[S(s.T4,100),s.T4],l:"4",dx:8,dy:12}],H:290})},
   solution:(p,s)=>`<h3>1. States</h3><p>${eq(`P<sub>r2</sub> = P<sub>r1</sub>(${p.rp}) = ${sig(AIR.Pr(p.T1)*p.rp)}`)} gives <i>T</i><sub>2</sub> = ${sig(s.T2)} K. ${eq(`P<sub>r4</sub> = P<sub>r3</sub>/${p.rp} = ${sig(AIR.Pr(p.T3)/p.rp)}`)} gives <i>T</i><sub>4</sub> = ${sig(s.T4)} K, the minimum temperature of the cycle.</p>

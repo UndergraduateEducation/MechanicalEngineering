@@ -335,8 +335,8 @@ TEMPLATES["dry-analysis"]={
 
 TEMPLATES["products-dew-point"]={
   name:"Dew point of combustion products",
-  generate(seed){const r=mulberry32(seed),k=pickF(r),lam=pick(r,[1,1.2,1.5,2,3]),P=prod(k,lam),pt=pick(r,[100,101.3,150,200]),y=P.H2O/ntot(P),pv=y*pt,Td=W.Tsat(pv),ydry=P.H2O/(ntot(P)-P.H2O),mc=(ntot(P)-P.H2O);
-    const Tp=pick(r,[25,35]),pvs2=W.psat(Tp),nw=Math.max(0,P.H2O-(ntot(P)-P.H2O)*pvs2/(pt-pvs2)),cond=nw*18.015/FU[k].M;return {p:{k,lam,pt,Tp},s:{P,y,pv,Td,nw,cond}}},
+  generate(seed){const r=mulberry32(seed);for(let q=0;q<999;q++){const k=pickF(r),lam=pick(r,[1,1.2,1.5,2,3]),P=prod(k,lam),pt=pick(r,[100,101.3,150,200]),y=P.H2O/ntot(P),pv=y*pt,Td=W.Tsat(pv),ydry=P.H2O/(ntot(P)-P.H2O),mc=(ntot(P)-P.H2O);
+    const Tp=pick(r,[25,35]),pvs2=W.psat(Tp),nw=Math.max(0,P.H2O-(ntot(P)-P.H2O)*pvs2/(pt-pvs2)),cond=nw*18.015/FU[k].M;if(Td<Tp+5)continue;return {p:{k,lam,pt,Tp},s:{P,y,pv,Td,nw,cond}}}},
   statement:p=>`<p>${FU[p.k].n[0].toUpperCase()+FU[p.k].n.slice(1)} (${fnm(p.k)}) burns completely with ${p.lam===1?"the theoretical amount of air":pctx(p.lam)+"% excess air"}. The products of combustion are at a total pressure of ${p.pt} kPa. Determine the dew-point temperature of the products, in °C. If the products are then cooled to ${p.Tp} °C at this pressure, determine the mass of water condensed per kg of fuel, in kg/kg.</p>`,
   figure:p=>burnFig(p.k,p.lam,25),
   solution:(p,s)=>`<h3>1. Products</h3><p>${eq(`${prodTxt(s.P)}`)} so ${eq(`y<sub>H₂O</sub> = ${sig(s.y,4)}`)}</p>

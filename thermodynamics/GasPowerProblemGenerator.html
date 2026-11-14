@@ -320,7 +320,7 @@ TEMPLATES["otto-cycle"]={
 
 // 2. Otto from efficiency
 TEMPLATES["otto-from-eta"]={
-  name:"Otto cycle compression ratio from efficiency",
+  name:"Otto cycle efficiency, maximum temperature and engine power",
   generate(seed){const r=mulberry32(seed),p={r:pick(r,[6,7,8,9,10,12]),T1:pick(r,[290,300]),p1:100,qin:pick(r,[800,1000,1200,1500]),m:pick(r,[0.0005,0.001,0.002]),N:pick(r,[2000,3000,4000])};
     const k=1.4,eta=1-p.r**(1-k),wnet=eta*p.qin,Wdot=p.m*wnet*p.N/120;const T2=p.T1*p.r**.4,T3=T2+p.qin/.718;return {p,s:{eta,wnet,Wdot,T3,T2}}},
   statement:p=>`<p>An air-standard Otto cycle has a compression ratio of ${p.r} and takes in air at ${p.p1} kPa and ${p.T1} K. The heat addition per unit mass of air is ${p.qin} kJ/kg. Use <i>k</i> = 1.4 and <i>c<sub>v</sub></i> = 0.718 kJ/kg·K. The engine is a four-stroke engine that completes a cycle every two revolutions, turns at ${p.N} rpm, and processes ${p.m*1000} g of air per cycle. Determine the thermal efficiency, the net work per cycle per unit mass, in kJ/kg, the maximum cycle temperature, in K, and the net power, in kW.</p>`,

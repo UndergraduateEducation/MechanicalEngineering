@@ -405,7 +405,7 @@ TEMPLATES["hx-entropy"]={
 TEMPLATES["wall-entropy"]={
   name:"Entropy production for conduction through a wall",
   generate(seed){const r=mulberry32(seed),p={Q:pick(r,[500,1000,2000,5000]),Th:pick(r,[400,500,600,800]),Tc:pick(r,[300,320,350]),Ths:0,Tcs:0};
-    p.Ths=p.Th-pick(r,[20,50,80]);p.Tcs=p.Tc+pick(r,[10,20,30]);const wall=p.Q*(1/p.Tcs-1/p.Ths),total=p.Q*(1/p.Tc-1/p.Th);return {p,s:{wall,total,gap:total-wall}}},
+    const g=p.Th-p.Tc;p.Ths=p.Th-Math.round(g*pick(r,[.1,.2,.3]));p.Tcs=p.Tc+Math.round(g*pick(r,[.05,.1,.15]));const wall=p.Q*(1/p.Tcs-1/p.Ths),total=p.Q*(1/p.Tc-1/p.Th);return {p,s:{wall,total,gap:total-wall}}},
   statement:p=>`<p>Energy transfers by heat at a steady rate of ${p.Q} W from a gas at ${p.Th} K through a wall to air at ${p.Tc} K. The surface of the wall in contact with the gas is at ${p.Ths} K and the other surface is at ${p.Tcs} K. Determine the rate of entropy production, in W/K, (a) within the wall, and (b) for the whole system from the gas to the air, including the gas-wall and wall-air regions.</p>`,
   figure:p=>draw([{t:"rect",a:[0,0],b:[1,2.4],fill:"#cfd4da",l:""},{t:"txt",p:[-.2,1.2],l:`gas ${p.Th} K`,an:"end"},{t:"txt",p:[1.2,1.2],l:`air ${p.Tc} K`,an:"start"},{t:"txt",p:[.5,2.8],l:`${p.Ths} K  |  ${p.Tcs} K`},{a:[-1.8,.5],b:[0,.5],c:"r",l:"",off:0},{t:"txt",p:[-.9,.1],l:`Q = ${p.Q} W`}],560,260),
   solution:(p,s)=>`<h3>1. Within the wall</h3><p>At steady state, the entropy of the wall does not change, so ${eq(`σ̇<sub>wall</sub> = Q̇/T<sub>cold side</sub> &minus; Q̇/T<sub>hot side</sub> = ${p.Q}/${p.Tcs} &minus; ${p.Q}/${p.Ths} = ${sig(s.wall)} W/K`)}</p>
