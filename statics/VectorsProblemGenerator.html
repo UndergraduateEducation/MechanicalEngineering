@@ -69,6 +69,7 @@
     <div class="bar" style="margin-top:12px">
       <button id="checkBtn">Check answers</button>
       <button class="ghost" id="solBtn">Show solution</button>
+      <button class="ghost" id="reportBtn" style="display:none">Report an error</button>
       <span class="note" id="ansNote"></span>
     </div>
   </div>
@@ -435,6 +436,16 @@ TEMPLATES["triple-product"]={
   note:"The triple product carries its sign."
 };
 
+// ===== error report form (Google Form with prefilled fields)
+// Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
+const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){
+  const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
+  q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
+  return FORM.url+"?"+q.toString();
+}
+
 // ===== page
 let curKey="resultant-2d", cur=null, curFields=[];
 const $=id=>document.getElementById(id);
@@ -476,6 +487,8 @@ if(typeof document!=="undefined"){
   $("newBtn").onclick=()=>render(curKey,newSeed());
   $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
   $("checkBtn").onclick=check;
+  if(FORM.url)$("reportBtn").style.display="";
+  $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
   $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
     s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
   (function(){
