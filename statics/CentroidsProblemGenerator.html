@@ -131,7 +131,7 @@ function draw(els,W=560,H=340){
       for(let i=0;i<n;i++){const d=a+cl*(i+.5)/n,sg=i%2?-1:1;P.push([ax+ux*d+nx*8*sg,ay+uy*d+ny*8*sg])}
       P.push([bx-ux*a,by-uy*a],[bx,by]);o+=`<polyline points="${P.map(q=>f1(q[0])+","+f1(q[1])).join(" ")}" fill="none" stroke="#464b55" stroke-width="2"/>`;return}
     if(e.t==="dim"){o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="#222" stroke-width="0.9" marker-start="url(#vxd)" marker-end="url(#vxd)"/>`;
-      if(e.l){let nx=-dy/L,ny=dx/L;if(e.flip){nx=-nx;ny=-ny}o+=`<text x="${f1((ax+bx)/2+nx*13)}" y="${f1((ay+by)/2+ny*13+5)}" text-anchor="middle" class="halo">${e.l}</text>`}return}
+      if(e.l){let nx=-dy/L,ny=dx/L;if(e.flip){nx=-nx;ny=-ny}const vt=Math.abs(nx)>.7;o+=`<text x="${f1((ax+bx)/2+nx*(vt?9:13))}" y="${f1((ay+by)/2+ny*(vt?0:13)+5)}" text-anchor="${vt?(nx>0?"start":"end"):"middle"}" class="halo">${e.l}</text>`}return}
     const head=e.t==="ln"?"":` marker-end="url(#vx${c})"`;
     o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="${COL[c]}" stroke-width="${e.w||(c==="r"||c==="b"||c==="g"?2.6:1.4)}" ${e.d?'stroke-dasharray="5 4"':""}${head}/>`;
     if(e.l&&e.mid){const mxp=(ax+bx)/2,myp=(ay+by)/2;let nx=-dy/L,ny=dx/L;if(ny>0){nx=-nx;ny=-ny}
@@ -303,8 +303,9 @@ TEMPLATES["fluid-gate"]={
   figure:p=>{const e=[{a:[0,-p.d2-.8],b:[0,0.5],t:"ln",c:"k",w:1.2},{a:[0,-p.d1],b:[0,-p.d2],c:"m",t:"ln",w:7},{a:[-5,0],b:[0,0],t:"ln",c:"b",w:1.8},{t:"txt",p:[-2.5,.45],l:"water surface"}];
     const gs=3.4/(p.g===62.4?62.4*p.d2:9810*p.d2);
     for(let i=0;i<=4;i++){const d=p.d1+(p.d2-p.d1)*i/4,L=p.g*d*gs;if(L>.1)e.push({a:[-L,-d],b:[-.1,-d],c:"b",w:1.8})}
-    e.push({a:[-Math.max(.05,p.g*p.d1*gs),-p.d1],b:[-p.g*p.d2*gs,-p.d2],t:"ln",c:"b",d:1,w:1},{t:"dim",a:[1,0],b:[1,-p.d1],l:p.d1>0?`${p.d1} ${LU(p)}`:""},{t:"dim",a:[1.9,0],b:[1.9,-p.d2],l:`${p.d2} ${LU(p)}`},{t:"txt",p:[-.4,-p.d2-1.2],l:`${it("b")} = ${p.b} ${LU(p)} (into the page)`,an:"start"});
-    if(p.d1===0)e.pop(),e.pop(),e.push({t:"dim",a:[1.9,0],b:[1.9,-p.d2],l:`${p.d2} ${LU(p)}`},{t:"txt",p:[-.4,-p.d2-1.2],l:`${it("b")} = ${p.b} ${LU(p)}`,an:"start"});
+    e.push({a:[-Math.max(.05,p.g*p.d1*gs),-p.d1],b:[-p.g*p.d2*gs,-p.d2],t:"ln",c:"b",d:1,w:1});
+    if(p.d1>0)e.push({t:"dim",a:[1,0],b:[1,-p.d1],l:`${sbt("d",1)} = ${p.d1} ${LU(p)}`,flip:1});
+    e.push({t:"dim",a:[p.d1>0?4.4:1,0],b:[p.d1>0?4.4:1,-p.d2],l:`${sbt("d",2)} = ${p.d2} ${LU(p)}`,flip:1},{t:"txt",p:[-2,-p.d2-1.2],l:`${it("b")} = ${p.b} ${LU(p)} (into the page)`});
     return draw(e,620,380)},
   solution:(p,s)=>`<h3>1. Pressure distribution</h3>
   <p>The gauge pressure at depth <i>y</i> is <i>p</i> = <i>γy</i>, and the load per unit height of the gate is <i>γby</i>. The resultant is the area under this trapezoidal (or triangular) load diagram.</p>
