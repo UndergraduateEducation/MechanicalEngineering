@@ -119,7 +119,8 @@ function draw(els,W=560,H=340){
       if(e.l)o+=`<text x="${f1(px+(e.dx??8))}" y="${f1(py+(e.dy??-8))}" text-anchor="${e.an||"start"}" class="halo">${e.l}</text>`;return}
     if(e.t==="txt"){o+=`<text x="${f1(X(e.p))}" y="${f1(Y(e.p))}" text-anchor="${e.an||"middle"}" class="halo">${e.l}</text>`;return}
     if(e.t==="poly"){o+=`<polygon points="${e.pts.map(q=>f1(X(q))+","+f1(Y(q))).join(" ")}" fill="${e.fill||"#eec878"}" stroke="#7d5014" stroke-width="1.6"/>`;return}
-    if(e.t==="pulley"){const px=X(e.p),py=Y(e.p);o+=`<circle cx="${f1(px)}" cy="${f1(py)}" r="${e.r||12}" fill="#fff" stroke="#222" stroke-width="1.8"/><circle cx="${f1(px)}" cy="${f1(py)}" r="2.5" fill="#222"/>`;return}
+    if(e.t==="pulley"){const px=X(e.p),py=Y(e.p),R=e.r||12;o+=`<circle cx="${f1(px)}" cy="${f1(py)}" r="${R}" fill="#fff" stroke="#222" stroke-width="1.8"/><circle cx="${f1(px)}" cy="${f1(py)}" r="2.5" fill="#222"/>`;
+      if(e.rope){const rx=px+R,ry=Y([e.p[0],e.p[1]-e.rope]);o+=`<line x1="${f1(rx)}" y1="${f1(py)}" x2="${f1(rx)}" y2="${f1(ry)}" stroke="${COL.m}" stroke-width="2.4"/><rect x="${f1(rx-19)}" y="${f1(ry)}" width="38" height="26" fill="#eec878" stroke="#7d5014" stroke-width="1.6"/><text x="${f1(rx+28)}" y="${f1(ry+19)}" text-anchor="start" class="halo">${e.l}</text>`}return}
     if(e.t==="arc"){const n=[];for(let t=e.t0;t<=e.t1+1e-6;t+=2)n.push(f1(X([e.p[0]+e.r*cs(t),0]))+","+f1(Y([0,e.p[1]+e.r*sn(t)])));
       o+=`<polyline points="${n.join(" ")}" fill="none" stroke="#222" stroke-width="1.1"/>`;
       if(e.l){const m=(e.t0+e.t1)/2,rr=e.r+(e.lr||0)/s;o+=`<text x="${f1(X([e.p[0]+rr*cs(m),0])+(cs(m)>=0?6:-6))}" y="${f1(Y([0,e.p[1]+rr*sn(m)])+5)}" text-anchor="${cs(m)>=0?"start":"end"}" font-size="14" class="halo">${e.l}</text>`}return}
@@ -222,10 +223,7 @@ TEMPLATES["pulley-ring"]={
   statement:p=>`<p>Ring <i>C</i> is held in equilibrium by cable <i>CD</i>, a weight <i>W</i><sub>2</sub> that hangs from the ring, and a cable that runs from the ring over a frictionless pulley at <i>P</i> to a block of weight <i>W</i><sub>1</sub> = ${p.W1} ${FU(p)}. Segment <i>CP</i> makes an angle <i>φ</i> = ${p.phi}° with the horizontal, and cable <i>CD</i> makes an angle <i>θ</i> = ${p.theta}° with the horizontal. Neglect the weights of the cables, ring, and pulley. Determine the tension in cable <i>CD</i>, the weight <i>W</i><sub>2</sub>, and the magnitude of the force that the cable exerts on the pulley.</p>`,
   figure:p=>{const D=[-4,4*Math.tan(rad(p.theta))],Pp=[4.5,4.5*Math.tan(rad(p.phi))],Bk=[Pp[0]+.9,Pp[1]-2.4];
     return draw([{t:"hatch",a:[-4,-.4],b:[-4,D[1]+.8],side:-1},{a:[0,0],b:D,c:"m",t:"ln",w:2.4},{a:[0,0],b:Pp,c:"m",t:"ln",w:2.4},
-      {a:[Pp[0]+.35,Pp[1]-.05],b:[Pp[0]+.35,Bk[1]+.25],c:"m",t:"ln",w:2.4},
-      {a:Pp,b:[Pp[0]+.5,Pp[1]+.9],t:"ln",c:"x",w:1.6},{t:"pulley",p:Pp},
-      {t:"poly",pts:[[Bk[0]-.2,Bk[1]+.25],[Bk[0]+.9,Bk[1]+.25],[Bk[0]+.9,Bk[1]-.5],[Bk[0]-.2,Bk[1]-.5]]},
-      {t:"txt",p:[Bk[0]+1.15,Bk[1]-.1],l:sb("W",1)+" = "+p.W1+" "+FU(p),an:"start"},
+      {a:Pp,b:[Pp[0]+.5,Pp[1]+.9],t:"ln",c:"x",w:1.6},{t:"pulley",p:Pp,rope:2.4,l:sb("W",1)+" = "+p.W1+" "+FU(p)},{t:"txt",p:[Pp[0]+3.6,Pp[1]-2.4],l:""},
       {t:"pt",p:[0,0],l:it("C"),dx:8,dy:16,r:4.5},{t:"pt",p:D,l:it("D"),dx:8,dy:-6},{t:"pt",p:Pp,l:it("P"),dx:-14,dy:-18,r:1},
       {a:[0,0],b:[0,-1.8],c:"r",l:sb("W",2),off:10},
       {t:"arc",p:[0,0],r:.9,t0:180-p.theta,t1:180,l:ang(p.theta)},{t:"arc",p:[0,0],r:1.1,t0:0,t1:p.phi,l:ang(p.phi)},
@@ -263,7 +261,7 @@ TEMPLATES["smooth-incline"]={
       {a:cen,b:[cen[0]+2.6*td[0],cen[1]+2.6*td[1]],c:"b",l:it("T"),off:8},
       {a:cen,b:[cen[0],cen[1]-1.2],c:"r"},{t:"txt",p:[cen[0]+.3,cen[1]-1.2],l:it("W"),an:"start"},
       {a:cen,b:[cen[0]+1.7*n[0],cen[1]+1.7*n[1]],c:"g",l:it("N"),off:8},
-      {t:"arc",p:[L*u[0],0],r:1.1,t0:180-t,t1:180,l:ang(t),lr:6},
+      {t:"arc",p:[0,0],r:1.25,t0:0,t1:t,l:ang(t),lr:6},
       {t:"arc",p:cen,r:1.0,t0:t,t1:t+p.al,l:ang(p.al),lr:4},
       {a:cen,b:[cen[0]+1.3*u[0],cen[1]+1.3*u[1]],t:"ln",c:"x",d:1,w:1}])},
   solution:(p,s)=>`<h3>1. Free body diagram</h3>
