@@ -208,6 +208,14 @@ TEMPLATES["moment-two-points"]={
       {t:"dim",a:[0,-1.1],b:[p.a,-1.1],l:`${p.a} ${LU(p)}`,flip:1},{t:"dim",a:[0,-2],b:[p.c,-2],l:`${p.c} ${LU(p)}`,flip:1},
       {t:"ln",a:[p.a+.15,p.b],b:[xd+.1,p.b],c:"x",d:1,w:.8},{t:"ln",a:[p.c+.15,0],b:[xd+.1,0],c:"x",d:1,w:.8},
       {t:"dim",a:[xd,0],b:[xd,p.b],l:`${p.b} ${LU(p)}`,flip:1}],560,340)},
+  solution:(p,s)=>`<h3>1. Components of the force</h3>
+  <p>${eq(`F<sub>x</sub> = ${sig(s.Fx)} ${FU(p)}`)} ${eq(`F<sub>y</sub> = ${sig(s.Fy)} ${FU(p)}`)}</p>
+  <h3>2. Moment about A</h3>
+  <p>The position vector from <i>A</i> to <i>P</i> is (${p.a}, ${p.b}) ${LU(p)}, so ${eq(`M<sub>A</sub> = ${p.a}F<sub>y</sub> &minus; ${p.b}F<sub>x</sub> = ${sig(s.MA)} ${MU(p)}`)}</p>
+  <h3>3. Moment about B</h3>
+  <p>The position vector from <i>B</i> to <i>P</i> is (${p.a-p.c}, ${p.b}) ${LU(p)}, so ${eq(`M<sub>B</sub> = (${p.a-p.c})F<sub>y</sub> &minus; ${p.b}F<sub>x</sub> = ${sig(s.MB)} ${MU(p)}`)}</p>
+  <p class="final">M<sub>A</sub> = ${sig(s.MA,3)} ${MU(p)}, M<sub>B</sub> = ${sig(s.MB,3)} ${MU(p)}.</p>
+  <p class="note">The difference M<sub>B</sub> &minus; M<sub>A</sub> = &minus;${p.c}F<sub>y</sub> is the moment of the force about <i>B</i> that arises from moving the reference point along the <i>x</i> axis.</p>`,
   fields:p=>[{id:"MA",label:"Moment about A",unit:MU(p),signed:true},{id:"MB",label:"Moment about B",unit:MU(p),signed:true}],
   truth:s=>({MA:s.MA,MB:s.MB}),
   note:"Use counterclockwise as the positive sense of moment."

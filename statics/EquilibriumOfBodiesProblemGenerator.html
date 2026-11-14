@@ -53,7 +53,7 @@
 <main>
   <div class="card howto">
     <h2>How to use</h2>
-    <p>Pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
+    <p>Pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
     <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
   </div>
   <div class="card bar">
@@ -120,6 +120,12 @@ function draw(els,W=560,H=340){
     if(e.t==="txt"){o+=`<text x="${f1(X(e.p))}" y="${f1(Y(e.p))}" text-anchor="${e.an||"middle"}" class="halo">${e.l}</text>`;return}
     if(e.t==="poly"){o+=`<polygon points="${e.pts.map(q=>f1(X(q))+","+f1(Y(q))).join(" ")}" fill="${e.fill||"#eec878"}" stroke="#7d5014" stroke-width="1.6"/>`;return}
     if(e.t==="pulley"){const px=X(e.p),py=Y(e.p);o+=`<circle cx="${f1(px)}" cy="${f1(py)}" r="${e.r||12}" fill="#fff" stroke="#222" stroke-width="1.8"/><circle cx="${f1(px)}" cy="${f1(py)}" r="2.5" fill="#222"/>`;return}
+    if(e.t==="carc"){const px=X(e.p),py=Y(e.p),R=e.r||20,dn=e.below?1:-1,fw=e.below?!e.ccw:e.ccw,n=[];
+      for(let t=0;t<=180;t+=5){const u=fw?t:180-t;n.push(f1(px+R*cs(u))+","+f1(py+dn*R*sn(u)))}
+      o+=`<polyline points="${n.join(" ")}" fill="none" stroke="${COL.r}" stroke-width="2.2" marker-end="url(#vxr)"/>`;
+      if(e.l)o+=e.lan==="start"?`<text x="${f1(px+R+5)}" y="${f1(py-R*.5)}" text-anchor="start" class="halo">${e.l}</text>`
+        :e.lan==="end"?`<text x="${f1(px-R-5)}" y="${f1(py-R*.5)}" text-anchor="end" class="halo">${e.l}</text>`
+        :`<text x="${f1(px)}" y="${f1(e.below?py+R+20:py-R-10)}" text-anchor="middle" class="halo">${e.l}</text>`;return}
     if(e.t==="arc"){const n=[];for(let t=e.t0;t<=e.t1+1e-6;t+=2)n.push(f1(X([e.p[0]+e.r*cs(t),0]))+","+f1(Y([0,e.p[1]+e.r*sn(t)])));
       o+=`<polyline points="${n.join(" ")}" fill="none" stroke="#222" stroke-width="1.1"/>`;
       if(e.l){const m=(e.t0+e.t1)/2,rr=e.r+(e.lr||0)/s;o+=`<text x="${f1(X([e.p[0]+rr*cs(m),0])+(cs(m)>=0?6:-6))}" y="${f1(Y([0,e.p[1]+rr*sn(m)])+5)}" text-anchor="${cs(m)>=0?"start":"end"}" font-size="14" class="halo">${e.l}</text>`}return}
@@ -155,6 +161,7 @@ const sg=v=>v>=0?"counterclockwise":"clockwise";
 const ri=(r,a,b)=>a+Math.floor(r()*(b-a+1));
 const sbt=(a,b)=>`<tspan font-style="italic">${a}</tspan><tspan baseline-shift="sub" font-size="12">${b}</tspan>`;
 const sgn=(v,s)=>(v<0?"&minus;":"+")+" "+s;
+const pm=v=>sgn(v,sig(Math.abs(v)));
 const TEMPLATES={};
 const gnd=(x,y,k)=>({t:"hatch",a:[x-.8*k,y],b:[x+.8*k,y],side:1});
 const pinS=(x,k)=>[{t:"poly",pts:[[x,0],[x-.45*k,-.8*k],[x+.45*k,-.8*k]]},gnd(x,-.8*k,k)];
@@ -180,7 +187,7 @@ TEMPLATES["beam-pin-roller"]={
   figure:p=>{const k=Math.max(.35,p.L/12),e=[...beamBase(p.L,k),...pinS(0,k),...rollS(p.L,k)];
     e.push({a:[p.a1,1.5],b:[p.a1,.15],c:"r"},{t:"txt",p:[p.a1,1.85],l:sbt("P",1)+" = "+p.P1+" "+FU(p),an:p.a1<p.a2?"end":"start"});
     const dx=cs(p.th),dy=sn(p.th);e.push({a:[p.a2-1.7*dx,-1.7*dy],b:[p.a2,0],c:"r"},{t:"txt",p:[p.a2-1.7*dx,-1.7*dy+(dy<0?.4:-.7)],l:sbt("P",2)+" = "+p.P2+" "+FU(p),an:p.a1<p.a2?"start":"end"});
-    e.push({t:"txt",p:[p.a3,3.1],l:`${cpl(p.C)}${Math.abs(p.C)} ${MU(p)}`},{t:"ln",a:[p.a3,.15],b:[p.a3,2.8],c:"x",w:.8,d:1},{t:"pt",p:[p.a3,0],r:3.2});
+    e.push({t:"carc",p:[p.a3,0],ccw:p.C>0,lan:p.a3<=1.5?"start":p.L-p.a3<=1.5?"end":undefined,l:`${Math.abs(p.C)} ${MU(p)}`},{t:"pt",p:[p.a3,0],r:3.2},{t:"txt",p:[p.a3,1.3],l:""});
     e.push(...dimsBelow(p.L,[p.a1,p.a2,p.a3,p.L],-2.4*k-1.2,p));
     return draw(e,600,380)},
   solution:(p,s)=>`<h3>1. Free body diagram</h3>
@@ -189,8 +196,8 @@ TEMPLATES["beam-pin-roller"]={
   <p>${eq(`ΣM<sub>A</sub> = 0: ${p.L}B<sub>y</sub> &minus; ${p.a1}(${p.P1}) + ${p.a2}(${sig(s.P2y)}) ${p.C<0?"&minus;":"+"} ${Math.abs(p.C)} = 0`)}</p>
   <p>${eq(`B<sub>y</sub> = ${sig(s.By)} ${FU(p)}`)}</p>
   <h3>3. Force equilibrium</h3>
-  <p>${eq(`ΣF<sub>x</sub> = 0: A<sub>x</sub> + ${sig(s.P2x)} = 0`)} so ${eq(`A<sub>x</sub> = ${sig(s.Ax)} ${FU(p)}`)}</p>
-  <p>${eq(`ΣF<sub>y</sub> = 0: A<sub>y</sub> + ${sig(s.By)} &minus; ${p.P1} + ${sig(s.P2y)} = 0`)} so ${eq(`A<sub>y</sub> = ${sig(s.Ay)} ${FU(p)}`)}</p>
+  <p>${eq(`ΣF<sub>x</sub> = 0: A<sub>x</sub> ${pm(s.P2x)} = 0`)} so ${eq(`A<sub>x</sub> = ${sig(s.Ax)} ${FU(p)}`)}</p>
+  <p>${eq(`ΣF<sub>y</sub> = 0: A<sub>y</sub> ${pm(s.By)} &minus; ${p.P1} ${pm(s.P2y)} = 0`)} so ${eq(`A<sub>y</sub> = ${sig(s.Ay)} ${FU(p)}`)}</p>
   <p class="final">A<sub>x</sub> = ${sig(s.Ax,3)}, A<sub>y</sub> = ${sig(s.Ay,3)}, B<sub>y</sub> = ${sig(s.By,3)} ${FU(p)}.</p>
   <p class="note">A couple contributes the same moment about every point, so it appears in the moment equation without an arm.</p>`,
   fields:p=>[{id:"Ax",label:"A<sub>x</sub> (right positive)",unit:FU(p),signed:true},{id:"Ay",label:"A<sub>y</sub> (up positive)",unit:FU(p),signed:true},{id:"By",label:"B<sub>y</sub> (up positive)",unit:FU(p),signed:true}],
@@ -244,7 +251,7 @@ TEMPLATES["cantilever-triangular"]={
     for(let x=0;x<p.a-.01;x+=Math.max(.5,p.a/4)){const h=1.3*(1-x/p.a);if(h>.25)e.push({a:[x,.15+h-.15],b:[x,.15],c:"r",w:1.6})}
     e.push({t:"txt",p:[.2,1.7],l:`${sbt("w",0)} = ${p.w0} ${WU(p)}`,an:"start"});
     e.push({a:[p.L-1.7*dx,-1.7*dy],b:[p.L,0],c:"r"},{t:"txt",p:[p.L-1.7*dx,-1.7*dy+(dy<0?.4:-.7)],l:`${it("P")} = ${p.P} ${FU(p)}`,an:"start"});
-    const xc=(p.a+p.L)/2;e.push({t:"txt",p:[xc,3.1],l:`${cpl(p.C)}${Math.abs(p.C)} ${MU(p)}`},{t:"ln",a:[xc,.15],b:[xc,2.8],c:"x",w:.8,d:1},{t:"pt",p:[xc,0],r:3.2});
+    const xc=(p.a+p.L)/2;e.push({t:"carc",p:[xc,0],ccw:p.C>0,below:1,l:`${Math.abs(p.C)} ${MU(p)}`},{t:"pt",p:[xc,0],r:3.2},{t:"txt",p:[xc,2.1],l:""});
     e.push(...dimsBelow(p.L,[p.a,p.L],-2.3,p,-.2));
     return draw(e,600,360)},
   solution:(p,s)=>`<h3>1. Equivalent force of the triangular load</h3>
@@ -252,8 +259,8 @@ TEMPLATES["cantilever-triangular"]={
   <h3>2. Components of P</h3>
   <p>${eq(`P<sub>x</sub> = ${sig(s.Px)} ${FU(p)}`)} ${eq(`P<sub>y</sub> = ${sig(s.Py)} ${FU(p)}`)}</p>
   <h3>3. Equilibrium</h3>
-  <p>${eq(`ΣF<sub>x</sub> = 0: A<sub>x</sub> + ${sig(s.Px)} = 0`)} so ${eq(`A<sub>x</sub> = ${sig(s.Ax)} ${FU(p)}`)}</p>
-  <p>${eq(`ΣF<sub>y</sub> = 0: A<sub>y</sub> &minus; ${sig(s.Fw)} + ${sig(s.Py)} = 0`)} so ${eq(`A<sub>y</sub> = ${sig(s.Ay)} ${FU(p)}`)}</p>
+  <p>${eq(`ΣF<sub>x</sub> = 0: A<sub>x</sub> ${pm(s.Px)} = 0`)} so ${eq(`A<sub>x</sub> = ${sig(s.Ax)} ${FU(p)}`)}</p>
+  <p>${eq(`ΣF<sub>y</sub> = 0: A<sub>y</sub> &minus; ${sig(s.Fw)} ${pm(s.Py)} = 0`)} so ${eq(`A<sub>y</sub> = ${sig(s.Ay)} ${FU(p)}`)}</p>
   <p>${eq(`ΣM<sub>A</sub> = 0: M<sub>A</sub> &minus; (${sig(s.Fw)})(${sig(p.a/3)}) + ${p.L}(${sig(s.Py)}) ${p.C<0?"&minus;":"+"} ${Math.abs(p.C)} = 0`)} so ${eq(`M<sub>A</sub> = ${sig(s.MA)} ${MU(p)}`)}</p>
   <p class="final">A<sub>x</sub> = ${sig(s.Ax,3)} ${FU(p)}, A<sub>y</sub> = ${sig(s.Ay,3)} ${FU(p)}, M<sub>A</sub> = ${sig(s.MA,3)} ${MU(p)} (${sg(s.MA)}).</p>`,
   fields:p=>[{id:"Ax",label:"A<sub>x</sub> (right positive)",unit:FU(p),signed:true},{id:"Ay",label:"A<sub>y</sub> (up positive)",unit:FU(p),signed:true},{id:"MA",label:"M<sub>A</sub> (counterclockwise positive)",unit:MU(p),signed:true}],
@@ -300,7 +307,8 @@ TEMPLATES["beam-incline-roller"]={
     throw new Error("no valid problem");},
   statement:p=>`<p>A uniform horizontal beam of length ${p.L} ${LU(p)} and weight <i>W</i> = ${p.W} ${FU(p)} is pinned at <i>A</i>. Its other end <i>B</i> rests on a smooth surface that rises to the right at ${p.al}° above the horizontal. A load <i>P</i> = ${p.P} ${FU(p)} acts downward at ${p.a} ${LU(p)} from <i>A</i>. Determine the normal force <i>N</i> at <i>B</i> and the pin reaction components <i>A<sub>x</sub></i> (right positive) and <i>A<sub>y</sub></i> (up positive).</p>`,
   figure:p=>{const k=Math.max(.35,p.L/12),d=2.4,sx=cs(p.al),sy=sn(p.al),e=[...beamBase(p.L,k),...pinS(0,k)];
-    e.push({t:"hatch",a:[p.L-d*sx,-d*sy],b:[p.L+d*sx,d*sy],side:1},{a:[p.L+d*sx*.5,0],b:[p.L-d*sx,0],t:"ln",c:"x",d:1,w:1},{t:"arc",p:[p.L-d*sx,-d*sy],r:1.3,t0:0,t1:p.al,l:ang(p.al)});
+    e[2]={...e[2],dx:-10,dy:-14,an:"end"};
+    e.push({t:"hatch",a:[p.L-d*sx,-d*sy],b:[p.L+d*sx,d*sy],side:1},{a:[p.L-d*sx,-d*sy],b:[p.L-d*sx+2.2,-d*sy],t:"ln",c:"x",d:1,w:1},{t:"arc",p:[p.L-d*sx,-d*sy],r:1.3,t0:0,t1:p.al,l:ang(p.al)});
     e.push({a:[p.a,1.5],b:[p.a,.15],c:"r"},{t:"txt",p:[p.a,1.85],l:`${it("P")} = ${p.P} ${FU(p)}`},{a:[p.L/2,-.12],b:[p.L/2,-1.4],c:"r",w:2},{t:"txt",p:[p.L/2+.3,-1.75],l:`${it("W")} = ${p.W} ${FU(p)}`,an:"start"});
     return draw(e,600,380)},
   solution:(p,s)=>`<h3>1. Free body diagram</h3>
@@ -319,18 +327,20 @@ TEMPLATES["beam-incline-roller"]={
 TEMPLATES["ladder-wall"]={
   name:"Ladder against a smooth wall",
   generate(seed){const r=mulberry32(seed);
-    const p={us:r()<.5,L:pick(r,range(10,20,2)),th:pick(r,range(55,75,5)),W:pick(r,range(50,200,10)),P:pick(r,range(100,250,10)),s:0};
-    p.s=pick(r,range(2,Math.floor(p.L)-1,1).filter(v=>Math.abs(v-p.L/2)>=3&&v<=p.L-4));
+    const us=r()<.5,L=us?pick(r,range(10,20,2)):pick(r,range(3,6,.5)),st=us?1:.5;
+    const p={us,L,th:pick(r,range(55,75,5)),W:us?pick(r,range(20,60,5)):pick(r,range(100,300,20)),P:us?pick(r,range(120,250,10)):pick(r,range(550,1000,50)),s:0};
+    const all=range(st,L-st,st).filter(v=>v>=.2*L&&v<=.8*L),gap=Math.min(.22*L,Math.max(...all.map(v=>Math.abs(v-L/2))));
+    p.s=pick(r,all.filter(v=>Math.abs(v-L/2)>=gap-1e-9));
     const Nw=(p.W*p.L/2+p.P*p.s)*cs(p.th)/(p.L*sn(p.th)),Nf=p.W+p.P;
     return {p,s:{Nw,Ff:Nw,Nf}};},
   statement:p=>`<p>A uniform ladder of length ${p.L} ${LU(p)} and weight <i>W</i> = ${p.W} ${FU(p)} rests against a smooth vertical wall at an angle <i>θ</i> = ${p.th}° with the floor. A person of weight <i>P</i> = ${p.P} ${FU(p)} stands on the ladder at a distance ${p.s} ${LU(p)} along the ladder from its foot. The ladder is in equilibrium. Determine the wall force <i>N<sub>w</sub></i>, the horizontal floor force <i>F<sub>f</sub></i>, and the vertical floor force <i>N<sub>f</sub></i>.</p>`,
-  figure:p=>{const x0=p.L*cs(p.th),y1=p.L*sn(p.th),c=cs(p.th),sn_=sn(p.th),sc=.22,ar=Math.max(1.6,.17*p.L),xd=Math.max(1.6,.3*p.L),
+  figure:p=>{const x0=p.L*cs(p.th),y1=p.L*sn(p.th),c=cs(p.th),sn_=sn(p.th),sc=.22,ar=.17*p.L,xd=.45*p.L,ra=Math.min(1.4,.5*p.L*cs(p.th)),
       e=[{t:"hatch",a:[0,-.5],b:[0,y1+.8],side:-1},{t:"hatch",a:[0,0],b:[x0+1.6,0],side:1},{a:[x0,0],b:[0,y1],c:"m",t:"ln",w:5},
-      {t:"pt",p:[x0,0],l:it("A"),dx:6,dy:18,r:4},{t:"pt",p:[0,y1],l:it("B"),dx:12,dy:-4,r:4},
+      {t:"pt",p:[x0,0],l:it("A"),dx:6,dy:18,r:4},{t:"pt",p:[0,y1],l:it("B"),dx:2,dy:-14,an:"start",r:4},
       {a:[x0/2,y1/2+ar],b:[x0/2,y1/2+.1],c:"r",w:2.6},{t:"txt",p:[x0/2+.3,y1/2+.6*ar],l:`${it("W")} = ${p.W} ${FU(p)}`,an:"start"},
       {a:[x0-p.s*c,p.s*sn_+ar],b:[x0-p.s*c,p.s*sn_+.1],c:"r",w:2.6},{t:"txt",p:[x0-p.s*c+.3,p.s*sn_+.6*ar],l:`${it("P")} = ${p.P} ${FU(p)}`,an:"start"},
-      {a:[x0+.0,.0],b:[x0-1.4,0],t:"ln",c:"x",d:1,w:1},{t:"arc",p:[x0,0],r:1.4,t0:180-p.th,t1:180,l:ang(p.th)},
-      {t:"dim",a:[x0+xd,0],b:[x0+xd,y1],l:`${sig(y1,3)} ${LU(p)}`}];
+      {a:[x0,0],b:[x0-1.35*ra,0],t:"ln",c:"x",d:1,w:1},{t:"arc",p:[x0,0],r:ra,t0:180-p.th,t1:180,l:ang(p.th)},
+      {t:"dim",a:[x0+xd,0],b:[x0+xd,y1]},{t:"txt",p:[x0+xd,y1+.45],l:`${sig(y1,3)} ${LU(p)}`}];
     return draw(e,600,380)},
   solution:(p,s)=>`<h3>1. Free body diagram</h3>
   <p>The wall is smooth, so it exerts only a horizontal force <i>N<sub>w</sub></i> at <i>B</i>. The floor exerts a horizontal force <i>F<sub>f</sub></i> and a vertical force <i>N<sub>f</sub></i> at <i>A</i>. The weight acts at ${p.L/2} ${LU(p)} along the ladder.</p>
@@ -399,8 +409,8 @@ TEMPLATES["boom-ball-cables-3d"]={
   <p>${eq(`d<sub>1</sub> = (&minus;${p.L}, ${p.y1}, ${p.z1}), |d<sub>1</sub>| = ${sig(s.n1)} ${LU(p)}`)} ${eq(`d<sub>2</sub> = (&minus;${p.L}, ${p.y2}, ${p.z2}), |d<sub>2</sub>| = ${sig(s.n2)} ${LU(p)}`)}</p>
   <h3>2. Moments about O</h3>
   <p>The ball-and-socket joint exerts no moment, and the boom weight acts at ${p.L/2} ${LU(p)}. With the forces at <i>B</i> acting at <b>r</b> = (${p.L}, 0, 0), the <i>y</i> and <i>z</i> moment equations reduce to</p>
-  <p>${eq(`ΣM<sub>z</sub> = 0: ${p.L}(T<sub>1</sub>${sig(p.y1/s.n1)} + T<sub>2</sub>(${sig(p.y2/s.n2)}) + Q<sub>y</sub>) = 0`)}</p>
-  <p>${eq(`ΣM<sub>y</sub> = 0: ${p.L}(T<sub>1</sub>(${sig(p.z1/s.n1)}) + T<sub>2</sub>(${sig(p.z2/s.n2)}) &minus; ${p.W}) &minus; ${p.L/2}(${p.Wb}) = 0`)}</p>
+  <p>${eq(`ΣM<sub>z</sub> = 0: ${p.L}(T<sub>1</sub>(${sig(p.y1/s.n1)}) + T<sub>2</sub>(${sig(p.y2/s.n2)}) + Q<sub>y</sub>) = 0`)}</p>
+  <p>${eq(`ΣM<sub>y</sub> = 0: &minus;${p.L}(T<sub>1</sub>(${sig(p.z1/s.n1)}) + T<sub>2</sub>(${sig(p.z2/s.n2)}) &minus; ${p.W}) + ${p.L/2}(${p.Wb}) = 0`)}</p>
   <p>where <i>Q<sub>y</sub></i> = ${p.Q} ${FU(p)}. Solving the two equations gives ${eq(`T<sub>1</sub> = ${sig(s.T1)} ${FU(p)}`)} ${eq(`T<sub>2</sub> = ${sig(s.T2)} ${FU(p)}`)}</p>
   <h3>3. Force equilibrium</h3>
   <p>${eq(`O<sub>x</sub> = ${p.L}(T<sub>1</sub>/|d<sub>1</sub>| + T<sub>2</sub>/|d<sub>2</sub>|) = ${sig(s.Ox)} ${FU(p)}`)} ${eq(`O<sub>y</sub> = &minus;(T<sub>1</sub>y<sub>1</sub>/|d<sub>1</sub>| + T<sub>2</sub>y<sub>2</sub>/|d<sub>2</sub>| + Q<sub>y</sub>) = ${sig(s.Oy)} ${FU(p)}`)} ${eq(`O<sub>z</sub> = ${p.W} + ${p.Wb} &minus; T<sub>1</sub>z<sub>1</sub>/|d<sub>1</sub>| &minus; T<sub>2</sub>z<sub>2</sub>/|d<sub>2</sub>| = ${sig(s.Oz)} ${FU(p)}`)}</p>
@@ -417,16 +427,16 @@ const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Probl
 function reportUrl(){
   const q=new URLSearchParams({usp:"pp_url"});
   q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
-  q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);
   return FORM.url+"?"+q.toString();
 }
 
 // ===== page
-let curKey="beam-pin-roller", cur=null, curFields=[];
+let curKey="beam-pin-roller", curSeed=null, cur=null, curFields=[];
 const $=id=>document.getElementById(id);
 
 function render(key,seed){
-  curKey=key; const T=TEMPLATES[key];
+  curKey=key; curSeed=seed; const T=TEMPLATES[key];
   cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
   $("typeSel").value=key; $("seedIn").value=seed;
   try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
@@ -444,7 +454,8 @@ function check(){
   const T=TEMPLATES[curKey], truth=T.truth(cur.s);
   const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
   curFields.forEach(f=>{
-    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    const el=$("mk-"+f.id); let raw=$("in-"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");
+    raw=/^-?\d{1,3}(,\d{3})+(\.\d*)?$/.test(raw)?raw.replace(/,/g,""):raw.replace(",",".");
     if(raw===""){el.textContent="";el.className="mark";return}
     if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
     let v=parseFloat(raw), t=truth[f.id];

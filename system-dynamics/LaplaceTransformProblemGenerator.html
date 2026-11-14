@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laplace Transform Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --load:#aa1e28; --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .fr{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 .15em;line-height:1.25}
+  .fr>span{padding:0 .25em;white-space:nowrap}
+  .fr>span:first-child{border-bottom:1px solid currentColor}
+  .eq{line-height:1.9}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Laplace Transform Problem Generator</h1>
+</header>
+<main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
+  </div>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+// ----- numeric helpers
+const rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+const cs=d=>Math.cos(rad(d)), sn=d=>Math.sin(rad(d));
+const nz=(r,a,b)=>pick(r,range(a,b,1).filter(v=>v!==0));
+const two=(r,a,b)=>{const x=pick(r,range(a,b,1));let y=x;while(y===x)y=pick(r,range(a,b,1));return x<y?[x,y]:[y,x]};
+
+// ----- formatting
+const sig=(x,n=4)=>{if(Math.abs(x)<1e-9)return "0";const d=Math.max(0,n-1-Math.floor(Math.log10(Math.abs(x))));return Number(x).toFixed(Math.min(d,8)).replace("-","−")};
+const nf=x=>Math.abs(x-Math.round(x))<1e-9?String(Math.round(x)).replace("-","−"):sig(x,4).replace(/(\.\d*?)0+$/,"$1").replace(/\.$/,"");
+const eq=s=>`<span class="eq">${s}</span>`;
+const it=v=>`<tspan font-style="italic">${v}</tspan>`;
+const S="<i>s</i>", Tt="<i>t</i>";
+const SUP={2:"²",3:"³",4:"⁴"};
+const mono=k=>k===0?"":k===1?S:S+SUP[k];
+// signed sum of [coefficient, monomial] pairs; unit coefficients are dropped in front of a monomial
+function sum(terms){let o="";terms.forEach(([c,m])=>{if(Math.abs(c)<1e-12)return;const a=Math.abs(c);
+  const cf=(m&&Math.abs(a-1)<1e-12)?"":nf(a);o+=o?(c<0?" − ":" + "):(c<0?"−":"");o+=cf+m});return o||"0"}
+const poly=c=>sum(c.map((a,i)=>[a,mono(c.length-1-i)]));
+const fac=p=>p===0?S:`(${S} + ${nf(p)})`;
+const frac=(n,d)=>`<span class="fr"><span>${n}</span><span>${d}</span></span>`;
+const ex=p=>`<i>e</i><sup>−${p===1?"":nf(p)}<i>t</i></sup>`;
+const wt=w=>`${w===1?"":nf(w)}${Tt}`;
+const ft=`<i>f</i>(${Tt})`, Fs=`<i>F</i>(${S})`, Xs=`<i>X</i>(${S})`;
+const XDD="<i>ẍ</i>", XD="<i>ẋ</i>";
+const sub_=(a,b)=>`${a}<sub>${b}</sub>`;
+const piece=(expr)=>`${ft} = 0 for ${Tt} &lt; 0, and ${ft} = ${expr} for ${Tt} &ge; 0`;
+
+// ----- figure toolkit (2D drawing of arrows, lines, points, text)
+const COL={k:"#222",r:"#aa1e28",b:"#2b5d8a",g:"#1e5a32",m:"#7d5014",x:"#888"};
+function draw(els,W=520,H=300){
+  const pts=[];els.forEach(e=>{[e.a,e.b,e.p].forEach(q=>q&&pts.push(q))});
+  const x0=Math.min(...pts.map(q=>q[0])),x1=Math.max(...pts.map(q=>q[0])),y0=Math.min(...pts.map(q=>q[1])),y1=Math.max(...pts.map(q=>q[1]));
+  const mx=80,my=40,s=Math.min((W-2*mx)/Math.max(x1-x0,1e-6),(H-2*my)/Math.max(y1-y0,1e-6));
+  const X=q=>mx+(q[0]-x0)*s+(W-2*mx-(x1-x0)*s)/2, Y=q=>H-my-(q[1]-y0)*s-(H-2*my-(y1-y0)*s)/2, f1=v=>v.toFixed(1);
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="16" style="max-height:${H}px"><defs>`;
+  for(const k in COL)o+=`<marker id="vx${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="${COL[k]}"/></marker>`;
+  o+="</defs>";
+  els.forEach(e=>{
+    const c=e.c||"k";
+    if(e.t==="txt"){o+=`<text x="${f1(X(e.p))}" y="${f1(Y(e.p)+5)}" text-anchor="${e.an||"middle"}" class="halo">${e.l}</text>`;return}
+    const ax=X(e.a),ay=Y(e.a),bx=X(e.b),by=Y(e.b),dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1;
+    const head=e.t==="ln"?"":` marker-end="url(#vx${c})"`;
+    o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="${COL[c]}" stroke-width="${e.w||(c==="r"||c==="b"||c==="g"?2.6:1.4)}" ${e.d?'stroke-dasharray="5 4"':""}${head}/>`;
+    if(e.l){const ux=dx/L,uy=dy/L,an=Math.abs(ux)<.3?"middle":ux>0?"start":"end";
+      o+=`<text x="${f1(bx+ux*12)}" y="${f1(by+uy*12+(uy>.5?14:uy<-.5?-2:5))}" text-anchor="${an}" fill="${COL[c]}" class="halo">${e.l}</text>`}
+  });
+  return o+"</svg>";
+}
+
+// ----- templates
+const TEMPLATES={};
+
+// 1. sinusoid with a phase angle
+TEMPLATES["laplace-sinusoid"]={
+  name:"Laplace transform of a sinusoid with a phase angle",
+  generate(seed){const r=mulberry32(seed);
+    const p={A:pick(r,range(2,10,1)),w:pick(r,range(1,8,1)),ph:pick(r,[15,30,60,120,135,150,-15,-30,-60])};
+    return {p,s:{b1:p.A*sn(p.ph),b0:p.A*p.w*cs(p.ph)}};},
+  statement:p=>`<p>Find the Laplace transform of the function ${piece(`${p.A} sin(${wt(p.w)} ${p.ph<0?"−":"+"} ${Math.abs(p.ph)}°)`)}. Write the result as</p>
+  <p>${eq(`${Fs} = ${frac(`<i>b</i><sub>1</sub>${S} + <i>b</i><sub>0</sub>`,`${S}² + ${p.w*p.w}`)}`)}</p><p>and report <i>b</i><sub>1</sub> and <i>b</i><sub>0</sub>.</p>`,
+  solution:(p,s)=>`<h3>1. Expand the sine of a sum</h3>
+  <p>${eq(`${p.A} sin(${wt(p.w)} ${p.ph<0?"−":"+"} ${Math.abs(p.ph)}°) = ${p.A} cos(${nf(p.ph)}°) sin ${wt(p.w)} + ${p.A} sin(${nf(p.ph)}°) cos ${wt(p.w)}`)}</p>
+  <h3>2. Transform each term</h3>
+  <p>With ${eq(`ℒ[sin ω${Tt}] = ${frac("ω",`${S}² + ω²`)}`)} and ${eq(`ℒ[cos ω${Tt}] = ${frac(S,`${S}² + ω²`)}`)},</p>
+  <p>${eq(`${Fs} = ${frac(`${p.A} sin(${nf(p.ph)}°) ${S} + ${p.A}(${p.w}) cos(${nf(p.ph)}°)`,`${S}² + ${p.w*p.w}`)} = ${frac(`${sig(s.b1)}${S} ${s.b0<0?"−":"+"} ${sig(Math.abs(s.b0))}`,`${S}² + ${p.w*p.w}`)}`)}</p>
+  <p class="final"><i>b</i><sub>1</sub> = ${sig(s.b1,3)}, <i>b</i><sub>0</sub> = ${sig(s.b0,3)}.</p>`,
+  fields:p=>[{id:"b1",label:"<i>b</i><sub>1</sub> (with sign)",unit:"",signed:true},{id:"b0",label:"<i>b</i><sub>0</sub> (with sign)",unit:"",signed:true}],
+  truth:s=>({b1:s.b1,b0:s.b0}),
+  note:"Coefficients carry their signs."
+};
+
+// 2. damped sinusoid, complex shifting theorem
+TEMPLATES["laplace-damped-sinusoid"]={
+  name:"Laplace transform of a damped sinusoid (complex shifting)",
+  generate(seed){const r=mulberry32(seed);
+    const p={a:pick(r,range(1,6,1)),w:pick(r,range(1,8,1)),A:nz(r,-8,8),B:nz(r,-8,8)};
+    return {p,s:{b1:p.A,b0:p.A*p.a+p.B*p.w,c1:2*p.a,c0:p.a*p.a+p.w*p.w}};},
+  statement:p=>`<p>Find the Laplace transform of ${piece(`${ex(p.a)}(${sum([[p.A,"cos "+wt(p.w)],[p.B,"sin "+wt(p.w)]])})`)}. Write the result as</p>
+  <p>${eq(`${Fs} = ${frac(`<i>b</i><sub>1</sub>${S} + <i>b</i><sub>0</sub>`,`${S}² + <i>c</i><sub>1</sub>${S} + <i>c</i><sub>0</sub>`)}`)}</p><p>and report the four coefficients.</p>`,
+  solution:(p,s)=>`<h3>1. Transform without the exponential</h3>
+  <p>${eq(`G(${S}) = ℒ[${sum([[p.A,"cos "+wt(p.w)],[p.B,"sin "+wt(p.w)]])}] = ${frac(sum([[p.A,S],[p.B*p.w,""]]),`${S}² + ${p.w*p.w}`)}`)}</p>
+  <h3>2. Complex shifting theorem</h3>
+  <p>Multiplying by ${ex(p.a)} replaces ${S} with ${S} + ${p.a}: ${eq(`${Fs} = G(${S} + ${p.a}) = ${frac(`${nf(p.A)}(${S} + ${p.a}) ${p.B*p.w<0?"−":"+"} ${Math.abs(p.B*p.w)}`,`(${S} + ${p.a})² + ${p.w*p.w}`)}`)}</p>
+  <h3>3. Expand</h3>
+  <p>${eq(`${Fs} = ${frac(poly([s.b1,s.b0]),poly([1,s.c1,s.c0]))}`)}</p>
+  <p class="final"><i>b</i><sub>1</sub> = ${nf(s.b1)}, <i>b</i><sub>0</sub> = ${nf(s.b0)}, <i>c</i><sub>1</sub> = ${nf(s.c1)}, <i>c</i><sub>0</sub> = ${nf(s.c0)}.</p>`,
+  fields:p=>[{id:"b1",label:"<i>b</i><sub>1</sub> (with sign)",unit:"",signed:true},{id:"b0",label:"<i>b</i><sub>0</sub> (with sign)",unit:"",signed:true},{id:"c1",label:"<i>c</i><sub>1</sub> (with sign)",unit:"",signed:true},{id:"c0",label:"<i>c</i><sub>0</sub> (with sign)",unit:"",signed:true}],
+  truth:s=>({b1:s.b1,b0:s.b0,c1:s.c1,c0:s.c0}),
+  note:"Coefficients carry their signs."
+};
+
+// 3. ramp that drops to zero, real shifting theorem
+TEMPLATES["laplace-ramp-pulse"]={
+  name:"Laplace transform of a terminated ramp (real shifting)",
+  generate(seed){const r=mulberry32(seed);
+    const p={h:pick(r,range(2,20,1)),T:pick(r,[0.5,1,1.5,2,2.5,3,4])};
+    return {p,s:{A:p.h/p.T,B:p.h}};},
+  statement:p=>`<p>The function ${ft} shown in the figure rises linearly from 0 at ${Tt} = 0 to ${p.h} at ${Tt} = ${nf(p.T)}, then drops to zero and stays at zero. Its Laplace transform can be written as</p>
+  <p>${eq(`${Fs} = <i>A</i> ${frac(`1 − <i>e</i><sup>−${nf(p.T)}${S}</sup>`,`${S}²`)} − ${frac("<i>B</i>",S)} <i>e</i><sup>−${nf(p.T)}${S}</sup>`)}</p><p>Determine <i>A</i> and <i>B</i>.</p>`,
+  figure:p=>draw([{a:[0,0],b:[4.3,0],c:"x",l:it("t"),w:1.1},{a:[0,0],b:[0,2.6],c:"x",l:`${it("f")}(${it("t")})`,w:1.1},
+    {a:[0,2],b:[3,2],c:"x",t:"ln",d:1,w:1},{a:[0,0],b:[3,2],c:"r",t:"ln"},{a:[3,2],b:[3,0],c:"r",t:"ln",d:1},{a:[3,0],b:[4,0],c:"r",t:"ln"},
+    {t:"txt",p:[-0.12,2],l:nf(p.h),an:"end"},{t:"txt",p:[3,-0.3],l:nf(p.T)},{t:"txt",p:[-0.12,-0.3],l:"0",an:"end"}]),
+  solution:(p,s)=>`<h3>1. Write f(t) with unit steps</h3>
+  <p>${eq(`${ft} = ${nf(s.A)}${Tt} − ${nf(s.A)}${Tt}·<i>u</i>(${Tt} − ${nf(p.T)})`)}</p>
+  <h3>2. Transform the delayed term</h3>
+  <p>The real shifting theorem ${eq(`ℒ[<i>g</i>(${Tt} − <i>T</i>)<i>u</i>(${Tt} − <i>T</i>)] = <i>e</i><sup>−<i>T</i>${S}</sup><i>G</i>(${S})`)} applies to a function of ${Tt} − <i>T</i>, so first write ${eq(`${Tt}·<i>u</i>(${Tt} − ${nf(p.T)}) = (${Tt} − ${nf(p.T)})<i>u</i>(${Tt} − ${nf(p.T)}) + ${nf(p.T)}<i>u</i>(${Tt} − ${nf(p.T)})`)}. Then</p>
+  <p>${eq(`ℒ[${Tt}·<i>u</i>(${Tt} − ${nf(p.T)})] = ${frac(`<i>e</i><sup>−${nf(p.T)}${S}</sup>`,`${S}²`)} + ${frac(`${nf(p.T)}<i>e</i><sup>−${nf(p.T)}${S}</sup>`,S)}`)}</p>
+  <h3>3. Collect terms</h3>
+  <p>${eq(`${Fs} = ${nf(s.A)} ${frac(`1 − <i>e</i><sup>−${nf(p.T)}${S}</sup>`,`${S}²`)} − ${frac(nf(s.B),S)} <i>e</i><sup>−${nf(p.T)}${S}</sup>`)}</p>
+  <p class="final"><i>A</i> = ${sig(s.A,3)}, <i>B</i> = ${sig(s.B,3)}.</p>`,
+  fields:p=>[{id:"A",label:"Coefficient <i>A</i>",unit:""},{id:"B",label:"Coefficient <i>B</i>",unit:""}],
+  truth:s=>({A:s.A,B:s.B}),
+  note:""
+};
+
+// 4. initial- and final-value theorems
+TEMPLATES["initial-final-value"]={
+  name:"Initial-value and final-value theorems",
+  generate(seed){const r=mulberry32(seed);
+    const [p1,p2]=two(r,1,6);
+    const p={b2:pick(r,range(1,6,1)),b1:pick(r,range(-5,9,1)),b0:pick(r,range(1,20,1)),p1,p2};
+    return {p,s:{f0:p.b2,fi:p.b0/(p1*p2)}};},
+  statement:p=>`<p>The Laplace transform of a function ${ft} is</p>
+  <p>${eq(`${Fs} = ${frac(poly([p.b2,p.b1,p.b0]),`${S}${fac(p.p1)}${fac(p.p2)}`)}`)}</p>
+  <p>Without inverting ${Fs}, determine <i>f</i>(0+) with the initial-value theorem and <i>f</i>(∞) with the final-value theorem.</p>`,
+  solution:(p,s)=>`<h3>1. Initial value</h3>
+  <p>${eq(`<i>f</i>(0+) = lim<sub>${S}→∞</sub> ${S}${Fs} = lim<sub>${S}→∞</sub> ${frac(poly([p.b2,p.b1,p.b0]),`${fac(p.p1)}${fac(p.p2)}`)} = ${nf(p.b2)}`)}</p>
+  <h3>2. Final value</h3>
+  <p>The poles of ${S}${Fs} are at −${p.p1} and −${p.p2}, both in the left half-plane, so the final-value theorem applies:</p>
+  <p>${eq(`<i>f</i>(∞) = lim<sub>${S}→0</sub> ${S}${Fs} = ${frac(nf(p.b0),`(${p.p1})(${p.p2})`)} = ${sig(s.fi)}`)}</p>
+  <p class="final"><i>f</i>(0+) = ${nf(s.f0)}, <i>f</i>(∞) = ${sig(s.fi,3)}.</p>`,
+  fields:p=>[{id:"f0",label:"<i>f</i>(0+)",unit:""},{id:"fi",label:"<i>f</i>(∞)",unit:""}],
+  truth:s=>({f0:s.f0,fi:s.fi}),
+  note:""
+};
+
+// 5. inverse, distinct real poles
+TEMPLATES["inverse-distinct"]={
+  name:"Inverse transform with distinct real poles",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const [p1,p2]=two(r,1,6);const p={K:pick(r,range(1,10,1)),z:pick(r,range(1,9,1)),p1,p2};
+      if(p.z===p1||p.z===p2) continue;
+      const a0=p.K*p.z/(p1*p2),a1=p.K*(p.z-p1)/(-p1*(p2-p1)),a2=p.K*(p.z-p2)/(-p2*(p1-p2));
+      return {p,s:{a0,a1,a2}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>Find the inverse Laplace transform of</p>
+  <p>${eq(`${Fs} = ${frac(`${p.K===1?"":p.K}${fac(p.z)}`,`${S}${fac(p.p1)}${fac(p.p2)}`)}`)}</p>
+  <p>Write the result as ${eq(`${ft} = <i>a</i><sub>0</sub> + <i>a</i><sub>1</sub>${ex(p.p1)} + <i>a</i><sub>2</sub>${ex(p.p2)}`)} for ${Tt} &ge; 0 and report the three coefficients.</p>`,
+  solution:(p,s)=>`<h3>1. Partial-fraction form</h3>
+  <p>${eq(`${Fs} = ${frac("<i>a</i><sub>0</sub>",S)} + ${frac("<i>a</i><sub>1</sub>",`${S} + ${p.p1}`)} + ${frac("<i>a</i><sub>2</sub>",`${S} + ${p.p2}`)}`)}</p>
+  <h3>2. Residues</h3>
+  <p>Multiply by each factor and evaluate at its pole:</p>
+  <p>${eq(`<i>a</i><sub>0</sub> = [${S}${Fs}]<sub>${S}=0</sub> = ${frac(`${p.K}(${p.z})`,`(${p.p1})(${p.p2})`)} = ${sig(s.a0)}`)}</p>
+  <p>${eq(`<i>a</i><sub>1</sub> = [${fac(p.p1)}${Fs}]<sub>${S}=−${p.p1}</sub> = ${frac(`${p.K}(${p.z - p.p1})`,`(−${p.p1})(${p.p2-p.p1})`)} = ${sig(s.a1)}`)}</p>
+  <p>${eq(`<i>a</i><sub>2</sub> = [${fac(p.p2)}${Fs}]<sub>${S}=−${p.p2}</sub> = ${frac(`${p.K}(${p.z - p.p2})`,`(−${p.p2})(${p.p1-p.p2})`)} = ${sig(s.a2)}`)}</p>
+  <h3>3. Inverse transform</h3>
+  <p class="final">${ft} = ${sig(s.a0,3)} ${s.a1<0?"−":"+"} ${sig(Math.abs(s.a1),3)}${ex(p.p1)} ${s.a2<0?"−":"+"} ${sig(Math.abs(s.a2),3)}${ex(p.p2)}, ${Tt} &ge; 0.</p>`,
+  fields:p=>[{id:"a0",label:"<i>a</i><sub>0</sub> (with sign)",unit:"",signed:true},{id:"a1",label:"<i>a</i><sub>1</sub> (with sign)",unit:"",signed:true},{id:"a2",label:"<i>a</i><sub>2</sub> (with sign)",unit:"",signed:true}],
+  truth:s=>({a0:s.a0,a1:s.a1,a2:s.a2}),
+  note:"Coefficients carry their signs."
+};
+
+// 6. inverse, repeated pole
+TEMPLATES["inverse-repeated"]={
+  name:"Inverse transform with a repeated pole",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={b1:pick(r,range(1,8,1)),b0:pick(r,range(1,20,1)),p1:pick(r,range(1,5,1)),p2:pick(r,range(1,5,1))};
+      if(p.p1===p.p2||p.b0===p.b1*p.p1||p.b0===p.b1*p.p2) continue;
+      const a=(p.b0-p.b1*p.p1)/(p.p2-p.p1)**2,c2=(p.b0-p.b1*p.p2)/(p.p1-p.p2),c1=(p.b1*p.p1-p.b0)/(p.p1-p.p2)**2;
+      return {p,s:{a,c1,c2}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>Find the inverse Laplace transform of</p>
+  <p>${eq(`${Fs} = ${frac(poly([p.b1,p.b0]),`${fac(p.p1)}${fac(p.p2)}²`)}`)}</p>
+  <p>Write the result as ${eq(`${ft} = <i>a</i>${ex(p.p1)} + (<i>c</i><sub>1</sub> + <i>c</i><sub>2</sub>${Tt})${ex(p.p2)}`)} for ${Tt} &ge; 0 and report <i>a</i>, <i>c</i><sub>1</sub>, and <i>c</i><sub>2</sub>.</p>`,
+  solution:(p,s)=>`<h3>1. Partial-fraction form</h3>
+  <p>A double pole at −${p.p2} contributes two terms: ${eq(`${Fs} = ${frac("<i>a</i>",`${S} + ${p.p1}`)} + ${frac("<i>c</i><sub>1</sub>",`${S} + ${p.p2}`)} + ${frac("<i>c</i><sub>2</sub>",`(${S} + ${p.p2})²`)}`)}</p>
+  <h3>2. Coefficients</h3>
+  <p>${eq(`<i>a</i> = [${fac(p.p1)}${Fs}]<sub>${S}=−${p.p1}</sub> = ${frac(nf(p.b0-p.b1*p.p1),`(${p.p2-p.p1})²`)} = ${sig(s.a)}`)}</p>
+  <p>${eq(`<i>c</i><sub>2</sub> = [${fac(p.p2)}²${Fs}]<sub>${S}=−${p.p2}</sub> = ${frac(nf(p.b0-p.b1*p.p2),nf(p.p1-p.p2))} = ${sig(s.c2)}`)}</p>
+  <p>${eq(`<i>c</i><sub>1</sub> = ${frac("<i>d</i>","<i>ds</i>")}[${fac(p.p2)}²${Fs}]<sub>${S}=−${p.p2}</sub> = ${frac(`${p.b1}(${S} + ${p.p1}) − (${poly([p.b1,p.b0])})`,`(${S} + ${p.p1})²`)}<sub>${S}=−${p.p2}</sub> = ${sig(s.c1)}`)}</p>
+  <h3>3. Inverse transform</h3>
+  <p>Using ${eq(`ℒ<sup>−1</sup>[1/(${S} + <i>p</i>)²] = ${Tt}<i>e</i><sup>−<i>pt</i></sup>`)},</p>
+  <p class="final">${ft} = ${sig(s.a,3)}${ex(p.p1)} + (${sig(s.c1,3)} ${s.c2<0?"−":"+"} ${sig(Math.abs(s.c2),3)}${Tt})${ex(p.p2)}, ${Tt} &ge; 0.</p>`,
+  fields:p=>[{id:"a",label:"<i>a</i> (with sign)",unit:"",signed:true},{id:"c1",label:"<i>c</i><sub>1</sub> (with sign)",unit:"",signed:true},{id:"c2",label:"<i>c</i><sub>2</sub> (with sign)",unit:"",signed:true}],
+  truth:s=>({a:s.a,c1:s.c1,c2:s.c2}),
+  note:"Coefficients carry their signs."
+};
+
+// 7. inverse, complex-conjugate poles
+TEMPLATES["inverse-complex"]={
+  name:"Inverse transform with complex-conjugate poles",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={al:pick(r,range(1,5,1)),w:pick(r,range(1,6,1)),b1:pick(r,range(1,8,1)),b0:pick(r,range(-10,25,1))};
+      if(p.b0===p.b1*p.al) continue;
+      return {p,s:{al:p.al,w:p.w,C:p.b1,D:(p.b0-p.b1*p.al)/p.w}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>Find the inverse Laplace transform of</p>
+  <p>${eq(`${Fs} = ${frac(poly([p.b1,p.b0]),poly([1,2*p.al,p.al*p.al+p.w*p.w]))}`)}</p>
+  <p>Write the result as ${eq(`${ft} = <i>e</i><sup>−σ${Tt}</sup>(<i>C</i> cos ω${Tt} + <i>D</i> sin ω${Tt})`)} for ${Tt} &ge; 0 with σ &gt; 0 and ω &gt; 0, and report σ, ω, <i>C</i>, and <i>D</i>.</p>`,
+  solution:(p,s)=>`<h3>1. Complete the square</h3>
+  <p>${eq(`${poly([1,2*p.al,p.al*p.al+p.w*p.w])} = (${S} + ${p.al})² + ${p.w}²`)}, so σ = ${p.al} and ω = ${p.w}.</p>
+  <h3>2. Write the numerator in terms of s + σ</h3>
+  <p>${eq(`${poly([p.b1,p.b0])} = ${nf(p.b1)}(${S} + ${p.al}) ${p.b0-p.b1*p.al<0?"−":"+"} ${Math.abs(p.b0-p.b1*p.al)}`)}, so</p>
+  <p>${eq(`${Fs} = ${nf(p.b1)} ${frac(`${S} + ${p.al}`,`(${S} + ${p.al})² + ${p.w}²`)} ${s.D<0?"−":"+"} ${sig(Math.abs(s.D))} ${frac(p.w,`(${S} + ${p.al})² + ${p.w}²`)}`)}</p>
+  <h3>3. Inverse transform</h3>
+  <p class="final">${ft} = ${ex(p.al)}(${nf(s.C)} cos ${wt(p.w)} ${s.D<0?"−":"+"} ${sig(Math.abs(s.D),3)} sin ${wt(p.w)}): σ = ${p.al}, ω = ${p.w}, <i>C</i> = ${nf(s.C)}, <i>D</i> = ${sig(s.D,3)}.</p>`,
+  fields:p=>[{id:"al",label:"Decay rate σ",unit:"s<sup>−1</sup>"},{id:"w",label:"Frequency ω",unit:"rad/s"},{id:"C",label:"<i>C</i> (with sign)",unit:"",signed:true},{id:"D",label:"<i>D</i> (with sign)",unit:"",signed:true}],
+  truth:s=>({al:s.al,w:s.w,C:s.C,D:s.D}),
+  note:"Coefficients carry their signs."
+};
+
+// 8. inverse of an improper rational function
+TEMPLATES["inverse-improper"]={
+  name:"Inverse transform when the numerator degree equals the denominator degree",
+  generate(seed){const r=mulberry32(seed);
+    const p={b2:pick(r,range(1,5,1)),b1:pick(r,range(1,12,1)),b0:pick(r,range(1,15,1)),p:pick(r,range(1,6,1))};
+    const r1=p.b1-p.b2*p.p;
+    return {p,s:{r1,imp:p.b2,a0:p.b0/p.p,a1:r1-p.b0/p.p}};},
+  statement:p=>`<p>Find the inverse Laplace transform of</p>
+  <p>${eq(`${Fs} = ${frac(poly([p.b2,p.b1,p.b0]),`${S}${fac(p.p)}`)}`)}</p>
+  <p>Write the result as ${eq(`${ft} = <i>k</i> δ(${Tt}) + <i>a</i><sub>0</sub> + <i>a</i><sub>1</sub>${ex(p.p)}`)} for ${Tt} &ge; 0, where δ(${Tt}) is the unit impulse, and report <i>k</i>, <i>a</i><sub>0</sub>, and <i>a</i><sub>1</sub>.</p>`,
+  solution:(p,s)=>`<h3>1. Divide</h3>
+  <p>The numerator and denominator have the same degree, so divide first:</p>
+  <p>${eq(`${Fs} = ${nf(p.b2)} + ${frac(poly([s.r1,p.b0]),`${S}${fac(p.p)}`)}`)}</p>
+  <h3>2. Partial fractions of the remainder</h3>
+  <p>${eq(`<i>a</i><sub>0</sub> = ${frac(nf(p.b0),nf(p.p))} = ${sig(s.a0)}`)} ${eq(`<i>a</i><sub>1</sub> = [${frac(poly([s.r1,p.b0]),S)}]<sub>${S}=−${p.p}</sub> = ${sig(s.a1)}`)}</p>
+  <h3>3. Inverse transform</h3>
+  <p>The constant term transforms back to an impulse, since ${eq(`ℒ[δ(${Tt})] = 1`)}:</p>
+  <p class="final">${ft} = ${nf(s.imp)}δ(${Tt}) + ${sig(s.a0,3)} ${s.a1<0?"−":"+"} ${sig(Math.abs(s.a1),3)}${ex(p.p)}: <i>k</i> = ${nf(s.imp)}, <i>a</i><sub>0</sub> = ${sig(s.a0,3)}, <i>a</i><sub>1</sub> = ${sig(s.a1,3)}.</p>`,
+  fields:p=>[{id:"imp",label:"Impulse strength <i>k</i>",unit:"",signed:true},{id:"a0",label:"<i>a</i><sub>0</sub> (with sign)",unit:"",signed:true},{id:"a1",label:"<i>a</i><sub>1</sub> (with sign)",unit:"",signed:true}],
+  truth:s=>({imp:s.imp,a0:s.a0,a1:s.a1}),
+  note:"Coefficients carry their signs."
+};
+
+// 9. inverse with a time delay
+const gDelay=(p,t)=>t<=0?0:(p.A/p.p)*(1-Math.exp(-p.p*t));
+TEMPLATES["inverse-delay"]={
+  name:"Inverse transform with a time delay",
+  generate(seed){const r=mulberry32(seed);
+    const p={A:pick(r,range(2,20,1)),p:pick(r,range(1,5,1)),T:pick(r,range(1,4,1))};
+    p.t1=p.T/2; p.t2=p.T+pick(r,[0.5,1,1.5,2]);
+    return {p,s:{f1:gDelay(p,p.t1),f2:gDelay(p,p.t2)-gDelay(p,p.t2-p.T),g2:gDelay(p,p.t2),g2T:gDelay(p,p.t2-p.T)}};},
+  statement:p=>`<p>The Laplace transform of a function ${ft} is</p>
+  <p>${eq(`${Fs} = ${frac(`${p.A}(1 − <i>e</i><sup>−${p.T===1?"":p.T}${S}</sup>)`,`${S}${fac(p.p)}`)}`)}</p>
+  <p>Determine the values of ${ft} at ${Tt} = ${nf(p.t1)} and at ${Tt} = ${nf(p.t2)}.</p>`,
+  solution:(p,s)=>`<h3>1. Inverse of the undelayed part</h3>
+  <p>${eq(`<i>G</i>(${S}) = ${frac(p.A,`${S}${fac(p.p)}`)}`)} gives ${eq(`<i>g</i>(${Tt}) = ${nf(p.A/p.p)}(1 − ${ex(p.p)})`)}.</p>
+  <h3>2. Real shifting theorem</h3>
+  <p>Since ${eq(`ℒ<sup>−1</sup>[<i>e</i><sup>−<i>T</i>${S}</sup><i>G</i>(${S})] = <i>g</i>(${Tt} − <i>T</i>)<i>u</i>(${Tt} − <i>T</i>)`)},</p>
+  <p>${eq(`${ft} = <i>g</i>(${Tt}) − <i>g</i>(${Tt} − ${p.T})<i>u</i>(${Tt} − ${p.T})`)}</p>
+  <h3>3. Evaluate</h3>
+  <p>${eq(`<i>f</i>(${nf(p.t1)}) = <i>g</i>(${nf(p.t1)}) = ${sig(s.f1)}`)}</p>
+  <p>${eq(`<i>f</i>(${nf(p.t2)}) = <i>g</i>(${nf(p.t2)}) − <i>g</i>(${nf(p.t2-p.T)}) = ${sig(s.g2)} − ${sig(s.g2T)} = ${sig(s.f2)}`)}</p>
+  <p class="final"><i>f</i>(${nf(p.t1)}) = ${sig(s.f1,3)}, <i>f</i>(${nf(p.t2)}) = ${sig(s.f2,3)}.</p>`,
+  fields:p=>[{id:"f1",label:`<i>f</i>(${nf(p.t1)})`,unit:""},{id:"f2",label:`<i>f</i>(${nf(p.t2)})`,unit:""}],
+  truth:s=>({f1:s.f1,f2:s.f2}),
+  note:""
+};
+
+// 10. second-order ODE, step input, real roots
+TEMPLATES["ode-step-real"]={
+  name:"Step response of a second-order equation with initial conditions",
+  generate(seed){const r=mulberry32(seed);
+    const [p1,p2]=two(r,1,5);
+    const p={m:pick(r,[1,2]),p1,p2,F0:pick(r,range(1,30,1)),x0:nz(r,-3,3),v0:pick(r,range(-5,5,1))};
+    p.c=p.m*(p1+p2); p.k=p.m*p1*p2;
+    const N=s_=>p.m*p.x0*s_*s_+(p.m*p.v0+p.c*p.x0)*s_+p.F0;
+    return {p,s:{xs:p.F0/p.k,C1:N(-p1)/(p.m*(-p1)*(p2-p1)),C2:N(-p2)/(p.m*(-p2)*(p1-p2))}};},
+  statement:p=>`<p>Solve the differential equation</p>
+  <p>${eq(`${sum([[p.m,XDD],[p.c,XD],[p.k,"<i>x</i>"]])} = ${p.F0}, &nbsp; <i>x</i>(0) = ${nf(p.x0)}, &nbsp; ${XD}(0) = ${nf(p.v0)}`)}</p>
+  <p>for ${Tt} &ge; 0 by the Laplace transform method. Write the solution as ${eq(`<i>x</i>(${Tt}) = <i>x</i><sub>ss</sub> + <i>C</i><sub>1</sub>${ex(p.p1)} + <i>C</i><sub>2</sub>${ex(p.p2)}`)} and report the three constants.</p>`,
+  solution:(p,s)=>`<h3>1. Transform the equation</h3>
+  <p>With ${eq(`ℒ[${XD}] = ${S}${Xs} − <i>x</i>(0)`)} and ${eq(`ℒ[${XDD}] = ${S}²${Xs} − ${S}<i>x</i>(0) − ${XD}(0)`)},</p>
+  <p>${eq(`${p.m===1?"":p.m}[${S}²${Xs} ${p.x0<0?"+":"−"} ${Math.abs(p.x0)}${S} ${p.v0<0?"+":"−"} ${Math.abs(p.v0)}] + ${p.c}[${S}${Xs} ${p.x0<0?"+":"−"} ${Math.abs(p.x0)}] + ${p.k}${Xs} = ${frac(p.F0,S)}`)}</p>
+  <h3>2. Solve for X(s)</h3>
+  <p>${eq(`${Xs} = ${frac(poly([p.m*p.x0,p.m*p.v0+p.c*p.x0,p.F0]),`${p.m===1?"":p.m}${S}${fac(p.p1)}${fac(p.p2)}`)}`)}</p>
+  <h3>3. Partial fractions and inverse</h3>
+  <p>${eq(`<i>x</i><sub>ss</sub> = [${S}${Xs}]<sub>${S}=0</sub> = ${sig(s.xs)}`)} ${eq(`<i>C</i><sub>1</sub> = [${fac(p.p1)}${Xs}]<sub>${S}=−${p.p1}</sub> = ${sig(s.C1)}`)} ${eq(`<i>C</i><sub>2</sub> = [${fac(p.p2)}${Xs}]<sub>${S}=−${p.p2}</sub> = ${sig(s.C2)}`)}</p>
+  <p class="final"><i>x</i><sub>ss</sub> = ${sig(s.xs,3)}, <i>C</i><sub>1</sub> = ${sig(s.C1,3)}, <i>C</i><sub>2</sub> = ${sig(s.C2,3)}.</p>
+  <p class="note">Check: <i>x</i>(0) = <i>x</i><sub>ss</sub> + <i>C</i><sub>1</sub> + <i>C</i><sub>2</sub> = ${sig(s.xs+s.C1+s.C2)}.</p>`,
+  fields:p=>[{id:"xs",label:"<i>x</i><sub>ss</sub> (with sign)",unit:"",signed:true},{id:"C1",label:"<i>C</i><sub>1</sub> (with sign)",unit:"",signed:true},{id:"C2",label:"<i>C</i><sub>2</sub> (with sign)",unit:"",signed:true}],
+  truth:s=>({xs:s.xs,C1:s.C1,C2:s.C2}),
+  note:"Constants carry their signs."
+};
+
+// 11. underdamped free vibration
+TEMPLATES["ode-free-underdamped"]={
+  name:"Free response of an underdamped second-order equation",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={m:pick(r,range(1,4,1)),al:pick(r,range(1,4,1)),w:pick(r,range(1,6,1)),x0:nz(r,-4,4),v0:pick(r,range(-10,10,1))};
+      if(Math.sqrt(p.al**2+p.w**2)<1.06*p.w) continue;
+      p.c=2*p.m*p.al; p.k=p.m*(p.al**2+p.w**2);
+      return {p,s:{al:p.al,w:p.w,C:p.x0,D:(p.v0+p.al*p.x0)/p.w}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>Solve the differential equation</p>
+  <p>${eq(`${sum([[p.m,XDD],[p.c,XD],[p.k,"<i>x</i>"]])} = 0, &nbsp; <i>x</i>(0) = ${nf(p.x0)}, &nbsp; ${XD}(0) = ${nf(p.v0)}`)}</p>
+  <p>for ${Tt} &ge; 0 by the Laplace transform method. Write the solution as ${eq(`<i>x</i>(${Tt}) = <i>e</i><sup>−σ${Tt}</sup>(<i>C</i> cos ω<sub>d</sub>${Tt} + <i>D</i> sin ω<sub>d</sub>${Tt})`)} and report σ, ω<sub>d</sub>, <i>C</i>, and <i>D</i>.</p>`,
+  solution:(p,s)=>`<h3>1. Transform and solve for X(s)</h3>
+  <p>${eq(`${Xs} = ${frac(`${sum([[p.m*p.x0,S],[p.m*p.v0+p.c*p.x0,""]])}`,poly([p.m,p.c,p.k]))} = ${frac(sum([[p.x0,S],[p.v0+2*p.al*p.x0,""]]),poly([1,2*p.al,p.al**2+p.w**2]))}`)}</p>
+  <h3>2. Complete the square</h3>
+  <p>${eq(`${poly([1,2*p.al,p.al**2+p.w**2])} = (${S} + ${p.al})² + ${p.w}²`)}, so σ = ${p.al} and ω<sub>d</sub> = ${p.w}.</p>
+  <h3>3. Inverse transform</h3>
+  <p>Writing the numerator as ${eq(`${nf(p.x0)}(${S} + ${p.al}) ${p.v0+p.al*p.x0<0?"−":"+"} ${Math.abs(p.v0+p.al*p.x0)}`)},</p>
+  <p class="final"><i>x</i>(${Tt}) = ${ex(p.al)}(${nf(s.C)} cos ${wt(p.w)} ${s.D<0?"−":"+"} ${sig(Math.abs(s.D),3)} sin ${wt(p.w)}): σ = ${p.al}, ω<sub>d</sub> = ${p.w}, <i>C</i> = ${nf(s.C)}, <i>D</i> = ${sig(s.D,3)}.</p>`,
+  fields:p=>[{id:"al",label:"Decay rate σ",unit:"s<sup>−1</sup>"},{id:"w",label:"Damped frequency ω<sub>d</sub>",unit:"rad/s"},{id:"C",label:"<i>C</i> (with sign)",unit:"",signed:true},{id:"D",label:"<i>D</i> (with sign)",unit:"",signed:true}],
+  truth:s=>({al:s.al,w:s.w,C:s.C,D:s.D}),
+  note:"Coefficients carry their signs."
+};
+
+// 12. undamped equation driven by a sinusoid
+TEMPLATES["ode-sinusoidal"]={
+  name:"Undamped second-order equation with sinusoidal forcing",
+  generate(seed){const r=mulberry32(seed);
+    const [wn,w]=(()=>{const a=pick(r,range(1,6,1));let b=a;while(b===a)b=pick(r,range(1,8,1));return [a,b]})();
+    const p={wn,w,A:pick(r,range(1,20,1))};
+    const K=p.A*w/(w*w-wn*wn);
+    return {p,s:{K,P:K/wn,Q:-K/w}};},
+  statement:p=>`<p>Solve the differential equation</p>
+  <p>${eq(`${XDD} + ${p.wn*p.wn}<i>x</i> = ${p.A} sin ${wt(p.w)}, &nbsp; <i>x</i>(0) = 0, &nbsp; ${XD}(0) = 0`)}</p>
+  <p>for ${Tt} &ge; 0 by the Laplace transform method. Write the solution as ${eq(`<i>x</i>(${Tt}) = <i>P</i> sin ${wt(p.wn)} + <i>Q</i> sin ${wt(p.w)}`)} and report <i>P</i> and <i>Q</i>.</p>`,
+  solution:(p,s)=>`<h3>1. Transform and solve for X(s)</h3>
+  <p>${eq(`${Xs} = ${frac(p.A*p.w,`(${S}² + ${p.wn*p.wn})(${S}² + ${p.w*p.w})`)}`)}</p>
+  <h3>2. Partial fractions in s²</h3>
+  <p>${eq(`${frac(1,`(${S}² + ${p.wn*p.wn})(${S}² + ${p.w*p.w})`)} = ${frac(1,`${p.w*p.w} − ${p.wn*p.wn}`)} [${frac(1,`${S}² + ${p.wn*p.wn}`)} − ${frac(1,`${S}² + ${p.w*p.w}`)}]`)}, so</p>
+  <p>${eq(`${Xs} = ${sig(s.K)} [${frac(1,`${S}² + ${p.wn*p.wn}`)} − ${frac(1,`${S}² + ${p.w*p.w}`)}]`)}</p>
+  <h3>3. Inverse transform</h3>
+  <p>Using ${eq(`ℒ<sup>−1</sup>[1/(${S}² + ω²)] = (1/ω) sin ω${Tt}`)},</p>
+  <p>${eq(`<i>x</i>(${Tt}) = ${sig(s.K)} [${frac("sin "+wt(p.wn),p.wn)} − ${frac("sin "+wt(p.w),p.w)}]`)}</p>
+  <p class="final"><i>P</i> = ${sig(s.P,3)}, <i>Q</i> = ${sig(s.Q,3)}.</p>`,
+  fields:p=>[{id:"P",label:"<i>P</i> (with sign)",unit:"",signed:true},{id:"Q",label:"<i>Q</i> (with sign)",unit:"",signed:true}],
+  truth:s=>({P:s.P,Q:s.Q}),
+  note:"Coefficients carry their signs."
+};
+
+
+// ===== planted errors: one conceptual mistake per problem type
+// wrong(p,s) returns the answers that follow from the error; html(p,s,w) renders the flawed solution.
+// n is the number of steps shown, step is the step in which the error first appears, why explains it.
+const FLAWS={};
+
+FLAWS["laplace-sinusoid"]={n:2,step:2,
+  why:"The transforms of sine and cosine are interchanged. ℒ[sin ω<i>t</i>] = ω/(<i>s</i>² + ω²) and ℒ[cos ω<i>t</i>] = <i>s</i>/(<i>s</i>² + ω²); the initial-value theorem confirms the assignment, since sin ω<i>t</i> starts at zero and cos ω<i>t</i> starts at one.",
+  wrong:(p,s)=>({b1:p.A*cs(p.ph),b0:p.A*p.w*sn(p.ph)}),
+  html:(p,s,w)=>`<h3>1. Expand the sine of a sum</h3>
+  <p>${eq(`${p.A} sin(${wt(p.w)} ${p.ph<0?"−":"+"} ${Math.abs(p.ph)}°) = ${p.A} cos(${nf(p.ph)}°) sin ${wt(p.w)} + ${p.A} sin(${nf(p.ph)}°) cos ${wt(p.w)}`)}</p>
+  <h3>2. Transform each term</h3>
+  <p>With ${eq(`ℒ[sin ω${Tt}] = ${frac(S,`${S}² + ω²`)}`)} and ${eq(`ℒ[cos ω${Tt}] = ${frac("ω",`${S}² + ω²`)}`)},</p>
+  <p>${eq(`${Fs} = ${frac(`${p.A} cos(${nf(p.ph)}°) ${S} + ${p.A}(${p.w}) sin(${nf(p.ph)}°)`,`${S}² + ${p.w*p.w}`)}`)}</p>
+  <p class="final"><i>b</i><sub>1</sub> = ${sig(w.b1,3)}, <i>b</i><sub>0</sub> = ${sig(w.b0,3)}.</p>`};
+
+FLAWS["laplace-damped-sinusoid"]={n:3,step:2,
+  why:"Multiplying a function by <i>e</i><sup>−<i>at</i></sup> replaces <i>s</i> with <i>s</i> + <i>a</i> in its transform, not with <i>s</i> − <i>a</i>. The shift moves the poles into the left half-plane, consistent with a decaying function.",
+  wrong:(p,s)=>({b1:p.A,b0:-p.A*p.a+p.B*p.w,c1:-2*p.a,c0:p.a*p.a+p.w*p.w}),
+  html:(p,s,w)=>`<h3>1. Transform without the exponential</h3>
+  <p>${eq(`G(${S}) = ${frac(sum([[p.A,S],[p.B*p.w,""]]),`${S}² + ${p.w*p.w}`)}`)}</p>
+  <h3>2. Complex shifting theorem</h3>
+  <p>Multiplying by ${ex(p.a)} shifts the transform by ${p.a}: ${eq(`${Fs} = G(${S} − ${p.a}) = ${frac(`${nf(p.A)}(${S} − ${p.a}) ${p.B*p.w<0?"−":"+"} ${Math.abs(p.B*p.w)}`,`(${S} − ${p.a})² + ${p.w*p.w}`)}`)}</p>
+  <h3>3. Expand</h3>
+  <p>${eq(`${Fs} = ${frac(poly([w.b1,w.b0]),poly([1,w.c1,w.c0]))}`)}</p>
+  <p class="final"><i>b</i><sub>1</sub> = ${nf(w.b1)}, <i>b</i><sub>0</sub> = ${nf(w.b0)}, <i>c</i><sub>1</sub> = ${nf(w.c1)}, <i>c</i><sub>0</sub> = ${nf(w.c0)}.</p>`};
+
+FLAWS["laplace-ramp-pulse"]={n:3,step:2,
+  why:"The real shifting theorem gives ℒ[<i>g</i>(<i>t</i> − <i>T</i>)<i>u</i>(<i>t</i> − <i>T</i>)] = <i>e</i><sup>−<i>Ts</i></sup><i>G</i>(<i>s</i>). The term <i>t</i>·<i>u</i>(<i>t</i> − <i>T</i>) is not a delayed ramp; it equals (<i>t</i> − <i>T</i>)<i>u</i>(<i>t</i> − <i>T</i>) + <i>T u</i>(<i>t</i> − <i>T</i>), and the step part produces the <i>B</i> term.",
+  wrong:(p,s)=>({A:p.h/p.T,B:0}),
+  html:(p,s,w)=>`<h3>1. Write f(t) with unit steps</h3>
+  <p>${eq(`${ft} = ${nf(s.A)}${Tt} − ${nf(s.A)}${Tt}·<i>u</i>(${Tt} − ${nf(p.T)})`)}</p>
+  <h3>2. Transform the delayed term</h3>
+  <p>By the real shifting theorem, a factor <i>u</i>(${Tt} − ${nf(p.T)}) multiplies the transform by <i>e</i><sup>−${nf(p.T)}${S}</sup>:</p>
+  <p>${eq(`ℒ[${Tt}·<i>u</i>(${Tt} − ${nf(p.T)})] = ${frac(`<i>e</i><sup>−${nf(p.T)}${S}</sup>`,`${S}²`)}`)}</p>
+  <h3>3. Collect terms</h3>
+  <p>${eq(`${Fs} = ${nf(s.A)} ${frac(`1 − <i>e</i><sup>−${nf(p.T)}${S}</sup>`,`${S}²`)}`)}</p>
+  <p class="final"><i>A</i> = ${sig(w.A,3)}, <i>B</i> = 0.</p>`};
+
+FLAWS["initial-final-value"]={n:2,step:1,
+  why:"The initial-value theorem is <i>f</i>(0+) = lim<sub><i>s</i>→∞</sub> <i>sF</i>(<i>s</i>). Taking the limit of <i>F</i>(<i>s</i>) alone gives zero for every strictly proper transform, whatever the initial value.",
+  wrong:(p,s)=>({f0:0,fi:s.fi}),
+  html:(p,s,w)=>`<h3>1. Initial value</h3>
+  <p>${eq(`<i>f</i>(0+) = lim<sub>${S}→∞</sub> ${Fs} = lim<sub>${S}→∞</sub> ${frac(poly([p.b2,p.b1,p.b0]),`${S}${fac(p.p1)}${fac(p.p2)}`)} = 0`)}</p>
+  <h3>2. Final value</h3>
+  <p>The poles of ${S}${Fs} are at −${p.p1} and −${p.p2}, both in the left half-plane, so the final-value theorem applies:</p>
+  <p>${eq(`<i>f</i>(∞) = lim<sub>${S}→0</sub> ${S}${Fs} = ${frac(nf(p.b0),`(${p.p1})(${p.p2})`)} = ${sig(s.fi)}`)}</p>
+  <p class="final"><i>f</i>(0+) = 0, <i>f</i>(∞) = ${sig(s.fi,3)}.</p>`};
+
+FLAWS["inverse-distinct"]={n:3,step:2,
+  why:"The factor (<i>s</i> + <i>p</i>) vanishes at the pole <i>s</i> = −<i>p</i>, so each residue is evaluated at <i>s</i> = −<i>p</i>. Evaluating at <i>s</i> = +<i>p</i> gives a number unrelated to the pole.",
+  wrong:(p,s)=>({a0:s.a0,a1:p.K*(p.z+p.p1)/(p.p1*(p.p1+p.p2)),a2:p.K*(p.z+p.p2)/(p.p2*(p.p1+p.p2))}),
+  html:(p,s,w)=>`<h3>1. Partial-fraction form</h3>
+  <p>${eq(`${Fs} = ${frac("<i>a</i><sub>0</sub>",S)} + ${frac("<i>a</i><sub>1</sub>",`${S} + ${p.p1}`)} + ${frac("<i>a</i><sub>2</sub>",`${S} + ${p.p2}`)}`)}</p>
+  <h3>2. Residues</h3>
+  <p>${eq(`<i>a</i><sub>0</sub> = [${S}${Fs}]<sub>${S}=0</sub> = ${sig(s.a0)}`)}</p>
+  <p>${eq(`<i>a</i><sub>1</sub> = [${fac(p.p1)}${Fs}]<sub>${S}=${p.p1}</sub> = ${frac(`${p.K}(${p.z + p.p1})`,`(${p.p1})(${p.p1+p.p2})`)} = ${sig(w.a1)}`)}</p>
+  <p>${eq(`<i>a</i><sub>2</sub> = [${fac(p.p2)}${Fs}]<sub>${S}=${p.p2}</sub> = ${frac(`${p.K}(${p.z + p.p2})`,`(${p.p2})(${p.p1+p.p2})`)} = ${sig(w.a2)}`)}</p>
+  <h3>3. Inverse transform</h3>
+  <p class="final">${ft} = ${sig(w.a0,3)} + ${sig(w.a1,3)}${ex(p.p1)} + ${sig(w.a2,3)}${ex(p.p2)}, ${Tt} &ge; 0.</p>`};
+
+FLAWS["inverse-repeated"]={n:3,step:3,
+  why:"The inverse transform of 1/(<i>s</i> + <i>p</i>)² is <i>t e</i><sup>−<i>pt</i></sup>, not <i>e</i><sup>−<i>pt</i></sup>. A repeated pole produces a term that grows linearly in <i>t</i> before the exponential decay takes over.",
+  wrong:(p,s)=>({a:s.a,c1:s.c1+s.c2,c2:0}),
+  html:(p,s,w)=>`<h3>1. Partial-fraction form</h3>
+  <p>${eq(`${Fs} = ${frac("<i>a</i>",`${S} + ${p.p1}`)} + ${frac("<i>c</i><sub>1</sub>",`${S} + ${p.p2}`)} + ${frac("<i>c</i><sub>2</sub>",`(${S} + ${p.p2})²`)}`)}</p>
+  <h3>2. Coefficients</h3>
+  <p>${eq(`<i>a</i> = ${sig(s.a)}`)} ${eq(`<i>c</i><sub>2</sub> = [${fac(p.p2)}²${Fs}]<sub>${S}=−${p.p2}</sub> = ${sig(s.c2)}`)} ${eq(`<i>c</i><sub>1</sub> = ${frac("<i>d</i>","<i>ds</i>")}[${fac(p.p2)}²${Fs}]<sub>${S}=−${p.p2}</sub> = ${sig(s.c1)}`)}</p>
+  <h3>3. Inverse transform</h3>
+  <p>Both terms at the pole −${p.p2} invert to ${ex(p.p2)}, so their coefficients add:</p>
+  <p class="final">${ft} = ${sig(w.a,3)}${ex(p.p1)} + ${sig(w.c1,3)}${ex(p.p2)}, so <i>c</i><sub>1</sub> = ${sig(w.c1,3)} and <i>c</i><sub>2</sub> = 0.</p>`};
+
+FLAWS["inverse-complex"]={n:3,step:2,
+  why:"The term <i>b</i><sub>1</sub><i>s</i> must be rewritten as <i>b</i><sub>1</sub>(<i>s</i> + σ) − <i>b</i><sub>1</sub>σ before inverting, because the shifted cosine has transform (<i>s</i> + σ)/((<i>s</i> + σ)² + ω²). The leftover −<i>b</i><sub>1</sub>σ belongs to the sine term.",
+  wrong:(p,s)=>({al:p.al,w:p.w,C:p.b1,D:p.b0/p.w}),
+  html:(p,s,w)=>`<h3>1. Complete the square</h3>
+  <p>${eq(`${poly([1,2*p.al,p.al*p.al+p.w*p.w])} = (${S} + ${p.al})² + ${p.w}²`)}, so σ = ${p.al} and ω = ${p.w}.</p>
+  <h3>2. Split the numerator</h3>
+  <p>The <i>s</i> term goes with the cosine and the constant with the sine:</p>
+  <p>${eq(`${Fs} = ${nf(p.b1)} ${frac(S,`(${S} + ${p.al})² + ${p.w}²`)} ${p.b0<0?"−":"+"} ${sig(Math.abs(w.D))} ${frac(p.w,`(${S} + ${p.al})² + ${p.w}²`)}`)}</p>
+  <h3>3. Inverse transform</h3>
+  <p class="final">${ft} = ${ex(p.al)}(${nf(w.C)} cos ${wt(p.w)} ${w.D<0?"−":"+"} ${sig(Math.abs(w.D),3)} sin ${wt(p.w)}): σ = ${p.al}, ω = ${p.w}, <i>C</i> = ${nf(w.C)}, <i>D</i> = ${sig(w.D,3)}.</p>`};
+
+FLAWS["inverse-improper"]={n:3,step:3,
+  why:"The inverse transform of a constant <i>k</i> is the impulse <i>k</i>δ(<i>t</i>). A step of height <i>k</i> has transform <i>k</i>/<i>s</i>, which is not what the division produced.",
+  wrong:(p,s)=>({imp:0,a0:s.a0+p.b2,a1:s.a1}),
+  html:(p,s,w)=>`<h3>1. Divide</h3>
+  <p>${eq(`${Fs} = ${nf(p.b2)} + ${frac(poly([s.r1,p.b0]),`${S}${fac(p.p)}`)}`)}</p>
+  <h3>2. Partial fractions of the remainder</h3>
+  <p>${eq(`<i>a</i><sub>0</sub> = ${sig(s.a0)}`)} ${eq(`<i>a</i><sub>1</sub> = ${sig(s.a1)}`)}</p>
+  <h3>3. Inverse transform</h3>
+  <p>The constant ${nf(p.b2)} is a constant in time and adds to <i>a</i><sub>0</sub>:</p>
+  <p class="final">${ft} = ${sig(w.a0,3)} ${w.a1<0?"−":"+"} ${sig(Math.abs(w.a1),3)}${ex(p.p)}: <i>k</i> = 0, <i>a</i><sub>0</sub> = ${sig(w.a0,3)}, <i>a</i><sub>1</sub> = ${sig(w.a1,3)}.</p>`};
+
+FLAWS["inverse-delay"]={n:3,step:2,
+  why:"Multiplication by <i>e</i><sup>−<i>Ts</i></sup> delays the whole function: its inverse is <i>g</i>(<i>t</i> − <i>T</i>)<i>u</i>(<i>t</i> − <i>T</i>), not <i>g</i>(<i>t</i>)<i>u</i>(<i>t</i> − <i>T</i>).",
+  wrong:(p,s)=>({f1:s.f1,f2:0}),
+  html:(p,s,w)=>`<h3>1. Inverse of the undelayed part</h3>
+  <p>${eq(`<i>g</i>(${Tt}) = ${nf(p.A/p.p)}(1 − ${ex(p.p)})`)}</p>
+  <h3>2. Real shifting theorem</h3>
+  <p>The factor <i>e</i><sup>−${p.T===1?"":p.T}${S}</sup> switches the second term on at ${Tt} = ${p.T}:</p>
+  <p>${eq(`${ft} = <i>g</i>(${Tt}) − <i>g</i>(${Tt})<i>u</i>(${Tt} − ${p.T})`)}</p>
+  <h3>3. Evaluate</h3>
+  <p>${eq(`<i>f</i>(${nf(p.t1)}) = ${sig(s.f1)}`)} ${eq(`<i>f</i>(${nf(p.t2)}) = <i>g</i>(${nf(p.t2)}) − <i>g</i>(${nf(p.t2)}) = 0`)}</p>
+  <p class="final"><i>f</i>(${nf(p.t1)}) = ${sig(w.f1,3)}, <i>f</i>(${nf(p.t2)}) = 0.</p>`};
+
+FLAWS["ode-step-real"]={n:3,step:1,
+  why:"The transform of the first derivative is ℒ[<i>ẋ</i>] = <i>sX</i>(<i>s</i>) − <i>x</i>(0). The initial value enters through the damping term as well as through the second derivative.",
+  wrong:(p,s)=>{const N=s_=>p.m*p.x0*s_*s_+p.m*p.v0*s_+p.F0;
+    return {xs:p.F0/p.k,C1:N(-p.p1)/(p.m*(-p.p1)*(p.p2-p.p1)),C2:N(-p.p2)/(p.m*(-p.p2)*(p.p1-p.p2))}},
+  html:(p,s,w)=>`<h3>1. Transform the equation</h3>
+  <p>With ${eq(`ℒ[${XD}] = ${S}${Xs}`)} and ${eq(`ℒ[${XDD}] = ${S}²${Xs} − ${S}<i>x</i>(0) − ${XD}(0)`)},</p>
+  <p>${eq(`${p.m===1?"":p.m}[${S}²${Xs} ${p.x0<0?"+":"−"} ${Math.abs(p.x0)}${S} ${p.v0<0?"+":"−"} ${Math.abs(p.v0)}] + ${p.c}${S}${Xs} + ${p.k}${Xs} = ${frac(p.F0,S)}`)}</p>
+  <h3>2. Solve for X(s)</h3>
+  <p>${eq(`${Xs} = ${frac(poly([p.m*p.x0,p.m*p.v0,p.F0]),`${p.m===1?"":p.m}${S}${fac(p.p1)}${fac(p.p2)}`)}`)}</p>
+  <h3>3. Partial fractions and inverse</h3>
+  <p class="final"><i>x</i><sub>ss</sub> = ${sig(w.xs,3)}, <i>C</i><sub>1</sub> = ${sig(w.C1,3)}, <i>C</i><sub>2</sub> = ${sig(w.C2,3)}.</p>`};
+
+FLAWS["ode-free-underdamped"]={n:3,step:2,
+  why:"Completing the square gives <i>s</i>² + 2σ<i>s</i> + ω<sub>n</sub>² = (<i>s</i> + σ)² + (ω<sub>n</sub>² − σ²). The oscillation frequency is the damped frequency ω<sub>d</sub> = √(ω<sub>n</sub>² − σ²), not the undamped natural frequency ω<sub>n</sub>.",
+  wrong:(p,s)=>{const wn=Math.sqrt(p.al**2+p.w**2);return {al:p.al,w:wn,C:p.x0,D:(p.v0+p.al*p.x0)/wn}},
+  html:(p,s,w)=>`<h3>1. Transform and solve for X(s)</h3>
+  <p>${eq(`${Xs} = ${frac(sum([[p.x0,S],[p.v0+2*p.al*p.x0,""]]),poly([1,2*p.al,p.al**2+p.w**2]))}`)}</p>
+  <h3>2. Complete the square</h3>
+  <p>The natural frequency is ω<sub>n</sub> = √${p.al**2+p.w**2} = ${sig(w.w)}, so ${eq(`${poly([1,2*p.al,p.al**2+p.w**2])} = (${S} + ${p.al})² + ${sig(w.w)}²`)}, giving σ = ${p.al} and ω<sub>d</sub> = ${sig(w.w)}.</p>
+  <h3>3. Inverse transform</h3>
+  <p>Writing the numerator as ${eq(`${nf(p.x0)}(${S} + ${p.al}) ${p.v0+p.al*p.x0<0?"−":"+"} ${Math.abs(p.v0+p.al*p.x0)}`)},</p>
+  <p class="final">σ = ${p.al}, ω<sub>d</sub> = ${sig(w.w,3)}, <i>C</i> = ${nf(w.C)}, <i>D</i> = ${sig(w.D,3)}.</p>`};
+
+FLAWS["ode-sinusoidal"]={n:3,step:3,
+  why:"ℒ[sin ω<i>t</i>] = ω/(<i>s</i>² + ω²), so the inverse of 1/(<i>s</i>² + ω²) is (1/ω) sin ω<i>t</i>. Dropping the factor 1/ω changes the amplitude of each term.",
+  wrong:(p,s)=>({P:s.K,Q:-s.K}),
+  html:(p,s,w)=>`<h3>1. Transform and solve for X(s)</h3>
+  <p>${eq(`${Xs} = ${frac(p.A*p.w,`(${S}² + ${p.wn*p.wn})(${S}² + ${p.w*p.w})`)}`)}</p>
+  <h3>2. Partial fractions in s²</h3>
+  <p>${eq(`${Xs} = ${sig(s.K)} [${frac(1,`${S}² + ${p.wn*p.wn}`)} − ${frac(1,`${S}² + ${p.w*p.w}`)}]`)}</p>
+  <h3>3. Inverse transform</h3>
+  <p>Each factor 1/(${S}² + ω²) inverts to sin ω${Tt}:</p>
+  <p class="final"><i>x</i>(${Tt}) = ${sig(s.K)}(sin ${wt(p.wn)} − sin ${wt(p.w)}), so <i>P</i> = ${sig(w.P,3)} and <i>Q</i> = ${sig(w.Q,3)}.</p>`};
+
+// ===== error report form (Google Form with prefilled fields)
+// Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
+const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){
+  const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
+  q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
+  return FORM.url+"?"+q.toString();
+}
+
+// ===== page
+let curKey="laplace-sinusoid", cur=null, curFields=[], curTruth={}, curMode="practice";
+const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+
+function fillTypes(){
+  const keys=hunting()?Object.keys(FLAWS):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+  return curKey;
+}
+
+function setMode(mode,key,seed){
+  curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";
+  $("mError").className=mode==="error"?"":"ghost";
+  $("reportRow").firstElementChild.textContent=hunting()
+    ?"Found a mistake other than the planted one?"
+    :"Found a mistake in a problem or its solution?";
+  curKey=key||curKey; const k=fillTypes();
+  render(k,seed||parseInt($("seedIn").value,10)||1);
+}
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed); const {p,s}=cur;
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed+(hunting()?"-e":""))}catch(e){}
+  $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
+  $("statement").innerHTML=T.statement(p,s);
+  $("flawCard").style.display=F?"":"none";
+  $("flawed").innerHTML=F?F.html(p,s,F.wrong(p,s)):"";
+  curFields=T.fields(p,s); curTruth=T.truth(s);
+  if(F){const steps=[];for(let i=1;i<=F.n;i++)steps.push(String(i));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];
+    curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+"Answers within 2% are accepted. "+(T.note||"");
+  const sol=$("solution"); sol.style.display="none";
+  sol.innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
+}
+
+function check(){
+  const truth=curTruth;
+  const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
+  curFields.forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scaleOf(f.unit):0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+if(typeof document!=="undefined"){
+  const newSeed=()=>1+Math.floor(Math.random()*999999);
+  $("typeSel").onchange=e=>render(e.target.value,newSeed());
+  $("newBtn").onclick=()=>render(curKey,newSeed());
+  $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+  $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
+  if(FORM.url)$("reportRow").style.display="";
+  $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+  $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+    s.style.display=show?"block":"none";
+    e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+  (function(){
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice","laplace-sinusoid",newSeed());
+  })();
+}
+if(typeof module!=="undefined")module.exports={TEMPLATES,FLAWS};
+
+</script>
+</body>
+</html>

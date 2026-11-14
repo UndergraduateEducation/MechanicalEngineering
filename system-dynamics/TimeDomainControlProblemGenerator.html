@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Time-Domain Analysis of Control Systems Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --load:#aa1e28; --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .fr{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 .15em;line-height:1.25}
+  .fr>span{padding:0 .25em;white-space:nowrap}
+  .fr>span:first-child{border-bottom:1px solid currentColor}
+  .eq{line-height:1.9}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Time-Domain Analysis of Control Systems Problem Generator</h1>
+</header>
+<main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
+  </div>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+// ----- numeric helpers
+const nz=(r,a,b)=>pick(r,range(a,b,1).filter(v=>v!==0));
+const two=(r,a,b)=>{const x=pick(r,range(a,b,1));let y=x;while(y===x)y=pick(r,range(a,b,1));return x<y?[x,y]:[y,x]};
+const PI=Math.PI;
+const wdOf=(z,wn)=>wn*Math.sqrt(1-z*z);
+const MpOf=z=>100*Math.exp(-z*PI/Math.sqrt(1-z*z));
+const trOf=(z,wn)=>(PI-Math.acos(z))/wdOf(z,wn);
+// angle condition on the ray s = r(-z + j sqrt(1-z^2)) for G = K/(s(s+p1)(s+p2))
+function rlZeta(p1,p2,z){const c=Math.sqrt(1-z*z);
+  const phi=r=>{const x=-z*r,y=c*r;return Math.atan2(y,x)+Math.atan2(y,x+p1)+Math.atan2(y,x+p2)-PI};
+  let a=1e-9,b=1e3;for(let i=0;i<200;i++){const m=(a+b)/2;if(phi(m)<0)a=m;else b=m}
+  const r=(a+b)/2,sg=z*r,wd=c*r,K=Math.hypot(sg,wd)*Math.hypot(p1-sg,wd)*Math.hypot(p2-sg,wd);
+  return {sg,wd,K,s3:-(p1+p2)+2*sg}}
+
+// ----- formatting
+const sig=(x,n=4)=>{if(Math.abs(x)<1e-9)return "0";const d=Math.max(0,n-1-Math.floor(Math.log10(Math.abs(x))));return Number(x).toFixed(Math.min(d,8)).replace("-","−")};
+const nf=x=>Math.abs(x-Math.round(x))<1e-9?String(Math.round(x)).replace("-","−"):sig(x,4).replace(/(\.\d*?)0+$/,"$1").replace(/\.$/,"");
+const eq=s=>`<span class="eq">${s}</span>`;
+const S="<i>s</i>";
+const SUP={2:"²",3:"³",4:"⁴"};
+const mono=k=>k===0?"":k===1?S:S+SUP[k];
+function sum(terms){let o="";terms.forEach(([c,m])=>{if(Math.abs(c)<1e-12)return;const a=Math.abs(c);
+  const cf=(m&&Math.abs(a-1)<1e-12)?"":nf(a);o+=o?(c<0?" − ":" + "):(c<0?"−":"");o+=cf+m});return o||"0"}
+const poly=c=>sum(c.map((a,i)=>[a,mono(c.length-1-i)]));
+const fac=p=>p===0?S:`(${S} + ${nf(p)})`;
+const frac=(n,d)=>`<span class="fr"><span>${n}</span><span>${d}</span></span>`;
+const ze="ζ", wn_="ω<sub>n</sub>", wd_="ω<sub>d</sub>";
+const CR=`<i>C</i>(${S})/<i>R</i>(${S})`;
+
+// ----- block-diagram toolkit
+// blk: block at center (x,y) with label l or fraction n/d; sum: summing junction with signs {w,n,s};
+// w: wire polyline with arrowhead; dot: pickoff point; lab: free text. Single letters in labels are set in italics.
+const IT=v=>`<tspan font-style="italic">${v}</tspan>`;
+const ml=t=>String(t).replace(/-/g,"−").replace(/\b([GKH])([a-z]{1,2})\b|(?<![A-Za-z])([a-zA-Z])(?![A-Za-z0-9])/g,(m,a,b,c)=>c?IT(c):IT(a)+`<tspan font-size="11" baseline-shift="sub" font-style="italic">${b}</tspan>`);
+const tw=t=>String(t).length*7.6+20;
+function bd(items,W=560,H=200){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker></defs>`;
+  items.forEach(e=>{
+    if(e.t==="blk"){const w=e.w||Math.max(44,tw(e.l||""),tw(e.n||""),tw(e.d||"")),h=e.d?46:34;
+      o+=`<rect x="${e.x-w/2}" y="${e.y-h/2}" width="${w}" height="${h}" fill="#fff" stroke="#222" stroke-width="1.3"/>`;
+      if(e.d)o+=`<text x="${e.x}" y="${e.y-6}" text-anchor="middle">${ml(e.n)}</text><line x1="${e.x-w/2+8}" y1="${e.y}" x2="${e.x+w/2-8}" y2="${e.y}" stroke="#222"/><text x="${e.x}" y="${e.y+16}" text-anchor="middle">${ml(e.d)}</text>`;
+      else o+=`<text x="${e.x}" y="${e.y+5}" text-anchor="middle">${ml(e.l)}</text>`;return}
+    if(e.t==="sum"){o+=`<circle cx="${e.x}" cy="${e.y}" r="10" fill="#fff" stroke="#222" stroke-width="1.3"/>`;
+      const sg=e.s||{};if(sg.w)o+=`<text x="${e.x-20}" y="${e.y-6}" text-anchor="middle" font-size="14">${sg.w}</text>`;
+      if(sg.s)o+=`<text x="${e.x+14}" y="${e.y+24}" text-anchor="middle" font-size="14">${sg.s}</text>`;
+      if(sg.n)o+=`<text x="${e.x+14}" y="${e.y-14}" text-anchor="middle" font-size="14">${sg.n}</text>`;return}
+    if(e.t==="w"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" fill="none" stroke="#222" stroke-width="1.3"${e.a===false?"":' marker-end="url(#ah)"'}/>`;return}
+    if(e.t==="dot"){o+=`<circle cx="${e.x}" cy="${e.y}" r="3" fill="#222"/>`;return}
+    if(e.t==="lab"){o+=`<text x="${e.x}" y="${e.y}" text-anchor="${e.an||"middle"}">${ml(e.l)}</text>`;return}
+  });
+  return o+"</svg>";
+}
+// unity-feedback loop with a chain of blocks between the summing junction and the output
+function loopFig(blocks){
+  const y=70,items=[{t:"lab",x:22,y:y+5,l:"R(s)"},{t:"w",p:[[44,y],[80,y]]},{t:"sum",x:90,y,s:{w:"+",s:"−"}}];
+  let x=100;blocks.forEach(b=>{const w=Math.max(44,tw(b.l||""),tw(b.n||""),tw(b.d||""));items.push({t:"w",p:[[x,y],[x+30,y]]});items.push({t:"blk",x:x+30+w/2,y,w,...b});x+=30+w});
+  items.push({t:"w",p:[[x,y],[x+60,y]]},{t:"dot",x:x+30,y},{t:"lab",x:x+64,y:y+5,l:"C(s)",an:"start"},{t:"w",p:[[x+30,y],[x+30,y+70],[90,y+70],[90,y+10]]});
+  return bd(items,x+120,170);
+}
+
+// ----- templates
+const TEMPLATES={};
+
+// 1. velocity (rate) feedback: reduce, match the standard form, transient specifications
+const velFig=(gn,gd,kl)=>bd([{t:"lab",x:22,y:75,l:"R(s)"},{t:"w",p:[[44,70],[80,70]]},{t:"sum",x:90,y:70,s:{w:"+",s:"−"}},
+  {t:"w",p:[[100,70],[150,70]]},{t:"sum",x:160,y:70,s:{w:"+",s:"−"}},{t:"w",p:[[170,70],[200,70]]},{t:"blk",x:250,y:70,w:100,n:gn,d:gd},
+  {t:"w",p:[[300,70],[350,70]]},{t:"dot",x:325,y:70},{t:"blk",x:380,y:70,w:60,n:"1",d:"s"},{t:"w",p:[[410,70],[480,70]]},{t:"dot",x:450,y:70},{t:"lab",x:486,y:75,l:"C(s)",an:"start"},
+  {t:"w",p:[[325,70],[325,130],[275,130]]},{t:"blk",x:250,y:130,w:50,l:kl},{t:"w",p:[[225,130],[160,130],[160,80]]},
+  {t:"w",p:[[450,70],[450,180],[90,180],[90,80]]}],560,200);
+TEMPLATES["velocity-feedback"]={
+  name:"Velocity feedback: closed-loop transfer function and transient specifications",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={K:pick(r,[4,9,16,25,36,49,64,81,100]),a:pick(r,range(0.2,2,0.2)),z:pick(r,[0.4,0.5,0.6,0.7])};
+      const wn=Math.sqrt(p.K),kh=(2*p.z*wn-p.a)/p.K;
+      if(kh<0.02) continue;
+      return {p,s:{wn,kh,tp:PI/wdOf(p.z,wn),Mp:MpOf(p.z)}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>The position control system in the figure has a minor feedback loop of gain <i>k</i> that feeds back the velocity, the output of the block ${nf(p.K)}/(${S} + ${nf(p.a)}). Determine the value of <i>k</i> for which the closed-loop poles have a damping ratio ${ze} = ${p.z}. Then determine the undamped natural frequency ${wn_}, the peak time <i>t<sub>p</sub></i>, and the maximum percent overshoot <i>M<sub>p</sub></i> of the unit-step response.</p>`,
+  figure:p=>velFig(nf(p.K),`s + ${nf(p.a)}`,"k"),
+  solution:(p,s)=>`<h3>1. Reduce the block diagram</h3>
+  <p>The minor loop gives ${eq(`${frac(p.K,`${S} + ${nf(p.a)} + ${p.K}<i>k</i>`)}`)}, and closing the unity loop around it and the integrator gives</p>
+  <p>${eq(`${CR} = ${frac(p.K,`${S}² + (${nf(p.a)} + ${p.K}<i>k</i>)${S} + ${p.K}`)}`)}</p>
+  <h3>2. Match the standard second-order form</h3>
+  <p>Comparing with ${wn_}²/(${S}² + 2${ze}${wn_}${S} + ${wn_}²): ${eq(`${wn_} = √${p.K} = ${nf(s.wn)} rad/s`)} and ${eq(`2${ze}${wn_} = ${nf(p.a)} + ${p.K}<i>k</i>`)}, so</p>
+  <p>${eq(`<i>k</i> = ${frac(`2(${p.z})(${nf(s.wn)}) − ${nf(p.a)}`,p.K)} = ${sig(s.kh)}`)}</p>
+  <h3>3. Transient specifications</h3>
+  <p>${eq(`${wd_} = ${wn_}√(1 − ${ze}²) = ${sig(wdOf(p.z,s.wn))} rad/s`)} ${eq(`<i>t<sub>p</sub></i> = π/${wd_} = ${sig(s.tp)} s`)} ${eq(`<i>M<sub>p</sub></i> = 100 <i>e</i><sup>−${ze}π/√(1−${ze}²)</sup> = ${sig(s.Mp)}%`)}</p>
+  <p class="final"><i>k</i> = ${sig(s.kh,3)}, ${wn_} = ${sig(s.wn,3)} rad/s, <i>t<sub>p</sub></i> = ${sig(s.tp,3)} s, <i>M<sub>p</sub></i> = ${sig(s.Mp,3)}%.</p>`,
+  fields:p=>[{id:"kh",label:"Velocity feedback gain <i>k</i>",unit:""},{id:"wn",label:`Natural frequency ${wn_}`,unit:"rad/s"},{id:"tp",label:"Peak time <i>t<sub>p</sub></i>",unit:"s"},{id:"Mp",label:"Maximum overshoot <i>M<sub>p</sub></i>",unit:"%"}],
+  truth:s=>({kh:s.kh,wn:s.wn,tp:s.tp,Mp:s.Mp}),
+  note:""
+};
+
+// 2. block-diagram reduction with two minor loops
+TEMPLATES["block-reduction"]={
+  name:"Block-diagram reduction with nested feedback loops",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={K1:pick(r,range(2,20,1)),a:pick(r,range(1,5,1)),b:pick(r,range(1,5,1)),h1:pick(r,range(1,4,1)),h2:pick(r,range(1,10,1))};
+      const a1=p.a+p.h1+p.b,a0=(p.a+p.h1)*p.b+p.h2+p.K1;
+      if(p.h2*(p.K1-1)<0.1*a0) continue;
+      return {p,s:{a1,a0,dc:p.K1/a0}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>Simplify the block diagram in the figure, in which <i>G</i><sub>1</sub> = ${p.K1}, <i>G</i><sub>2</sub> = 1/${fac(p.a)}, <i>G</i><sub>3</sub> = 1/${fac(p.b)}, <i>H</i><sub>1</sub> = ${p.h1}, and <i>H</i><sub>2</sub> = ${p.h2}. Write the closed-loop transfer function as</p>
+  <p>${eq(`${CR} = ${frac("<i>b</i><sub>0</sub>",`${S}² + <i>a</i><sub>1</sub>${S} + <i>a</i><sub>0</sub>`)}`)}</p>
+  <p>and report <i>a</i><sub>1</sub>, <i>a</i><sub>0</sub>, and the steady-state output for a unit-step input.</p>`,
+  figure:p=>bd([{t:"lab",x:22,y:95,l:"R(s)"},{t:"w",p:[[44,90],[80,90]]},{t:"sum",x:90,y:90,s:{w:"+",s:"−"}},
+    {t:"w",p:[[100,90],[120,90]]},{t:"blk",x:142,y:90,l:"G₁"},{t:"w",p:[[164,90],[200,90]]},{t:"sum",x:210,y:90,s:{w:"+",s:"−",n:"−"}},
+    {t:"w",p:[[220,90],[250,90]]},{t:"blk",x:272,y:90,l:"G₂"},{t:"w",p:[[294,90],[350,90]]},{t:"dot",x:325,y:90},
+    {t:"blk",x:372,y:90,l:"G₃"},{t:"w",p:[[394,90],[480,90]]},{t:"dot",x:440,y:90},{t:"lab",x:486,y:95,l:"C(s)",an:"start"},
+    {t:"w",p:[[325,90],[325,140],[294,140]]},{t:"blk",x:272,y:140,l:"H₁"},{t:"w",p:[[250,140],[210,140],[210,100]]},
+    {t:"w",p:[[440,90],[440,35],[351,35]]},{t:"blk",x:329,y:35,l:"H₂"},{t:"w",p:[[307,35],[210,35],[210,80]]},
+    {t:"w",p:[[440,90],[440,185],[90,185],[90,100]]}],540,205),
+  solution:(p,s)=>`<h3>1. Inner loops</h3>
+  <p>The loop through <i>H</i><sub>1</sub> gives ${eq(`${frac("<i>G</i><sub>2</sub>","1 + <i>G</i><sub>2</sub><i>H</i><sub>1</sub>")} = ${frac(1,`${S} + ${p.a+p.h1}`)}`)}. In series with <i>G</i><sub>3</sub>, and with the loop through <i>H</i><sub>2</sub> closed around both,</p>
+  <p>${eq(`${frac(1,`(${S} + ${p.a+p.h1})(${S} + ${p.b}) + ${p.h2}`)}`)}</p>
+  <h3>2. Outer loop</h3>
+  <p>${eq(`${CR} = ${frac(p.K1,`(${S} + ${p.a+p.h1})(${S} + ${p.b}) + ${p.h2} + ${p.K1}`)} = ${frac(p.K1,poly([1,s.a1,s.a0]))}`)}</p>
+  <h3>3. Steady-state step output</h3>
+  <p>By the final-value theorem the unit-step output tends to <i>C</i>(0)/<i>R</i>(0) = ${p.K1}/${s.a0}.</p>
+  <p class="final"><i>a</i><sub>1</sub> = ${s.a1}, <i>a</i><sub>0</sub> = ${s.a0}, <i>c</i>(∞) = ${sig(s.dc,3)}.</p>`,
+  fields:p=>[{id:"a1",label:"<i>a</i><sub>1</sub>",unit:""},{id:"a0",label:"<i>a</i><sub>0</sub>",unit:""},{id:"dc",label:"Steady-state unit-step output <i>c</i>(∞)",unit:""}],
+  truth:s=>({a1:s.a1,a0:s.a0,dc:s.dc}),
+  note:""
+};
+
+// 3. first-order system: thermometer time constant and ramp error
+TEMPLATES["first-order-thermometer"]={
+  name:"First-order system: time constant from a step test and ramp error",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={T0:pick(r,range(0.5,4,0.5)),Tb:pick(r,range(20,60,5)),t1:pick(r,[1,2,3]),rate:pick(r,[2,5,10,15,20])};
+      p.th1=Math.round(10*p.Tb*(1-Math.exp(-p.t1/p.T0)))/10;
+      const f=p.th1/p.Tb;
+      if(f<0.2||f>0.95||Math.abs(f-0.5)<0.1) continue;
+      const T=-p.t1/Math.log(1-f);
+      return {p,s:{f,T,ess:p.rate*T/60}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A mercury thermometer with negligible glass capacitance behaves as a first-order system, ${eq(`Θ(${S})/Θ<sub>b</sub>(${S}) = 1/(<i>T</i>${S} + 1)`)}, with temperatures measured from ambient. The thermometer is plunged into a bath held ${p.Tb}°C above ambient, and after ${p.t1} s it reads ${nf(p.th1)}°C above ambient. Determine the time constant <i>T</i>. The thermometer is then placed in a bath whose temperature rises linearly at ${p.rate}°C/min. Determine the steady-state error of the reading.</p>`,
+  solution:(p,s)=>`<h3>1. Time constant from the step test</h3>
+  <p>The step response is ${eq(`θ(<i>t</i>) = θ<sub>b</sub>(1 − <i>e</i><sup>−<i>t</i>/<i>T</i></sup>)`)}, so ${eq(`1 − <i>e</i><sup>−${p.t1}/<i>T</i></sup> = ${nf(p.th1)}/${p.Tb} = ${sig(s.f)}`)} and</p>
+  <p>${eq(`<i>T</i> = −${p.t1}/ln(1 − ${sig(s.f)}) = ${sig(s.T)} s`)}</p>
+  <h3>2. Ramp error</h3>
+  <p>For a ramp input of slope <i>r</i>, a first-order system lags by <i>rT</i> in the steady state. With <i>r</i> = ${p.rate}/60 °C/s,</p>
+  <p class="final"><i>T</i> = ${sig(s.T,3)} s, <i>e</i><sub>ss</sub> = ${p.rate}(${sig(s.T)})/60 = ${sig(s.ess,3)}°C.</p>`,
+  fields:p=>[{id:"T",label:"Time constant <i>T</i>",unit:"s"},{id:"ess",label:"Steady-state ramp error",unit:"°C"}],
+  truth:s=>({T:s.T,ess:s.ess}),
+  note:""
+};
+
+// 4. transient-response specifications from a second-order transfer function
+TEMPLATES["second-order-specs"]={
+  name:"Transient-response specifications of a second-order system",
+  generate(seed){const r=mulberry32(seed);
+    const p={z:pick(r,range(0.2,0.8,0.05)),wn:pick(r,range(1,10,1))};
+    p.a1=+(2*p.z*p.wn).toFixed(4);p.a0=p.wn*p.wn;
+    return {p,s:{z:p.z,wn:p.wn,wd:wdOf(p.z,p.wn),tr:trOf(p.z,p.wn),tp:PI/wdOf(p.z,p.wn),Mp:MpOf(p.z),ts:4/(p.z*p.wn)}};},
+  statement:p=>`<p>A closed-loop system has the transfer function</p>
+  <p>${eq(`${CR} = ${frac(p.a0,poly([1,p.a1,p.a0]))}`)}</p>
+  <p>Determine the damping ratio ${ze}, the undamped natural frequency ${wn_}, and, for a unit-step input, the rise time <i>t<sub>r</sub></i> (0 to 100%), the peak time <i>t<sub>p</sub></i>, the maximum percent overshoot <i>M<sub>p</sub></i>, and the settling time <i>t<sub>s</sub></i> (2% criterion, <i>t<sub>s</sub></i> = 4/(${ze}${wn_})).</p>`,
+  solution:(p,s)=>`<h3>1. Damping ratio and natural frequency</h3>
+  <p>${eq(`${wn_}² = ${p.a0}`)} gives ${wn_} = ${p.wn} rad/s, and ${eq(`2${ze}${wn_} = ${nf(p.a1)}`)} gives ${ze} = ${nf(p.z)}.</p>
+  <h3>2. Rise time and peak time</h3>
+  <p>${eq(`${wd_} = ${wn_}√(1 − ${ze}²) = ${sig(s.wd)} rad/s`)} ${eq(`β = cos<sup>−1</sup>${ze} = ${sig(Math.acos(p.z))} rad`)}</p>
+  <p>${eq(`<i>t<sub>r</sub></i> = (π − β)/${wd_} = ${sig(s.tr)} s`)} ${eq(`<i>t<sub>p</sub></i> = π/${wd_} = ${sig(s.tp)} s`)}</p>
+  <h3>3. Overshoot and settling time</h3>
+  <p>${eq(`<i>M<sub>p</sub></i> = 100 <i>e</i><sup>−${ze}π/√(1−${ze}²)</sup> = ${sig(s.Mp)}%`)} ${eq(`<i>t<sub>s</sub></i> = 4/(${ze}${wn_}) = ${sig(s.ts)} s`)}</p>
+  <p class="final">${ze} = ${nf(p.z)}, ${wn_} = ${p.wn} rad/s, <i>t<sub>r</sub></i> = ${sig(s.tr,3)} s, <i>t<sub>p</sub></i> = ${sig(s.tp,3)} s, <i>M<sub>p</sub></i> = ${sig(s.Mp,3)}%, <i>t<sub>s</sub></i> = ${sig(s.ts,3)} s.</p>`,
+  fields:p=>[{id:"z",label:`Damping ratio ${ze}`,unit:"",tolAbs:0.01},{id:"wn",label:`Natural frequency ${wn_}`,unit:"rad/s"},{id:"tr",label:"Rise time <i>t<sub>r</sub></i>",unit:"s"},{id:"tp",label:"Peak time <i>t<sub>p</sub></i>",unit:"s"},{id:"Mp",label:"Maximum overshoot <i>M<sub>p</sub></i>",unit:"%"},{id:"ts",label:"Settling time <i>t<sub>s</sub></i>",unit:"s"}],
+  truth:s=>({z:s.z,wn:s.wn,tr:s.tr,tp:s.tp,Mp:s.Mp,ts:s.ts}),
+  note:"The damping ratio is accepted within 0.01."
+};
+
+// 5. specifications to damping ratio and natural frequency
+TEMPLATES["specs-to-parameters"]={
+  name:"Damping ratio and natural frequency from overshoot and settling-time specifications",
+  generate(seed){const r=mulberry32(seed);
+    const p={Mp:pick(r,[2,5,10,15,20,25,30]),ts:pick(r,[1,1.5,2,3,4,5])};
+    const L=Math.log(p.Mp/100),z=-L/Math.sqrt(PI*PI+L*L);
+    return {p,s:{L,z,wn:4/(z*p.ts)}};},
+  statement:p=>`<p>A system with closed-loop transfer function ${eq(`${CR} = ${frac(`${wn_}²`,`${S}² + 2${ze}${wn_}${S} + ${wn_}²`)}`)} must respond to a step input with a maximum overshoot of ${p.Mp}% and a settling time of ${nf(p.ts)} s (2% criterion, <i>t<sub>s</sub></i> = 4/(${ze}${wn_})). Determine ${ze} and ${wn_}.</p>`,
+  solution:(p,s)=>`<h3>1. Damping ratio from the overshoot</h3>
+  <p>Solving ${eq(`<i>M<sub>p</sub></i> = <i>e</i><sup>−${ze}π/√(1−${ze}²)</sup> = ${nf(p.Mp/100)}`)} for ${ze}:</p>
+  <p>${eq(`${ze} = ${frac(`−ln <i>M<sub>p</sub></i>`,`√(π² + ln² <i>M<sub>p</sub></i>)`)} = ${frac(sig(-s.L),`√(π² + ${sig(s.L*s.L)})`)} = ${sig(s.z)}`)}</p>
+  <h3>2. Natural frequency from the settling time</h3>
+  <p>${eq(`${wn_} = ${frac(4,`${ze}<i>t<sub>s</sub></i>`)} = ${frac(4,`(${sig(s.z)})(${nf(p.ts)})`)} = ${sig(s.wn)} rad/s`)}</p>
+  <p class="final">${ze} = ${sig(s.z,3)}, ${wn_} = ${sig(s.wn,3)} rad/s.</p>`,
+  fields:p=>[{id:"z",label:`Damping ratio ${ze}`,unit:"",tolAbs:0.01},{id:"wn",label:`Natural frequency ${wn_}`,unit:"rad/s"}],
+  truth:s=>({z:s.z,wn:s.wn}),
+  note:"The damping ratio is accepted within 0.01."
+};
+
+// 6. static error constants and steady-state error
+TEMPLATES["steady-state-error"]={
+  name:"Static error constants and steady-state error",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const [p1,p2]=two(r,1,6);
+      const p={type:pick(r,[0,1]),K:pick(r,range(2,40,2)),z:pick(r,range(1,6,1)),p1,p2,A:pick(r,[1,2,5,10])};
+      if(p.type===1&&!((p1+p2)*(p1*p2+p.K)>p.K*p.z)) continue;
+      const Kc=p.type===0?p.K/(p1*p2):p.K*p.z/(p1*p2),ess=p.type===0?p.A/(1+Kc):p.A/Kc;
+      return {p,s:{Kc,ess}};}
+    throw new Error("no valid problem");},
+  statement:p=>{const G=p.type===0?frac(p.K,`${fac(p.p1)}${fac(p.p2)}`):frac(`${p.K}${fac(p.z)}`,`${S}${fac(p.p1)}${fac(p.p2)}`);
+    return `<p>A unity-feedback control system has the open-loop transfer function ${eq(`<i>G</i>(${S}) = ${G}`)}. The closed-loop system is stable. Determine the static ${p.type===0?"position error constant <i>K<sub>p</sub></i>":"velocity error constant <i>K<sub>v</sub></i>"} and the steady-state error for the input ${p.type===0?`<i>r</i>(<i>t</i>) = ${p.A} (a step of size ${p.A})`:`<i>r</i>(<i>t</i>) = ${p.A}<i>t</i> (a ramp of slope ${p.A})`}.</p>`},
+  figure:p=>loopFig([p.type===0?{n:nf(p.K),d:`(s + ${p.p1})(s + ${p.p2})`}:{n:`${p.K}(s + ${p.z})`,d:`s(s + ${p.p1})(s + ${p.p2})`}]),
+  solution:(p,s)=>p.type===0?`<h3>1. System type and error constant</h3>
+  <p><i>G</i>(${S}) has no pole at the origin, so the system is type 0 and ${eq(`<i>K<sub>p</sub></i> = lim<sub>${S}→0</sub> <i>G</i>(${S}) = ${frac(p.K,`(${p.p1})(${p.p2})`)} = ${sig(s.Kc)}`)}.</p>
+  <h3>2. Steady-state error</h3>
+  <p>${eq(`<i>e</i><sub>ss</sub> = ${frac(p.A,"1 + <i>K<sub>p</sub></i>")} = ${sig(s.ess)}`)}</p>
+  <p class="final"><i>K<sub>p</sub></i> = ${sig(s.Kc,3)}, <i>e</i><sub>ss</sub> = ${sig(s.ess,3)}.</p>`
+  :`<h3>1. System type and error constant</h3>
+  <p><i>G</i>(${S}) has one pole at the origin, so the system is type 1 and ${eq(`<i>K<sub>v</sub></i> = lim<sub>${S}→0</sub> ${S}<i>G</i>(${S}) = ${frac(`${p.K}(${p.z})`,`(${p.p1})(${p.p2})`)} = ${sig(s.Kc)} s<sup>−1</sup>`)}.</p>
+  <h3>2. Steady-state error</h3>
+  <p>${eq(`<i>e</i><sub>ss</sub> = ${frac(p.A,"<i>K<sub>v</sub></i>")} = ${sig(s.ess)}`)}</p>
+  <p class="final"><i>K<sub>v</sub></i> = ${sig(s.Kc,3)} s<sup>−1</sup>, <i>e</i><sub>ss</sub> = ${sig(s.ess,3)}.</p>`,
+  fields:p=>[{id:"Kc",label:p.type===0?"Position error constant <i>K<sub>p</sub></i>":"Velocity error constant <i>K<sub>v</sub></i>",unit:p.type===0?"":"s<sup>−1</sup>"},{id:"ess",label:"Steady-state error <i>e</i><sub>ss</sub>",unit:""}],
+  truth:s=>({Kc:s.Kc,ess:s.ess}),
+  note:""
+};
+
+// 7. Routh stability range
+TEMPLATES["routh-stability"]={
+  name:"Range of gain for stability by Routh's criterion",
+  generate(seed){const r=mulberry32(seed);
+    const [p1,p2]=two(r,1,4);
+    const p={p1,p2,z:p1+p2+pick(r,range(1,6,1))};
+    const Km=p1*p2*(p1+p2)/(p.z-p1-p2);
+    return {p,s:{Km,w:Math.sqrt(Km*p.z/(p1+p2))}};},
+  statement:p=>`<p>A unity-feedback system has the open-loop transfer function ${eq(`<i>G</i>(${S}) = ${frac(`<i>K</i>${fac(p.z)}`,`${S}${fac(p.p1)}${fac(p.p2)}`)}`)} with <i>K</i> &gt; 0. Use Routh's stability criterion to find the largest gain <i>K</i><sub>max</sub> for which the closed-loop system is stable, and the frequency ω at which the system oscillates when <i>K</i> = <i>K</i><sub>max</sub>.</p>`,
+  figure:p=>loopFig([{n:`K(s + ${p.z})`,d:`s(s + ${p.p1})(s + ${p.p2})`}]),
+  solution:(p,s)=>{const a2=p.p1+p.p2,a1=p.p1*p.p2;return `<h3>1. Characteristic equation</h3>
+  <p>${eq(`1 + <i>G</i>(${S}) = 0 &nbsp;⇒&nbsp; ${S}${fac(p.p1)}${fac(p.p2)} + <i>K</i>${fac(p.z)} = ${S}³ + ${a2}${S}² + (${a1} + <i>K</i>)${S} + ${p.z}<i>K</i> = 0`)}</p>
+  <h3>2. Routh array</h3>
+  <table><tr><td>${S}³</td><td>1</td><td>${a1} + <i>K</i></td></tr><tr><td>${S}²</td><td>${a2}</td><td>${p.z}<i>K</i></td></tr><tr><td>${S}¹</td><td>[${a2}(${a1} + <i>K</i>) − ${p.z}<i>K</i>]/${a2}</td><td></td></tr><tr><td>${S}⁰</td><td>${p.z}<i>K</i></td><td></td></tr></table>
+  <p>The first column stays positive when ${eq(`${a1*a2} + (${a2} − ${p.z})<i>K</i> &gt; 0`)}, that is ${eq(`<i>K</i> &lt; ${frac(a1*a2,p.z-a2)} = ${sig(s.Km)}`)}.</p>
+  <h3>3. Frequency of oscillation</h3>
+  <p>At <i>K</i> = <i>K</i><sub>max</sub> the ${S}¹ row vanishes and the auxiliary equation from the ${S}² row, ${eq(`${a2}${S}² + ${p.z}<i>K</i><sub>max</sub> = 0`)}, gives</p>
+  <p class="final"><i>K</i><sub>max</sub> = ${sig(s.Km,3)}, ω = √(${p.z}<i>K</i><sub>max</sub>/${a2}) = ${sig(s.w,3)} rad/s.</p>`},
+  fields:p=>[{id:"Km",label:"Largest stable gain <i>K</i><sub>max</sub>",unit:""},{id:"w",label:"Oscillation frequency ω",unit:"rad/s"}],
+  truth:s=>({Km:s.Km,w:s.w}),
+  note:""
+};
+
+// 8. root-locus construction features
+TEMPLATES["root-locus-features"]={
+  name:"Root locus: asymptotes, breakaway point, and imaginary-axis crossing",
+  generate(seed){const r=mulberry32(seed);
+    const [p1,p2]=two(r,1,8);const p={p1,p2};
+    const b=p1+p2,D=Math.sqrt(b*b-3*p1*p2);
+    return {p,s:{sa:-b/3,sb:(-b+D)/3,sbx:(-b-D)/3,w:Math.sqrt(p1*p2),Kc:p1*p2*b}};},
+  statement:p=>`<p>A unity-feedback system has the open-loop transfer function ${eq(`<i>G</i>(${S}) = ${frac("<i>K</i>",`${S}${fac(p.p1)}${fac(p.p2)}`)}`)}. For the root locus as <i>K</i> increases from 0, determine the real-axis intersection σ<sub>a</sub> of the asymptotes, the breakaway point σ<sub>b</sub>, and the frequency ω and gain <i>K</i> at which the locus crosses the imaginary axis.</p>`,
+  figure:p=>loopFig([{n:"K",d:`s(s + ${p.p1})(s + ${p.p2})`}]),
+  solution:(p,s)=>`<h3>1. Asymptotes</h3>
+  <p>Three poles and no zeros give three asymptotes at ±60° and 180°, meeting the real axis at ${eq(`σ<sub>a</sub> = ${frac(`0 − ${p.p1} − ${p.p2}`,3)} = ${sig(s.sa)}`)}.</p>
+  <h3>2. Breakaway point</h3>
+  <p>The real-axis locus lies on (−∞, −${p.p2}] and [−${p.p1}, 0]; the breakaway point lies between 0 and −${p.p1}. From ${eq(`<i>K</i> = −${S}(${S} + ${p.p1})(${S} + ${p.p2})`)}, ${eq(`d<i>K</i>/d${S} = 0`)} gives ${eq(`3${S}² + ${2*(p.p1+p.p2)}${S} + ${p.p1*p.p2} = 0`)}, with roots ${sig(s.sb)} and ${sig(s.sbx)}. The root on the locus is ${eq(`σ<sub>b</sub> = ${sig(s.sb)}`)}.</p>
+  <h3>3. Imaginary-axis crossing</h3>
+  <p>Substituting ${S} = <i>j</i>ω in ${eq(`${S}³ + ${p.p1+p.p2}${S}² + ${p.p1*p.p2}${S} + <i>K</i> = 0`)}: the imaginary part gives ω² = ${p.p1*p.p2}, and the real part gives <i>K</i> = ${p.p1+p.p2}ω².</p>
+  <p class="final">σ<sub>a</sub> = ${sig(s.sa,3)}, σ<sub>b</sub> = ${sig(s.sb,3)}, ω = ${sig(s.w,3)} rad/s, <i>K</i> = ${nf(s.Kc)}.</p>`,
+  fields:p=>[{id:"sa",label:"Asymptote centroid σ<sub>a</sub> (with sign)",unit:"",signed:true},{id:"sb",label:"Breakaway point σ<sub>b</sub> (with sign)",unit:"",signed:true},{id:"w",label:"Crossing frequency ω",unit:"rad/s"},{id:"Kc",label:"Gain at the crossing",unit:""}],
+  truth:s=>({sa:s.sa,sb:s.sb,w:s.w,Kc:s.Kc}),
+  note:"Real-axis locations carry their signs."
+};
+
+// 9. gain for a specified damping ratio on the root locus
+TEMPLATES["root-locus-gain"]={
+  name:"Root locus: gain for a specified damping ratio of the dominant poles",
+  generate(seed){const r=mulberry32(seed);
+    const [p1,p2]=two(r,1,6);const p={p1,p2,z:pick(r,[0.4,0.5,0.6,0.8])};
+    return {p,s:rlZeta(p1,p2,p.z)};},
+  statement:p=>`<p>A unity-feedback system has the open-loop transfer function ${eq(`<i>G</i>(${S}) = ${frac("<i>K</i>",`${S}${fac(p.p1)}${fac(p.p2)}`)}`)}. Determine the gain <i>K</i> for which the dominant closed-loop poles ${S} = −σ ± <i>j</i>${wd_} have a damping ratio ${ze} = ${p.z}. Report σ, ${wd_}, <i>K</i>, and the third closed-loop pole.</p>`,
+  figure:p=>loopFig([{n:"K",d:`s(s + ${p.p1})(s + ${p.p2})`}]),
+  solution:(p,s)=>`<h3>1. Line of constant damping ratio</h3>
+  <p>Poles with ${ze} = ${p.z} lie on the ray ${eq(`${S} = <i>r</i>(−${p.z} + <i>j</i>${sig(Math.sqrt(1-p.z*p.z))})`)}, which makes the angle β = cos<sup>−1</sup>${ze} = ${sig(Math.acos(p.z)*180/PI,3)}° with the negative real axis.</p>
+  <h3>2. Angle condition</h3>
+  <p>The point on the ray where ${eq(`∠${S} + ∠(${S} + ${p.p1}) + ∠(${S} + ${p.p2}) = 180°`)} is ${eq(`${S} = ${sig(-s.sg)} + <i>j</i>${sig(s.wd)}`)}, so σ = ${sig(s.sg)} and ${wd_} = ${sig(s.wd)} rad/s.</p>
+  <h3>3. Magnitude condition and third pole</h3>
+  <p>${eq(`<i>K</i> = |${S}||${S} + ${p.p1}||${S} + ${p.p2}| = ${sig(s.K)}`)}. The closed-loop poles sum to −${p.p1+p.p2}, so the third pole is ${eq(`−${p.p1+p.p2} + 2σ = ${sig(s.s3)}`)}.</p>
+  <p class="final">σ = ${sig(s.sg,3)}, ${wd_} = ${sig(s.wd,3)} rad/s, <i>K</i> = ${sig(s.K,3)}, third pole = ${sig(s.s3,3)}.</p>`,
+  fields:p=>[{id:"sg",label:"σ (positive)",unit:"s<sup>−1</sup>"},{id:"wd",label:`Damped frequency ${wd_}`,unit:"rad/s"},{id:"K",label:"Gain <i>K</i>",unit:""},{id:"s3",label:"Third closed-loop pole (with sign)",unit:"s<sup>−1</sup>",signed:true}],
+  truth:s=>({sg:s.sg,wd:s.wd,K:s.K,s3:s.s3}),
+  note:"The third pole carries its sign."
+};
+
+// 10. Ziegler-Nichols second method
+TEMPLATES["ziegler-nichols"]={
+  name:"PID tuning by the Ziegler–Nichols ultimate-gain method",
+  generate(seed){const r=mulberry32(seed);
+    const [p1,p2]=two(r,1,6);const p={p1,p2};
+    const Kcr=p1*p2*(p1+p2),wc=Math.sqrt(p1*p2),Pcr=2*PI/wc;
+    return {p,s:{Kcr,wc,Pcr,Kp:0.6*Kcr,Ti:0.5*Pcr,Td:0.125*Pcr}};},
+  statement:p=>`<p>The plant ${eq(`<i>G</i>(${S}) = ${frac(1,`${S}${fac(p.p1)}${fac(p.p2)}`)}`)} is controlled by a PID controller ${eq(`<i>G<sub>c</sub></i>(${S}) = <i>K<sub>p</sub></i>(1 + 1/(<i>T<sub>i</sub></i>${S}) + <i>T<sub>d</sub></i>${S})`)} in a unity-feedback loop. Using the second Ziegler–Nichols method (<i>K<sub>p</sub></i> = 0.6<i>K</i><sub>cr</sub>, <i>T<sub>i</sub></i> = 0.5<i>P</i><sub>cr</sub>, <i>T<sub>d</sub></i> = 0.125<i>P</i><sub>cr</sub>), determine the critical gain <i>K</i><sub>cr</sub>, the critical period <i>P</i><sub>cr</sub>, and the controller settings.</p>`,
+  figure:p=>loopFig([{l:"Gc(s)"},{n:"1",d:`s(s + ${p.p1})(s + ${p.p2})`}]),
+  solution:(p,s)=>`<h3>1. Critical gain</h3>
+  <p>With proportional control only, the characteristic equation is ${eq(`${S}³ + ${p.p1+p.p2}${S}² + ${p.p1*p.p2}${S} + <i>K<sub>p</sub></i> = 0`)}. Routh's criterion gives sustained oscillation at ${eq(`<i>K</i><sub>cr</sub> = (${p.p1+p.p2})(${p.p1*p.p2}) = ${s.Kcr}`)}, with ${eq(`ω<sub>cr</sub> = √${p.p1*p.p2} = ${sig(s.wc)} rad/s`)} from the auxiliary equation.</p>
+  <h3>2. Critical period</h3>
+  <p>${eq(`<i>P</i><sub>cr</sub> = 2π/ω<sub>cr</sub> = ${sig(s.Pcr)} s`)}</p>
+  <h3>3. Controller settings</h3>
+  <p>${eq(`<i>K<sub>p</sub></i> = 0.6(${s.Kcr}) = ${sig(s.Kp)}`)} ${eq(`<i>T<sub>i</sub></i> = 0.5<i>P</i><sub>cr</sub> = ${sig(s.Ti)} s`)} ${eq(`<i>T<sub>d</sub></i> = 0.125<i>P</i><sub>cr</sub> = ${sig(s.Td)} s`)}</p>
+  <p class="final"><i>K</i><sub>cr</sub> = ${s.Kcr}, <i>P</i><sub>cr</sub> = ${sig(s.Pcr,3)} s, <i>K<sub>p</sub></i> = ${sig(s.Kp,3)}, <i>T<sub>i</sub></i> = ${sig(s.Ti,3)} s, <i>T<sub>d</sub></i> = ${sig(s.Td,3)} s.</p>`,
+  fields:p=>[{id:"Kcr",label:"Critical gain <i>K</i><sub>cr</sub>",unit:""},{id:"Pcr",label:"Critical period <i>P</i><sub>cr</sub>",unit:"s"},{id:"Kp",label:"<i>K<sub>p</sub></i>",unit:""},{id:"Ti",label:"<i>T<sub>i</sub></i>",unit:"s"},{id:"Td",label:"<i>T<sub>d</sub></i>",unit:"s"}],
+  truth:s=>({Kcr:s.Kcr,Pcr:s.Pcr,Kp:s.Kp,Ti:s.Ti,Td:s.Td}),
+  note:""
+};
+
+// 11. proportional control of a first-order plant
+TEMPLATES["p-control-first-order"]={
+  name:"Proportional control of a first-order plant: offset and speed of response",
+  generate(seed){const r=mulberry32(seed);
+    const p={K:pick(r,range(0.5,5,0.5)),T:pick(r,range(1,20,1)),Kp:pick(r,range(1,10,1))};
+    const L=p.Kp*p.K;
+    return {p,s:{off:1/(1+L),tau:p.T/(1+L)}};},
+  statement:p=>`<p>A plant ${eq(`<i>G</i>(${S}) = ${frac(nf(p.K),`${p.T===1?"":p.T}${S} + 1`)}`)} is controlled by a proportional controller of gain <i>K<sub>p</sub></i> = ${p.Kp} in a unity-feedback loop. For a unit-step reference input, determine the steady-state offset (error) and the time constant of the closed-loop response.</p>`,
+  figure:p=>loopFig([{l:`Kp = ${p.Kp}`},{n:nf(p.K),d:`${p.T===1?"":p.T}s + 1`}]),
+  solution:(p,s)=>`<h3>1. Closed-loop transfer function</h3>
+  <p>${eq(`${CR} = ${frac(`${p.Kp}(${nf(p.K)})`,`${p.T===1?"":p.T}${S} + 1 + ${nf(p.Kp*p.K)}`)} = ${frac(nf(p.Kp*p.K/(1+p.Kp*p.K)),`${frac(p.T,nf(1+p.Kp*p.K))}${S} + 1`)}`)}</p>
+  <h3>2. Offset and time constant</h3>
+  <p>The output settles at ${nf(p.Kp*p.K)}/${nf(1+p.Kp*p.K)}, so the offset is ${eq(`<i>e</i><sub>ss</sub> = ${frac(1,`1 + <i>K<sub>p</sub>K</i>`)} = ${sig(s.off)}`)}. The closed-loop time constant is ${eq(`<i>T</i>/(1 + <i>K<sub>p</sub>K</i>) = ${sig(s.tau)} s`)}.</p>
+  <p class="final"><i>e</i><sub>ss</sub> = ${sig(s.off,3)}, τ = ${sig(s.tau,3)} s.</p>`,
+  fields:p=>[{id:"off",label:"Steady-state offset",unit:""},{id:"tau",label:"Closed-loop time constant τ",unit:"s"}],
+  truth:s=>({off:s.off,tau:s.tau}),
+  note:""
+};
+
+// 12. velocity-feedback design for a damping ratio and a velocity error constant
+TEMPLATES["velocity-feedback-design"]={
+  name:"Design of amplifier and velocity-feedback gains for a damping ratio and Kv",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const p={J:pick(r,range(1,5,1)),B:pick(r,range(1,5,1)),z:pick(r,[0.5,0.6,0.7]),Kv:pick(r,[10,20,30,50])};
+      const K=4*p.z*p.z*p.Kv*p.Kv*p.J,Kh=(K/p.Kv-p.B)/K;
+      if(Kh<=0.005||Kh>=1) continue;
+      return {p,s:{K,Kh,wn:Math.sqrt(K/p.J),ts:4/(p.z*Math.sqrt(K/p.J))}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>In the system shown, an amplifier of gain <i>K</i> drives a load ${eq(`1/(${p.J===1?"":p.J}${S} + ${p.B})`)}, followed by an integrator. The velocity, the output of the load block, is fed back through the gain <i>K<sub>h</sub></i> and subtracted ahead of the amplifier. Determine <i>K</i> and <i>K<sub>h</sub></i> so that the closed-loop poles have damping ratio ${ze} = ${p.z} and the static velocity error constant is <i>K<sub>v</sub></i> = ${p.Kv} s<sup>−1</sup>. Then determine the settling time <i>t<sub>s</sub></i> = 4/(${ze}${wn_}).</p>`,
+  figure:p=>bd([{t:"lab",x:22,y:75,l:"R(s)"},{t:"w",p:[[44,70],[70,70]]},{t:"sum",x:80,y:70,s:{w:"+",s:"−"}},{t:"w",p:[[90,70],[120,70]]},{t:"sum",x:130,y:70,s:{w:"+",s:"−"}},
+    {t:"w",p:[[140,70],[160,70]]},{t:"blk",x:182,y:70,l:"K"},{t:"w",p:[[204,70],[230,70]]},{t:"blk",x:280,y:70,w:100,n:"1",d:`${p.J===1?"":p.J}s + ${p.B}`},
+    {t:"w",p:[[330,70],[380,70]]},{t:"dot",x:355,y:70},{t:"blk",x:410,y:70,w:60,n:"1",d:"s"},{t:"w",p:[[440,70],[510,70]]},{t:"dot",x:480,y:70},{t:"lab",x:516,y:75,l:"C(s)",an:"start"},
+    {t:"w",p:[[355,70],[355,130],[305,130]]},{t:"blk",x:280,y:130,w:50,l:"Kh"},{t:"w",p:[[255,130],[130,130],[130,80]]},
+    {t:"w",p:[[480,70],[480,180],[80,180],[80,80]]}],580,200),
+  solution:(p,s)=>`<h3>1. Closed-loop transfer function and K<sub>v</sub></h3>
+  <p>Reducing the minor loop and closing the outer loop gives ${eq(`${CR} = ${frac("<i>K</i>",`${p.J===1?"":p.J}${S}² + (${p.B} + <i>KK<sub>h</sub></i>)${S} + <i>K</i>`)}`)}. The open-loop transfer function is <i>K</i>/[${S}(${p.J===1?"":p.J}${S} + ${p.B} + <i>KK<sub>h</sub></i>)], so ${eq(`<i>K<sub>v</sub></i> = <i>K</i>/(${p.B} + <i>KK<sub>h</sub></i>)`)}.</p>
+  <h3>2. Solve for K and K<sub>h</sub></h3>
+  <p>Matching ${eq(`2${ze}√(${p.J}<i>K</i>) = ${p.B} + <i>KK<sub>h</sub></i> = <i>K</i>/<i>K<sub>v</sub></i>`)} gives ${eq(`<i>K</i> = 4${ze}²<i>K<sub>v</sub></i>²(${p.J}) = ${sig(s.K)}`)} and ${eq(`<i>K<sub>h</sub></i> = (<i>K</i>/<i>K<sub>v</sub></i> − ${p.B})/<i>K</i> = ${sig(s.Kh)}`)}.</p>
+  <h3>3. Settling time</h3>
+  <p>${eq(`${wn_} = √(<i>K</i>/${p.J}) = ${sig(s.wn)} rad/s`)} ${eq(`<i>t<sub>s</sub></i> = 4/(${ze}${wn_}) = ${sig(s.ts)} s`)}</p>
+  <p class="final"><i>K</i> = ${sig(s.K,3)}, <i>K<sub>h</sub></i> = ${sig(s.Kh,3)}, <i>t<sub>s</sub></i> = ${sig(s.ts,3)} s.</p>`,
+  fields:p=>[{id:"K",label:"Amplifier gain <i>K</i>",unit:""},{id:"Kh",label:"Velocity feedback gain <i>K<sub>h</sub></i>",unit:"",signed:true},{id:"ts",label:"Settling time <i>t<sub>s</sub></i>",unit:"s"}],
+  truth:s=>({K:s.K,Kh:s.Kh,ts:s.ts}),
+  note:""
+};
+
+
+// ===== planted errors: one conceptual mistake per problem type
+// wrong(p,s) returns the answers that follow from the error; html(p,s,w) renders the flawed solution.
+// n is the number of steps shown, step is the step in which the error first appears, why explains it.
+const FLAWS={};
+
+FLAWS["velocity-feedback"]={n:3,step:2,
+  why:"In the standard form the constant term of the denominator is ω<sub><i>n</i></sub>², so ω<sub><i>n</i></sub> is its square root.",
+  wrong:(p,s)=>{const wn=p.K,kh=(2*p.z*wn-p.a)/p.K;return {kh,wn,tp:PI/wdOf(p.z,wn),Mp:MpOf(p.z)}},
+  html:(p,s,w)=>`<h3>1. Reduce the block diagram</h3>
+  <p>${eq(`${CR} = ${frac(p.K,`${S}² + (${nf(p.a)} + ${p.K}<i>k</i>)${S} + ${p.K}`)}`)}</p>
+  <h3>2. Match the standard second-order form</h3>
+  <p>The constant term is the natural frequency, ${wn_} = ${p.K} rad/s, and ${eq(`2${ze}${wn_} = ${nf(p.a)} + ${p.K}<i>k</i>`)} gives ${eq(`<i>k</i> = ${frac(`2(${p.z})(${p.K}) − ${nf(p.a)}`,p.K)} = ${sig(w.kh)}`)}</p>
+  <h3>3. Transient specifications</h3>
+  <p>${eq(`${wd_} = ${sig(wdOf(p.z,w.wn))} rad/s`)} ${eq(`<i>t<sub>p</sub></i> = π/${wd_} = ${sig(w.tp)} s`)} ${eq(`<i>M<sub>p</sub></i> = ${sig(w.Mp)}%`)}</p>
+  <p class="final"><i>k</i> = ${sig(w.kh,3)}, ${wn_} = ${sig(w.wn,3)} rad/s, <i>t<sub>p</sub></i> = ${sig(w.tp,3)} s, <i>M<sub>p</sub></i> = ${sig(w.Mp,3)}%.</p>`};
+
+FLAWS["block-reduction"]={n:3,step:1,
+  why:"Moving the summing point that receives <i>H</i><sub>2</sub> back ahead of <i>G</i><sub>1</sub> requires dividing the moved signal by <i>G</i><sub>1</sub>, so the feedback path becomes 1 + <i>H</i><sub>2</sub>/<i>G</i><sub>1</sub>. Keeping <i>H</i><sub>2</sub> unchanged multiplies its loop gain by <i>G</i><sub>1</sub>.",
+  wrong:(p,s)=>{const a1=s.a1,a0=(p.a+p.h1)*p.b+p.K1*(1+p.h2);return {a1,a0,dc:p.K1/a0}},
+  html:(p,s,w)=>`<h3>1. Rearrange the loops</h3>
+  <p>The loop through <i>H</i><sub>1</sub> gives 1/(${S} + ${p.a+p.h1}). The signal <i>H</i><sub>2</sub><i>C</i> is moved back to the first summing point, where it combines with the unity feedback, so the outer feedback path is 1 + <i>H</i><sub>2</sub> = ${1+p.h2}.</p>
+  <h3>2. Outer loop</h3>
+  <p>${eq(`${CR} = ${frac(p.K1,`(${S} + ${p.a+p.h1})(${S} + ${p.b}) + ${p.K1}(${1+p.h2})`)} = ${frac(p.K1,poly([1,w.a1,w.a0]))}`)}</p>
+  <h3>3. Steady-state step output</h3>
+  <p class="final"><i>a</i><sub>1</sub> = ${w.a1}, <i>a</i><sub>0</sub> = ${w.a0}, <i>c</i>(∞) = ${sig(w.dc,3)}.</p>`};
+
+FLAWS["first-order-thermometer"]={n:2,step:1,
+  why:"The step response of a first-order system rises as 1 − <i>e</i><sup>−<i>t</i>/<i>T</i></sup>. The exponential alone describes the remaining difference between the bath and the reading.",
+  wrong:(p,s)=>{const T=-p.t1/Math.log(s.f);return {T,ess:p.rate*T/60}},
+  html:(p,s,w)=>`<h3>1. Time constant from the step test</h3>
+  <p>The reading follows the exponential ${eq(`θ(<i>t</i>)/θ<sub>b</sub> = <i>e</i><sup>−<i>t</i>/<i>T</i></sup>`)}, so ${eq(`<i>e</i><sup>−${p.t1}/<i>T</i></sup> = ${sig(s.f)}`)} and ${eq(`<i>T</i> = −${p.t1}/ln(${sig(s.f)}) = ${sig(w.T)} s`)}</p>
+  <h3>2. Ramp error</h3>
+  <p class="final"><i>T</i> = ${sig(w.T,3)} s, <i>e</i><sub>ss</sub> = ${p.rate}(${sig(w.T)})/60 = ${sig(w.ess,3)}°C.</p>`};
+
+FLAWS["second-order-specs"]={n:3,step:2,
+  why:"The response oscillates at the damped natural frequency ω<sub><i>d</i></sub> = ω<sub><i>n</i></sub>√(1 − ζ²), so the rise time and peak time are measured against ω<sub><i>d</i></sub>.",
+  wrong:(p,s)=>({...s,tr:(PI-Math.acos(p.z))/p.wn,tp:PI/p.wn}),
+  html:(p,s,w)=>`<h3>1. Damping ratio and natural frequency</h3>
+  <p>${ze} = ${nf(p.z)}, ${wn_} = ${p.wn} rad/s.</p>
+  <h3>2. Rise time and peak time</h3>
+  <p>${eq(`β = cos<sup>−1</sup>${ze} = ${sig(Math.acos(p.z))} rad`)} ${eq(`<i>t<sub>r</sub></i> = (π − β)/${wn_} = ${sig(w.tr)} s`)} ${eq(`<i>t<sub>p</sub></i> = π/${wn_} = ${sig(w.tp)} s`)}</p>
+  <h3>3. Overshoot and settling time</h3>
+  <p>${eq(`<i>M<sub>p</sub></i> = ${sig(s.Mp)}%`)} ${eq(`<i>t<sub>s</sub></i> = 4/(${ze}${wn_}) = ${sig(s.ts)} s`)}</p>
+  <p class="final">${ze} = ${nf(p.z)}, ${wn_} = ${p.wn} rad/s, <i>t<sub>r</sub></i> = ${sig(w.tr,3)} s, <i>t<sub>p</sub></i> = ${sig(w.tp,3)} s, <i>M<sub>p</sub></i> = ${sig(w.Mp,3)}%, <i>t<sub>s</sub></i> = ${sig(w.ts,3)} s.</p>`};
+
+FLAWS["specs-to-parameters"]={n:2,step:2,
+  why:"The envelope of the step response decays as <i>e</i><sup>−ζω<sub><i>n</i></sub><i>t</i></sup>, so the settling time is 4/(ζω<sub><i>n</i></sub>). The damping ratio cannot be left out.",
+  wrong:(p,s)=>({z:s.z,wn:4/p.ts}),
+  html:(p,s,w)=>`<h3>1. Damping ratio from the overshoot</h3>
+  <p>${eq(`${ze} = ${frac(`−ln <i>M<sub>p</sub></i>`,`√(π² + ln² <i>M<sub>p</sub></i>)`)} = ${sig(s.z)}`)}</p>
+  <h3>2. Natural frequency from the settling time</h3>
+  <p>The response settles in four time constants of 1/${wn_}: ${eq(`${wn_} = 4/<i>t<sub>s</sub></i> = ${sig(w.wn)} rad/s`)}</p>
+  <p class="final">${ze} = ${sig(w.z,3)}, ${wn_} = ${sig(w.wn,3)} rad/s.</p>`};
+
+FLAWS["steady-state-error"]={n:2,step:2,
+  why:"For a type 0 system with a step input, <i>e</i><sub>ss</sub> = <i>A</i>/(1 + <i>K<sub>p</sub></i>). For a type 1 system with a ramp input, <i>e</i><sub>ss</sub> = <i>A</i>/<i>K<sub>v</sub></i>. Each formula follows from the final-value theorem applied to <i>E</i>(<i>s</i>) = <i>R</i>(<i>s</i>)/(1 + <i>G</i>(<i>s</i>)).",
+  wrong:(p,s)=>({Kc:s.Kc,ess:p.type===0?p.A/s.Kc:p.A/(1+s.Kc)}),
+  html:(p,s,w)=>`<h3>1. System type and error constant</h3>
+  <p>The system is type ${p.type}, and ${eq(`<i>K</i><sub>${p.type===0?"p":"v"}</sub> = ${sig(s.Kc)}`)}.</p>
+  <h3>2. Steady-state error</h3>
+  <p>${eq(`<i>e</i><sub>ss</sub> = ${frac(p.A,p.type===0?"<i>K<sub>p</sub></i>":"1 + <i>K<sub>v</sub></i>")} = ${sig(w.ess)}`)}</p>
+  <p class="final"><i>K</i><sub>${p.type===0?"p":"v"}</sub> = ${sig(w.Kc,3)}, <i>e</i><sub>ss</sub> = ${sig(w.ess,3)}.</p>`};
+
+FLAWS["routh-stability"]={n:3,step:1,
+  why:"The characteristic equation is <i>D</i>(<i>s</i>) + <i>N</i>(<i>s</i>) = 0 with the whole numerator <i>K</i>(<i>s</i> + <i>z</i>), not <i>D</i>(<i>s</i>) + <i>K</i>. The zero changes both the <i>s</i> and the constant coefficients.",
+  wrong:(p,s)=>({Km:p.p1*p.p2*(p.p1+p.p2),w:Math.sqrt(p.p1*p.p2)}),
+  html:(p,s,w)=>{const a2=p.p1+p.p2,a1=p.p1*p.p2;return `<h3>1. Characteristic equation</h3>
+  <p>The gain adds to the open-loop denominator: ${eq(`${S}³ + ${a2}${S}² + ${a1}${S} + <i>K</i> = 0`)}</p>
+  <h3>2. Routh array</h3>
+  <table><tr><td>${S}³</td><td>1</td><td>${a1}</td></tr><tr><td>${S}²</td><td>${a2}</td><td><i>K</i></td></tr><tr><td>${S}¹</td><td>(${a1*a2} − <i>K</i>)/${a2}</td><td></td></tr><tr><td>${S}⁰</td><td><i>K</i></td><td></td></tr></table>
+  <p>Stability requires ${eq(`0 &lt; <i>K</i> &lt; ${a1*a2}`)}.</p>
+  <h3>3. Frequency of oscillation</h3>
+  <p>The auxiliary equation ${eq(`${a2}${S}² + ${a1*a2} = 0`)} gives</p>
+  <p class="final"><i>K</i><sub>max</sub> = ${nf(w.Km)}, ω = ${sig(w.w,3)} rad/s.</p>`}};
+
+FLAWS["root-locus-features"]={n:3,step:2,
+  why:"A real-axis point lies on the root locus only if an odd number of real poles and zeros lies to its right. The segment between −<i>p</i><sub>1</sub> and −<i>p</i><sub>2</sub> has two poles to the right, so it is not on the locus, and the breakaway point is the root between 0 and −<i>p</i><sub>1</sub>.",
+  wrong:(p,s)=>({...s,sb:s.sbx}),
+  html:(p,s,w)=>`<h3>1. Asymptotes</h3>
+  <p>${eq(`σ<sub>a</sub> = ${frac(`0 − ${p.p1} − ${p.p2}`,3)} = ${sig(s.sa)}`)}, at ±60° and 180°.</p>
+  <h3>2. Breakaway point</h3>
+  <p>${eq(`3${S}² + ${2*(p.p1+p.p2)}${S} + ${p.p1*p.p2} = 0`)} has roots ${sig(s.sb)} and ${sig(s.sbx)}. The breakaway point is the root on the segment between the two poles −${p.p1} and −${p.p2}, ${eq(`σ<sub>b</sub> = ${sig(w.sb)}`)}.</p>
+  <h3>3. Imaginary-axis crossing</h3>
+  <p class="final">σ<sub>a</sub> = ${sig(w.sa,3)}, σ<sub>b</sub> = ${sig(w.sb,3)}, ω = ${sig(w.w,3)} rad/s, <i>K</i> = ${nf(w.Kc)}.</p>`};
+
+FLAWS["root-locus-gain"]={n:3,step:1,
+  why:"Poles with damping ratio ζ lie on the ray that makes the angle β = cos<sup>−1</sup>ζ with the negative real axis, since the real part of the pole is −ζω<sub><i>n</i></sub>. Using sin<sup>−1</sup>ζ places the ray at a different damping ratio.",
+  wrong:(p,s)=>rlZeta(p.p1,p.p2,Math.sqrt(1-p.z*p.z)),
+  html:(p,s,w)=>{const zw=Math.sqrt(1-p.z*p.z);return `<h3>1. Line of constant damping ratio</h3>
+  <p>The ray makes the angle β = sin<sup>−1</sup>${ze} = ${sig(Math.asin(p.z)*180/PI,3)}° with the negative real axis: ${eq(`${S} = <i>r</i>(−${sig(zw)} + <i>j</i>${sig(p.z)})`)}.</p>
+  <h3>2. Angle condition</h3>
+  <p>The angle condition is met at ${eq(`${S} = ${sig(-w.sg)} + <i>j</i>${sig(w.wd)}`)}.</p>
+  <h3>3. Magnitude condition and third pole</h3>
+  <p>${eq(`<i>K</i> = ${sig(w.K)}`)}, third pole ${eq(`−${p.p1+p.p2} + 2σ = ${sig(w.s3)}`)}.</p>
+  <p class="final">σ = ${sig(w.sg,3)}, ${wd_} = ${sig(w.wd,3)} rad/s, <i>K</i> = ${sig(w.K,3)}, third pole = ${sig(w.s3,3)}.</p>`}};
+
+FLAWS["ziegler-nichols"]={n:3,step:2,
+  why:"ω<sub>cr</sub> is an angular frequency in rad/s; one period of oscillation is <i>P</i><sub>cr</sub> = 2π/ω<sub>cr</sub>.",
+  wrong:(p,s)=>{const Pcr=1/s.wc;return {Kcr:s.Kcr,Pcr,Kp:s.Kp,Ti:0.5*Pcr,Td:0.125*Pcr}},
+  html:(p,s,w)=>`<h3>1. Critical gain</h3>
+  <p>${eq(`<i>K</i><sub>cr</sub> = ${s.Kcr}`)}, ${eq(`ω<sub>cr</sub> = ${sig(s.wc)} rad/s`)}.</p>
+  <h3>2. Critical period</h3>
+  <p>The period is the reciprocal of the oscillation frequency: ${eq(`<i>P</i><sub>cr</sub> = 1/ω<sub>cr</sub> = ${sig(w.Pcr)} s`)}</p>
+  <h3>3. Controller settings</h3>
+  <p class="final"><i>K</i><sub>cr</sub> = ${w.Kcr}, <i>P</i><sub>cr</sub> = ${sig(w.Pcr,3)} s, <i>K<sub>p</sub></i> = ${sig(w.Kp,3)}, <i>T<sub>i</sub></i> = ${sig(w.Ti,3)} s, <i>T<sub>d</sub></i> = ${sig(w.Td,3)} s.</p>`};
+
+FLAWS["p-control-first-order"]={n:2,step:2,
+  why:"Feedback moves the closed-loop pole from −1/<i>T</i> to −(1 + <i>K<sub>p</sub>K</i>)/<i>T</i>, so the time constant becomes <i>T</i>/(1 + <i>K<sub>p</sub>K</i>).",
+  wrong:(p,s)=>({off:s.off,tau:p.T}),
+  html:(p,s,w)=>`<h3>1. Closed-loop transfer function</h3>
+  <p>${eq(`${CR} = ${frac(`${p.Kp}(${nf(p.K)})`,`${p.T===1?"":p.T}${S} + 1 + ${nf(p.Kp*p.K)}`)}`)}</p>
+  <h3>2. Offset and time constant</h3>
+  <p>The offset is ${eq(`1/(1 + <i>K<sub>p</sub>K</i>) = ${sig(s.off)}`)}. The controller is a pure gain and adds no dynamics, so the time constant remains that of the plant, ${p.T} s.</p>
+  <p class="final"><i>e</i><sub>ss</sub> = ${sig(w.off,3)}, τ = ${sig(w.tau,3)} s.</p>`};
+
+FLAWS["velocity-feedback-design"]={n:3,step:1,
+  why:"The velocity feedback adds <i>KK<sub>h</sub></i> to the damping term of the open-loop transfer function, so <i>K<sub>v</sub></i> = <i>K</i>/(<i>B</i> + <i>KK<sub>h</sub></i>), not <i>K</i>/<i>B</i>.",
+  wrong:(p,s)=>{const K=p.Kv*p.B,Kh=(2*p.z*Math.sqrt(K*p.J)-p.B)/K,wn=Math.sqrt(K/p.J);return {K,Kh,ts:4/(p.z*wn)}},
+  html:(p,s,w)=>`<h3>1. Closed-loop transfer function and K<sub>v</sub></h3>
+  <p>${eq(`${CR} = ${frac("<i>K</i>",`${p.J===1?"":p.J}${S}² + (${p.B} + <i>KK<sub>h</sub></i>)${S} + <i>K</i>`)}`)}. The forward path is <i>K</i>/[${S}(${p.J===1?"":p.J}${S} + ${p.B})], so ${eq(`<i>K<sub>v</sub></i> = <i>K</i>/${p.B}`)}.</p>
+  <h3>2. Solve for K and K<sub>h</sub></h3>
+  <p>${eq(`<i>K</i> = ${p.B}<i>K<sub>v</sub></i> = ${sig(w.K)}`)}, and ${eq(`2${ze}√(${p.J}<i>K</i>) = ${p.B} + <i>KK<sub>h</sub></i>`)} gives ${eq(`<i>K<sub>h</sub></i> = ${sig(w.Kh)}`)}.</p>
+  <h3>3. Settling time</h3>
+  <p class="final"><i>K</i> = ${sig(w.K,3)}, <i>K<sub>h</sub></i> = ${sig(w.Kh,3)}, <i>t<sub>s</sub></i> = ${sig(w.ts,3)} s.</p>`};
+
+// ===== error report form (Google Form with prefilled fields)
+// Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
+const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLScjsI98ID72Fn3xgheP4VJIsApQnUPwZpik_x4HQVk6annBhQ/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){
+  const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
+  q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
+  return FORM.url+"?"+q.toString();
+}
+
+// ===== page
+let curKey="velocity-feedback", cur=null, curFields=[], curTruth={}, curMode="practice";
+const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+
+function fillTypes(){
+  const keys=hunting()?Object.keys(FLAWS):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+  return curKey;
+}
+
+function setMode(mode,key,seed){
+  curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";
+  $("mError").className=mode==="error"?"":"ghost";
+  $("reportRow").firstElementChild.textContent=hunting()
+    ?"Found a mistake other than the planted one?"
+    :"Found a mistake in a problem or its solution?";
+  curKey=key||curKey; const k=fillTypes();
+  render(k,seed||parseInt($("seedIn").value,10)||1);
+}
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed); const {p,s}=cur;
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed+(hunting()?"-e":""))}catch(e){}
+  $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
+  $("statement").innerHTML=T.statement(p,s);
+  $("flawCard").style.display=F?"":"none";
+  $("flawed").innerHTML=F?F.html(p,s,F.wrong(p,s)):"";
+  curFields=T.fields(p,s); curTruth=T.truth(s);
+  if(F){const steps=[];for(let i=1;i<=F.n;i++)steps.push(String(i));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];
+    curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+"Answers within 2% are accepted. "+(T.note||"");
+  const sol=$("solution"); sol.style.display="none";
+  sol.innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
+}
+
+function check(){
+  const truth=curTruth;
+  const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
+  curFields.forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scaleOf(f.unit):0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+if(typeof document!=="undefined"){
+  const newSeed=()=>1+Math.floor(Math.random()*999999);
+  $("typeSel").onchange=e=>render(e.target.value,newSeed());
+  $("newBtn").onclick=()=>render(curKey,newSeed());
+  $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+  $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
+  if(FORM.url)$("reportRow").style.display="";
+  $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+  $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+    s.style.display=show?"block":"none";
+    e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+  (function(){
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice","velocity-feedback",newSeed());
+  })();
+}
+if(typeof module!=="undefined")module.exports={TEMPLATES,FLAWS};
+
+</script>
+</body>
+</html>

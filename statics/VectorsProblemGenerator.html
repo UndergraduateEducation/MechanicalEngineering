@@ -53,8 +53,13 @@
 <main>
   <div class="card howto">
     <h2>How to use</h2>
-    <p>Pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
     <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
   </div>
   <div class="card bar">
     <label for="typeSel">Problem type</label><select id="typeSel"></select>
@@ -66,6 +71,10 @@
   </div>
   <div class="card" id="figCard"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -413,6 +422,137 @@ TEMPLATES["triple-product"]={
   note:"The triple product carries its sign."
 };
 
+
+// ===== planted errors: one conceptual mistake per problem type
+// Each entry renders a flawed worked solution. n is the number of steps shown,
+// step is the step in which the error first appears, why explains it.
+const FLAWS={};
+
+FLAWS["resultant-2d"]={n:3,step:1,
+  why:"The angle θ<sub>2</sub> is already measured counterclockwise from the +<i>x</i> axis, so its sine carries the correct sign on its own. The minus sign applies the sign a second time.",
+  html:(p,s)=>{const F2y=-p.F2*sn(p.t2),Rx=p.F1*cs(p.t1)+p.F2*cs(p.t2),Ry=p.F1*sn(p.t1)+F2y,R=Math.hypot(Rx,Ry),th=deg(Math.atan2(Ry,Rx));
+    return `<h3>1. Components of each force</h3>
+  <p>${eq(`F<sub>1x</sub> = ${p.F1} cos ${ang(p.t1)} = ${sig(p.F1*cs(p.t1))}`)} ${eq(`F<sub>1y</sub> = ${p.F1} sin ${ang(p.t1)} = ${sig(p.F1*sn(p.t1))}`)}</p>
+  <p>Force <i>F</i><sub>2</sub> lies on the far side of the <i>y</i> axis, so its <i>y</i> component takes a minus sign:</p>
+  <p>${eq(`F<sub>2x</sub> = ${p.F2} cos ${ang(p.t2)} = ${sig(p.F2*cs(p.t2))}`)} ${eq(`F<sub>2y</sub> = &minus;${p.F2} sin ${ang(p.t2)} = ${sig(F2y)}`)}</p>
+  <h3>2. Resultant components</h3>
+  <p>${eq(`R<sub>x</sub> = ${sig(Rx)} ${FU(p)}`)} ${eq(`R<sub>y</sub> = ${sig(Ry)} ${FU(p)}`)}</p>
+  <h3>3. Magnitude and direction</h3>
+  <p class="final">R = ${sig(R,3)} ${FU(p)}, θ = ${sig(th,3)}°.</p>`}};
+
+FLAWS["components-2d"]={n:2,step:1,
+  why:"Dropping perpendiculars onto each axis gives the orthogonal projections, which add to <i>F</i> only when the axes are perpendicular to each other. For skewed axes the components follow from the parallelogram law, that is from <i>F</i> = <i>F<sub>u</sub></i>û + <i>F<sub>v</sub></i>v̂.",
+  html:(p,s)=>{const Fu=p.F*cs(p.al-p.b1),Fv=p.F*cs(p.al-p.b2);
+    return `<h3>1. Project F onto each axis</h3>
+  <p>The component along an axis is the projection of <i>F</i> onto that axis, so</p>
+  <p>${eq(`F<sub>u</sub> = F cos(${ang(p.al)} &minus; ${ang(p.b1)}) = ${sig(Fu)} ${FU(p)}`)}</p>
+  <p>${eq(`F<sub>v</sub> = F cos(${ang(p.al)} &minus; ${ang(p.b2)}) = ${sig(Fv)} ${FU(p)}`)}</p>
+  <h3>2. Result</h3>
+  <p class="final">F<sub>u</sub> = ${sig(Fu,3)} ${FU(p)}, F<sub>v</sub> = ${sig(Fv,3)} ${FU(p)}.</p>`}};
+
+FLAWS["force-from-points-2d"]={n:2,step:1,
+  why:"The position vector from <i>A</i> to <i>B</i> is <i>B</i> &minus; <i>A</i>. Subtracting in the other order reverses the direction of the cable force.",
+  html:(p,s)=>{const dx=p.A[0]-p.B[0],dy=p.A[1]-p.B[1],d=Math.hypot(dx,dy),Fx=p.F*dx/d,Fy=p.F*dy/d;
+    return `<h3>1. Position vector from A to B</h3>
+  <p>${eq(`r<sub>AB</sub> = A &minus; B = (${dx}, ${dy}) ${LU(p)}`)} ${eq(`d = √(${dx}² + ${dy}²) = ${sig(d,3)} ${LU(p)}`)}</p>
+  <h3>2. Force vector</h3>
+  <p>${eq(`λ = r<sub>AB</sub>/d = (${sig(dx/d)}, ${sig(dy/d)})`)} ${eq(`F = Fλ = (${sig(Fx)}, ${sig(Fy)}) ${FU(p)}`)}</p>
+  <p class="final">F<sub>x</sub> = ${sig(Fx,3)} ${FU(p)}, F<sub>y</sub> = ${sig(Fy,3)} ${FU(p)}, d = ${sig(d,3)} ${LU(p)}.</p>`}};
+
+FLAWS["resultant-constraint"]={n:3,step:1,
+  why:"A resultant that acts along the <i>y</i> axis has no <i>x</i> component. The condition to impose is <i>R<sub>x</sub></i> = 0, not <i>R<sub>y</sub></i> = 0.",
+  html:(p,s)=>{const F2=-p.F1*sn(p.t1)/sn(p.t2),R=Math.abs(p.F1*cs(p.t1)+F2*cs(p.t2));
+    return `<h3>1. Condition for the resultant to act along y</h3>
+  <p>The resultant acts along the <i>y</i> axis when its <i>y</i> component vanishes:</p>
+  <p>${eq(`F<sub>1</sub> sin ${ang(p.t1)} + F<sub>2</sub> sin ${ang(p.t2)} = 0`)}</p>
+  <h3>2. Magnitude of F<sub>2</sub></h3>
+  <p>${eq(`F<sub>2</sub> = &minus;F<sub>1</sub> sin ${ang(p.t1)} / sin ${ang(p.t2)} = ${sig(F2,3)} ${FU(p)}`)}</p>
+  <h3>3. Magnitude of the resultant</h3>
+  <p class="final">R = |F<sub>1</sub> cos ${ang(p.t1)} + F<sub>2</sub> cos ${ang(p.t2)}| = ${sig(R,3)} ${FU(p)}.</p>`}};
+
+FLAWS["direction-angles"]={n:2,step:2,
+  why:"A direction angle is measured from the axis itself, so the component along that axis is <i>F</i> cos α. The sine gives the component perpendicular to the axis.",
+  html:(p,s)=>{const Fx=p.F*sn(p.a),Fy=p.F*sn(p.b),Fz=p.F*Math.sqrt(Math.max(1-s.cg*s.cg,0))*(p.sg>0?1:-1);
+    return `<h3>1. Third direction angle</h3>
+  <p>${eq("cos²α + cos²β + cos²γ = 1")} gives ${eq(`cos²γ = ${sig(s.c2)}`)} and, for an ${p.sg>0?"acute":"obtuse"} angle, ${eq(`cos γ = ${sig(s.cg)}`)}, so ${eq(`γ = ${sig(s.g,3)}°`)}.</p>
+  <h3>2. Components</h3>
+  <p>${eq(`F<sub>x</sub> = F sin α = ${sig(Fx)}`)} ${eq(`F<sub>y</sub> = F sin β = ${sig(Fy)}`)} ${eq(`F<sub>z</sub> = F sin γ = ${sig(Fz)}`)} (${FU(p)})</p>
+  <p class="final">γ = ${sig(s.g,3)}°, F<sub>x</sub> = ${sig(Fx,3)}, F<sub>y</sub> = ${sig(Fy,3)}, F<sub>z</sub> = ${sig(Fz,3)} ${FU(p)}.</p>`}};
+
+FLAWS["cable-force-3d"]={n:2,step:1,
+  why:"The length is the square root of the sum of the squares of the components. Leaving out the square root makes the length wrong and makes λ a vector that is not a unit vector.",
+  html:(p,s)=>{const d=s.r[0]**2+s.r[1]**2+s.r[2]**2,lam=s.r.map(x=>x/d),Fv=lam.map(x=>p.F*x);
+    return `<h3>1. Position vector and length</h3>
+  <p>${eq(`r<sub>AB</sub> = B &minus; A = ${fv(s.r)} ${LU(p)}`)}</p>
+  <p>${eq(`d = ${s.r[0]}² + ${s.r[1]}² + ${s.r[2]}² = ${sig(d,4)} ${LU(p)}`)}</p>
+  <h3>2. Force vector</h3>
+  <p>${eq(`λ = r<sub>AB</sub>/d = ${fv(lam)}`)} ${eq(`F = Fλ = ${fv(Fv)} ${FU(p)}`)}</p>
+  <p class="final">F<sub>x</sub> = ${sig(Fv[0],3)}, F<sub>y</sub> = ${sig(Fv[1],3)}, F<sub>z</sub> = ${sig(Fv[2],3)} ${FU(p)}; d = ${sig(d,3)} ${LU(p)}.</p>`}};
+
+FLAWS["two-cables-3d"]={n:2,step:2,
+  why:"The magnitude of a sum of vectors equals the sum of the magnitudes only when the vectors are parallel. Here the magnitude follows from the components of the resultant.",
+  html:(p,s)=>{const R=p.F1+p.F2;
+    return `<h3>1. Force in each cable</h3>
+  <p>${eq(`F<sub>1</sub> = ${p.F1} r<sub>OA</sub>/|r<sub>OA</sub>| = ${fv(s.f1)} ${FU(p)}`)}</p>
+  <p>${eq(`F<sub>2</sub> = ${p.F2} r<sub>OB</sub>/|r<sub>OB</sub>| = ${fv(s.f2)} ${FU(p)}`)}</p>
+  <h3>2. Resultant</h3>
+  <p>${eq(`R = F<sub>1</sub> + F<sub>2</sub> = ${fv(s.S)} ${FU(p)}`)}</p>
+  <p>Both cables pull on the same point, so the magnitudes add:</p>
+  <p class="final">R<sub>x</sub> = ${sig(s.S[0],3)}, R<sub>y</sub> = ${sig(s.S[1],3)}, R<sub>z</sub> = ${sig(s.S[2],3)} ${FU(p)}; R = ${p.F1} + ${p.F2} = ${sig(R,3)} ${FU(p)}.</p>`}};
+
+FLAWS["angle-between-members"]={n:2,step:1,
+  why:"The angle at <i>A</i> lies between the two members that meet at <i>A</i>, so both vectors must start at <i>A</i>. The second vector here runs from <i>B</i> to <i>C</i>, which is not a member direction at <i>A</i>.",
+  html:(p,s)=>{const u=sub(p.B,p.A),v=sub(p.C,p.B),c=dot(u,v)/(nrm(u)*nrm(v)),th=deg(Math.acos(c));
+    return `<h3>1. Member vectors</h3>
+  <p>${eq(`r<sub>AB</sub> = ${fv(u)}`)} ${eq(`r<sub>BC</sub> = ${fv(v)}`)}</p>
+  <h3>2. Dot product</h3>
+  <p>${eq(`r<sub>AB</sub> · r<sub>BC</sub> = ${sig(dot(u,v))}`)} ${eq(`|r<sub>AB</sub>| = ${sig(nrm(u))}`)} ${eq(`|r<sub>BC</sub>| = ${sig(nrm(v))}`)}</p>
+  <p>${eq(`cos θ = ${sig(c)}`)}</p>
+  <p class="final">θ = ${sig(th,3)}°.</p>`}};
+
+FLAWS["force-components-along-line"]={n:2,step:2,
+  why:"The parallel and perpendicular components are the legs of a right triangle whose hypotenuse is the full force, so they combine by Pythagoras rather than by subtraction.",
+  html:(p,s)=>{const perp=s.Fm-Math.abs(s.par);
+    return `<h3>1. Unit vector along the rod</h3>
+  <p>${eq(`r<sub>AB</sub> = ${fv(s.r)} ${LU(p)}`)} ${eq(`λ<sub>AB</sub> = ${fv(s.lam)}`)}</p>
+  <h3>2. Parallel and perpendicular components</h3>
+  <p>${eq(`F<sub>∥</sub> = F · λ<sub>AB</sub> = ${sig(s.par)} ${FU(p)}`)}</p>
+  <p>The two components make up the whole force, so what is left over is</p>
+  <p>${eq(`F<sub>⊥</sub> = F &minus; |F<sub>∥</sub>| = ${sig(s.Fm)} &minus; ${sig(Math.abs(s.par))} = ${sig(perp)} ${FU(p)}`)}</p>
+  <p class="final">F<sub>∥</sub> = ${sig(s.par,3)} ${FU(p)}, F<sub>⊥</sub> = ${sig(perp,3)} ${FU(p)}.</p>`}};
+
+FLAWS["point-to-line"]={n:2,step:2,
+  why:"|r<sub>AB</sub> × r<sub>AP</sub>| is the area of the parallelogram with base <i>AB</i>. The altitude is that area divided by the base |r<sub>AB</sub>|, not by |r<sub>AP</sub>|.",
+  html:(p,s)=>{const d=nrm(crs(s.r,s.q))/nrm(s.q);
+    return `<h3>1. Vectors from A</h3>
+  <p>${eq(`r<sub>AB</sub> = ${fv(s.r)} ${LU(p)}`)} ${eq(`r<sub>AP</sub> = ${fv(s.q)} ${LU(p)}`)}</p>
+  <h3>2. Distance from the cross product</h3>
+  <p>${eq(`r<sub>AB</sub> × r<sub>AP</sub> = ${fv(crs(s.r,s.q))}`)}, with magnitude ${sig(nrm(crs(s.r,s.q)))} ${LU(p)}².</p>
+  <p>${eq(`d = |r<sub>AB</sub> × r<sub>AP</sub>| / |r<sub>AP</sub>| = ${sig(nrm(crs(s.r,s.q)))}/${sig(nrm(s.q))} = ${sig(d)} ${LU(p)}`)}</p>
+  <p class="final">d = ${sig(d,3)} ${LU(p)}.</p>`}};
+
+FLAWS["plate-normal-area"]={n:2,step:2,
+  why:"The magnitude of the cross product is the area of the parallelogram spanned by the two edges. The triangular plate is half of that parallelogram.",
+  html:(p,s)=>{const A=nrm(s.n);
+    return `<h3>1. Edge vectors and their cross product</h3>
+  <p>${eq(`r<sub>AB</sub> = ${fv(s.u)}`)} ${eq(`r<sub>AC</sub> = ${fv(s.v)}`)}</p>
+  <p>${eq(`r<sub>AB</sub> × r<sub>AC</sub> = ${fv(s.n)} ${LU(p)}²`)}</p>
+  <h3>2. Area and unit normal</h3>
+  <p>The area of the plate is the magnitude of the cross product:</p>
+  <p>${eq(`Area = |r<sub>AB</sub> × r<sub>AC</sub>| = ${sig(A)} ${LU(p)}²`)}</p>
+  <p>${eq(`n = (r<sub>AB</sub> × r<sub>AC</sub>)/|r<sub>AB</sub> × r<sub>AC</sub>| = ${fv(s.nh)}`)}</p>
+  <p class="final">Area = ${sig(A,3)} ${LU(p)}²; n = ${fv(s.nh,3)}.</p>`}};
+
+FLAWS["triple-product"]={n:2,step:2,
+  why:"The scalar triple product is a dot product, so it carries the cosine of the angle between <b>a</b> and <b>b</b> × <b>c</b>. Multiplying the two magnitudes assumes that <b>a</b> is perpendicular to the plane of <b>b</b> and <b>c</b>.",
+  html:(p,s)=>{const T=nrm(p.a)*nrm(s.bc);
+    return `<h3>1. Cross product of b and c</h3>
+  <p>${eq(`b × c = ${fv(s.bc)} ${LU(p)}²`)}, with magnitude ${sig(nrm(s.bc))} ${LU(p)}².</p>
+  <h3>2. Triple product and volume</h3>
+  <p>The volume is the base area times the height, so</p>
+  <p>${eq(`a · (b × c) = |a| |b × c| = ${sig(nrm(p.a))} × ${sig(nrm(s.bc))} = ${sig(T)} ${LU(p)}³`)}</p>
+  <p class="final">a · (b × c) = ${sig(T,3)} ${LU(p)}³; volume = ${sig(T,3)} ${LU(p)}³. The ordering is right-handed.</p>`}};
+
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
 const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
@@ -424,26 +564,52 @@ function reportUrl(){
 }
 
 // ===== page
-let curKey="resultant-2d", cur=null, curFields=[];
+let curKey="resultant-2d", cur=null, curFields=[], curTruth={}, curMode="practice";
 const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+
+function fillTypes(){
+  const keys=hunting()?Object.keys(FLAWS):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+  return curKey;
+}
+
+function setMode(mode,key,seed){
+  curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";
+  $("mError").className=mode==="error"?"":"ghost";
+  $("reportRow").firstElementChild.textContent=hunting()
+    ?"Found a mistake other than the planted one?"
+    :"Found a mistake in a problem or its solution?";
+  curKey=key||curKey; const k=fillTypes();
+  render(k,seed||parseInt($("seedIn").value,10)||1);
+}
 
 function render(key,seed){
-  curKey=key; const T=TEMPLATES[key];
-  cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
+  curKey=key; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed); const {p,s}=cur;
   $("typeSel").value=key; $("seedIn").value=seed;
-  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
+  try{history.replaceState(null,"","#"+key+"-"+seed+(hunting()?"-e":""))}catch(e){}
   $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
   $("statement").innerHTML=T.statement(p,s);
+  $("flawCard").style.display=F?"":"none";
+  $("flawed").innerHTML=F?F.html(p,s):"";
+  curFields=T.fields(p,s); curTruth=T.truth(s);
+  if(F){const steps=[];for(let i=1;i<=F.n;i++)steps.push(String(i));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];
+    curTruth={step:String(F.step),...curTruth}}
   $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
     :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
-  $("ansNote").textContent="Answers within 2% are accepted. "+T.note;
-  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
-  $("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+"Answers within 2% are accepted. "+T.note;
+  const sol=$("solution"); sol.style.display="none";
+  sol.innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 
 function check(){
-  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const truth=curTruth;
   const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
   curFields.forEach(f=>{
     const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
@@ -459,19 +625,21 @@ function check(){
 
 if(typeof document!=="undefined"){
   const newSeed=()=>1+Math.floor(Math.random()*999999);
-  $("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
   $("typeSel").onchange=e=>render(e.target.value,newSeed());
   $("newBtn").onclick=()=>render(curKey,newSeed());
   $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
   $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
   if(FORM.url)$("reportRow").style.display="";
   $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
   $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-    s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+    s.style.display=show?"block":"none";
+    e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
   (function(){
-    const m=/^#([a-z0-9-]+)-(\d+)$/.exec(location.hash);
-    if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
-    else render("resultant-2d",newSeed());
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice","resultant-2d",newSeed());
   })();
 }
 if(typeof module!=="undefined")module.exports={TEMPLATES};
