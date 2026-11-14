@@ -147,6 +147,7 @@ function axes3(pts){const e=Math.max(2,...pts.flat().map(Math.abs))+1.2;
   return [["x",[e,0,0]],["y",[0,e,0]],["z",[0,0,e]]].map(([n,v])=>({a:P3([0,0,0]),b:P3(v),l:`<tspan font-style="italic">${n}</tspan>`,c:"x",d:1,w:1.1,off:10}))}
 const lab3=(n,q,dx,dy,an)=>({t:"pt",p:P3(q),l:`<tspan font-style="italic">${n}</tspan>(${q.join(", ")})`,dx,dy,an});
 const sk3=(pts,extra)=>draw([...axes3(pts),...extra],580,380);
+const sep=pts=>{let m=1e9;const q=pts.map(P3);for(let i=0;i<q.length;i++)for(let j=i+1;j<q.length;j++)m=Math.min(m,Math.hypot(q[i][0]-q[j][0],q[i][1]-q[j][1]));return m};
 const Wl=(p,n="W")=>`${it(n)} = ${p.W??p.F} ${FU(p)}`;
 
 const thArc=(P,th,r0)=>({t:"arc",p:P,r:r0,t0:th>180?th-360:0,t1:th>180?0:th,l:ang(th)});
@@ -341,19 +342,28 @@ TEMPLATES["pliers-machine"]={
 TEMPLATES["space-truss-joint"]={
   name:"Space truss: three bars meeting at a loaded joint",
   generate(seed){const r=mulberry32(seed);
-    for(let k=0;k<5000;k++){
+    for(let k=0;k<40000;k++){
       const an=()=>[ri(r,-4,4),ri(r,-4,4),0],p={us:r()<.5,h:ri(r,3,6),A:an(),B:an(),C:an(),Fz:pick(r,range(200,1500,50)),Fx:pick(r,range(-300,300,50)),Fy:pick(r,range(-300,300,50))};
       const O=[0,0,p.h],lam=[p.A,p.B,p.C].map(q=>unit(sub(q,O))),M=[0,1,2].map(i=>lam.map(l=>l[i])),D=det3(M);
       if(Math.abs(D)<.2) continue;
       const F=[p.Fx,p.Fy,-p.Fz],T=solve3(M,F.map(v=>-v));
       if(T.some(t=>Math.abs(t)<.03*p.Fz||Math.abs(t)>6*p.Fz)) continue;
+      const Fm=nrm(F),tip=O.map((v,i)=>v+3*F[i]/Fm),Op=P3(O),dr=q=>{const a=P3(q);return [a[0]-Op[0],a[1]-Op[1]]},cosv=(u,v)=>(u[0]*v[0]+u[1]*v[1])/(Math.hypot(...u)*Math.hypot(...v)),ds=[p.A,p.B,p.C,tip].map(dr);
+      if([p.A,p.B,p.C].some(q=>q[0]===0)||[0,1,2].some(i=>cosv(ds[i],ds[3])>.93||[0,1,2].some(j=>j>i&&cosv(ds[i],ds[j])>.96))) continue;
+      const bx=[p.A,p.B,p.C].map(q=>{const a=P3(q),hx=a[0]>=Op[0],yc=(q[0]>=0?-18:8)/28,w=4;return {x0:hx?a[0]+.3:a[0]-.3-w,x1:hx?a[0]+.3+w:a[0]-.3,y0:a[1]+yc-.1,y1:a[1]+yc+.5}}),tp=P3(tip);
+      const ov=(a,b)=>a.x0<b.x1&&b.x0<a.x1&&a.y0<b.y1&&b.y0<a.y1,hit=(b,a,c)=>{for(let t=0;t<=1;t+=.02){const x=a[0]+t*(c[0]-a[0]),y=a[1]+t*(c[1]-a[1]);if(x>b.x0-.15&&x<b.x1+.15&&y>b.y0-.15&&y<b.y1+.15)return true}return false};
+      const segs=[p.A,p.B,p.C].map(q=>[Op,P3(q)]);let bad=false;
+      for(let i=0;i<3&&!bad;i++){for(let j=i+1;j<3;j++)if(ov(bx[i],bx[j])){bad=true;break}
+        for(let k2=0;k2<3&&!bad;k2++)if(!(i<3&&k2===i)&&hit(bx[i],segs[k2][0],segs[k2][1]))bad=true;
+        if(!bad&&i<3&&hit(bx[i],Op,tp))bad=true}
+      if(bad) continue;
       return {p,s:{lam,T,F}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>Three bars <i>OA</i>, <i>OB</i>, and <i>OC</i> are joined by a ball-and-socket joint at <i>O</i>(0, 0, ${p.h}) ${LU(p)} and are supported by ball-and-socket joints in the ground plane at <i>A</i>(${p.A.join(", ")}) ${LU(p)}, <i>B</i>(${p.B.join(", ")}) ${LU(p)}, and <i>C</i>(${p.C.join(", ")}) ${LU(p)}. The <i>z</i> axis points up. A force <b>F</b> = (${p.Fx}, ${p.Fy}, ${-p.Fz}) ${FU(p)} acts at <i>O</i>. Neglect the weights of the bars. Determine the force in each bar, with tension positive and compression negative.</p>`,
-  figure:p=>{const O=[0,0,p.h],F=[p.Fx,p.Fy,-p.Fz],Fm=nrm(F),tip=O.map((v,i)=>v+3*F[i]/Fm);
+  figure:p=>{const O=[0,0,p.h],F=[p.Fx,p.Fy,-p.Fz],Fm=nrm(F),tip=O.map((v,i)=>v-3*F[i]/Fm),tl=P3(tip);
     return sk3([O,p.A,p.B,p.C,tip],[{a:P3(O),b:P3(p.A),c:"m",t:"ln",w:4},{a:P3(O),b:P3(p.B),c:"m",t:"ln",w:4},{a:P3(O),b:P3(p.C),c:"m",t:"ln",w:4},
-      {t:"pt",p:P3(O),l:it("O"),dx:-10,dy:-10,r:4.5,an:"end"},lab3("A",p.A,-6,18,"end"),lab3("B",p.B,8,18),lab3("C",p.C,8,-8),
-      {a:P3(O),b:P3(tip),c:"r",l:`${it("F")} = (${p.Fx}, ${p.Fy}, ${-p.Fz})`,off:10}])},
+      {t:"pt",p:P3(O),l:it("O"),dx:-10,dy:-10,r:4.5,an:"end"},...[["A",p.A],["B",p.B],["C",p.C]].map(([n,q])=>{const hx=P3(q)[0]>=0;return lab3(n,q,hx?9:-9,q[0]>=0?18:-8,hx?"start":"end")}),
+      {a:P3(tip),b:P3(O),c:"r"},{t:"txt",p:[tl[0]+(tl[0]>=0?.25:-.25),tl[1]+.25],l:`${it("F")} = (${p.Fx}, ${p.Fy}, ${-p.Fz})`,an:tl[0]>=0?"start":"end"}])},
   solution:(p,s)=>`<h3>1. Unit vectors from O toward each support</h3>
   <p>${eq(`λ<sub>OA</sub> = ${fv(s.lam[0])}`)} ${eq(`λ<sub>OB</sub> = ${fv(s.lam[1])}`)} ${eq(`λ<sub>OC</sub> = ${fv(s.lam[2])}`)}</p>
   <h3>2. Equilibrium of joint O</h3>
