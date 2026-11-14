@@ -122,7 +122,7 @@ function draw(els,W=560,H=340){
     if(e.t==="pulley"){const px=X(e.p),py=Y(e.p);o+=`<circle cx="${f1(px)}" cy="${f1(py)}" r="${e.r||12}" fill="#fff" stroke="#222" stroke-width="1.8"/><circle cx="${f1(px)}" cy="${f1(py)}" r="2.5" fill="#222"/>`;return}
     if(e.t==="arc"){const n=[];for(let t=e.t0;t<=e.t1+1e-6;t+=2)n.push(f1(X([e.p[0]+e.r*cs(t),0]))+","+f1(Y([0,e.p[1]+e.r*sn(t)])));
       o+=`<polyline points="${n.join(" ")}" fill="none" stroke="#222" stroke-width="1.1"/>`;
-      if(e.l){const m=(e.t0+e.t1)/2,rr=e.r+(e.lr||0)/s;o+=`<text x="${f1(X([e.p[0]+rr*cs(m),0])+(cs(m)>=0?6:-6))}" y="${f1(Y([0,e.p[1]+rr*sn(m)])+5)}" text-anchor="${cs(m)>=0?"start":"end"}" font-size="14" class="halo">${e.l}</text>`}return}
+      if(e.l){const m=e.la??(e.t0+e.t1)/2,rr=e.r+(e.lr||0)/s;o+=`<text x="${f1(X([e.p[0]+rr*cs(m),0])+(cs(m)>=0?6:-6))}" y="${f1(Y([0,e.p[1]+rr*sn(m)])+5)}" text-anchor="${cs(m)>=0?"start":"end"}" font-size="14" class="halo">${e.l}</text>`}return}
     const ax=X(e.a),ay=Y(e.a),bx=X(e.b),by=Y(e.b),dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1;
     if(e.t==="hatch"){const sd=e.side||1,nx=-dy/L*sd,ny=dx/L*sd,ux=dx/L,uy=dy/L;
       o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="#222" stroke-width="2.2"/>`;
@@ -131,7 +131,7 @@ function draw(els,W=560,H=340){
       for(let i=0;i<n;i++){const d=a+cl*(i+.5)/n,sg=i%2?-1:1;P.push([ax+ux*d+nx*8*sg,ay+uy*d+ny*8*sg])}
       P.push([bx-ux*a,by-uy*a],[bx,by]);o+=`<polyline points="${P.map(q=>f1(q[0])+","+f1(q[1])).join(" ")}" fill="none" stroke="#464b55" stroke-width="2"/>`;return}
     if(e.t==="dim"){o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="#222" stroke-width="0.9" marker-start="url(#vxd)" marker-end="url(#vxd)"/>`;
-      if(e.l){let nx=-dy/L,ny=dx/L;if(e.flip){nx=-nx;ny=-ny}o+=`<text x="${f1((ax+bx)/2+nx*13)}" y="${f1((ay+by)/2+ny*13+5)}" text-anchor="middle" class="halo">${e.l}</text>`}return}
+      if(e.l){let nx=-dy/L,ny=dx/L;if(e.flip){nx=-nx;ny=-ny}const vt=Math.abs(nx)>.7;o+=`<text x="${f1((ax+bx)/2+nx*(vt?9:13))}" y="${f1((ay+by)/2+ny*(vt?0:13)+5)}" text-anchor="${vt?(nx>0?"start":"end"):"middle"}" class="halo">${e.l}</text>`}return}
     const head=e.t==="ln"?"":` marker-end="url(#vx${c})"`;
     o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="${COL[c]}" stroke-width="${e.w||(c==="r"||c==="b"||c==="g"?2.6:1.4)}" ${e.d?'stroke-dasharray="5 4"':""}${head}/>`;
     if(e.l&&e.mid){const mxp=(ax+bx)/2,myp=(ay+by)/2;let nx=-dy/L,ny=dx/L;if(ny>0){nx=-nx;ny=-ny}
@@ -155,7 +155,7 @@ const MU=p=>p.us?"lbf·ft":"N·m";
 const sg=v=>v>=0?"counterclockwise":"clockwise";
 const ri=(r,a,b)=>a+Math.floor(r()*(b-a+1));
 const angs=r=>pick(r,[...range(10,170,5),...range(190,350,5)]);
-const thArc=(P,th,r0)=>({t:"arc",p:P,r:r0,t0:th>180?th-360:0,t1:th>180?0:th,l:ang(th)});
+const thArc=(P,th,r0)=>({t:"arc",p:P,r:r0,t0:0,t1:th,la:th>180?(th+360)/2:undefined,l:ang(th)});
 const TEMPLATES={};
 
 // 1. moment of a force in a plane
@@ -172,8 +172,8 @@ TEMPLATES["moment-2d"]={
   statement:p=>`<p>A force of magnitude <i>F</i> = ${p.F} ${FU(p)} acts at point <i>A</i>(${p.x}, ${p.y}) ${LU(p)}. Its direction is <i>θ</i> = ${p.th}°, measured counterclockwise from the positive <i>x</i> axis. Determine the components of the force, the moment of the force about the origin <i>O</i> (counterclockwise positive), and the perpendicular distance from <i>O</i> to the line of action of the force.</p>`,
   figure:p=>{const A=[p.x,p.y],e=Math.max(Math.abs(p.x),Math.abs(p.y))+1.3,tip=[p.x+2.2*cs(p.th),p.y+2.2*sn(p.th)];
     return draw([{a:[Math.min(0,p.x)-1,0],b:[Math.max(0,p.x)+3,0],t:"ln",c:"x",d:1,w:1},{a:[0,Math.min(0,p.y)-1],b:[0,Math.max(0,p.y)+3],t:"ln",c:"x",d:1,w:1},
-      {a:[0,0],b:A,t:"ln",d:1,w:1.2},{t:"pt",p:[0,0],l:it("O"),dx:-14,dy:16,r:4.5},{t:"pt",p:A,l:`${it("A")}(${p.x}, ${p.y}) ${LU(p)}`,dx:-8,dy:p.th>180?-12:20,an:"end"},
-      {a:A,b:tip,c:"r",l:Wl(p,"F"),off:10},thArc(A,p.th,.9),{a:A,b:[p.x+1.6,p.y],t:"ln",c:"x",d:1,w:1}],560,340)},
+      {a:[0,0],b:A,t:"ln",d:1,w:1.2},{t:"pt",p:[0,0],l:it("O"),dx:-14,dy:16,r:4.5},{t:"pt",p:A,l:`${it("A")}(${p.x}, ${p.y}) ${LU(p)}`,dx:-8,dy:p.th>180?-46:20,an:"end"},
+      {a:A,b:tip,c:"r",l:Wl(p,"F"),off:10},thArc(A,p.th,.75),{a:A,b:[p.x+1.6,p.y],t:"ln",c:"x",d:1,w:1}],560,340)},
   solution:(p,s)=>`<h3>1. Components of the force</h3>
   <p>${eq(`F<sub>x</sub> = F cos θ = ${p.F} cos ${p.th}° = ${sig(s.Fx)} ${FU(p)}`)} ${eq(`F<sub>y</sub> = F sin θ = ${p.F} sin ${p.th}° = ${sig(s.Fy)} ${FU(p)}`)}</p>
   <h3>2. Moment about O (Varignon's theorem)</h3>
@@ -199,18 +199,15 @@ TEMPLATES["moment-two-points"]={
       return {p,s:{Fx,Fy,MA,MB}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>A triangular plate has corners <i>A</i>(0, 0), <i>B</i>(${p.c}, 0), and <i>P</i>(${p.a}, ${p.b}), with dimensions in ${LU(p)}. A force of magnitude <i>F</i> = ${p.F} ${FU(p)} acts at <i>P</i> in the direction <i>θ</i> = ${p.th}°, measured counterclockwise from the positive <i>x</i> axis. Determine the moment of the force about <i>A</i> and about <i>B</i> (counterclockwise positive).</p>`,
-  figure:p=>{const A=[0,0],B=[p.c,0],P=[p.a,p.b],tip=[p.a+2*cs(p.th),p.b+2*sn(p.th)];
-    return draw([{t:"poly",pts:[A,B,P],fill:"#f1ead6"},{t:"pt",p:A,l:it("A"),dx:-14,dy:16,r:4.5},{t:"pt",p:B,l:it("B"),dx:8,dy:16,r:4.5},{t:"pt",p:P,l:it("P"),dx:-16,dy:p.th>180?-8:20,r:4.5},
-      {a:P,b:tip,c:"r",l:Wl(p,"F"),off:10},thArc(P,p.th,.9),{a:P,b:[p.a+1.4,p.b],t:"ln",c:"x",d:1,w:1},
-      {t:"dim",a:[0,-.7],b:[p.c,-.7],l:`${p.c} ${LU(p)}`,flip:1},{t:"dim",a:[p.c+.8,0],b:[p.c+.8,p.b],l:`${p.b} ${LU(p)}`},{t:"dim",a:[0,p.b+.8],b:[p.a,p.b+.8],l:`${p.a} ${LU(p)}`}],560,340)},
-  solution:(p,s)=>`<h3>1. Components of the force</h3>
-  <p>${eq(`F<sub>x</sub> = ${sig(s.Fx)} ${FU(p)}`)} ${eq(`F<sub>y</sub> = ${sig(s.Fy)} ${FU(p)}`)}</p>
-  <h3>2. Moment about A</h3>
-  <p>The position vector from <i>A</i> to <i>P</i> is (${p.a}, ${p.b}) ${LU(p)}, so ${eq(`M<sub>A</sub> = ${p.a}F<sub>y</sub> &minus; ${p.b}F<sub>x</sub> = ${sig(s.MA)} ${MU(p)}`)}</p>
-  <h3>3. Moment about B</h3>
-  <p>The position vector from <i>B</i> to <i>P</i> is (${p.a-p.c}, ${p.b}) ${LU(p)}, so ${eq(`M<sub>B</sub> = (${p.a-p.c})F<sub>y</sub> &minus; ${p.b}F<sub>x</sub> = ${sig(s.MB)} ${MU(p)}`)}</p>
-  <p class="final">M<sub>A</sub> = ${sig(s.MA,3)} ${MU(p)}, M<sub>B</sub> = ${sig(s.MB,3)} ${MU(p)}.</p>
-  <p class="note">The difference M<sub>B</sub> &minus; M<sub>A</sub> = &minus;${p.c}F<sub>y</sub> is the moment of the force about <i>B</i> that arises from moving the reference point along the <i>x</i> axis.</p>`,
+  figure:p=>{const A=[0,0],B=[p.c,0],P=[p.a,p.b],tip=[p.a+2.6*cs(p.th),p.b+2.6*sn(p.th)];
+    const xd=Math.max(p.a,p.c)+.9,up=p.th<180,lf=cs(p.th)>=0;
+    return draw([{t:"poly",pts:[A,B,P],fill:"#f1ead6"},{t:"pt",p:A,l:it("A"),dx:-14,dy:16,r:4.5},{t:"pt",p:B,l:it("B"),dx:8,dy:16,r:4.5},
+      up?{t:"pt",p:P,l:it("P"),dx:-22*cs(p.th),dy:22*sn(p.th)+4,an:"middle",r:4.5}:{t:"pt",p:P,l:it("P"),dx:-24*cs(p.th),dy:-46,an:"middle",r:4.5},
+      {a:P,b:tip,c:"r",l:Wl(p,"F"),off:10},{t:"txt",p:[tip[0]+(cs(p.th)>=0?3.4:-3.4),tip[1]],l:""},thArc(P,p.th,.75),{a:P,b:[p.a+1.4,p.b],t:"ln",c:"x",d:1,w:1},
+      {t:"ln",a:[p.a,-.1],b:[p.a,-1.3],c:"x",d:1,w:.8},{t:"ln",a:[p.c,-.2],b:[p.c,-2.2],c:"x",d:1,w:.8},
+      {t:"dim",a:[0,-1.1],b:[p.a,-1.1],l:`${p.a} ${LU(p)}`,flip:1},{t:"dim",a:[0,-2],b:[p.c,-2],l:`${p.c} ${LU(p)}`,flip:1},
+      {t:"ln",a:[p.a+.15,p.b],b:[xd+.1,p.b],c:"x",d:1,w:.8},{t:"ln",a:[p.c+.15,0],b:[xd+.1,0],c:"x",d:1,w:.8},
+      {t:"dim",a:[xd,0],b:[xd,p.b],l:`${p.b} ${LU(p)}`,flip:1}],560,340)},
   fields:p=>[{id:"MA",label:"Moment about A",unit:MU(p),signed:true},{id:"MB",label:"Moment about B",unit:MU(p),signed:true}],
   truth:s=>({MA:s.MA,MB:s.MB}),
   note:"Use counterclockwise as the positive sense of moment."
@@ -326,8 +323,8 @@ TEMPLATES["force-couple-2d"]={
     throw new Error("no valid problem");},
   statement:p=>`<p>A force of magnitude <i>F</i> = ${p.F} ${FU(p)} acts at point <i>A</i>(${p.ax}, ${p.ay}) ${LU(p)} in the direction <i>θ</i> = ${p.th}°, measured counterclockwise from the positive <i>x</i> axis. Replace it with an equivalent force-couple system at point <i>B</i>(${p.bx}, ${p.by}) ${LU(p)}. Give the force components and the couple moment (counterclockwise positive).</p>`,
   figure:p=>{const A=[p.ax,p.ay],B=[p.bx,p.by],tip=[p.ax+2.2*cs(p.th),p.ay+2.2*sn(p.th)];
-    return draw([{a:B,b:A,t:"ln",d:1,w:1.2},{t:"pt",p:B,l:`${it("B")}(${p.bx}, ${p.by})`,dx:-8,dy:18,r:4.5,an:"end"},{t:"pt",p:A,l:`${it("A")}(${p.ax}, ${p.ay})`,dx:-8,dy:p.th>180?-12:20,an:"end",r:4.5},
-      {a:A,b:tip,c:"r",l:Wl(p,"F"),off:10},thArc(A,p.th,.9),{a:A,b:[p.ax+1.6,p.ay],t:"ln",c:"x",d:1,w:1},{a:[Math.min(p.bx,p.ax)-.8,0],b:[Math.max(p.bx,p.ax)+3,0],t:"ln",c:"x",d:1,w:1}],560,340)},
+    return draw([{a:B,b:A,t:"ln",d:1,w:1.2},{t:"pt",p:B,l:`${it("B")}(${p.bx}, ${p.by})`,dx:-8,dy:18,r:4.5,an:"end"},{t:"pt",p:A,l:`${it("A")}(${p.ax}, ${p.ay})`,dx:-8,dy:p.th>180?-46:20,an:"end",r:4.5},
+      {a:A,b:tip,c:"r",l:Wl(p,"F"),off:10},thArc(A,p.th,.75),{a:A,b:[p.ax+1.6,p.ay],t:"ln",c:"x",d:1,w:1},{a:[Math.min(p.bx,p.ax)-.8,0],b:[Math.max(p.bx,p.ax)+3,0],t:"ln",c:"x",d:1,w:1}],560,340)},
   solution:(p,s)=>`<h3>1. Force at B</h3>
   <p>Moving a force to another point does not change it: ${eq(`F<sub>x</sub> = ${sig(s.Fx)} ${FU(p)}`)} ${eq(`F<sub>y</sub> = ${sig(s.Fy)} ${FU(p)}`)}</p>
   <h3>2. Couple</h3>
