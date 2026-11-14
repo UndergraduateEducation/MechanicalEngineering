@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Torsion Problem Generator</title>
 <style>
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+  #flawed h3{font-size:1.05rem;margin:1.1em 0 .3em}
   :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#ffffff;--accent:#1e5a32;--ok:#1e7a3c;--bad:#b3261e}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Georgia","Times New Roman",serif}
@@ -44,6 +48,12 @@
   <div class="sub">Circular shafts, power transmission, statically indeterminate shafts, thin-walled tubes, and rectangular bars. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem. <a href="index.html">All chapters</a></div>
 </header>
 <main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow"><span id="reportLbl">Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar"><label>Mode</label><button id="mPractice">Practice</button><button class="ghost" id="mError">Find the error</button></div>
   <div class="card bar"><label for="typeSel">Problem type</label><select id="typeSel"></select></div>
   <div class="card bar">
     <button id="newBtn">New problem</button>
@@ -52,6 +62,10 @@
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -63,6 +77,7 @@
   <div class="card" id="solution"></div>
 </main>
 <script>
+const PAGE_CH="Mechanics of Materials, Chapter 3: Torsion";
 // ===== common helpers: seeded random numbers, number formatting, SVG drawing
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -723,23 +738,144 @@ const TEMPLATES={
   "circular-shaft":CS,"stepped-shaft":SH,"gears-power":GP,"power-design":PD,"shaft-walls":IW,"composite-shaft":CT,
   "thin-tube":TW,"rectangular-bar":RS,"gear-train":GT,"distributed-torque":DT};
 
+// ===== planted errors: shared helpers. Each entry: {step, why, run:(p,s)=>({v:{field:value}, steps:[[title, html], ...]})}
+const FLAWS={};
+const EQ=s=>`<p class="eq">${s}</p>`, PP=s=>`<p>${s}</p>`, FIN=s=>`<p class="final">${s}</p>`;
+const g4=v=>sig(v,4), g3=v=>sig(v,3);
+
+// ===== Chapter 3 planted errors (base units: lb, in., psi or N, mm, MPa)
+const TT3=(p,v)=>`${g4(v*TU(p.us).tf)} ${TU(p.us).T}`, SS3=(p,v)=>`${g4(v*TU(p.us).sf)} ${TU(p.us).S}`;
+const LL3=p=>p.us?"in.":"mm";
+
+FLAWS["circular-shaft"]={step:1,
+  why:"Torsion uses the polar moment of inertia J = π(d⁴ − d<sub>i</sub>⁴)/32, which is twice the rectangular moment of inertia I = π(d⁴ − d<sub>i</sub>⁴)/64 used in bending.",
+  run:(p,s)=>{const J=s.J/2,tmax=p.T*(p.d/2)/J,tin=p.hollow?p.T*(p.di/2)/J:p.T*(p.d/4)/J,th=deg(p.T*p.L/(Gm(p.m,p.us)*J));
+    return {v:{J,tmax:tmax*TU(p.us).sf,tin:tin*TU(p.us).sf,th},steps:[
+      ["Moment of inertia of the section",EQ(`J = π(d⁴ − d<sub>i</sub>⁴)/64 = ${g4(J)} ${LL3(p)}⁴`)],
+      ["Shear stresses",EQ(`τ<sub>max</sub> = Tc/J = ${SS3(p,tmax)}; τ = Tρ/J = ${SS3(p,tin)}`)],
+      ["Angle of twist",FIN(`θ = TL/(GJ) = ${g4(th)}°`)]]}}};
+
+FLAWS["stepped-shaft"]={step:1,
+  why:"The internal torque in a segment follows from a free body cut inside that segment, so it is the sum of all applied torques on one side of the cut, not only the torque at the segment's end.",
+  run:(p,s)=>{const Ti=p.T.slice(0,p.n),tau=Ti.map((v,i)=>Math.abs(v)*16/(Math.PI*p.d[i]**3)),ph=Ti.map((v,i)=>v*p.L[i]/(Gm(p.M[i],p.us)*Jc(p.d[i]))),phA=deg(Math.abs(ph.reduce((a,b)=>a+b,0)));
+    return {v:{...Object.fromEntries(tau.map((v,i)=>["t"+i,v*TU(p.us).sf])),ph:phA},steps:[
+      ["Internal torques",PP("Each segment carries the torque applied at its free-end side:")+EQ(Ti.map((v,i)=>`T<sub>${sbSeg(i)}</sub> = ${TT3(p,v)}`).join("; "))],
+      ["Maximum shear stresses",EQ(tau.map((v,i)=>`τ<sub>${sbSeg(i)}</sub> = 16T/(πd³) = ${SS3(p,v)}`).join("; "))],
+      ["Rotation of A",FIN(`φ<sub>A</sub> = |Σ TL/(GJ)| = ${g4(phA)}°`)]]}}};
+
+FLAWS["gears-power"]={step:2,
+  why:"The design torque is the largest internal torque in the shaft between gears, found by summing gear torques from one end. When the motor gear is not at an end, the shaft never carries the full input torque.",
+  run:(p,s)=>{const Tm=Math.abs(s.Tg[p.inp]),tmax=16*Tm/(Math.PI*p.d**3),dmin=Math.cbrt(16*Tm/(Math.PI*p.tw));
+    return {v:{tmax:tmax*TU(p.us).sf,dmin},steps:[
+      ["Gear torques",EQ(s.Tg.map((v,i)=>`T<sub>${"ABCD"[i]}</sub> = ${TT3(p,Math.abs(v))}`).join("; "))],
+      ["Largest torque in the shaft",PP("The shaft must transmit all the power supplied by the motor, so the largest torque is the input torque:")+EQ(`T<sub>max</sub> = ${TT3(p,Tm)}`)],
+      ["Maximum shear stress",EQ(`τ<sub>max</sub> = 16T<sub>max</sub>/(πd³) = ${SS3(p,tmax)}`)],
+      ["Angle of twist",EQ(`φ = Σ TL/(GJ) = ${g4(s.ph)}°`)],
+      ["Smallest diameter",FIN(`d = (16T<sub>max</sub>/(πτ<sub>w</sub>))<sup>1/3</sup> = ${g4(dmin)} ${LL3(p)}`)]]}}};
+
+FLAWS["power-design"]={step:3,
+  why:"The angle of twist is θ = TL/(GJ) with the polar moment of inertia J = πd⁴/32, not the bending moment of inertia πd⁴/64.",
+  run:(p,s)=>{const dt=Math.pow(64*s.T*p.L/(Math.PI*Gm(p.m,p.us)*p.th*Math.PI/180),0.25),d=Math.max(s.ds,dt);
+    return {v:{dt,d},steps:[
+      ["Torque",EQ(`T = ${TT3(p,s.T)}`)],
+      ["Stress requirement",EQ(`d = (16T/(πτ<sub>w</sub>))<sup>1/3</sup> = ${g4(s.ds)} ${LL3(p)}`)],
+      ["Twist requirement",EQ(`θ = TL/(G·πd⁴/64) ≤ θ<sub>w</sub> ⇒ d = ${g4(dt)} ${LL3(p)}`)],
+      ["Smallest safe diameter",FIN(`d = ${g4(d)} ${LL3(p)}; ${s.ds>dt?"shear stress":"angle of twist"} governs`)]]}}};
+
+FLAWS["shaft-walls"]={step:1,
+  why:"The shaft is statically indeterminate: both segments rotate B by the same angle, so the reactive torques are in proportion to the torsional stiffnesses GJ/L, not to the lengths alone.",
+  run:(p,s)=>{const Lt=p.L[0]+p.L[1],TA=p.T*p.L[1]/Lt,TC=p.T*p.L[0]/Lt,t1=16*TA/(Math.PI*p.d[0]**3),t2=16*TC/(Math.PI*p.d[1]**3),ph=deg(TA*p.L[0]/(Gm(p.M[0],p.us)*Jc(p.d[0])));
+    return {v:{TA:TA*TU(p.us).tf,TC:TC*TU(p.us).tf,t1:t1*TU(p.us).sf,t2:t2*TU(p.us).sf,ph},steps:[
+      ["Reactive torques",PP("Each wall resists a share of T in inverse proportion to its distance from B:")+EQ(`T<sub>A</sub> = T·L<sub>BC</sub>/L = ${TT3(p,TA)}; T<sub>C</sub> = ${TT3(p,TC)}`)],
+      ["Shear stresses",EQ(`τ<sub>AB</sub> = ${SS3(p,t1)}; τ<sub>BC</sub> = ${SS3(p,t2)}`)],
+      ["Rotation of B",FIN(`φ<sub>B</sub> = T<sub>A</sub>L<sub>AB</sub>/(GJ)<sub>AB</sub> = ${g4(ph)}°`)]]}}};
+
+FLAWS["composite-shaft"]={step:1,
+  why:"Core and tube twist through the same angle, so each carries torque in proportion to its torsional stiffness GJ. Sharing in proportion to J alone ignores the different shear moduli.",
+  run:(p,s)=>{const J1=Jc(p.d1),J2=Jc(p.d2,p.d1),T1=p.T*J1/(J1+J2),T2=p.T-T1,t1=T1*(p.d1/2)/J1,t2=T2*(p.d2/2)/J2,th=deg(T1*p.L/(Gm(p.pr[0],p.us)*J1)),Ta=p.T*p.w[0]/t1,Tb=p.T*p.w[1]/t2,Tm=Math.min(Ta,Tb);
+    return {v:{t1:t1*TU(p.us).sf,t2:t2*TU(p.us).sf,th,Tm:Tm*TU(p.us).tf},steps:[
+      ["Torque in core and tube",PP("The torque divides in proportion to the polar moments of inertia:")+EQ(`T<sub>core</sub> = TJ₁/(J₁ + J₂) = ${TT3(p,T1)}; T<sub>tube</sub> = ${TT3(p,T2)}`)],
+      ["Shear stresses",EQ(`τ<sub>core</sub> = ${SS3(p,t1)}; τ<sub>tube</sub> = ${SS3(p,t2)}`)],
+      ["Angle of twist",EQ(`θ = T<sub>core</sub>L/(G₁J₁) = ${g4(th)}°`)],
+      ["Largest safe torque",FIN(`T<sub>max</sub> = ${TT3(p,Tm)}`)]]}}};
+
+FLAWS["thin-tube"]={step:1,
+  why:"The area in the shear-flow formula T = 2qA₀ is the area enclosed by the median line of the wall, (B − t<sub>side</sub>)(H − t<sub>top</sub>), not the area inside the outer boundary.",
+  run:(p,s)=>{const A0=p.B*p.H,q=p.T/(2*A0),th=deg(p.T*p.L*s.Sot/(4*A0*A0*Gm(p.m,p.us))),Tw=2*A0*Math.min(p.t1,p.t2)*p.tw,qu=p.us?"lb/in.":"N/mm";
+    return {v:{A0,q,tau1:q/p.t1*TU(p.us).sf,tau2:q/p.t2*TU(p.us).sf,th,Tw:Tw*TU(p.us).tf},steps:[
+      ["Enclosed area",EQ(`A₀ = B·H = ${g4(A0)} ${LL3(p)}²`)],
+      ["Shear flow and stresses",EQ(`q = T/(2A₀) = ${g4(q)} ${qu}; τ<sub>top</sub> = q/t₁ = ${SS3(p,q/p.t1)}; τ<sub>side</sub> = q/t₂ = ${SS3(p,q/p.t2)}`)],
+      ["Angle of twist",EQ(`θ = TL∮ds/t/(4A₀²G) = ${g4(th)}°`)],
+      ["Largest torque",FIN(`T = 2A₀t<sub>min</sub>τ<sub>w</sub> = ${TT3(p,Tw)}`)]]}}};
+
+FLAWS["rectangular-bar"]={step:1,
+  why:"In τ<sub>max</sub> = T/(C₁ab²) and θ = TL/(C₂ab³G), a is the long side and b the short side. Squaring or cubing the long side overstates the strength and stiffness.",
+  run:(p,s)=>{const Tr=p.C1*p.a*p.a*p.b*p.tw,T=Math.min(Tr,s.Tc),thr=T*p.L[0]/(p.C2*p.b*p.a**3*p.G),thc=T*p.L[1]/(p.G*Jc(p.d)),th=deg(thr+thc);
+    return {v:{Tr:Tr*TU(p.us).tf,T:T*TU(p.us).tf,th},steps:[
+      ["Rectangular segment",EQ(`T = C₁a²bτ<sub>w</sub> = ${TT3(p,Tr)}`)],
+      ["Circular segment",EQ(`T = τ<sub>w</sub>πd³/16 = ${TT3(p,s.Tc)}`)],
+      ["Largest safe torque",EQ(`T = ${TT3(p,T)}; ${Tr<s.Tc?"rectangular":"circular"} segment governs`)],
+      ["Angle of twist",FIN(`θ = TL₁/(C₂ba³G) + TL₂/(GJ) = ${g4(th)}°`)]]}}};
+
+FLAWS["gear-train"]={step:1,
+  why:"The tooth force between the gears is F = T/r<sub>B</sub>, so shaft CD carries T(r<sub>C</sub>/r<sub>B</sub>). Gears transmit the force, not the torque, unchanged.",
+  run:(p,s)=>{const G=Gm("steel",p.us),T2=p.T,t2=16*T2/(Math.PI*p.d[1]**3),phC=T2*p.L[1]/(G*Jc(p.d[1])),phA=deg(phC*p.rC/p.rB+p.T*p.L[0]/(G*Jc(p.d[0])));
+    return {v:{t2:t2*TU(p.us).sf,phA},steps:[
+      ["Torque in shaft CD",PP("The gears pass the torque from one shaft to the other:")+EQ(`T<sub>CD</sub> = T = ${TT3(p,T2)}`)],
+      ["Shear stresses",EQ(`τ<sub>AB</sub> = ${SS3(p,s.t1)}; τ<sub>CD</sub> = ${SS3(p,t2)}`)],
+      ["Rotations",EQ(`φ<sub>C</sub> = ${g4(deg(phC))}°; φ<sub>B</sub> = φ<sub>C</sub>r<sub>C</sub>/r<sub>B</sub>`)+FIN(`φ<sub>A</sub> = φ<sub>B</sub> + TL<sub>AB</sub>/(GJ) = ${g4(phA)}°`)]]}}};
+
+FLAWS["distributed-torque"]={step:3,
+  why:"The internal torque varies along the shaft, from T₀ at the wall to zero at the free end, so the twist must be integrated: θ = ∫T(x)dx/(GJ).",
+  run:(p,s)=>{const th=deg(s.T0*p.L/(Gm(p.m,p.us)*Jc(p.d)));
+    return {v:{th},steps:[
+      ["Reactive torque",EQ(`T₀ = ${p.lin?"t<sub>B</sub>L/2":"tL"} = ${TT3(p,s.T0)}`)],
+      ["Maximum shear stress",EQ(`τ<sub>max</sub> = 16T₀/(πd³) = ${SS3(p,s.tmax)}`)],
+      ["Rotation of B",FIN(`θ = T₀L/(GJ) = ${g4(th)}°`)]]}}};
+
 const $=id=>document.getElementById(id);
-let curKey,curSeed,cur;
+let curKey,curSeed,cur,curFields=[],curTruth={},curMode="practice";
 const tidy=h=>h.replace(/\bin\.\.(?!\.)/g,"in.").replace(/\b([Aa]) (aluminum|inelastic|unequal)\b/g,"$1n $2");
+const FLAWSET=typeof FLAWS!=="undefined"?FLAWS:{};
+const hunting=()=>curMode==="error";
+// ----- planted error: run it and check that it changes at least one answer by more than 3%
+function flawRun(F,p,s,T){const o=F.run(p,s),tr=T.truth(p,s);
+  const vis=Object.entries(o.v).some(([k,v])=>typeof tr[k]==="number"&&isFinite(v)&&Math.abs(v-tr[k])>0.03*Math.max(Math.abs(tr[k]),1e-12));
+  return {o,vis}}
+function flawHtml(o){return o.steps.map(([t,h],i)=>`<h3>${i+1}. ${t}</h3>${h}`).join("")}
+// ----- error report (Google Form, prefilled)
+const FORM={url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,PAGE_CH);q.set(FORM.entry.type,TEMPLATES[curKey].name+(hunting()?" (find the error)":""));
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);return FORM.url+"?"+q.toString()}
+function fillTypes(){const keys=hunting()?Object.keys(TEMPLATES).filter(k=>FLAWSET[k]):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];return curKey}
+function setMode(mode,key,seed){curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";$("mError").className=mode==="error"?"":"ghost";
+  $("reportLbl").textContent=hunting()?"Found a mistake other than the planted one?":"Found a mistake in a problem or its solution?";
+  if(key)curKey=key;render(fillTypes(),seed||parseInt($("seedIn").value,10)||newSeed())}
 function render(key,seed){
-  curKey=key;curSeed=seed;const T=TEMPLATES[key];cur=T.generate(seed);const {p,s}=cur;
-  $("typeSel").value=key;$("seedIn").value=seed;history.replaceState(null,"","#"+key+"-"+seed);
+  const T=TEMPLATES[key],F=hunting()?FLAWSET[key]:null;let fr=null;
+  for(let i=0;i<60;i++){cur=T.generate(seed);if(!F)break;fr=flawRun(F,cur.p,cur.s,T);if(fr.vis)break;seed++}
+  curKey=key;curSeed=seed;const {p,s}=cur;
+  $("typeSel").value=key;$("seedIn").value=seed;try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
   $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=tidy(T.statement(p,s));
-  $("answers").innerHTML=T.fields(p,s).map(f=>f.choices
+  $("flawCard").style.display=F?"":"none";$("flawed").innerHTML=F?tidy(flawHtml(fr.o)):"";
+  curFields=T.fields(p,s);curTruth=T.truth(p,s);
+  if(F){const steps=fr.o.steps.map((_,i)=>String(i+1));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>f.choices
     ?`<label>${tidy(f.label)}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
     :`<label>${tidy(f.label)}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
-  $("ansNote").textContent=T.note||"";$("solution").innerHTML=tidy(T.solution(p,s));
-  $("solution").style.display="none";$("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+(T.note||"");
+  $("solution").innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+tidy(T.solution(p,s));
+  $("solution").style.display="none";$("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 function check(){
-  const T=TEMPLATES[curKey],{p,s}=cur,tr=T.truth(p,s);
-  T.fields(p,s).forEach(f=>{
-    const el=$("m_"+f.id),raw=$("a_"+f.id).value.trim();let ok=false;
+  const tr=curTruth;
+  curFields.forEach(f=>{
+    const el=$("m_"+f.id);let raw=$("a_"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");let ok=false;
     if(f.choices)ok=raw===tr[f.id];
     else{const v=parseFloat(raw.replace(/,/g,"")),t=tr[f.id];
       if(isFinite(v)&&f.abs!==undefined) ok=Math.abs(v-t)<=f.abs;
@@ -749,15 +885,19 @@ function check(){
   });
 }
 const newSeed=()=>1+Math.floor(Math.random()*999999);
-$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
 $("typeSel").onchange=e=>render(e.target.value,newSeed());
 $("newBtn").onclick=()=>render(curKey,newSeed());
 $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
 $("checkBtn").onclick=check;
+$("mPractice").onclick=()=>setMode("practice");
+$("mError").onclick=()=>setMode("error");
+$("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+if(!Object.keys(FLAWSET).length)$("mError").style.display="none";
 $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
-(function(){const m=/^#([a-z0-9-]+?)-(\d+)$/.exec(location.hash);
-  if(m&&TEMPLATES[m[1]])render(m[1],parseInt(m[2],10));else render(Object.keys(TEMPLATES)[0],newSeed())})();
+  s.style.display=show?"block":"none";e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+(function(){const m=/^#([a-z0-9-]+?)-(\d+)(-e)?$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWSET[m[1]]))setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+  else setMode("practice",Object.keys(TEMPLATES)[0],newSeed())})();
 
 </script>
 </body>

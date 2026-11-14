@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Statically Indeterminate Beams Problem Generator</title>
 <style>
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+  #flawed h3{font-size:1.05rem;margin:1.1em 0 .3em}
   :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#ffffff;--accent:#1e5a32;--ok:#1e7a3c;--bad:#b3261e}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Georgia","Times New Roman",serif}
@@ -44,6 +48,12 @@
   <div class="sub">Propped cantilevers, built-in ends, continuous beams, gaps, elastic supports, and beams in contact, solved by superposition. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem. <a href="index.html">All chapters</a></div>
 </header>
 <main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow"><span id="reportLbl">Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar"><label>Mode</label><button id="mPractice">Practice</button><button class="ghost" id="mError">Find the error</button></div>
   <div class="card bar"><label for="typeSel">Problem type</label><select id="typeSel"></select></div>
   <div class="card bar">
     <button id="newBtn">New problem</button>
@@ -52,6 +62,10 @@
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -63,6 +77,7 @@
   <div class="card" id="solution"></div>
 </main>
 <script>
+const PAGE_CH="Mechanics of Materials, Chapter 7: Statically Indeterminate Beams";
 // ===== common helpers: seeded random numbers, number formatting, SVG drawing
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -978,23 +993,108 @@ const I6={name:"Two cantilevers in contact: contact force",generate:i6Generate,f
 
 const TEMPLATES={"propped-cantilever":I1,"built-in-ends":I2,"three-supports":I3,"gap":I4,"elastic-post":I5,"contact":I6};
 
+// ===== planted errors: shared helpers. Each entry: {step, why, run:(p,s)=>({v:{field:value}, steps:[[title, html], ...]})}
+const FLAWS={};
+const EQ=s=>`<p class="eq">${s}</p>`, PP=s=>`<p>${s}</p>`, FIN=s=>`<p class="final">${s}</p>`;
+const g4=v=>sig(v,4), g3=v=>sig(v,3);
+
+// ===== Chapter 7 planted errors
+const fF7=p=>U4((p.base||p).us).F, fM7=p=>U4((p.base||p).us).M, fd7=p=>DU((p.base||p).us).d;
+
+FLAWS["propped-cantilever"]={step:1,
+  why:"The built-in end supplies a moment as well as a force, so the beam is statically indeterminate: the roller reaction must come from the compatibility condition v = 0 at the roller, not from statics with a pin at the wall.",
+  run:(p,s)=>{const b=p.base,bm=bmSolve({us:b.us,L:b.L,sup:{kind:"ss",xa:0,xb:p.xb},P:[...b.P],C:[...b.C],W:[...b.W]});
+    return {v:{RB:bm.R[1].R,RA:bm.R[0].R,MA:0,Mx:Mext(bm)},steps:[
+      ["Reactions",PP("The wall at A and the roller give two supports, so the beam is analyzed as simply supported:")+EQ(`R<sub>roller</sub> = ${g4(bm.R[1].R)} ${fF7(p)}; R<sub>A</sub> = ${g4(bm.R[0].R)} ${fF7(p)}`)],
+      ["Moment at the wall",EQ("M<sub>A</sub> = 0")],
+      ["Largest moment",FIN(`|M|<sub>max</sub> = ${g4(Mext(bm))} ${fM7(p)}`)]]}}};
+
+FLAWS["built-in-ends"]={step:1,
+  why:"Each built-in end prevents both deflection and rotation, so there are two redundants at B: the force and the moment, with v<sub>B</sub> = 0 and θ<sub>B</sub> = 0.",
+  run:(p,s)=>{const b=p.base,o=indSolve({...b,P:[...b.P],C:[...b.C],W:[...b.W]},[{x:b.L,kind:"F"}],s.EI),bm=o.bm,d=o.sol.vmax.v*DU(b.us).dv;
+    return {v:{RA:bm.R[0].R,MA:bm.M(1e-9*b.L),RB:o.R[0],MB:0,d},steps:[
+      ["Redundant",PP("Release the support at B and restore it with the condition v<sub>B</sub> = 0:")+EQ(`R<sub>B</sub> = ${g4(o.R[0])} ${fF7(p)}`)],
+      ["Reactions at A",EQ(`R<sub>A</sub> = ${g4(bm.R[0].R)} ${fF7(p)}; M<sub>A</sub> = ${g4(bm.M(1e-9*b.L))} ${fM7(p)}; M<sub>B</sub> = 0`)],
+      ["Maximum deflection",FIN(`v<sub>max</sub> = ${g4(d)} ${fd7(p)}`)]]}}};
+
+FLAWS["three-supports"]={step:1,
+  why:"The beam is continuous over the middle support, which therefore carries a bending moment. Splitting it into two simply supported spans sets that moment to zero and gives the wrong reactions.",
+  run:(p,s)=>{const b=p.base,xb=p.xb,cut=(lo,hi)=>({us:b.us,L:hi-lo,sup:{kind:"ss",xa:0,xb:hi-lo},P:b.P.filter(q=>q.x>lo&&q.x<hi).map(q=>({x:q.x-lo,F:q.F})),C:b.C.filter(c=>c.x>lo&&c.x<hi).map(c=>({x:c.x-lo,C:c.C})),
+      W:b.W.filter(d=>d.b>lo&&d.a<hi).map(d=>{const a=Math.max(d.a,lo),e=Math.min(d.b,hi);return {a:a-lo,b:e-lo,w1:wAt(d,a),w2:wAt(d,e)}})});
+    const s1=bmSolve(cut(0,xb)),s2=bmSolve(cut(xb,b.L)),RA=s1.R[0].R,RB=s1.R[1].R+s2.R[0].R,RC=s2.R[1].R,Mp=Math.max(s1.Mpos?s1.Mpos.m:0,s2.Mpos?s2.Mpos.m:0),Mn=Math.min(s1.Mneg?s1.Mneg.m:0,s2.Mneg?s2.Mneg.m:0);
+    return {v:{RA,RB,RC,Mp,Mn},steps:[
+      ["Spans",PP("The middle support divides the beam into two simply supported spans, each analyzed by statics:")+EQ(`R<sub>A</sub> = ${g4(RA)}; R<sub>B</sub> = ${g4(RB)}; R<sub>C</sub> = ${g4(RC)} ${fF7(p)}`)],
+      ["Moment diagram",PP("The moment is zero at all three supports.")],
+      ["Extreme moments",FIN(`M<sub>max+</sub> = ${g4(Mp)} ${fM7(p)}; M<sub>max−</sub> = ${g4(Mn)} ${fM7(p)}`)]]}}};
+
+FLAWS["gap"]={step:2,
+  why:"The support only acts after the free end has moved through the gap, so the condition is v<sub>B</sub> = −gap, not v<sub>B</sub> = 0. The reaction removes only the part of the free deflection beyond the gap.",
+  run:(p,s)=>{const b=p.base,EI=DU(b.us).EI(p.mat.E,p.I),o=indSolve({...b,P:[...b.P],C:[...b.C],W:[...b.W]},[{x:b.L,kind:"F"}],EI),R=o.R[0],MA=o.bm.M(1e-9*b.L);
+    return {v:{R,MA},steps:[
+      ["Free deflection",EQ(`v<sub>B</sub> = ${g4(s.free*DU(b.us).dv)} ${fd7(p)}`)],
+      ["Support reaction",PP("After contact the support holds the end, so v<sub>B</sub> = 0:")+EQ(`R = ${g4(R)} ${fF7(p)}`)],
+      ["Moment at the wall",FIN(`M<sub>A</sub> = ${g4(MA)} ${fM7(p)}`)]]}}};
+
+FLAWS["elastic-post"]={step:1,
+  why:"The post shortens under its load, so the beam deflects at B by the post shortening F/k. Treating the post as rigid (v<sub>B</sub> = 0) overestimates the post force.",
+  run:(p,s)=>{const k=-s.F/s.vB,F=s.F0,vB=-F/k*DU(p.base.us).dv,b=p.base,bm=bmSolve({...b,P:[...b.P,{x:p.xb,F:-F}],C:[...b.C],W:[...b.W]}),MA=bm.M(1e-9*b.L);
+    return {v:{F,v:vB,MA},steps:[
+      ["Post force",PP("The post supports the beam, so the beam deflection at B is zero:")+EQ(`F = ${g4(F)} ${fF7(p)}`)],
+      ["Deflection at the post",EQ(`v = −F/k = ${g4(vB)} ${fd7(p)}`)],
+      ["Moment at the wall",EQ(`M<sub>A</sub> = ${g4(MA)} ${fM7(p)}`)],
+      ["Rigid post",FIN(`F₀ = ${g4(s.F0)} ${fF7(p)}`)]]}}};
+
+FLAWS["contact"]={step:1,
+  why:"The lower cantilever also deflects under the contact force, so compatibility requires equal tip deflections of the two beams, v₀ + Ff₁ = −Ff₂, not v = 0 at B.",
+  run:(p,s)=>{const F=-s.v0/s.f1,bm1=bmSolve({us:p.us,L:p.L1,sup:{kind:"fixL"},P:[...p.P,{x:p.L1,F:-F}],C:[],W:[...p.W]}),M1=bm1.M(1e-9*p.L1),M2=-F*p.L2;
+    return {v:{F,v:0,MA:M1,MC:M2},steps:[
+      ["Contact force",PP("The tip of AB rests on CB, so it cannot move: v<sub>B</sub> = 0.")+EQ(`F = −v₀/f₁ = ${g4(F)} ${fF7(p)}`)],
+      ["Deflection of B",EQ("v<sub>B</sub> = 0")],
+      ["Wall moments",FIN(`M<sub>A</sub> = ${g4(M1)} ${fM7(p)}; M<sub>C</sub> = ${g4(M2)} ${fM7(p)}`)]]}}};
+
 const $=id=>document.getElementById(id);
-let curKey,curSeed,cur;
+let curKey,curSeed,cur,curFields=[],curTruth={},curMode="practice";
 const tidy=h=>h.replace(/\bin\.\.(?!\.)/g,"in.").replace(/\b([Aa]) (aluminum|inelastic|unequal)\b/g,"$1n $2");
+const FLAWSET=typeof FLAWS!=="undefined"?FLAWS:{};
+const hunting=()=>curMode==="error";
+// ----- planted error: run it and check that it changes at least one answer by more than 3%
+function flawRun(F,p,s,T){const o=F.run(p,s),tr=T.truth(p,s);
+  const vis=Object.entries(o.v).some(([k,v])=>typeof tr[k]==="number"&&isFinite(v)&&Math.abs(v-tr[k])>0.03*Math.max(Math.abs(tr[k]),1e-12));
+  return {o,vis}}
+function flawHtml(o){return o.steps.map(([t,h],i)=>`<h3>${i+1}. ${t}</h3>${h}`).join("")}
+// ----- error report (Google Form, prefilled)
+const FORM={url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,PAGE_CH);q.set(FORM.entry.type,TEMPLATES[curKey].name+(hunting()?" (find the error)":""));
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);return FORM.url+"?"+q.toString()}
+function fillTypes(){const keys=hunting()?Object.keys(TEMPLATES).filter(k=>FLAWSET[k]):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];return curKey}
+function setMode(mode,key,seed){curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";$("mError").className=mode==="error"?"":"ghost";
+  $("reportLbl").textContent=hunting()?"Found a mistake other than the planted one?":"Found a mistake in a problem or its solution?";
+  if(key)curKey=key;render(fillTypes(),seed||parseInt($("seedIn").value,10)||newSeed())}
 function render(key,seed){
-  curKey=key;curSeed=seed;const T=TEMPLATES[key];cur=T.generate(seed);const {p,s}=cur;
-  $("typeSel").value=key;$("seedIn").value=seed;history.replaceState(null,"","#"+key+"-"+seed);
+  const T=TEMPLATES[key],F=hunting()?FLAWSET[key]:null;let fr=null;
+  for(let i=0;i<60;i++){cur=T.generate(seed);if(!F)break;fr=flawRun(F,cur.p,cur.s,T);if(fr.vis)break;seed++}
+  curKey=key;curSeed=seed;const {p,s}=cur;
+  $("typeSel").value=key;$("seedIn").value=seed;try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
   $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=tidy(T.statement(p,s));
-  $("answers").innerHTML=T.fields(p,s).map(f=>f.choices
+  $("flawCard").style.display=F?"":"none";$("flawed").innerHTML=F?tidy(flawHtml(fr.o)):"";
+  curFields=T.fields(p,s);curTruth=T.truth(p,s);
+  if(F){const steps=fr.o.steps.map((_,i)=>String(i+1));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>f.choices
     ?`<label>${tidy(f.label)}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
     :`<label>${tidy(f.label)}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
-  $("ansNote").textContent=T.note||"";$("solution").innerHTML=tidy(T.solution(p,s));
-  $("solution").style.display="none";$("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+(T.note||"");
+  $("solution").innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+tidy(T.solution(p,s));
+  $("solution").style.display="none";$("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 function check(){
-  const T=TEMPLATES[curKey],{p,s}=cur,tr=T.truth(p,s);
-  T.fields(p,s).forEach(f=>{
-    const el=$("m_"+f.id),raw=$("a_"+f.id).value.trim();let ok=false;
+  const tr=curTruth;
+  curFields.forEach(f=>{
+    const el=$("m_"+f.id);let raw=$("a_"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");let ok=false;
     if(f.choices)ok=raw===tr[f.id];
     else{const v=parseFloat(raw.replace(/,/g,"")),t=tr[f.id];
       if(isFinite(v)&&f.abs!==undefined) ok=Math.abs(v-t)<=f.abs;
@@ -1004,15 +1104,19 @@ function check(){
   });
 }
 const newSeed=()=>1+Math.floor(Math.random()*999999);
-$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
 $("typeSel").onchange=e=>render(e.target.value,newSeed());
 $("newBtn").onclick=()=>render(curKey,newSeed());
 $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
 $("checkBtn").onclick=check;
+$("mPractice").onclick=()=>setMode("practice");
+$("mError").onclick=()=>setMode("error");
+$("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+if(!Object.keys(FLAWSET).length)$("mError").style.display="none";
 $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
-(function(){const m=/^#([a-z0-9-]+?)-(\d+)$/.exec(location.hash);
-  if(m&&TEMPLATES[m[1]])render(m[1],parseInt(m[2],10));else render(Object.keys(TEMPLATES)[0],newSeed())})();
+  s.style.display=show?"block":"none";e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+(function(){const m=/^#([a-z0-9-]+?)-(\d+)(-e)?$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWSET[m[1]]))setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+  else setMode("practice",Object.keys(TEMPLATES)[0],newSeed())})();
 
 </script>
 </body>

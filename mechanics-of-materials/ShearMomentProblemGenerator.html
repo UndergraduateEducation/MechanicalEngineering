@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Shear and Moment Problem Generator</title>
 <style>
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+  #flawed h3{font-size:1.05rem;margin:1.1em 0 .3em}
   :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#ffffff;--accent:#1e5a32;--ok:#1e7a3c;--bad:#b3261e}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Georgia","Times New Roman",serif}
@@ -44,6 +48,12 @@
   <div class="sub">Shear force and bending moment diagrams for simply supported, overhanging, and cantilever beams. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem. <a href="index.html">All chapters</a></div>
 </header>
 <main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow"><span id="reportLbl">Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar"><label>Mode</label><button id="mPractice">Practice</button><button class="ghost" id="mError">Find the error</button></div>
   <div class="card bar"><label for="typeSel">Problem type</label><select id="typeSel"></select></div>
   <div class="card bar">
     <button id="newBtn">New problem</button>
@@ -52,6 +62,10 @@
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -63,6 +77,7 @@
   <div class="card" id="solution"></div>
 </main>
 <script>
+const PAGE_CH="Mechanics of Materials, Chapter 4: Shear and Moment";
 // ===== common helpers: seeded random numbers, number formatting, SVG drawing
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -578,23 +593,131 @@ const S7={name:"Beam with an internal hinge: reactions and moment diagram",gener
 
 const TEMPLATES={"ss-point-loads":S1,"overhang":S2,"cantilever":S3,"linear-load":S4,"couple":S5,"shear-diagram":S6,"hinge":S7};
 
+// ===== planted errors: shared helpers. Each entry: {step, why, run:(p,s)=>({v:{field:value}, steps:[[title, html], ...]})}
+const FLAWS={};
+const EQ=s=>`<p class="eq">${s}</p>`, PP=s=>`<p>${s}</p>`, FIN=s=>`<p class="final">${s}</p>`;
+const g4=v=>sig(v,4), g3=v=>sig(v,3);
+
+// ===== Chapter 4 planted errors
+const FU4=p=>U4(p.us).F, MU4=p=>U4(p.us).M, LU4=p=>U4(p.us).L;
+// shear and moment after changing the reactions by dR (at x) and the wall couple by dK
+function bmShift(bm,dR,dK=0){const e=1e-9*bm.L;
+  const V=x=>bm.V(x)+dR.filter(r=>r.x<x).reduce((a,r)=>a+r.d,0);
+  const M=x=>bm.M(x)+dR.filter(r=>r.x<x).reduce((a,r)=>a+r.d*(x-r.x),0)+(x>0?dK:0);
+  const xs=[];for(let i=0;i<=2000;i++)xs.push(bm.L*i/2000);bm.ev.forEach(x=>{xs.push(x-e,x+e)});
+  const pts=xs.filter(x=>x>0&&x<bm.L);let mx={m:-Infinity},mn={m:Infinity};
+  pts.forEach(x=>{const m=M(x);if(m>mx.m)mx={x,m};if(m<mn.m)mn={x,m}});
+  // refine the zero of V near the maximum
+  return {V,M,mx,mn,abs:Math.max(Math.abs(mx.m),Math.abs(mn.m))}}
+const Rtxt=(p,R)=>R.map(r=>`R<sub>${ptName(p,r.x)}</sub> = ${g4(r.R)} ${FU4(p)}`).join(", ");
+
+FLAWS["ss-point-loads"]={step:3,
+  why:"The maximum bending moment occurs where the shear force changes sign, which for concentrated loads is under one of the loads. It is at midspan only for symmetric loading.",
+  run:(p,s)=>{const x=p.L/2,M=p.M(x);
+    return {v:{Mm:M,xm:x},steps:[
+      ["Reactions",EQ(Rtxt(p,p.R))],
+      ["Shear and moment at the section",EQ(`V = ${g4(s.V)} ${FU4(p)}; M = ${g4(s.M)} ${MU4(p)}`)],
+      ["Maximum bending moment",PP("For a simply supported beam the maximum moment is at midspan:")+FIN(`x = ${g4(x)} ${LU4(p)}, M<sub>max</sub> = M(L/2) = ${g4(M)} ${MU4(p)}`)]]}}};
+
+FLAWS["overhang"]={step:2,
+  why:"At a support the shear force jumps by the reaction. The largest shear magnitude must be read from the shear diagram on both sides of each support; it is not the largest reaction.",
+  run:(p,s)=>{const Vm=Math.max(...p.R.map(r=>Math.abs(r.R)));
+    return {v:{Vm},steps:[
+      ["Reactions",EQ(Rtxt(p,p.R))],
+      ["Maximum shear force",PP("The shear force is largest where the largest concentrated force acts, at the support with the larger reaction:")+EQ(`|V|<sub>max</sub> = ${g4(Vm)} ${FU4(p)}`)],
+      ["Bending moments",FIN(`M<sub>max+</sub> = ${g4(p.Mpos.m)} ${MU4(p)} at x = ${g4(p.Mpos.x)} ${LU4(p)}; M<sub>max−</sub> = ${g4(p.Mneg.m)} ${MU4(p)}`)]]}}};
+
+FLAWS["cantilever"]={step:1,
+  why:"A couple exerts the same moment about every point of the beam, so it must be included in the moment equation for the wall and in the moment at any section beyond it.",
+  run:(p,s)=>{if(!p.C.length)return {v:{},steps:[["Reactions",EQ(Rtxt(p,p.R))],["Section",EQ("")],["Largest moment",EQ("")]]};
+    const c=p.C[0],right=p.sup.kind==="fixR";
+    const M=x=>right?p.M(x)-(x>c.x?c.C:0):p.M(x)+(x<=c.x?c.C:0);
+    const Mw=right?M(p.L*(1-1e-9)):M(p.L*1e-9),Ms=M(p.xs);let Ma=0;for(let i=1;i<2000;i++)Ma=Math.max(Ma,Math.abs(M(p.L*i/2000)));
+    return {v:{Mw,M:Ms,Ma},steps:[
+      ["Reactions at the wall",PP("The couple has no force, so it does not enter the moment equation about the wall:")+EQ(`R = ${g4(p.R[0].R)} ${FU4(p)}; M<sub>wall</sub> = ${g4(Mw)} ${MU4(p)}`)],
+      ["Section",EQ(`V = ${g4(s.V)} ${FU4(p)}; M = ${g4(Ms)} ${MU4(p)}`)],
+      ["Largest moment",FIN(`|M|<sub>max</sub> = ${g4(Ma)} ${MU4(p)}`)]]}}};
+
+FLAWS["linear-load"]={step:1,
+  why:"The resultant of a triangular load acts at the centroid of the triangle, one third of the loaded length from the larger end, not at the middle of the loaded length.",
+  run:(p,s)=>{const d=p.W[0],F=(d.w1+d.w2)/2*(d.b-d.a),xb=(d.a+d.b)/2,xt=d.w1===0?d.a+2*(d.b-d.a)/3:d.a+(d.b-d.a)/3,dRB=F*(xb-xt)/p.L,dRA=-dRB,
+      RA=p.R[0].R+dRA,RB=p.R[1].R+dRB,sh=bmShift(p,[{x:0,d:dRA}]);
+    let lo=0,hi=p.L,va=sh.V(1e-9);for(let i=0;i<200;i++){const m=(lo+hi)/2;if(sh.V(m)*va>0)lo=m;else hi=m}const xz=(lo+hi)/2,Mm=sh.M(xz);
+    return {v:{RA,RB,xz,Mm},steps:[
+      ["Reactions",PP(`Replace the distributed load by its resultant ${g4(F)} ${FU4(p)} acting at the middle of the loaded length, x = ${g4(xb)} ${LU4(p)}:`)+EQ(`R<sub>A</sub> = ${g4(RA)}, R<sub>B</sub> = ${g4(RB)} ${FU4(p)}`)],
+      ["Zero shear",EQ(`V(x) = R<sub>A</sub> − (load to the left of x) = 0 ⇒ x = ${g4(xz)} ${LU4(p)}`)],
+      ["Maximum moment",FIN(`M<sub>max</sub> = M(${g4(xz)}) = ${g4(Mm)} ${MU4(p)}`)]]}}};
+
+FLAWS["couple"]={step:1,
+  why:"A couple exerts the same moment about every point, so it belongs in the moment equation for the reactions even though it has no force.",
+  run:(p,s)=>{const c=p.C[0],dRB=c.C/(p.sup.xb-p.sup.xa)*1,dRA=-dRB,RA=p.R[0].R+dRA,RB=p.R[1].R+dRB;
+    const sh=bmShift(p,[{x:p.R[0].x,d:dRA},{x:p.R[1].x,d:dRB}]),e=1e-9*p.L,Ml=sh.M(c.x-e),Mr=sh.M(c.x+e);
+    return {v:{RA,RB,Ml,Mr,Ma:sh.abs},steps:[
+      ["Reactions",PP("The couple has no force, so it is left out of the moment equation:")+EQ(`R<sub>A</sub> = ${g4(RA)}, R<sub>${ptName(p,p.sup.xb)}</sub> = ${g4(RB)} ${FU4(p)}`)],
+      ["Moment at the couple",EQ(`Just left: M = ${g4(Ml)}; just right: M = ${g4(Mr)} ${MU4(p)}`)],
+      ["Largest moment",FIN(`|M|<sub>max</sub> = ${g4(sh.abs)} ${MU4(p)}`)]]}}};
+
+FLAWS["shear-diagram"]={step:2,
+  why:"A concentrated force shows as a jump in the shear diagram; its magnitude is the height of the jump, V just left minus V just right, not the value of V on one side.",
+  run:(p,s)=>{const x=p.P[0].x,e=1e-9*p.L,P=Math.abs(p.V(x+e));
+    return {v:{P},steps:[
+      ["Reaction at A",EQ(`R<sub>A</sub> = V(0⁺) = ${g4(p.R[0].R)} ${FU4(p)}`)],
+      ["Concentrated force",PP("The force equals the shear just to the right of the jump:")+EQ(`P = |V(${fmtx(x)}⁺)| = ${g4(P)} ${FU4(p)}`)],
+      ["Distributed load",EQ(`w = −slope of V = ${g4(p.W[0].w1)} ${U4(p.us).w}`)],
+      ["Maximum moment",FIN(`M<sub>max</sub> = ${g4(p.Mpos.m)} ${MU4(p)} at x = ${g4(p.Mpos.x)} ${LU4(p)}`)]]}}};
+
+FLAWS["hinge"]={step:1,
+  why:"A hinge transmits force but no moment, so the condition at the hinge is M = 0. The shear force at the hinge is generally not zero.",
+  run:(p,s)=>{const xh=p.sup.xh,xc=p.sup.xc,load=p.P.filter(q=>q.x>xh).reduce((a,q)=>a+q.F,0)+p.W.reduce((a,d)=>a+dFM(d,xh,p.L+1,0)[0],0);
+    const Rc=load,dRc=Rc-p.R[0].R,R0=p.R[1].R-dRc,dK=dRc*xc,Mw=s.Mw+dK,sh=bmShift(p,[{x:0,d:-dRc},{x:xc,d:dRc}],dK);
+    return {v:{Rc,R0,Mw,Ma:sh.abs},steps:[
+      ["Part to the right of the hinge",PP("The hinge carries no shear, so vertical equilibrium of the right part gives the roller reaction:")+EQ(`R<sub>${ptName(p,xc)}</sub> = (loads right of the hinge) = ${g4(Rc)} ${FU4(p)}`)],
+      ["Wall reactions",EQ(`R<sub>A</sub> = ${g4(R0)} ${FU4(p)}; M<sub>A</sub> = ${g4(Mw)} ${MU4(p)}`)],
+      ["Largest moment",FIN(`|M|<sub>max</sub> = ${g4(sh.abs)} ${MU4(p)}`)]]}}};
+
 const $=id=>document.getElementById(id);
-let curKey,curSeed,cur;
+let curKey,curSeed,cur,curFields=[],curTruth={},curMode="practice";
 const tidy=h=>h.replace(/\bin\.\.(?!\.)/g,"in.").replace(/\b([Aa]) (aluminum|inelastic|unequal)\b/g,"$1n $2");
+const FLAWSET=typeof FLAWS!=="undefined"?FLAWS:{};
+const hunting=()=>curMode==="error";
+// ----- planted error: run it and check that it changes at least one answer by more than 3%
+function flawRun(F,p,s,T){const o=F.run(p,s),tr=T.truth(p,s);
+  const vis=Object.entries(o.v).some(([k,v])=>typeof tr[k]==="number"&&isFinite(v)&&Math.abs(v-tr[k])>0.03*Math.max(Math.abs(tr[k]),1e-12));
+  return {o,vis}}
+function flawHtml(o){return o.steps.map(([t,h],i)=>`<h3>${i+1}. ${t}</h3>${h}`).join("")}
+// ----- error report (Google Form, prefilled)
+const FORM={url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,PAGE_CH);q.set(FORM.entry.type,TEMPLATES[curKey].name+(hunting()?" (find the error)":""));
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);return FORM.url+"?"+q.toString()}
+function fillTypes(){const keys=hunting()?Object.keys(TEMPLATES).filter(k=>FLAWSET[k]):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];return curKey}
+function setMode(mode,key,seed){curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";$("mError").className=mode==="error"?"":"ghost";
+  $("reportLbl").textContent=hunting()?"Found a mistake other than the planted one?":"Found a mistake in a problem or its solution?";
+  if(key)curKey=key;render(fillTypes(),seed||parseInt($("seedIn").value,10)||newSeed())}
 function render(key,seed){
-  curKey=key;curSeed=seed;const T=TEMPLATES[key];cur=T.generate(seed);const {p,s}=cur;
-  $("typeSel").value=key;$("seedIn").value=seed;history.replaceState(null,"","#"+key+"-"+seed);
+  const T=TEMPLATES[key],F=hunting()?FLAWSET[key]:null;let fr=null;
+  for(let i=0;i<60;i++){cur=T.generate(seed);if(!F)break;fr=flawRun(F,cur.p,cur.s,T);if(fr.vis)break;seed++}
+  curKey=key;curSeed=seed;const {p,s}=cur;
+  $("typeSel").value=key;$("seedIn").value=seed;try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
   $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=tidy(T.statement(p,s));
-  $("answers").innerHTML=T.fields(p,s).map(f=>f.choices
+  $("flawCard").style.display=F?"":"none";$("flawed").innerHTML=F?tidy(flawHtml(fr.o)):"";
+  curFields=T.fields(p,s);curTruth=T.truth(p,s);
+  if(F){const steps=fr.o.steps.map((_,i)=>String(i+1));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>f.choices
     ?`<label>${tidy(f.label)}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
     :`<label>${tidy(f.label)}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
-  $("ansNote").textContent=T.note||"";$("solution").innerHTML=tidy(T.solution(p,s));
-  $("solution").style.display="none";$("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+(T.note||"");
+  $("solution").innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+tidy(T.solution(p,s));
+  $("solution").style.display="none";$("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 function check(){
-  const T=TEMPLATES[curKey],{p,s}=cur,tr=T.truth(p,s);
-  T.fields(p,s).forEach(f=>{
-    const el=$("m_"+f.id),raw=$("a_"+f.id).value.trim();let ok=false;
+  const tr=curTruth;
+  curFields.forEach(f=>{
+    const el=$("m_"+f.id);let raw=$("a_"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");let ok=false;
     if(f.choices)ok=raw===tr[f.id];
     else{const v=parseFloat(raw.replace(/,/g,"")),t=tr[f.id];
       if(isFinite(v)&&f.abs!==undefined) ok=Math.abs(v-t)<=f.abs;
@@ -604,15 +727,19 @@ function check(){
   });
 }
 const newSeed=()=>1+Math.floor(Math.random()*999999);
-$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
 $("typeSel").onchange=e=>render(e.target.value,newSeed());
 $("newBtn").onclick=()=>render(curKey,newSeed());
 $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
 $("checkBtn").onclick=check;
+$("mPractice").onclick=()=>setMode("practice");
+$("mError").onclick=()=>setMode("error");
+$("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+if(!Object.keys(FLAWSET).length)$("mError").style.display="none";
 $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
-(function(){const m=/^#([a-z0-9-]+?)-(\d+)$/.exec(location.hash);
-  if(m&&TEMPLATES[m[1]])render(m[1],parseInt(m[2],10));else render(Object.keys(TEMPLATES)[0],newSeed())})();
+  s.style.display=show?"block":"none";e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+(function(){const m=/^#([a-z0-9-]+?)-(\d+)(-e)?$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWSET[m[1]]))setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+  else setMode("practice",Object.keys(TEMPLATES)[0],newSeed())})();
 
 </script>
 </body>

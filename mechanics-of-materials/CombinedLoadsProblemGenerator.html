@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Combined Loads Problem Generator</title>
 <style>
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+  #flawed h3{font-size:1.05rem;margin:1.1em 0 .3em}
   :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#ffffff;--accent:#1e5a32;--ok:#1e7a3c;--bad:#b3261e}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Georgia","Times New Roman",serif}
@@ -44,6 +48,12 @@
   <div class="sub">Pressure vessels, combined axial and bending loads, stress transformation, Mohr's circle, and strain rosettes. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem. <a href="index.html">All chapters</a></div>
 </header>
 <main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow"><span id="reportLbl">Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar"><label>Mode</label><button id="mPractice">Practice</button><button class="ghost" id="mError">Find the error</button></div>
   <div class="card bar"><label for="typeSel">Problem type</label><select id="typeSel"></select></div>
   <div class="card bar">
     <button id="newBtn">New problem</button>
@@ -52,6 +62,10 @@
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -63,6 +77,7 @@
   <div class="card" id="solution"></div>
 </main>
 <script>
+const PAGE_CH="Mechanics of Materials, Chapter 8: Combined Loads";
 // ===== common helpers: seeded random numbers, number formatting, SVG drawing
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -1753,23 +1768,132 @@ const M9={name:"Strain rosette: principal strains and principal stresses",genera
 
 const TEMPLATES={"pressure-vessel":M1,"weld-seam":M2,"eccentric-column":M3,"clamp":M4,"rotated-element":M5,"principal-stresses":M6,"axial-torque":M7,"crank-shaft":M8,"strain-rosette":M9};
 
+// ===== planted errors: shared helpers. Each entry: {step, why, run:(p,s)=>({v:{field:value}, steps:[[title, html], ...]})}
+const FLAWS={};
+const EQ=s=>`<p class="eq">${s}</p>`, PP=s=>`<p>${s}</p>`, FIN=s=>`<p class="final">${s}</p>`;
+const g4=v=>sig(v,4), g3=v=>sig(v,3);
+
+// ===== Chapter 8 planted errors
+const fS8=p=>p.us?"psi":"MPa";
+
+FLAWS["pressure-vessel"]={step:2,
+  why:"The absolute maximum shear stress uses all three principal stresses. At the outer surface the radial stress is zero, so τ<sub>abs</sub> = (σ<sub>h</sub> − 0)/2, which exceeds the in-plane value (σ<sub>h</sub> − σ<sub>l</sub>)/2.",
+  run:(p,s)=>{const ta=s.tin,S=UB(p.us);
+    return {v:{ta},steps:[
+      ["Membrane stresses",EQ(p.sph?`σ = pr/(2t) = ${g4(s.sh)} ${S}`:`σ<sub>h</sub> = pr/t = ${g4(s.sh)} ${S}; σ<sub>l</sub> = pr/(2t) = ${g4(s.sl)} ${S}`)],
+      ["Shear stresses",PP("The largest shear stress is half the difference of the principal stresses in the wall:")+EQ(`τ<sub>in-plane</sub> = τ<sub>abs</sub> = ${g4(s.tin)} ${S}`)],
+      ["Change in diameter",EQ(`Δd = 2rε<sub>h</sub> = ${g4(s.dd)} ${p.us?"in.":"mm"}`)],
+      ["Required thickness",FIN(`t = ${g4(s.treq)} ${p.us?"in.":"mm"}`)]]}}};
+
+FLAWS["weld-seam"]={step:2,
+  why:"The seam line makes the angle β with the axis, so the normal to the seam makes β + 90° with the axis. The transformation must use the angle of the normal.",
+  run:(p,s)=>{const S=UB(p.us),q=trans(s.sl,s.sh,0,p.be*D2R),pm=[p.sw*p.t/p.r,p.p*p.wn/q.sx,p.p*p.wt/Math.abs(q.txy)],pmin=Math.min(...pm);
+    return {v:{sn:q.sx,pm:pmin},steps:[
+      ["Wall stresses",EQ(`σ<sub>l</sub> = ${g4(s.sl)}, σ<sub>h</sub> = ${g4(s.sh)} ${S}`)],
+      ["Stresses on the seam",PP(`Transform the stresses through the seam angle θ = β = ${p.be}°:`)+EQ(`σ<sub>n</sub> = ${g4(q.sx)} ${S}; |τ| = ${g4(Math.abs(q.txy))} ${S}`)],
+      ["Largest pressure",FIN(`p = ${g4(pmin)} ${S}`)]]}}};
+
+FLAWS["eccentric-column"]={step:1,
+  why:"The eccentricity e<sub>x</sub> bends the column about the y axis, so its stress uses I<sub>y</sub> = db³/12 (b is the dimension along x); e<sub>y</sub> uses I<sub>x</sub> = bd³/12.",
+  run:(p,s)=>{const A=p.b*p.d,Ix=p.d*p.b**3/12,Iy=p.b*p.d**3/12,F=p.P*1000,st=(x,y)=>-F/A-F*p.ex*x/Iy-F*p.ey*y/Ix,
+      sg=[[-p.b/2,p.d/2],[p.b/2,p.d/2],[p.b/2,-p.d/2],[-p.b/2,-p.d/2]].map(q=>st(...q)),cmax=-Math.min(...sg),tmax=Math.max(...sg),Pm=Math.min(p.P*p.sc/cmax,tmax>0?p.P*p.stw/tmax:Infinity),U=p.us?"in.":"mm";
+    return {v:{...Object.fromEntries(sg.map((v,i)=>["s"+i,v])),Pm},steps:[
+      ["Section properties",EQ(`A = ${g4(A)} ${U}²; I<sub>x</sub> = db³/12 = ${g4(Ix)}; I<sub>y</sub> = bd³/12 = ${g4(Iy)} ${U}⁴`)],
+      ["Corner stresses",EQ(`σ = −P/A − Pe<sub>x</sub>x/I<sub>y</sub> − Pe<sub>y</sub>y/I<sub>x</sub>: `+sg.map((v,i)=>`${"ABCD"[i]}: ${g4(v)}`).join(", ")+` ${fS8(p)}`)],
+      ["Largest force",FIN(`P = ${g4(Pm)} ${p.us?"kips":"kN"}`)]]}}};
+
+FLAWS["clamp"]={step:1,
+  why:"The bending moment on section a-a is P times the distance from the load line to the centroid of the section, e + ȳ, not to the inner face.",
+  run:(p,s)=>{const sp=s.sp,ed=p.e,si=1/sp.A+ed*sp.yb/sp.I,so=1/sp.A-ed*sp.ct/sp.I,Pm=Math.min(p.stw/si,p.sc/(-so));
+    return {v:{si:si*p.Pa,so:so*p.Pa,Pm},steps:[
+      ["Moment on the section",PP("The load line is e from the inner face of the section:")+EQ(`M = Pe = ${g4(p.Pa*ed)} ${p.us?"lb·in.":"N·mm"}`)],
+      ["Stresses",EQ(`σ<sub>inner</sub> = P/A + Mȳ/I = ${g4(si*p.Pa)}; σ<sub>outer</sub> = P/A − Mc/I = ${g4(so*p.Pa)} ${fS8(p)}`)],
+      ["Largest clamping force",FIN(`P = ${g4(Pm)} ${p.us?"lb":"N"}`)]]}}};
+
+FLAWS["rotated-element"]={step:2,
+  why:"The transformation equations contain the double angle: σ<sub>x′</sub> = (σ<sub>x</sub> + σ<sub>y</sub>)/2 + (σ<sub>x</sub> − σ<sub>y</sub>)/2 cos 2θ + τ<sub>xy</sub> sin 2θ, and similarly for the others.",
+  run:(p,s)=>{const q=trans(p.sx,p.sy,p.txy,p.th*D2R/2),S=UK(p.us);
+    return {v:{a:q.sx,b:q.sy,c:q.txy},steps:[
+      ["Average and half-difference",EQ(`(σ<sub>x</sub> + σ<sub>y</sub>)/2 = ${g4((p.sx+p.sy)/2)}; (σ<sub>x</sub> − σ<sub>y</sub>)/2 = ${g4((p.sx-p.sy)/2)} ${S}`)],
+      ["Transformation",PP(`With θ = ${p.th}°:`)+EQ(`σ<sub>x′</sub> = avg + half-diff·cos θ + τ<sub>xy</sub> sin θ; τ<sub>x′y′</sub> = −half-diff·sin θ + τ<sub>xy</sub> cos θ`)],
+      ["Results",FIN(`σ<sub>x′</sub> = ${g4(q.sx)}, σ<sub>y′</sub> = ${g4(q.sy)}, τ<sub>x′y′</sub> = ${g4(q.txy)} ${S}`)]]}}};
+
+FLAWS["principal-stresses"]={step:2,
+  why:"tan 2θ<sub>p</sub> has two solutions 90° apart. The angle from the principal value of the arctangent can be the direction of σ₂; substitute it into the transformation equation, or use the signs of σ<sub>x</sub> − σ<sub>y</sub> and τ<sub>xy</sub>, to find the direction of σ₁.",
+  run:(p,s)=>{const t=0.5*Math.atan(2*p.txy/(p.sx-p.sy))/D2R,S=UK(p.us);
+    return {v:{tp:t},steps:[
+      ["Principal stresses",EQ(`σ₁, σ₂ = (σ<sub>x</sub> + σ<sub>y</sub>)/2 ± R = ${g4(s.s1)}, ${g4(s.s2)} ${S}`)],
+      ["Principal direction",PP("The direction of σ₁ follows from tan 2θ<sub>p</sub> = 2τ<sub>xy</sub>/(σ<sub>x</sub> − σ<sub>y</sub>):")+EQ(`θ<sub>p</sub> = ½ arctan(${g4(2*p.txy/(p.sx-p.sy))}) = ${g4(t)}°`)],
+      ["Shear stresses",FIN(`τ<sub>max</sub> = R = ${g4(s.R)} ${S}; τ<sub>abs</sub> = ${g4(s.ta)} ${S}`)]]}}};
+
+FLAWS["axial-torque"]={step:3,
+  why:"With the axial force present, the in-plane shear stress is R = √((σ/2)² + τ²) and the principal stresses are σ/2 ± R. The torque must be limited through R and the principal stresses, not by setting τ itself equal to the working shear stress.",
+  run:(p,s)=>{const Tm=p.tw*Math.PI*p.d**3/16/(p.us?12:1000),TU=p.us?"lb·ft":"N·m";
+    return {v:{Tm},steps:[
+      ["Stresses at the surface",EQ(`σ = P/A = ${g4(s.sx)} ${fS8(p)}; τ = 16T/(πd³) = ${g4(s.tau)} ${fS8(p)}`)],
+      ["Principal stresses",EQ(`σ₁ = ${g4(s.s1)}, σ₂ = ${g4(s.s2)}, R = ${g4(s.R)} ${fS8(p)}`)],
+      ["Largest torque",PP("The torque produces the shear stress, so it is limited by the working shear stress:")+FIN(`τ = τ<sub>w</sub> ⇒ T = τ<sub>w</sub>πd³/16 = ${g4(Tm)} ${TU}`)]]}}};
+
+FLAWS["crank-shaft"]={step:1,
+  why:"At the wall the force F bends the shaft with the arm L (distance from the wall) and twists it with the arm a (length of the crank): M = FL, T = Fa.",
+  run:(p,s)=>{const Fn=p.us?p.F:p.F*1000,M=Fn*p.a,T=Fn*p.L,I=Math.PI*p.d**4/64,J=2*I,c=p.d/2,sb=M*c/I,tt=T*c/J,top=princ(sb,0,tt),side=princ(0,0,tt+s.tv),U=p.us?"lb·in.":"N·mm";
+    return {v:{s1:top.s1,s2:top.s2,tA:top.R,tB:side.R},steps:[
+      ["Internal forces at the wall",EQ(`M = Fa = ${g4(M)} ${U}; T = FL = ${g4(T)} ${U}; V = F`)],
+      ["Point A",EQ(`σ = Mc/I = ${g4(sb)}; τ = Tc/J = ${g4(tt)} ${fS8(p)}`)+EQ(`σ₁ = ${g4(top.s1)}, σ₂ = ${g4(top.s2)}, τ<sub>max</sub> = ${g4(top.R)} ${fS8(p)}`)],
+      ["Point B",FIN(`τ = Tc/J + 4V/(3A) = ${g4(side.R)} ${fS8(p)}`)]]}}};
+
+FLAWS["strain-rosette"]={step:4,
+  why:"The surface is in plane stress, so the principal stresses follow from both principal strains: σ₁ = E(ε₁ + νε₂)/(1 − ν²). The uniaxial relation σ = Eε ignores the Poisson coupling.",
+  run:(p,s)=>{const s1=p.E*s.e1*1e-6,s2=p.E*s.e2*1e-6;
+    return {v:{s1,s2},steps:[
+      ["Strain components",EQ(`ε<sub>x</sub> = ${g4(s.exr)}, ε<sub>y</sub> = ${g4(s.eyr)}, γ<sub>xy</sub> = ${g4(s.gr)} (× 10⁻⁶)`)],
+      ["Principal strains",EQ(`ε₁ = ${g4(s.e1)}, ε₂ = ${g4(s.e2)} (× 10⁻⁶); θ<sub>p</sub> = ${g4(s.tp/D2R)}°`)],
+      ["Maximum in-plane shear strain",EQ(`γ<sub>max</sub> = ε₁ − ε₂ = ${g4(s.gmax)} × 10⁻⁶`)],
+      ["Principal stresses",FIN(`σ₁ = Eε₁ = ${g4(s1)}; σ₂ = Eε₂ = ${g4(s2)} ${fS8(p)}`)]]}}};
+
 const $=id=>document.getElementById(id);
-let curKey,curSeed,cur;
+let curKey,curSeed,cur,curFields=[],curTruth={},curMode="practice";
 const tidy=h=>h.replace(/\bin\.\.(?!\.)/g,"in.").replace(/\b([Aa]) (aluminum|inelastic|unequal)\b/g,"$1n $2");
+const FLAWSET=typeof FLAWS!=="undefined"?FLAWS:{};
+const hunting=()=>curMode==="error";
+// ----- planted error: run it and check that it changes at least one answer by more than 3%
+function flawRun(F,p,s,T){const o=F.run(p,s),tr=T.truth(p,s);
+  const vis=Object.entries(o.v).some(([k,v])=>typeof tr[k]==="number"&&isFinite(v)&&Math.abs(v-tr[k])>0.03*Math.max(Math.abs(tr[k]),1e-12));
+  return {o,vis}}
+function flawHtml(o){return o.steps.map(([t,h],i)=>`<h3>${i+1}. ${t}</h3>${h}`).join("")}
+// ----- error report (Google Form, prefilled)
+const FORM={url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,PAGE_CH);q.set(FORM.entry.type,TEMPLATES[curKey].name+(hunting()?" (find the error)":""));
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);return FORM.url+"?"+q.toString()}
+function fillTypes(){const keys=hunting()?Object.keys(TEMPLATES).filter(k=>FLAWSET[k]):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];return curKey}
+function setMode(mode,key,seed){curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";$("mError").className=mode==="error"?"":"ghost";
+  $("reportLbl").textContent=hunting()?"Found a mistake other than the planted one?":"Found a mistake in a problem or its solution?";
+  if(key)curKey=key;render(fillTypes(),seed||parseInt($("seedIn").value,10)||newSeed())}
 function render(key,seed){
-  curKey=key;curSeed=seed;const T=TEMPLATES[key];cur=T.generate(seed);const {p,s}=cur;
-  $("typeSel").value=key;$("seedIn").value=seed;history.replaceState(null,"","#"+key+"-"+seed);
+  const T=TEMPLATES[key],F=hunting()?FLAWSET[key]:null;let fr=null;
+  for(let i=0;i<60;i++){cur=T.generate(seed);if(!F)break;fr=flawRun(F,cur.p,cur.s,T);if(fr.vis)break;seed++}
+  curKey=key;curSeed=seed;const {p,s}=cur;
+  $("typeSel").value=key;$("seedIn").value=seed;try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
   $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=tidy(T.statement(p,s));
-  $("answers").innerHTML=T.fields(p,s).map(f=>f.choices
+  $("flawCard").style.display=F?"":"none";$("flawed").innerHTML=F?tidy(flawHtml(fr.o)):"";
+  curFields=T.fields(p,s);curTruth=T.truth(p,s);
+  if(F){const steps=fr.o.steps.map((_,i)=>String(i+1));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>f.choices
     ?`<label>${tidy(f.label)}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
     :`<label>${tidy(f.label)}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
-  $("ansNote").textContent=T.note||"";$("solution").innerHTML=tidy(T.solution(p,s));
-  $("solution").style.display="none";$("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+(T.note||"");
+  $("solution").innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+tidy(T.solution(p,s));
+  $("solution").style.display="none";$("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 function check(){
-  const T=TEMPLATES[curKey],{p,s}=cur,tr=T.truth(p,s);
-  T.fields(p,s).forEach(f=>{
-    const el=$("m_"+f.id),raw=$("a_"+f.id).value.trim();let ok=false;
+  const tr=curTruth;
+  curFields.forEach(f=>{
+    const el=$("m_"+f.id);let raw=$("a_"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");let ok=false;
     if(f.choices)ok=raw===tr[f.id];
     else{const v=parseFloat(raw.replace(/,/g,"")),t=tr[f.id];
       if(isFinite(v)&&f.abs!==undefined) ok=Math.abs(v-t)<=f.abs;
@@ -1779,15 +1903,19 @@ function check(){
   });
 }
 const newSeed=()=>1+Math.floor(Math.random()*999999);
-$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
 $("typeSel").onchange=e=>render(e.target.value,newSeed());
 $("newBtn").onclick=()=>render(curKey,newSeed());
 $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
 $("checkBtn").onclick=check;
+$("mPractice").onclick=()=>setMode("practice");
+$("mError").onclick=()=>setMode("error");
+$("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+if(!Object.keys(FLAWSET).length)$("mError").style.display="none";
 $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
-(function(){const m=/^#([a-z0-9-]+?)-(\d+)$/.exec(location.hash);
-  if(m&&TEMPLATES[m[1]])render(m[1],parseInt(m[2],10));else render(Object.keys(TEMPLATES)[0],newSeed())})();
+  s.style.display=show?"block":"none";e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+(function(){const m=/^#([a-z0-9-]+?)-(\d+)(-e)?$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWSET[m[1]]))setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+  else setMode("practice",Object.keys(TEMPLATES)[0],newSeed())})();
 
 </script>
 </body>

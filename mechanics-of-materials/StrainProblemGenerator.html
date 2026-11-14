@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Strain Problem Generator</title>
 <style>
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+  #flawed h3{font-size:1.05rem;margin:1.1em 0 .3em}
   :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#ffffff;--accent:#1e5a32;--ok:#1e7a3c;--bad:#b3261e}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Georgia","Times New Roman",serif}
@@ -44,6 +48,12 @@
   <div class="sub">Axial deformation, generalized Hooke's law, statically indeterminate members, and thermal stress. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem. <a href="index.html">All chapters</a></div>
 </header>
 <main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow"><span id="reportLbl">Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar"><label>Mode</label><button id="mPractice">Practice</button><button class="ghost" id="mError">Find the error</button></div>
   <div class="card bar"><label for="typeSel">Problem type</label><select id="typeSel"></select></div>
   <div class="card bar">
     <button id="newBtn">New problem</button>
@@ -52,6 +62,10 @@
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -63,6 +77,7 @@
   <div class="card" id="solution"></div>
 </main>
 <script>
+const PAGE_CH="Mechanics of Materials, Chapter 2: Strain";
 // ===== common helpers: seeded random numbers, number formatting, SVG drawing
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -907,23 +922,166 @@ const TEMPLATES={
   "tension-test":TT,"compound-bar":CB,"rigid-bar-rod":RB,"hooke-law":GH,"confined":CF,"shear-mount":SM,
   "rc-post":RCP,"rod-in-tube":RT,"bar-walls":BW,"rigid-bar-two-rods":R2,"thermal-gap":TG,"thermal-compound":TC,"block-three-rods":B3};
 
+// ===== planted errors: shared helpers. Each entry: {step, why, run:(p,s)=>({v:{field:value}, steps:[[title, html], ...]})}
+const FLAWS={};
+const EQ=s=>`<p class="eq">${s}</p>`, PP=s=>`<p>${s}</p>`, FIN=s=>`<p class="final">${s}</p>`;
+const g4=v=>sig(v,4), g3=v=>sig(v,3);
+
+// ===== Chapter 2 planted errors
+const FK2=(p,v)=>`${g4(v*UU(p.us).f)} ${UU(p.us).F}`;
+
+FLAWS["tension-test"]={step:3,
+  why:"Poisson's ratio is the ratio of the lateral strain to the axial strain, (Δd/d)/(ΔL/L₀), not the ratio of the changes in length Δd/ΔL.",
+  run:(p,s)=>{const u=UU(p.us),nu=p.dd/p.dl,G=s.E/(2*(1+nu));
+    return {v:{nu,G:G/1000},steps:[
+      ["Stress and strain",EQ(`σ = P/A = ${g4(s.sg)} ${u.S}; ε = ΔL/L₀ = ${g4(s.eps*1e6)} × 10⁻⁶`)],
+      ["Modulus of elasticity",EQ(`E = σ/ε = ${g4(s.E/1000)} ${u.E}`)],
+      ["Poisson's ratio",EQ(`ν = Δd/ΔL = ${p.dd}/${p.dl} = ${g4(nu)}`)],
+      ["Shear modulus",FIN(`G = E/(2(1 + ν)) = ${g4(G/1000)} ${u.E}`)]]}}};
+
+FLAWS["compound-bar"]={step:1,
+  why:"The axial force in a segment comes from a free body cut inside that segment, so it includes every load to one side of the cut, not only the load applied at the segment's end.",
+  run:(p,s)=>{const u=UU(p.us),N=p.A.map((_,i)=>-p.F[i]),d=N.map((v,i)=>v*p.Ls[i]/(p.A[i]*Em(p.M[i],p.us))),tot=d.reduce((a,b)=>a+b,0);
+    return {v:{...Object.fromEntries(d.map((v,i)=>["d"+i,v])),tot},steps:[
+      ["Axial forces",PP("Each segment carries the load applied at its left end:")+EQ(N.map((n,i)=>`N<sub>${sbSeg(i)}</sub> = ${FK2(p,n)}`).join("; "))],
+      ["Change in length of each segment",EQ(d.map((v,i)=>`δ<sub>${sbSeg(i)}</sub> = NL/(EA) = ${g4(v)} ${u.L}`).join("; "))],
+      ["Whole bar",FIN(`δ = Σδ = ${g4(tot)} ${u.L}`)]]}}};
+
+FLAWS["rigid-bar-rod"]={step:2,
+  why:"The rigid bar rotates about the pin A, so the displacement of D is the rod elongation scaled by the ratio of distances from A, δ<sub>D</sub> = δ<sub>rod</sub>(AD/AB).",
+  run:(p,s)=>{const u=UU(p.us),dD=s.dr,Pd=p.da/(dD/p.P),Pm=Math.min(s.Ps,Pd);
+    return {v:{dD,Pm:Pm*u.f},steps:[
+      ["Rod force and stress",EQ(`F = P·AD/AB = ${FK2(p,s.F)}; σ = F/A = ${g4(s.sg)} ${u.S}`)],
+      ["Displacements",PP("The bar is rigid, so D moves down by the same amount as the end of the rod:")+EQ(`δ<sub>rod</sub> = FL/(EA) = ${g4(s.dr)} ${u.L}; δ<sub>D</sub> = ${g4(dD)} ${u.L}`)],
+      ["Largest load",EQ(`Stress limit: P = ${FK2(p,s.Ps)}; displacement limit: P = ${FK2(p,Pd)}`)+FIN(`P<sub>max</sub> = ${FK2(p,Pm)}`)]]}}};
+
+FLAWS["hooke-law"]={step:1,
+  why:"Each normal stress also strains the block in the two perpendicular directions (the Poisson effect): ε<sub>x</sub> = [σ<sub>x</sub> − ν(σ<sub>y</sub> + σ<sub>z</sub>)]/E, and similarly for y and z.",
+  run:(p,s)=>{const u=UU(p.us),E=Em(p.m,p.us),ex=p.sx/E,ey=p.sy/E,ez=p.sz/E,dV=p.a*p.b*p.c*(ex+ey+ez);
+    return {v:{ex:ex*1e6,ey:ey*1e6,ez:ez*1e6,da:ex*p.a,db:ey*p.b,dc:ez*p.c,dV},steps:[
+      ["Strains",PP("Each strain follows from the stress in the same direction:")+EQ(`ε<sub>x</sub> = σ<sub>x</sub>/E = ${g4(ex*1e6)}, ε<sub>y</sub> = ${g4(ey*1e6)}, ε<sub>z</sub> = ${g4(ez*1e6)} (× 10⁻⁶)`)],
+      ["Changes in dimensions",EQ(`Δa = ${g4(ex*p.a)}, Δb = ${g4(ey*p.b)}, Δc = ${g4(ez*p.c)} ${u.L}`)],
+      ["Change in volume",FIN(`ΔV = V(ε<sub>x</sub> + ε<sub>y</sub> + ε<sub>z</sub>) = ${g4(dV)} ${u.L.replace(".","")}³`)]]}}};
+
+FLAWS["confined"]={step:1,
+  why:"The walls prevent the lateral strain, so they must exert a lateral stress. Setting the lateral strain to zero gives σ<sub>lateral</sub> = ν σ<sub>axial</sub> for a slot (one direction) and ν/(1 − ν) σ<sub>axial</sub> for a hole.",
+  run:(p,s)=>{const u=cfU(p);if(p.hole){const dl=s.dfree;
+      return {v:{sl:0,dl},steps:[["Lateral stress",PP("The walls are lubricated, so they exert no stress on the rod:")+EQ("σ<sub>r</sub> = 0")],
+        ["Change in length",EQ(`δ = σ<sub>a</sub>L/E = ${g4(dl)} ${u.L}`)],["Without the wall",FIN(`δ = ${g4(s.dfree)} ${u.L}`)]]}}
+    const E=Em(p.m,p.us),nu=MAT[p.m].nu,dl=s.sy/E*p.L,db=-nu*s.sy/E*p.b;
+    return {v:{sx:0,dl,db},steps:[["Stress from the walls",PP("The walls are lubricated, so they exert no stress on the block:")+EQ("σ<sub>x</sub> = 0")],
+      ["Change in height",EQ(`δ<sub>L</sub> = σ<sub>y</sub>L/E = ${g4(dl)} ${u.L}`)],["Change in depth",FIN(`δ<sub>b</sub> = −νσ<sub>y</sub>b/E = ${g4(db)} ${u.L}`)]]}}};
+
+FLAWS["shear-mount"]={step:2,
+  why:"The middle plate is held by two pads, so each pad carries half of the load: τ = (P/2)/(ab).",
+  run:(p,s)=>{const u=smU(p),tau=p.P/(p.a*p.b),g=tau/s.G;
+    return {v:{tau,g,d:g*p.t},steps:[["Shear modulus",EQ(`G = E/(2(1 + ν)) = ${g4(s.G)} ${u.S}`)],
+      ["Shear stress",EQ(`τ = P/(ab) = ${g4(tau)} ${u.S}`)],["Shear strain",EQ(`γ = τ/G = ${g4(g)} rad`)],
+      ["Displacement",FIN(`δ = γt = ${g4(g*p.t)} ${u.L}`)]]}}};
+
+FLAWS["rc-post"]={step:1,
+  why:"Steel and concrete are bonded and shorten by the same amount, so their strains are equal, not their stresses: σ<sub>st</sub> = nσ<sub>co</sub>.",
+  run:(p,s)=>{const u=UU(p.us),A=s.Aco+s.Ast,sg=p.P/A,Pm=Math.min(p.sst,p.sco)*A;
+    return {v:{sst:sg,sco:sg,d:sg*p.L/p.Ec,Pm:Pm*u.f},steps:[
+      ["Load sharing",PP("Both materials carry the load together, so the stress is uniform over the section:")+EQ(`σ = P/(A<sub>co</sub> + A<sub>st</sub>) = ${g4(sg)} ${u.S}`)],
+      ["Stresses",EQ(`σ<sub>st</sub> = σ<sub>co</sub> = ${g4(sg)} ${u.S}`)],
+      ["Shortening",EQ(`δ = σL/E<sub>co</sub> = ${g4(sg*p.L/p.Ec)} ${u.L}`)],
+      ["Safe load",FIN(`P = (smaller working stress)(A) = ${FK2(p,Pm)}`)]]}}};
+
+FLAWS["rod-in-tube"]={step:2,
+  why:"Only the rod carries load until the gap closes. The part of P beyond P₁ is then shared in proportion to the stiffnesses, and the rod also keeps the force P₁ it carried while closing the gap.",
+  run:(p,s)=>{const u=UU(p.us),K=s.kr+s.kt,Pr=p.P*s.kr/K,Pt=p.P*s.kt/K,sr=Pr/p.Ar,st=Pt/p.At,Pm=Math.min(p.sar*p.Ar*K/s.kr,p.sat*p.At*K/s.kt);
+    return {v:{sr,st,Pm:Pm*u.f},steps:[
+      ["Load that closes the gap",EQ(`P₁ = k<sub>r</sub>Δ = ${FK2(p,s.P1)}`)],
+      ["Load sharing",PP("Once the plate touches the tube, rod and tube act as springs in parallel and share the load P in proportion to their stiffnesses:")+EQ(`P<sub>r</sub> = Pk<sub>r</sub>/(k<sub>r</sub> + k<sub>t</sub>) = ${FK2(p,Pr)}; P<sub>t</sub> = ${FK2(p,Pt)}`)],
+      ["Stresses",EQ(`σ<sub>r</sub> = ${g4(sr)} ${u.S}; σ<sub>t</sub> = ${g4(st)} ${u.S}`)],
+      ["Safe load",FIN(`P<sub>max</sub> = ${FK2(p,Pm)}`)]]}}};
+
+FLAWS["bar-walls"]={step:1,
+  why:"The problem is statically indeterminate: the reactions depend on the stiffnesses EA/L of the segments, found from the condition that the total change in length is zero. A lever rule based on lengths alone ignores the materials and areas.",
+  run:(p,s)=>{const u=UU(p.us),Lt=p.L[0]+p.L[1],RA=p.P*p.L[1]/Lt,RC=p.P*p.L[0]/Lt,s1=RA/p.A[0],s2=-RC/p.A[1],uB=RA*p.L[0]/(Em(p.M[0],p.us)*p.A[0]);
+    return {v:{RA:RA*u.f,RC:RC*u.f,s1,s2,uB},steps:[
+      ["Reactions",PP("Each wall takes a share of P in inverse proportion to its distance from B:")+EQ(`R<sub>A</sub> = P·L<sub>BC</sub>/L = ${FK2(p,RA)}; R<sub>C</sub> = P·L<sub>AB</sub>/L = ${FK2(p,RC)}`)],
+      ["Stresses",EQ(`σ<sub>AB</sub> = ${g4(s1)} ${u.S}; σ<sub>BC</sub> = ${g4(s2)} ${u.S}`)],
+      ["Displacement of B",FIN(`u<sub>B</sub> = R<sub>A</sub>L<sub>AB</sub>/(EA)<sub>AB</sub> = ${g4(uB)} ${u.L}`)]]}}};
+
+FLAWS["rigid-bar-two-rods"]={step:1,
+  why:"The rigid bar rotates about the pin, so the rod elongations are proportional to their distances from A: δ<sub>B</sub>/b = δ<sub>C</sub>/c.",
+  run:(p,s)=>{const u=UU(p.us),de=p.P*p.d/(s.kB*p.b+s.kC*p.c),FB=s.kB*de,FC=s.kC*de,sB=FB/p.A[0],sC=FC/p.A[1],PB=p.P*p.sw[0]/sB,PC=p.P*p.sw[1]/sC,Pm=Math.min(PB,PC);
+    return {v:{sB,sC,dD:de,Pm:Pm*u.f},steps:[
+      ["Compatibility",PP("The bar stays rigid, so both rods stretch by the same amount δ:")+EQ(`F<sub>B</sub> = k<sub>B</sub>δ, F<sub>C</sub> = k<sub>C</sub>δ`)],
+      ["Moments about A",EQ(`P·d = F<sub>B</sub>b + F<sub>C</sub>c ⇒ δ = ${g4(de)} ${u.L}`)],
+      ["Stresses and displacement",EQ(`σ<sub>B</sub> = ${g4(sB)}, σ<sub>C</sub> = ${g4(sC)} ${u.S}; δ<sub>D</sub> = δ = ${g4(de)} ${u.L}`)],
+      ["Largest load",FIN(`P<sub>max</sub> = ${FK2(p,Pm)}`)]]}}};
+
+FLAWS["thermal-gap"]={step:2,
+  why:"The rod expands freely until it closes the gap, so only the expansion beyond Δ is prevented: σ = −E(αΔT − Δ/L).",
+  run:(p,s)=>{const u=UU(p.us),sg=-Em(p.m,p.us)*Am(p.m,p.us)*p.dT;
+    return {v:{sg,F:-sg*p.A*u.f},steps:[
+      ["Temperature to close the gap",EQ(`ΔT = Δ/(αL) = ${g4(s.dTc)} ${u.dT}`)],
+      ["Stress",PP("The walls prevent the thermal expansion:")+EQ(`σ = −EαΔT = ${g4(sg)} ${u.S}`)],
+      ["Force on each wall",FIN(`F = |σ|A = ${FK2(p,-sg*p.A)}`)]]}}};
+
+FLAWS["thermal-compound"]={step:1,
+  why:"The junction B is free to move, so the two segments are not individually restrained. Only the total length is fixed: the compatibility equation is δ<sub>AB</sub> + δ<sub>BC</sub> = 0, with the same force in both segments.",
+  run:(p,s)=>{const u=UU(p.us),s1=-Em(p.M[0],p.us)*Am(p.M[0],p.us)*p.dT,s2=-Em(p.M[1],p.us)*Am(p.M[1],p.us)*p.dT;
+    return {v:{s1,s2,uB:0},steps:[
+      ["Restraint",PP("Each segment is held between rigid supports, so its thermal expansion is completely prevented:")+EQ(`σ = −EαΔT`)],
+      ["Stresses",EQ(`σ<sub>AB</sub> = ${g4(s1)} ${u.S}; σ<sub>BC</sub> = ${g4(s2)} ${u.S}`)],
+      ["Displacement of B",FIN(`Neither segment changes length, so u<sub>B</sub> = 0`)]]}}};
+
+FLAWS["block-three-rods"]={step:1,
+  why:"There are two outer rods, so vertical equilibrium of the block is 2P₁ + P₂ = W.",
+  run:(p,s)=>{const u=UU(p.us),a1=Am(p.m1,p.us),a2=Am(p.m2,p.us),P1=(p.W*s.f2+(a2*p.L2-a1*p.L1)*p.dT)/(s.f1+s.f2),P2=p.W-P1,dT0=p.W*s.f1/(a2*p.L2-a1*p.L1);
+    return {v:{s1:P1/p.A1,s2:P2/p.A2,dT0},steps:[
+      ["Equilibrium",EQ("P₁ + P₂ = W")],
+      ["Compatibility",PP("The block stays level, so all rods end with the same total elongation:")+EQ(`P₁f₁ + α₁L₁ΔT = P₂f₂ + α₂L₂ΔT ⇒ P₁ = ${FK2(p,P1)}, P₂ = ${FK2(p,P2)}`)],
+      ["Stresses",EQ(`σ₁ = ${g4(P1/p.A1)} ${u.S}; σ₂ = ${g4(P2/p.A2)} ${u.S}`)],
+      ["Temperature that unloads the central rod",FIN(`With P₂ = 0 and P₁ = W: ΔT = Wf₁/(α₂L₂ − α₁L₁) = ${g4(dT0)} ${u.dT}`)]]}}};
+
 const $=id=>document.getElementById(id);
-let curKey,curSeed,cur;
+let curKey,curSeed,cur,curFields=[],curTruth={},curMode="practice";
 const tidy=h=>h.replace(/\bin\.\.(?!\.)/g,"in.").replace(/\b([Aa]) (aluminum|inelastic|unequal)\b/g,"$1n $2");
+const FLAWSET=typeof FLAWS!=="undefined"?FLAWS:{};
+const hunting=()=>curMode==="error";
+// ----- planted error: run it and check that it changes at least one answer by more than 3%
+function flawRun(F,p,s,T){const o=F.run(p,s),tr=T.truth(p,s);
+  const vis=Object.entries(o.v).some(([k,v])=>typeof tr[k]==="number"&&isFinite(v)&&Math.abs(v-tr[k])>0.03*Math.max(Math.abs(tr[k]),1e-12));
+  return {o,vis}}
+function flawHtml(o){return o.steps.map(([t,h],i)=>`<h3>${i+1}. ${t}</h3>${h}`).join("")}
+// ----- error report (Google Form, prefilled)
+const FORM={url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,PAGE_CH);q.set(FORM.entry.type,TEMPLATES[curKey].name+(hunting()?" (find the error)":""));
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);return FORM.url+"?"+q.toString()}
+function fillTypes(){const keys=hunting()?Object.keys(TEMPLATES).filter(k=>FLAWSET[k]):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];return curKey}
+function setMode(mode,key,seed){curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";$("mError").className=mode==="error"?"":"ghost";
+  $("reportLbl").textContent=hunting()?"Found a mistake other than the planted one?":"Found a mistake in a problem or its solution?";
+  if(key)curKey=key;render(fillTypes(),seed||parseInt($("seedIn").value,10)||newSeed())}
 function render(key,seed){
-  curKey=key;curSeed=seed;const T=TEMPLATES[key];cur=T.generate(seed);const {p,s}=cur;
-  $("typeSel").value=key;$("seedIn").value=seed;history.replaceState(null,"","#"+key+"-"+seed);
+  const T=TEMPLATES[key],F=hunting()?FLAWSET[key]:null;let fr=null;
+  for(let i=0;i<60;i++){cur=T.generate(seed);if(!F)break;fr=flawRun(F,cur.p,cur.s,T);if(fr.vis)break;seed++}
+  curKey=key;curSeed=seed;const {p,s}=cur;
+  $("typeSel").value=key;$("seedIn").value=seed;try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
   $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=tidy(T.statement(p,s));
-  $("answers").innerHTML=T.fields(p,s).map(f=>f.choices
+  $("flawCard").style.display=F?"":"none";$("flawed").innerHTML=F?tidy(flawHtml(fr.o)):"";
+  curFields=T.fields(p,s);curTruth=T.truth(p,s);
+  if(F){const steps=fr.o.steps.map((_,i)=>String(i+1));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>f.choices
     ?`<label>${tidy(f.label)}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
     :`<label>${tidy(f.label)}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
-  $("ansNote").textContent=T.note||"";$("solution").innerHTML=tidy(T.solution(p,s));
-  $("solution").style.display="none";$("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+(T.note||"");
+  $("solution").innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+tidy(T.solution(p,s));
+  $("solution").style.display="none";$("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 function check(){
-  const T=TEMPLATES[curKey],{p,s}=cur,tr=T.truth(p,s);
-  T.fields(p,s).forEach(f=>{
-    const el=$("m_"+f.id),raw=$("a_"+f.id).value.trim();let ok=false;
+  const tr=curTruth;
+  curFields.forEach(f=>{
+    const el=$("m_"+f.id);let raw=$("a_"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");let ok=false;
     if(f.choices)ok=raw===tr[f.id];
     else{const v=parseFloat(raw.replace(/,/g,"")),t=tr[f.id];
       if(isFinite(v)&&f.abs!==undefined) ok=Math.abs(v-t)<=f.abs;
@@ -933,15 +1091,19 @@ function check(){
   });
 }
 const newSeed=()=>1+Math.floor(Math.random()*999999);
-$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
 $("typeSel").onchange=e=>render(e.target.value,newSeed());
 $("newBtn").onclick=()=>render(curKey,newSeed());
 $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
 $("checkBtn").onclick=check;
+$("mPractice").onclick=()=>setMode("practice");
+$("mError").onclick=()=>setMode("error");
+$("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+if(!Object.keys(FLAWSET).length)$("mError").style.display="none";
 $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
-(function(){const m=/^#([a-z0-9-]+?)-(\d+)$/.exec(location.hash);
-  if(m&&TEMPLATES[m[1]])render(m[1],parseInt(m[2],10));else render(Object.keys(TEMPLATES)[0],newSeed())})();
+  s.style.display=show?"block":"none";e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+(function(){const m=/^#([a-z0-9-]+?)-(\d+)(-e)?$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWSET[m[1]]))setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+  else setMode("practice",Object.keys(TEMPLATES)[0],newSeed())})();
 
 </script>
 </body>

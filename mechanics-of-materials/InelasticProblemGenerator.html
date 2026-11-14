@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Inelastic Action Problem Generator</title>
 <style>
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+  #flawed h3{font-size:1.05rem;margin:1.1em 0 .3em}
   :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#ffffff;--accent:#1e5a32;--ok:#1e7a3c;--bad:#b3261e}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Georgia","Times New Roman",serif}
@@ -44,6 +48,12 @@
   <div class="sub">Elastoplastic torsion and bending, shape factors, residual stresses, and limit analysis of indeterminate bars and beams. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem. <a href="index.html">All chapters</a></div>
 </header>
 <main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow"><span id="reportLbl">Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar"><label>Mode</label><button id="mPractice">Practice</button><button class="ghost" id="mError">Find the error</button></div>
   <div class="card bar"><label for="typeSel">Problem type</label><select id="typeSel"></select></div>
   <div class="card bar">
     <button id="newBtn">New problem</button>
@@ -52,6 +62,10 @@
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -63,6 +77,7 @@
   <div class="card" id="solution"></div>
 </main>
 <script>
+const PAGE_CH="Mechanics of Materials, Chapter 13: Inelastic Action";
 // ===== common helpers: seeded random numbers, number formatting, SVG drawing
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -1635,23 +1650,98 @@ const P5={name:"Limit analysis of indeterminate beams: limit load and yield load
 
 const TEMPLATES={"plastic-torsion":P1,"shape-factor":P2,"elastoplastic-beam":P3,"rods-residual":P4,"limit-analysis":P5};
 
+// ===== planted errors: shared helpers. Each entry: {step, why, run:(p,s)=>({v:{field:value}, steps:[[title, html], ...]})}
+const FLAWS={};
+const EQ=s=>`<p class="eq">${s}</p>`, PP=s=>`<p>${s}</p>`, FIN=s=>`<p class="final">${s}</p>`;
+const g4=v=>sig(v,4), g3=v=>sig(v,3);
+
+// ===== Chapter 13 planted errors
+FLAWS["plastic-torsion"]={step:4,
+  why:"Removing the applied torque T is an elastic unloading by T itself, so the residual surface stress is τ<sub>yp</sub> − Tc/J. The limit torque is not the torque that was applied.",
+  run:(p,s)=>{const u=IU(p.us),tr=p.tau-s.TL*(p.d/2)/s.J;
+    return {v:{tr},steps:[
+      ["Yield and limit torques",EQ(`T<sub>yp</sub> = ${g4(s.Typ/u.Mf)}; T<sub>L</sub> = ${g4(s.TL/u.Mf)} ${u.T}`)],
+      ["Elastic core",EQ(`ρ = ${g4(s.rho)} ${u.d}`)],
+      ["Angle of twist",EQ(`θ = τ<sub>yp</sub>L/(Gρ) = ${g4(s.th)}°`)],
+      ["Residual stress",PP("On unloading the shaft springs back elastically from the fully plastic state:")+FIN(`τ<sub>res</sub> = τ<sub>yp</sub> − T<sub>L</sub>c/J = ${g4(tr)} ${u.S}`)]]}}};
+
+FLAWS["shape-factor"]={step:2,
+  why:"When the section is fully plastic, the stress is ±σ<sub>yp</sub> on either side of the neutral axis, so force balance puts the plastic neutral axis where it divides the area in half. For an unsymmetric section it is not at the centroid.",
+  run:(p,s)=>{const u=IU(p.us),sp=s.sp,Z=2*sp.Q(sp.yb),ML=p.sy*Z;
+    return {v:{yp:sp.yb,ML:ML/u.Mf,r:ML/s.Myp},steps:[
+      ["Yield moment",EQ(`ȳ = ${g4(sp.yb)} ${u.d}; M<sub>yp</sub> = σ<sub>yp</sub>I/c = ${g4(s.Myp/u.Mf)} ${u.M}`)],
+      ["Plastic neutral axis",PP("The neutral axis stays at the centroid of the section:")+EQ(`y<sub>p</sub> = ${g4(sp.yb)} ${u.d}`)],
+      ["Limit moment",EQ(`M<sub>L</sub> = σ<sub>yp</sub>(Q<sub>T</sub> + Q<sub>C</sub>) = ${g4(ML/u.Mf)} ${u.M}`)],
+      ["Shape factor",FIN(`M<sub>L</sub>/M<sub>yp</sub> = ${g4(ML/s.Myp)}`)]]}}};
+
+FLAWS["elastoplastic-beam"]={step:3,
+  why:"The strain reaches the yield strain at the edge of the elastic core, y = e, so 1/R = ε<sub>yp</sub>/e. The outer fibers have yielded and their strain exceeds ε<sub>yp</sub>.",
+  run:(p,s)=>{const u=IU(p.us),R=p.E*(p.h/2)/p.sy;
+    return {v:{R},steps:[
+      ["Yield and limit moments",EQ(`M<sub>yp</sub> = ${g4(s.Myp/u.Mf)}; M<sub>L</sub> = ${g4(s.ML/u.Mf)} ${u.M}`)],
+      ["Elastic core",EQ(`2e = ${g4(2*s.e)} ${u.d}`)],
+      ["Curvature",PP("The outer fiber is at the yield strain:")+EQ(`1/R = ε<sub>yp</sub>/(h/2) ⇒ R = ${g4(R)} ${u.d}`)],
+      ["Residual stress",FIN(`σ<sub>res</sub> = ${g4(s.sr)} ${u.S}`)]]}}};
+
+FLAWS["rods-residual"]={step:3,
+  why:"Unloading is elastic, so the rods shed the load P<sub>L</sub> in proportion to their stiffnesses EA/L, not in equal shares.",
+  run:(p,s)=>{const u=IU(p.us),f=s.PL/3,so=p.outer.sy-f/p.Ao,sm=p.mid.sy-f/p.Am;
+    return {v:{so,sm},steps:[
+      ["First yield",EQ(`P<sub>yp</sub> = ${g4(s.Py/u.Ff)} ${u.F}`)],
+      ["Limit load",EQ(`P<sub>L</sub> = ${g4(s.PL/u.Ff)} ${u.F}`)],
+      ["Residual stresses",PP("On unloading each of the three rods gives up one third of P<sub>L</sub>:")+FIN(`σ<sub>outer</sub> = ${g4(so)}; σ<sub>middle</sub> = ${g4(sm)} ${u.S}`)]]}}};
+
+FLAWS["limit-analysis"]={step:3,
+  why:"In an indeterminate beam the first plastic hinge does not cause collapse. Moment redistributes until enough hinges form for a mechanism, so the limit load exceeds the first-yield load by more than the shape factor.",
+  run:(p,s)=>{const PL=1.5*s.Py,Lw=p.udl?(p.us?"kips/ft":"kN/m"):IU(p.us).F;
+    return {v:{PL,r:1.5},steps:[
+      ["Section",EQ(`M<sub>yp</sub> = ${g4(s.Myp/IU(p.us).Mf)}; M<sub>L</sub> = ${g4(s.ML/IU(p.us).Mf)} ${IU(p.us).M}`)],
+      ["First yield",EQ(`load at first yield = ${g4(s.Py)} ${Lw}`)],
+      ["Limit load",PP("The beam collapses when the most highly stressed section becomes fully plastic, at M<sub>L</sub> = 1.5M<sub>yp</sub>:")+FIN(`limit load = 1.5 × ${g4(s.Py)} = ${g4(PL)} ${Lw}; ratio 1.5`)]]}}};
+
 const $=id=>document.getElementById(id);
-let curKey,curSeed,cur;
+let curKey,curSeed,cur,curFields=[],curTruth={},curMode="practice";
 const tidy=h=>h.replace(/\bin\.\.(?!\.)/g,"in.").replace(/\b([Aa]) (aluminum|inelastic|unequal)\b/g,"$1n $2");
+const FLAWSET=typeof FLAWS!=="undefined"?FLAWS:{};
+const hunting=()=>curMode==="error";
+// ----- planted error: run it and check that it changes at least one answer by more than 3%
+function flawRun(F,p,s,T){const o=F.run(p,s),tr=T.truth(p,s);
+  const vis=Object.entries(o.v).some(([k,v])=>typeof tr[k]==="number"&&isFinite(v)&&Math.abs(v-tr[k])>0.03*Math.max(Math.abs(tr[k]),1e-12));
+  return {o,vis}}
+function flawHtml(o){return o.steps.map(([t,h],i)=>`<h3>${i+1}. ${t}</h3>${h}`).join("")}
+// ----- error report (Google Form, prefilled)
+const FORM={url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,PAGE_CH);q.set(FORM.entry.type,TEMPLATES[curKey].name+(hunting()?" (find the error)":""));
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);return FORM.url+"?"+q.toString()}
+function fillTypes(){const keys=hunting()?Object.keys(TEMPLATES).filter(k=>FLAWSET[k]):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];return curKey}
+function setMode(mode,key,seed){curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";$("mError").className=mode==="error"?"":"ghost";
+  $("reportLbl").textContent=hunting()?"Found a mistake other than the planted one?":"Found a mistake in a problem or its solution?";
+  if(key)curKey=key;render(fillTypes(),seed||parseInt($("seedIn").value,10)||newSeed())}
 function render(key,seed){
-  curKey=key;curSeed=seed;const T=TEMPLATES[key];cur=T.generate(seed);const {p,s}=cur;
-  $("typeSel").value=key;$("seedIn").value=seed;history.replaceState(null,"","#"+key+"-"+seed);
+  const T=TEMPLATES[key],F=hunting()?FLAWSET[key]:null;let fr=null;
+  for(let i=0;i<60;i++){cur=T.generate(seed);if(!F)break;fr=flawRun(F,cur.p,cur.s,T);if(fr.vis)break;seed++}
+  curKey=key;curSeed=seed;const {p,s}=cur;
+  $("typeSel").value=key;$("seedIn").value=seed;try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
   $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=tidy(T.statement(p,s));
-  $("answers").innerHTML=T.fields(p,s).map(f=>f.choices
+  $("flawCard").style.display=F?"":"none";$("flawed").innerHTML=F?tidy(flawHtml(fr.o)):"";
+  curFields=T.fields(p,s);curTruth=T.truth(p,s);
+  if(F){const steps=fr.o.steps.map((_,i)=>String(i+1));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>f.choices
     ?`<label>${tidy(f.label)}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
     :`<label>${tidy(f.label)}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
-  $("ansNote").textContent=T.note||"";$("solution").innerHTML=tidy(T.solution(p,s));
-  $("solution").style.display="none";$("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+(T.note||"");
+  $("solution").innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+tidy(T.solution(p,s));
+  $("solution").style.display="none";$("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 function check(){
-  const T=TEMPLATES[curKey],{p,s}=cur,tr=T.truth(p,s);
-  T.fields(p,s).forEach(f=>{
-    const el=$("m_"+f.id),raw=$("a_"+f.id).value.trim();let ok=false;
+  const tr=curTruth;
+  curFields.forEach(f=>{
+    const el=$("m_"+f.id);let raw=$("a_"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");let ok=false;
     if(f.choices)ok=raw===tr[f.id];
     else{const v=parseFloat(raw.replace(/,/g,"")),t=tr[f.id];
       if(isFinite(v)&&f.abs!==undefined) ok=Math.abs(v-t)<=f.abs;
@@ -1661,15 +1751,19 @@ function check(){
   });
 }
 const newSeed=()=>1+Math.floor(Math.random()*999999);
-$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
 $("typeSel").onchange=e=>render(e.target.value,newSeed());
 $("newBtn").onclick=()=>render(curKey,newSeed());
 $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
 $("checkBtn").onclick=check;
+$("mPractice").onclick=()=>setMode("practice");
+$("mError").onclick=()=>setMode("error");
+$("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+if(!Object.keys(FLAWSET).length)$("mError").style.display="none";
 $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
-(function(){const m=/^#([a-z0-9-]+?)-(\d+)$/.exec(location.hash);
-  if(m&&TEMPLATES[m[1]])render(m[1],parseInt(m[2],10));else render(Object.keys(TEMPLATES)[0],newSeed())})();
+  s.style.display=show?"block":"none";e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+(function(){const m=/^#([a-z0-9-]+?)-(\d+)(-e)?$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWSET[m[1]]))setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+  else setMode("practice",Object.keys(TEMPLATES)[0],newSeed())})();
 
 </script>
 </body>

@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Special Topics Problem Generator</title>
 <style>
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+  #flawed h3{font-size:1.05rem;margin:1.1em 0 .3em}
   :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#ffffff;--accent:#1e5a32;--ok:#1e7a3c;--bad:#b3261e}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Georgia","Times New Roman",serif}
@@ -44,6 +48,12 @@
   <div class="sub">Castigliano's theorem, impact loading, theories of failure, and stress concentration. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem. <a href="index.html">All chapters</a></div>
 </header>
 <main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow"><span id="reportLbl">Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar"><label>Mode</label><button id="mPractice">Practice</button><button class="ghost" id="mError">Find the error</button></div>
   <div class="card bar"><label for="typeSel">Problem type</label><select id="typeSel"></select></div>
   <div class="card bar">
     <button id="newBtn">New problem</button>
@@ -52,6 +62,10 @@
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -63,6 +77,7 @@
   <div class="card" id="solution"></div>
 </main>
 <script>
+const PAGE_CH="Mechanics of Materials, Chapter 12: Special Topics";
 // ===== common helpers: seeded random numbers, number formatting, SVG drawing
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -1270,23 +1285,136 @@ const E9={name:"Stress concentration at a central hole in a bar",generate:e9Gene
 
 const TEMPLATES={"two-bar-truss":E1,"truss-deflection":E2,"quarter-circle":E3,"portal-frame":E4,"beam-impact":E5,"axial-impact":E6,"shaft-failure":E7,"failure-theories":E8,"stress-concentration":E9};
 
+// ===== planted errors: shared helpers. Each entry: {step, why, run:(p,s)=>({v:{field:value}, steps:[[title, html], ...]})}
+const FLAWS={};
+const EQ=s=>`<p class="eq">${s}</p>`, PP=s=>`<p>${s}</p>`, FIN=s=>`<p class="final">${s}</p>`;
+const g4=v=>sig(v,4), g3=v=>sig(v,3);
+
+// ===== Chapter 12 planted errors
+FLAWS["two-bar-truss"]={step:3,
+  why:"A displacement can be found with Castigliano's theorem even where no load acts: apply a dummy horizontal force Q at A, differentiate the strain energy with respect to Q, and then set Q = 0. The joint moves sideways because the bars stretch by different amounts.",
+  run:(p,s)=>{const u=EU(p.us);
+    return {v:{dx:0},steps:[
+      ["Bar forces",EQ(`N₁ = ${g4(s.N[0]/u.Ff)}, N₂ = ${g4(s.N[1]/u.Ff)} ${u.F}`)],
+      ["Vertical displacement",EQ(`δ<sub>y</sub> = Σ N(∂N/∂W)L/(EA) = ${g4(s.dy)} ${u.d}`)],
+      ["Horizontal displacement",PP("No horizontal force acts at A, so the derivative of the strain energy in that direction is zero:")+FIN(`δ<sub>x</sub> = 0`)]]}}};
+
+FLAWS["truss-deflection"]={step:2,
+  why:"Every member whose force n (from the unit load at the joint) is not zero contributes NnL/(EA) to the deflection, including the top chord and the diagonals, not only the chord through the joint.",
+  run:(p,s)=>{const u=EU(p.us);let d=0;s.s1.mem.forEach(([i,j],m)=>{if(m>=p.n)return;const L=Math.hypot(s.s1.nodes[j][0]-s.s1.nodes[i][0],s.s1.nodes[j][1]-s.s1.nodes[i][1])*u.lb;d+=s.s1.F[m]*s.s0.F[m]*L/(u.E*p.A)});
+    return {v:{d},steps:[
+      ["Member forces",PP("Find the forces N from the actual loads and n from a unit load at the joint (method of joints).")],
+      ["Deflection",PP("The joint lies on the bottom chord, so its deflection comes from the bottom-chord members:")+EQ(`δ = Σ<sub>bottom chord</sub> NnL/(EA)`)],
+      ["Result",FIN(`δ = ${g4(d)} ${u.d}`)]]}}};
+
+FLAWS["quarter-circle"]={step:2,
+  why:"Because the bar is curved, the force P also twists each section, with torque T = PR(1 − cos θ). The torsional strain energy must be added to the bending energy.",
+  run:(p,s)=>{const u=EU(p.us);
+    return {v:{dt:0,dd:s.db},steps:[
+      ["Bending",EQ(`M = PR sin θ; δ<sub>b</sub> = (PR³/EI)∫sin²θ dθ = ${g4(s.db)} ${u.d}`)],
+      ["Torsion",PP("The load is applied at the end of the bar, so the sections carry only a bending moment:")+EQ("δ<sub>t</sub> = 0")],
+      ["Total",FIN(`δ = ${g4(s.db)} ${u.d}`)]]}}};
+
+FLAWS["portal-frame"]={step:1,
+  why:"The columns AB and CD also bend: the moment in a column grows with height (Fy in AB, and the horizontal reaction times height in the virtual system), so their strain energy must be included.",
+  run:(p,s)=>{const u=EU(p.us),L=p.L,h=p.h,wn=p.us?p.w/12:p.w,Fn=p.F*u.Ff,EI=u.E*p.I,d=(h*wn*L**3/12+Fn*h*h*L/2)/EI,f=h*h*L/EI,H=-d/f;
+    return {v:{d,H:H/u.Ff},steps:[
+      ["Members that bend",PP("The load acts on the beam BC, so only BC is included in the strain energy.")],
+      ["Horizontal deflection of D",EQ(`δ = ∫<sub>BC</sub> Mm dx/(EI) = ${g4(d)} ${u.d}`)],
+      ["Pinned D",FIN(`H = −δ/f, f = h²L/(EI): H = ${g4(H/u.Ff)} ${u.F}`)]]}}};
+
+FLAWS["beam-impact"]={step:2,
+  why:"The block keeps doing work as the beam deflects, so energy conservation is W(h + δ<sub>max</sub>) = ½kδ<sub>max</sub>², giving n = 1 + √(1 + 2h/δ<sub>st</sub>).",
+  run:(p,s)=>{const n=Math.sqrt(2*p.drop/s.dst),u=p.us?"in.":"mm",S=p.us?"psi":"MPa";
+    return {v:{n,dm:n*s.dst,sm:s.sm/s.n*n},steps:[
+      ["Static deflection",EQ(`δ<sub>st</sub> = WL³/(48EI) = ${g4(s.dst)} ${u}`)],
+      ["Impact factor",PP("The kinetic energy at impact, Wh, is stored in the beam: Wh = ½kδ<sub>max</sub>²:")+EQ(`n = √(2h/δ<sub>st</sub>) = ${g4(n)}`)],
+      ["Dynamic results",FIN(`δ<sub>max</sub> = nδ<sub>st</sub> = ${g4(n*s.dst)} ${u}; σ<sub>max</sub> = ${g4(s.sm/s.n*n)} ${S}`)]]}}};
+
+FLAWS["axial-impact"]={step:2,
+  why:"Energy conservation must include the work the weight does while the rod or cable stretches. For the collar, W(h + δ<sub>max</sub>) = ½kδ<sub>max</sub>² gives n = 1 + √(1 + 2h/δ<sub>st</sub>). For the cable, P<sub>max</sub> = W + v√(kW/g) includes the static load W.",
+  run:(p,s)=>{const S=p.us?"psi":"MPa",u=p.us?"in.":"mm";
+    if(p.cable){const Pm=s.Pm-s.W,n=Pm/s.W,A=p.A;
+      return {v:{P:Pm,n,s:Pm/A},steps:[["Cable stiffness",EQ(`k = EA/L = ${g4(s.k)} ${p.us?"lb/in.":"N/mm"}`)],
+        ["Maximum force",PP("The kinetic energy ½(W/g)v² is stored as ½kδ²:")+EQ(`P<sub>max</sub> = kδ = v√(kW/g) = ${g4(Pm)} ${p.us?"lb":"N"}`)],
+        ["Impact factor and stress",FIN(`n = ${g4(n)}; σ = ${g4(Pm/A)} ${S}`)]]}}
+    const n=Math.sqrt(2*p.hgt/s.dst),A=Math.PI*p.d**2/4,Wn=p.us?p.W:p.W*9.81;
+    return {v:{n,dm:n*s.dst,s:n*Wn/A},steps:[["Static elongation",EQ(`δ<sub>st</sub> = WL/(EA) = ${g4(s.dst)} ${u}`)],
+      ["Impact factor",PP("The energy Wh at impact is stored in the rod:")+EQ(`Wh = ½kδ<sub>max</sub>² ⇒ n = √(2h/δ<sub>st</sub>) = ${g4(n)}`)],
+      ["Dynamic results",FIN(`δ<sub>max</sub> = ${g4(n*s.dst)} ${u}; σ = ${g4(n*Wn/A)} ${S}`)]]}}};
+
+FLAWS["shaft-failure"]={step:1,
+  why:"The maximum shear stress theory limits τ<sub>max</sub> = √((σ/2)² + τ²) to σ<sub>yp</sub>/(2N), half the tensile yield strength, not to σ<sub>yp</sub>/N.",
+  run:(p,s)=>{const c=p.us?12:1e6,Z=Math.PI*p.d**3/32,sMax=p.Sy/p.N,Mu=p.us?"kip·ft":"kN·m",X=p.unk==="T"?"T":"M";
+    const x1=p.unk==="T"?Math.sqrt(sMax**2-(s.s/2)**2)*2*Z/c:2*Math.sqrt(sMax**2-s.tau**2)*Z/c;
+    return {v:{x1},steps:[
+      ["Maximum shear stress theory",PP("Yielding starts when the maximum shear stress reaches the allowable stress:")+EQ(`√((σ/2)² + τ²) = σ<sub>yp</sub>/N ⇒ ${X} = ${g4(x1)} ${Mu}`)],
+      ["Distortion energy theory",EQ(`√(σ² + 3τ²) = σ<sub>yp</sub>/N ⇒ ${X} = ${g4(s.x2)} ${Mu}`)],
+      ["Results",FIN(`${X}<sub>Tresca</sub> = ${g4(x1)}, ${X}<sub>von Mises</sub> = ${g4(s.x2)} ${Mu}`)]]}}};
+
+FLAWS["failure-theories"]={step:2,
+  why:"In plane stress the third principal stress is zero. The maximum shear stress theory uses the largest of |σ₁|, |σ₂| and |σ₁ − σ₂|; for brittle materials with principal stresses of opposite sign, Mohr's criterion σ₁/σ<sub>ut</sub> − σ₂/σ<sub>uc</sub> = 1 applies, not the larger single ratio.",
+  run:(p,s)=>{const S=p.us?"ksi":"MPa";
+    if(p.brittle){const a=s.s1,b=s.s2,f=Math.max(a>0?a/p.sut:0,b<0?-b/p.suc:0),N=1/f,fail=f>1?"Yes":"No";
+      return {v:{N},steps:[["Principal stresses",EQ(`σ₁ = ${g4(a)}, σ₂ = ${g4(b)} ${S}`)],
+        ["Failure criterion",PP("Each principal stress is compared with the matching strength (maximum normal stress):")+EQ(`f = max(σ₁/σ<sub>ut</sub>, |σ₂|/σ<sub>uc</sub>) = ${g4(f)}`)],
+        ["Result",FIN(`Fails: ${fail}; N = ${g4(N)}`)]]}}
+    const tres=Math.abs(s.s1-s.s2),NT=p.Sy/tres;
+    return {v:{NT},steps:[["Principal stresses",EQ(`σ₁ = ${g4(s.s1)}, σ₂ = ${g4(s.s2)} ${S}`)],
+      ["Maximum shear stress theory",PP("The largest shear stress is half the difference of the principal stresses:")+EQ(`N = σ<sub>yp</sub>/|σ₁ − σ₂| = ${g4(NT)}`)],
+      ["Distortion energy theory",FIN(`N = σ<sub>yp</sub>/√(σ₁² − σ₁σ₂ + σ₂²) = ${g4(s.NV)}`)]]}}};
+
+FLAWS["stress-concentration"]={step:2,
+  why:"This k<sub>t</sub> is defined with the nominal stress on the net section, (D − 2r)b, so the peak stress is k<sub>t</sub>P/((D − 2r)b). Using the gross area Db underestimates the stress.",
+  run:(p,s)=>{const perP=s.kt/(p.D*p.b)+(p.ecc?s.kb*p.e*p.rad/s.I:0),P=p.sw/perP/(p.us?1:1000),F=p.us?"kips":"kN";
+    return {v:{P},steps:[
+      ["Stress concentration factor",EQ(`2r/D = ${g4(p.ratio)}; k<sub>t</sub> = ${g4(s.kt)}`)],
+      ["Nominal stress",PP("The nominal stress is the load divided by the cross-sectional area of the bar:")+EQ(`σ<sub>nom</sub> = P/(Db)`)],
+      ["Largest load",FIN(`k<sub>t</sub>P/(Db)${p.ecc?" + bending":""} = σ<sub>w</sub> ⇒ P = ${g4(P)} ${F}`)]]}}};
+
 const $=id=>document.getElementById(id);
-let curKey,curSeed,cur;
+let curKey,curSeed,cur,curFields=[],curTruth={},curMode="practice";
 const tidy=h=>h.replace(/\bin\.\.(?!\.)/g,"in.").replace(/\b([Aa]) (aluminum|inelastic|unequal)\b/g,"$1n $2");
+const FLAWSET=typeof FLAWS!=="undefined"?FLAWS:{};
+const hunting=()=>curMode==="error";
+// ----- planted error: run it and check that it changes at least one answer by more than 3%
+function flawRun(F,p,s,T){const o=F.run(p,s),tr=T.truth(p,s);
+  const vis=Object.entries(o.v).some(([k,v])=>typeof tr[k]==="number"&&isFinite(v)&&Math.abs(v-tr[k])>0.03*Math.max(Math.abs(tr[k]),1e-12));
+  return {o,vis}}
+function flawHtml(o){return o.steps.map(([t,h],i)=>`<h3>${i+1}. ${t}</h3>${h}`).join("")}
+// ----- error report (Google Form, prefilled)
+const FORM={url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,PAGE_CH);q.set(FORM.entry.type,TEMPLATES[curKey].name+(hunting()?" (find the error)":""));
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);return FORM.url+"?"+q.toString()}
+function fillTypes(){const keys=hunting()?Object.keys(TEMPLATES).filter(k=>FLAWSET[k]):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];return curKey}
+function setMode(mode,key,seed){curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";$("mError").className=mode==="error"?"":"ghost";
+  $("reportLbl").textContent=hunting()?"Found a mistake other than the planted one?":"Found a mistake in a problem or its solution?";
+  if(key)curKey=key;render(fillTypes(),seed||parseInt($("seedIn").value,10)||newSeed())}
 function render(key,seed){
-  curKey=key;curSeed=seed;const T=TEMPLATES[key];cur=T.generate(seed);const {p,s}=cur;
-  $("typeSel").value=key;$("seedIn").value=seed;history.replaceState(null,"","#"+key+"-"+seed);
+  const T=TEMPLATES[key],F=hunting()?FLAWSET[key]:null;let fr=null;
+  for(let i=0;i<60;i++){cur=T.generate(seed);if(!F)break;fr=flawRun(F,cur.p,cur.s,T);if(fr.vis)break;seed++}
+  curKey=key;curSeed=seed;const {p,s}=cur;
+  $("typeSel").value=key;$("seedIn").value=seed;try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
   $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=tidy(T.statement(p,s));
-  $("answers").innerHTML=T.fields(p,s).map(f=>f.choices
+  $("flawCard").style.display=F?"":"none";$("flawed").innerHTML=F?tidy(flawHtml(fr.o)):"";
+  curFields=T.fields(p,s);curTruth=T.truth(p,s);
+  if(F){const steps=fr.o.steps.map((_,i)=>String(i+1));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>f.choices
     ?`<label>${tidy(f.label)}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
     :`<label>${tidy(f.label)}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
-  $("ansNote").textContent=T.note||"";$("solution").innerHTML=tidy(T.solution(p,s));
-  $("solution").style.display="none";$("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+(T.note||"");
+  $("solution").innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+tidy(T.solution(p,s));
+  $("solution").style.display="none";$("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 function check(){
-  const T=TEMPLATES[curKey],{p,s}=cur,tr=T.truth(p,s);
-  T.fields(p,s).forEach(f=>{
-    const el=$("m_"+f.id),raw=$("a_"+f.id).value.trim();let ok=false;
+  const tr=curTruth;
+  curFields.forEach(f=>{
+    const el=$("m_"+f.id);let raw=$("a_"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");let ok=false;
     if(f.choices)ok=raw===tr[f.id];
     else{const v=parseFloat(raw.replace(/,/g,"")),t=tr[f.id];
       if(isFinite(v)&&f.abs!==undefined) ok=Math.abs(v-t)<=f.abs;
@@ -1296,15 +1424,19 @@ function check(){
   });
 }
 const newSeed=()=>1+Math.floor(Math.random()*999999);
-$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
 $("typeSel").onchange=e=>render(e.target.value,newSeed());
 $("newBtn").onclick=()=>render(curKey,newSeed());
 $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
 $("checkBtn").onclick=check;
+$("mPractice").onclick=()=>setMode("practice");
+$("mError").onclick=()=>setMode("error");
+$("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+if(!Object.keys(FLAWSET).length)$("mError").style.display="none";
 $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
-(function(){const m=/^#([a-z0-9-]+?)-(\d+)$/.exec(location.hash);
-  if(m&&TEMPLATES[m[1]])render(m[1],parseInt(m[2],10));else render(Object.keys(TEMPLATES)[0],newSeed())})();
+  s.style.display=show?"block":"none";e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+(function(){const m=/^#([a-z0-9-]+?)-(\d+)(-e)?$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWSET[m[1]]))setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+  else setMode("practice",Object.keys(TEMPLATES)[0],newSeed())})();
 
 </script>
 </body>
