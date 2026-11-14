@@ -165,7 +165,7 @@ function trussEls(N,M,s){const e=[];
     e.push({t:"pt",p:q,l:it(n),dx:top?10:edge>0?14:edge*16,dy:top?-12:edge>0?6:edge?20:24,an:top?"start":edge<0?"end":edge>0?"start":"middle",r:4})});
   return e}
 const dnArrow=(x,y,s,lbl,below,ex=0)=>below?[{a:[x,y-.05*s],b:[x,y-1.5*s],c:"r"},{t:"txt",p:[x,y-1.95*s-ex*s],l:lbl}]:[{a:[x,y+1.5*s],b:[x,y+.12*s],c:"r"},{t:"txt",p:[x,y+1.85*s],l:lbl}];
-const hArrow=(x,y,s,H,lbl)=>[{a:[H>0?x-1.8*s:x+1.8*s,y],b:[x,y],c:"r"},{t:"txt",p:[H>0?x-1.8*s:x+1.8*s,y+1.0*s],l:lbl,an:H>0?"end":"start"}];
+const hArrow=(x,y,s,H,lbl)=>[{a:H>0?[x-2*s,y]:[x,y],b:H>0?[x,y]:[x-2*s,y],c:"r"},{t:"txt",p:[x-2*s,y+.55*s],l:lbl,an:"start"}];
 const dimsB=(xs,y,p,sc)=>xs.slice(1).map((x,i)=>({t:"dim",a:[xs[i],y],b:[x,y],l:`${+(x-xs[i]).toFixed(2)} ${LU(p)}`,flip:1}));
 
 // 1. simple triangular truss: method of joints
@@ -253,8 +253,9 @@ TEMPLATES["truss-pratt-sections"]={
     throw new Error("no valid problem");},
   statement:p=>`<p>A trapezoidal truss has a pin support at <i>A</i> and a roller support at <i>D</i>. The bottom joints <i>A</i>, <i>B</i>, <i>C</i>, and <i>D</i> are spaced ${p.a} ${LU(p)} apart. The top joints <i>E</i> and <i>F</i> lie ${p.h} ${LU(p)} directly above <i>B</i> and <i>C</i>. The members are <i>AB</i>, <i>BC</i>, <i>CD</i>, <i>AE</i>, <i>BE</i>, <i>EF</i>, <i>CF</i>, <i>FD</i>, and the diagonal <i>BF</i>. Downward forces <i>P<sub>B</sub></i> = ${p.PB} ${FU(p)} at <i>B</i> and <i>P<sub>C</sub></i> = ${p.PC} ${FU(p)} at <i>C</i>, and a horizontal force <i>H</i> = ${Math.abs(p.H)} ${FU(p)} (${p.H>0?"to the right":"to the left"}) at <i>E</i> act on the truss. Determine the vertical reactions at <i>A</i> and <i>D</i>, and use the method of sections, cutting through <i>EF</i>, <i>BF</i>, and <i>BC</i>, to find the force in each. Report member forces with tension positive and compression negative.</p>`,
   figure:p=>{const a=p.a,h=p.h,N={A:[0,0],B:[a,0],C:[2*a,0],D:[3*a,0],E:[a,h],F:[2*a,h]},s=a/1.2,e=trussEls(N,[["A","B"],["B","C"],["C","D"],["A","E"],["B","E"],["E","F"],["C","F"],["F","D"],["B","F"]],s);
-    e.push(...pinS(0,0,s),...rollS(3*a,0,s),...dnArrow(a,0,s,sbt("P","B")+" = "+p.PB+" "+FU(p),true,1.0),...dnArrow(2*a,0,s,sbt("P","C")+" = "+p.PC+" "+FU(p),true,.0),...hArrow(a,h,s,p.H,`${it("H")} = ${Math.abs(p.H)} ${FU(p)}`));
-    e.push({a:[1.5*a,-.7*s],b:[1.5*a,h+.9*s],t:"ln",c:"b",d:1,w:1.3},...dimsB([0,a,2*a,3*a],-4.6*s,p),{t:"dim",a:[3*a+1.2*s,0],b:[3*a+1.2*s,h],l:`${h} ${LU(p)}`});
+    e.forEach(z=>{if(z.l===it("B")){z.dx=-9;z.dy=18;z.an="end"}if(z.l===it("C")){z.dx=9;z.dy=18;z.an="start"}});
+    e.push(...pinS(0,0,s),...rollS(3*a,0,s),{a:[a,-.05*s],b:[a,-1.5*s],c:"r"},{t:"txt",p:[a-.15*s,-2*s],l:sbt("P","B")+" = "+p.PB+" "+FU(p),an:"end"},{a:[2*a,-.05*s],b:[2*a,-1.5*s],c:"r"},{t:"txt",p:[2*a+.15*s,-2*s],l:sbt("P","C")+" = "+p.PC+" "+FU(p),an:"start"},...hArrow(a,h,s,p.H,`${it("H")} = ${Math.abs(p.H)} ${FU(p)}`));
+    e.push({a:[1.5*a,-.7*s],b:[1.5*a,h+.9*s],t:"ln",c:"b",d:1,w:1.3},...dimsB([0,a,2*a,3*a],-3.4*s,p),{t:"dim",a:[3*a+1.2*s,0],b:[3*a+1.2*s,h],l:`${h} ${LU(p)}`});
     return draw(e,640,400)},
   solution:(p,s)=>`<h3>1. Support reactions</h3>
   <p>${eq(`ΣM<sub>A</sub> = 0: ${3*p.a}D<sub>y</sub> &minus; ${p.PB}(${p.a}) &minus; ${p.PC}(${2*p.a}) &minus; ${p.h}(${p.H}) = 0`)} so ${eq(`D<sub>y</sub> = ${sig(s.Dy)} ${FU(p)}`)}</p>
