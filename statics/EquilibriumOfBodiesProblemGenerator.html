@@ -131,7 +131,7 @@ function draw(els,W=560,H=340){
       for(let i=0;i<n;i++){const d=a+cl*(i+.5)/n,sg=i%2?-1:1;P.push([ax+ux*d+nx*8*sg,ay+uy*d+ny*8*sg])}
       P.push([bx-ux*a,by-uy*a],[bx,by]);o+=`<polyline points="${P.map(q=>f1(q[0])+","+f1(q[1])).join(" ")}" fill="none" stroke="#464b55" stroke-width="2"/>`;return}
     if(e.t==="dim"){o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="#222" stroke-width="0.9" marker-start="url(#vxd)" marker-end="url(#vxd)"/>`;
-      if(e.l){let nx=-dy/L,ny=dx/L;if(e.flip){nx=-nx;ny=-ny}o+=`<text x="${f1((ax+bx)/2+nx*13)}" y="${f1((ay+by)/2+ny*13+5)}" text-anchor="middle" class="halo">${e.l}</text>`}return}
+      if(e.l){let nx=-dy/L,ny=dx/L;if(e.flip){nx=-nx;ny=-ny}const vt=Math.abs(nx)>.7;o+=`<text x="${f1((ax+bx)/2+nx*(vt?9:13))}" y="${f1((ay+by)/2+ny*(vt?0:13)+5)}" text-anchor="${vt?(nx>0?"start":"end"):"middle"}" class="halo">${e.l}</text>`}return}
     const head=e.t==="ln"?"":` marker-end="url(#vx${c})"`;
     o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="${COL[c]}" stroke-width="${e.w||(c==="r"||c==="b"||c==="g"?2.6:1.4)}" ${e.d?'stroke-dasharray="5 4"':""}${head}/>`;
     if(e.l&&e.mid){const mxp=(ax+bx)/2,myp=(ay+by)/2;let nx=-dy/L,ny=dx/L;if(ny>0){nx=-nx;ny=-ny}
@@ -320,17 +320,17 @@ TEMPLATES["ladder-wall"]={
   name:"Ladder against a smooth wall",
   generate(seed){const r=mulberry32(seed);
     const p={us:r()<.5,L:pick(r,range(10,20,2)),th:pick(r,range(55,75,5)),W:pick(r,range(50,200,10)),P:pick(r,range(100,250,10)),s:0};
-    p.s=pick(r,range(2,Math.floor(p.L)-1,1));
+    p.s=pick(r,range(2,Math.floor(p.L)-1,1).filter(v=>Math.abs(v-p.L/2)>=3&&v<=p.L-4));
     const Nw=(p.W*p.L/2+p.P*p.s)*cs(p.th)/(p.L*sn(p.th)),Nf=p.W+p.P;
     return {p,s:{Nw,Ff:Nw,Nf}};},
   statement:p=>`<p>A uniform ladder of length ${p.L} ${LU(p)} and weight <i>W</i> = ${p.W} ${FU(p)} rests against a smooth vertical wall at an angle <i>θ</i> = ${p.th}° with the floor. A person of weight <i>P</i> = ${p.P} ${FU(p)} stands on the ladder at a distance ${p.s} ${LU(p)} along the ladder from its foot. The ladder is in equilibrium. Determine the wall force <i>N<sub>w</sub></i>, the horizontal floor force <i>F<sub>f</sub></i>, and the vertical floor force <i>N<sub>f</sub></i>.</p>`,
-  figure:p=>{const x0=p.L*cs(p.th),y1=p.L*sn(p.th),c=cs(p.th),sn_=sn(p.th),sc=.22,
+  figure:p=>{const x0=p.L*cs(p.th),y1=p.L*sn(p.th),c=cs(p.th),sn_=sn(p.th),sc=.22,ar=Math.max(1.6,.17*p.L),xd=Math.max(1.6,.3*p.L),
       e=[{t:"hatch",a:[0,-.5],b:[0,y1+.8],side:-1},{t:"hatch",a:[0,0],b:[x0+1.6,0],side:1},{a:[x0,0],b:[0,y1],c:"m",t:"ln",w:5},
       {t:"pt",p:[x0,0],l:it("A"),dx:6,dy:18,r:4},{t:"pt",p:[0,y1],l:it("B"),dx:12,dy:-4,r:4},
-      {a:[x0/2,y1/2+.9],b:[x0/2,y1/2+.1],c:"r",w:2},{t:"txt",p:[x0/2+.25,y1/2+1.2],l:`${it("W")} = ${p.W} ${FU(p)}`,an:"start"},
-      {a:[x0-p.s*c,p.s*sn_+.9],b:[x0-p.s*c,p.s*sn_+.1],c:"r"},{t:"txt",p:[x0-p.s*c+.25,p.s*sn_-.2],l:`${it("P")} = ${p.P} ${FU(p)}`,an:"start"},
+      {a:[x0/2,y1/2+ar],b:[x0/2,y1/2+.1],c:"r",w:2.6},{t:"txt",p:[x0/2+.3,y1/2+.6*ar],l:`${it("W")} = ${p.W} ${FU(p)}`,an:"start"},
+      {a:[x0-p.s*c,p.s*sn_+ar],b:[x0-p.s*c,p.s*sn_+.1],c:"r",w:2.6},{t:"txt",p:[x0-p.s*c+.3,p.s*sn_+.6*ar],l:`${it("P")} = ${p.P} ${FU(p)}`,an:"start"},
       {a:[x0+.0,.0],b:[x0-1.4,0],t:"ln",c:"x",d:1,w:1},{t:"arc",p:[x0,0],r:1.4,t0:180-p.th,t1:180,l:ang(p.th)},
-      {t:"dim",a:[x0+1.2,0],b:[x0+1.2,y1],l:`${sig(y1,3)} ${LU(p)}`}];
+      {t:"dim",a:[x0+xd,0],b:[x0+xd,y1],l:`${sig(y1,3)} ${LU(p)}`}];
     return draw(e,600,380)},
   solution:(p,s)=>`<h3>1. Free body diagram</h3>
   <p>The wall is smooth, so it exerts only a horizontal force <i>N<sub>w</sub></i> at <i>B</i>. The floor exerts a horizontal force <i>F<sub>f</sub></i> and a vertical force <i>N<sub>f</sub></i> at <i>A</i>. The weight acts at ${p.L/2} ${LU(p)} along the ladder.</p>
