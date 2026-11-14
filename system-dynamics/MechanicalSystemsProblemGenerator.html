@@ -447,7 +447,7 @@ TEMPLATES["pulley-spring-mass"]={
     {t:"ln",p:[[110,70],[110,170]]},{t:"box",x:110,y:185,w:50,h:34,l:"m"},{t:"ln",p:[[190,70],[190,120]]},{t:"spr",a:[190,120],b:[190,215],l:"k"},{t:"gnd",x1:160,x2:230,y:215},
     {t:"arr",a:[60,170],b:[60,210],l:"x"}],300,235),
   solution:(p,s)=>`<h3>1. Equation of motion</h3>
-  <p>With wire tensions <i>T</i><sub>1</sub> (mass side) and <i>T</i><sub>2</sub> = <i>kx</i> (spring side) and θ = <i>x</i>/<i>R</i>: ${eq(`<i>mẍ</i> = −<i>T</i><sub>1</sub>`)} and ${eq(`<i>J</i>ẍ/<i>R</i> = (<i>T</i><sub>1</sub> − <i>kx</i>)<i>R</i>`)}, measured from equilibrium. Eliminating <i>T</i><sub>1</sub>:</p>
+  <p>Measure <i>x</i> from the equilibrium position, and let <i>T</i><sub>1</sub> and <i>T</i><sub>2</sub> = <i>kx</i> be the changes in wire tension from their static values on the mass side and the spring side. At equilibrium the static tension balances <i>mg</i> on both sides, so only these changes enter the equations of motion. With θ = <i>x</i>/<i>R</i>: ${eq(`<i>mẍ</i> = −<i>T</i><sub>1</sub>`)} and ${eq(`<i>J</i>ẍ/<i>R</i> = (<i>T</i><sub>1</sub> − <i>kx</i>)<i>R</i>`)}. Eliminating <i>T</i><sub>1</sub>:</p>
   <p>${eq(`(<i>m</i> + <i>J</i>/<i>R</i>²)ẍ + <i>kx</i> = 0`)}, so the effective mass is ${eq(`${p.m} + ${nf(p.J)}/${nf(p.R)}² = ${sig(s.me)} kg`)}</p>
   <h3>2. Natural frequency and period</h3>
   <p class="final"><i>m</i><sub>eff</sub> = ${sig(s.me,3)} kg, ${wn_} = √(<i>k</i>/<i>m</i><sub>eff</sub>) = ${sig(s.wn,3)} rad/s, period = ${sig(s.T,3)} s.</p>`,

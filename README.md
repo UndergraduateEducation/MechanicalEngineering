@@ -8,7 +8,7 @@ Static site; no build step and no server. Served by GitHub Pages from the `main`
 
 - **`index.html`**: front page, listing the courses; styled by `assets/site.css`.
 - **`assets/`**: `site.css` is the only file that any page loads. `common.js`, `engine.js`, `fatigue.js` and `generator.css` hold code extracted from the Shaft Analysis chapter; no page loads them.
-- **Course folders**: one per course, each holding one HTML file per chapter generator and, except for `system-dynamics/`, a course index page named `index-<course>.html`.
+- **Course folders**: one per course, each holding one HTML file per chapter generator and a course index page named `index-<course>.html`.
 
 | Folder | Course | Chapter generators | Course index |
 |---|---|---|---|
@@ -16,7 +16,7 @@ Static site; no build step and no server. Served by GitHub Pages from the `main`
 | `thermodynamics/` | Thermodynamics | 14 | `index-thermodynamics.html` |
 | `mechanics-of-materials/` | Mechanics of Materials | 13 | `index-mechanics-of-materials.html` |
 | `machine-design/` | Machine Design | 7 | `index-machine-design.html` |
-| `system-dynamics/` | System Dynamics | 2 (Laplace transform, time-domain control) | none; not linked from the front page |
+| `system-dynamics/` | System Dynamics | 10 | `index-system-dynamics.html` |
 
 ## Chapter generators
 
