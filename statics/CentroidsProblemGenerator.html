@@ -64,7 +64,7 @@
     <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
     <button class="ghost" id="loadBtn">Load seed</button>
   </div>
-  <div class="card"><div id="fig"></div></div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
   <div class="card">
     <div class="answers" id="answers"></div>
@@ -332,14 +332,6 @@ TEMPLATES["composite-solid-3d"]={
       return {p,s:{rows,V,xb,yb,zb}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>A solid of uniform density consists of a rectangular block of dimensions ${p.a} ${LU(p)} (<i>x</i>) by ${p.b} ${LU(p)} (<i>y</i>) by ${p.c} ${LU(p)} (<i>z</i>) with one corner at the origin, and a circular cylinder of radius ${p.rr} ${LU(p)} and height ${p.hc} ${LU(p)} standing on the top face. The axis of the cylinder is vertical and passes through <i>x</i> = ${p.xc} ${LU(p)}, <i>y</i> = ${p.yc} ${LU(p)}. The <i>z</i> axis points up. Determine the coordinates of the center of mass of the solid.</p>`,
-  figure:p=>{const {a,b,c}=p,P=q=>P3(q),e=[],E=(u,v)=>e.push({a:P(u),b:P(v),c:"m",t:"ln",w:2.4});
-    [[0,0,0],[a,0,0],[a,b,0],[0,b,0]].forEach((q,i,A)=>E(q,A[(i+1)%4]));
-    [[0,0,c],[a,0,c],[a,b,c],[0,b,c]].forEach((q,i,A)=>E(q,A[(i+1)%4]));
-    [[0,0],[a,0],[a,b],[0,b]].forEach(q=>E([q[0],q[1],0],[q[0],q[1],c]));
-    const ring=z=>Array.from({length:37},(_,i)=>P([p.xc+p.rr*cs(i*10),p.yc+p.rr*sn(i*10),z]));
-    e.push({t:"poly",pts:ring(c),fill:"#e7dcc0"},{t:"poly",pts:ring(c+p.hc),fill:"#e7dcc0"});
-    [0,90,180,270].forEach(t=>e.push({a:P([p.xc+p.rr*cs(t),p.yc+p.rr*sn(t),c]),b:P([p.xc+p.rr*cs(t),p.yc+p.rr*sn(t),c+p.hc]),c:"m",t:"ln",w:2}));
-    return draw([...axes3([[a,b,c+p.hc]]),...e],580,380)},
   solution:(p,s)=>`<h3>1. Parts</h3>
   <p>The solid is a block and a cylinder. Each part has a known volume and a center of mass at its geometric center: the block at (${p.a/2}, ${p.b/2}, ${p.c/2}) ${LU(p)}, and the cylinder on its axis at half its height above the top face of the block.</p>
   <h3>2. Tabulate</h3>
@@ -371,7 +363,7 @@ function render(key,seed){
   cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
   $("typeSel").value=key; $("seedIn").value=seed;
   try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
-  $("fig").innerHTML=T.figure(p,s);
+  $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
   $("statement").innerHTML=T.statement(p,s);
   $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
