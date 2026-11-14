@@ -53,8 +53,13 @@
 <main>
   <div class="card howto">
     <h2>How to use</h2>
-    <p>Pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
     <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
   </div>
   <div class="card bar">
     <label for="typeSel">Problem type</label><select id="typeSel"></select>
@@ -66,6 +71,10 @@
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -379,40 +388,143 @@ TEMPLATES["space-truss-joint"]={
   note:"Tension is positive, compression is negative."
 };
 
+
+// ===== planted errors: one conceptual mistake per problem type
+const FLAWS={};
+
+FLAWS["truss-triangle"]={n:3,step:3,
+  why:"Member <i>AC</i> is inclined, so only its horizontal component enters the horizontal equilibrium of joint <i>A</i>. That component is <i>F<sub>AC</sub></i> times x<sub>C</sub>/<i>L<sub>AC</sub></i>.",
+  html:(p,s)=>{const FAB=-(s.Ax+s.FAC);
+    return `<h3>1. Support reactions</h3>
+  <p>${eq(`B<sub>y</sub> = ${sig(s.By)} ${FU(p)}`)} ${eq(`A<sub>x</sub> = ${sig(s.Ax)} ${FU(p)}`)} ${eq(`A<sub>y</sub> = ${sig(s.Ay)} ${FU(p)}`)}</p>
+  <h3>2. Joint C</h3>
+  <p>${eq(`F<sub>AC</sub> = ${sig(s.FAC)} ${FU(p)}`)} ${eq(`F<sub>BC</sub> = ${sig(s.FBC)} ${FU(p)}`)}</p>
+  <h3>3. Joint A</h3>
+  <p>Horizontal equilibrium at <i>A</i> involves the reaction, the force in <i>AC</i>, and the force in the bottom chord:</p>
+  <p>${eq(`ΣF<sub>x</sub> = 0: ${sig(s.Ax)} + ${sig(s.FAC)} + F<sub>AB</sub> = 0`)} so ${eq(`F<sub>AB</sub> = ${sig(FAB)} ${FU(p)}`)}</p>
+  <p class="final">A<sub>x</sub> = ${sig(s.Ax,3)}, A<sub>y</sub> = ${sig(s.Ay,3)}, B<sub>y</sub> = ${sig(s.By,3)} ${FU(p)}; F<sub>AC</sub> = ${sig(s.FAC,3)}, F<sub>BC</sub> = ${sig(s.FBC,3)}, F<sub>AB</sub> = ${sig(FAB,3)} ${FU(p)}.</p>`}};
+
+FLAWS["truss-warren-sections"]={n:2,step:1,
+  why:"The horizontal force at <i>D</i> acts a height <i>h</i> above the supports, so it has a moment about <i>A</i> and changes the vertical reactions.",
+  html:(p,s)=>{const {a,h,P1,P2,H}=p,Cy=(a*P1+3*a*P2)/(4*a),Ay=P1+P2-Cy,Ax=-H;
+    const FDE=(-2*a*Ay+a*P1-h*H)/h,FAB=(a*Ay-h*Ax)/h,FDB=(Ay-P1)*s.L/h;
+    return `<h3>1. Support reactions</h3>
+  <p>Taking moments about <i>A</i> with the two downward loads:</p>
+  <p>${eq(`C<sub>y</sub>(${4*a}) = ${P1}(${a}) + ${P2}(${3*a})`)} so ${eq(`C<sub>y</sub> = ${sig(Cy)} ${FU(p)}`)} and ${eq(`A<sub>y</sub> = ${sig(Ay)} ${FU(p)}`)}</p>
+  <h3>2. Section through DE, DB, and AB</h3>
+  <p>${eq(`F<sub>DE</sub> = ${sig(FDE)} ${FU(p)}`)} ${eq(`F<sub>DB</sub> = ${sig(FDB)} ${FU(p)}`)} ${eq(`F<sub>AB</sub> = ${sig(FAB)} ${FU(p)}`)}</p>
+  <p class="final">A<sub>y</sub> = ${sig(Ay,3)}, C<sub>y</sub> = ${sig(Cy,3)} ${FU(p)}; F<sub>DE</sub> = ${sig(FDE,3)}, F<sub>DB</sub> = ${sig(FDB,3)}, F<sub>AB</sub> = ${sig(FAB,3)} ${FU(p)}.</p>`}};
+
+FLAWS["truss-pratt-sections"]={n:2,step:2,
+  why:"Member <i>BF</i> is a diagonal, so only its vertical component balances the shear across the cut. Its force is larger than the shear by the ratio of its length to its height.",
+  html:(p,s)=>{const {a,h,PB,PC,H}=p,FBF=(PB-s.Ay);
+    return `<h3>1. Support reactions</h3>
+  <p>${eq(`D<sub>y</sub> = ${sig(s.Dy)} ${FU(p)}`)} ${eq(`A<sub>y</sub> = ${sig(s.Ay)} ${FU(p)}`)}</p>
+  <h3>2. Section through EF, BF, and BC</h3>
+  <p>${eq(`F<sub>EF</sub> = ${sig(s.FEF)} ${FU(p)}`)} ${eq(`F<sub>BC</sub> = ${sig(s.FBC)} ${FU(p)}`)}</p>
+  <p>Vertical equilibrium of the left part gives the force in the diagonal directly:</p>
+  <p>${eq(`F<sub>BF</sub> = ${PB} &minus; ${sig(s.Ay)} = ${sig(FBF)} ${FU(p)}`)}</p>
+  <p class="final">A<sub>y</sub> = ${sig(s.Ay,3)}, D<sub>y</sub> = ${sig(s.Dy,3)} ${FU(p)}; F<sub>EF</sub> = ${sig(s.FEF,3)}, F<sub>BF</sub> = ${sig(FBF,3)}, F<sub>BC</sub> = ${sig(s.FBC,3)} ${FU(p)}.</p>`}};
+
+FLAWS["frame-two-member"]={n:4,step:2,
+  why:"The load acts at <i>D</i>, part way along <i>AB</i>, so its moment about <i>A</i> uses the position of <i>D</i>. Using the position of <i>B</i> moves the load to the end of the member.",
+  html:(p,s)=>{const S=-s.L*(p.xb*s.Py-p.h*s.Px)/(p.h*p.w),Cx=S*s.ux,Cy=S*s.uy,Ax=-(Cx+s.Px),Ay=-(Cy+s.Py);
+    return `<h3>1. Member BC is a two-force member</h3>
+  <p>It carries a force along its axis, with direction cosines (${sig(s.ux)}, ${sig(s.uy)}).</p>
+  <h3>2. Free body diagram of member AB</h3>
+  <p>Moments about <i>A</i>, with the load taken at <i>B</i>:</p>
+  <p>${eq(`${p.xb}(${sig(s.Py)}) &minus; ${p.h}(${sig(s.Px)}) + S(${sig(p.h*p.w/s.L)}) = 0`)}</p>
+  <p>${eq(`S = ${sig(S)} ${FU(p)}`)}</p>
+  <h3>3. Pin reactions</h3>
+  <p>${eq(`C<sub>x</sub> = ${sig(Cx)}`)} ${eq(`C<sub>y</sub> = ${sig(Cy)}`)} ${eq(`A<sub>x</sub> = ${sig(Ax)}`)} ${eq(`A<sub>y</sub> = ${sig(Ay)}`)} (${FU(p)})</p>
+  <h3>4. Force on the pin at B</h3>
+  <p class="final">S = ${sig(S,3)} ${FU(p)} (compression), A = (${sig(Ax,3)}, ${sig(Ay,3)}), C = (${sig(Cx,3)}, ${sig(Cy,3)}) ${FU(p)}, pin force at B = ${sig(Math.abs(S),3)} ${FU(p)}.</p>`}};
+
+FLAWS["pliers-machine"]={n:3,step:3,
+  why:"The hand force and the force from the object act on opposite sides of the pin but in opposite directions, so the pin must supply their sum, not their difference.",
+  html:(p,s)=>{const R=Math.abs(s.P-s.Q);
+    return `<h3>1. Free body diagram of one handle</h3>
+  <p>The handle carries the hand force <i>P</i>, the force <i>Q</i> from the object, and the pin force <i>R</i>.</p>
+  <h3>2. Moments about the pin</h3>
+  <p>${eq(`P(${p.a}) = Q(${p.b})`)} so ${eq(`${p.mode==="grip"?"Q":"P"} = ${sig(p.mode==="grip"?s.Q:s.P)} ${FU(p)}`)}</p>
+  <h3>3. Force equilibrium of the handle</h3>
+  <p>The two applied forces are on opposite sides of the pin, so the pin carries what is left over:</p>
+  <p>${eq(`R = |P &minus; Q| = ${sig(R)} ${FU(p)}`)}</p>
+  <p class="final">${p.mode==="grip"?"Q":"P"} = ${sig(p.mode==="grip"?s.Q:s.P,3)} ${FU(p)}, R = ${sig(R,3)} ${FU(p)}.</p>`}};
+
+FLAWS["space-truss-joint"]={n:3,step:1,
+  why:"Each bar force acts along the bar, away from or toward <i>O</i> depending on its sign. The unit vectors must all start at the joint being analysed, that is run from <i>O</i> toward each support.",
+  html:(p,s)=>{const O=[0,0,p.h],L=[p.A,p.B,p.C].map(q=>unit(sub(O,q))),M=[0,1,2].map(i=>L.map(l=>l[i]));
+    const T=solve3(M,[-p.Fx,-p.Fy,p.Fz]);
+    return `<h3>1. Unit vectors from each support toward O</h3>
+  <p>${eq(`λ<sub>A</sub> = ${fv(L[0])}`)} ${eq(`λ<sub>B</sub> = ${fv(L[1])}`)} ${eq(`λ<sub>C</sub> = ${fv(L[2])}`)}</p>
+  <h3>2. Equilibrium of joint O</h3>
+  <p>${eq(`T<sub>A</sub>λ<sub>A</sub> + T<sub>B</sub>λ<sub>B</sub> + T<sub>C</sub>λ<sub>C</sub> + F = 0`)}</p>
+  <h3>3. Solve</h3>
+  <p class="final">T<sub>OA</sub> = ${sig(T[0],3)}, T<sub>OB</sub> = ${sig(T[1],3)}, T<sub>OC</sub> = ${sig(T[2],3)} ${FU(p)}.</p>`}};
+
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
 const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
 function reportUrl(){
   const q=new URLSearchParams({usp:"pp_url"});
   q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
-  q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);
   return FORM.url+"?"+q.toString();
 }
 
 // ===== page
-let curKey="truss-triangle", cur=null, curFields=[];
+let curKey="truss-triangle", curSeed=null, cur=null, curFields=[], curTruth={}, curMode="practice";
 const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+
+function fillTypes(){
+  const keys=hunting()?Object.keys(FLAWS):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+  return curKey;
+}
+
+function setMode(mode,key,seed){
+  curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";
+  $("mError").className=mode==="error"?"":"ghost";
+  const rr=$("reportRow"); if(rr&&rr.firstElementChild)rr.firstElementChild.textContent=hunting()
+    ?"Found a mistake other than the planted one?"
+    :"Found a mistake in a problem or its solution?";
+  curKey=key||curKey; const k=fillTypes();
+  render(k,seed||parseInt($("seedIn").value,10)||1);
+}
 
 function render(key,seed){
-  curKey=key; const T=TEMPLATES[key];
-  cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
+  curKey=key; curSeed=seed; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed); const {p,s}=cur;
   $("typeSel").value=key; $("seedIn").value=seed;
-  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
-  $("fig").innerHTML=T.figure(p,s);
+  try{history.replaceState(null,"","#"+key+"-"+seed+(hunting()?"-e":""))}catch(e){}
+  const fc=$("figCard"); if(fc)fc.style.display=T.figure?"":"none";
+  $("fig").innerHTML=T.figure?T.figure(p,s):"";
   $("statement").innerHTML=T.statement(p,s);
+  $("flawCard").style.display=F?"":"none";
+  $("flawed").innerHTML=F?F.html(p,s):"";
+  curFields=T.fields(p,s); curTruth=T.truth(s);
+  if(F){const steps=[];for(let i=1;i<=F.n;i++)steps.push(String(i));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];
+    curTruth={step:String(F.step),...curTruth}}
   $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
     :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
-  $("ansNote").textContent="Answers within 2% are accepted. "+T.note;
-  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
-  $("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+"Answers within 2% are accepted. "+T.note;
+  const sol=$("solution"); sol.style.display="none";
+  sol.innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 
 function check(){
-  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const truth=curTruth;
   const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
   curFields.forEach(f=>{
-    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    const el=$("mk-"+f.id); let raw=$("in-"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");
+    raw=/^-?\d{1,3}(,\d{3})+(\.\d*)?$/.test(raw)?raw.replace(/,/g,""):raw.replace(",",".");
     if(raw===""){el.textContent="";el.className="mark";return}
     if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
     let v=parseFloat(raw), t=truth[f.id];
@@ -425,19 +537,21 @@ function check(){
 
 if(typeof document!=="undefined"){
   const newSeed=()=>1+Math.floor(Math.random()*999999);
-  $("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
   $("typeSel").onchange=e=>render(e.target.value,newSeed());
   $("newBtn").onclick=()=>render(curKey,newSeed());
   $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
   $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
   if(FORM.url)$("reportRow").style.display="";
   $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
   $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-    s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+    s.style.display=show?"block":"none";
+    e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
   (function(){
-    const m=/^#([a-z0-9-]+)-(\d+)$/.exec(location.hash);
-    if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
-    else render("truss-triangle",newSeed());
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice","truss-triangle",newSeed());
   })();
 }
 if(typeof module!=="undefined")module.exports={TEMPLATES};

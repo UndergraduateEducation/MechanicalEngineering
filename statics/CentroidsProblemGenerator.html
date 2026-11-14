@@ -53,8 +53,13 @@
 <main>
   <div class="card howto">
     <h2>How to use</h2>
-    <p>Pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
     <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
   </div>
   <div class="card bar">
     <label for="typeSel">Problem type</label><select id="typeSel"></select>
@@ -66,6 +71,10 @@
   </div>
   <div class="card" id="figCard"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -344,6 +353,92 @@ TEMPLATES["composite-solid-3d"]={
   note:"Measure from the corner of the block at the origin."
 };
 
+
+// ===== planted errors: one conceptual mistake per problem type
+const FLAWS={};
+
+FLAWS["centroid-composite-area"]={n:3,step:3,
+  why:"The centroid of a composite area is the area-weighted average of the part centroids. A plain average of the part centroids gives a small part the same influence as a large one.",
+  html:(p,s)=>{const n=s.rows.length,xb=s.rows.reduce((a,q)=>a+q.x,0)/n,yb=s.rows.reduce((a,q)=>a+q.y,0)/n;
+    return `<h3>1. Divide the plate into simple parts</h3>
+  <p>${s.rows.map(q=>`${q.n}: centroid at (${sig(q.x,3)}, ${sig(q.y,3)}) ${LU(p)}`).join("; ")}.</p>
+  <h3>2. Tabulate</h3>
+  ${ptab(s.rows,p,AU(p))}
+  <h3>3. Centroid of the whole plate</h3>
+  <p>The centroid lies at the average of the centroids of the parts:</p>
+  <p>${eq(`x̄ = (${s.rows.map(q=>sig(q.x,3)).join(" + ")})/${n} = ${sig(xb)} ${LU(p)}`)}</p>
+  <p>${eq(`ȳ = (${s.rows.map(q=>sig(q.y,3)).join(" + ")})/${n} = ${sig(yb)} ${LU(p)}`)}</p>
+  <p class="final">x̄ = ${sig(xb,3)} ${LU(p)}, ȳ = ${sig(yb,3)} ${LU(p)}.</p>`}};
+
+FLAWS["centroid-integration"]={n:3,step:3,
+  why:"A vertical strip has its own centroid at half its height, so the first moment about the <i>x</i> axis uses <i>y</i>/2 as the moment arm of the strip.",
+  html:(p,s)=>{const k=p.b/Math.pow(p.a,p.n),A=s.A,Qx=k*k*Math.pow(p.a,2*p.n+1)/(2*p.n+1),yb=Qx/A,xb=s.xb;
+    return `<h3>1. Constant of the curve</h3>
+  <p>${eq(`k = ${p.b}/${p.a}<sup>${p.n}</sup>`)}</p>
+  <h3>2. Area</h3>
+  <p>${eq(`A = ∫<sub>0</sub><sup>${p.a}</sup> kx<sup>${p.n}</sup> dx = ${sig(A)} ${AU(p)}`)}</p>
+  <h3>3. First moments</h3>
+  <p>${eq(`Q<sub>y</sub> = ∫ x(kx<sup>${p.n}</sup>) dx`)} so ${eq(`x̄ = ${sig(xb)} ${LU(p)}`)}</p>
+  <p>Each strip reaches up to the curve, so its moment arm about the <i>x</i> axis is <i>y</i>:</p>
+  <p>${eq(`Q<sub>x</sub> = ∫ y(y dx) = ${sig(Qx)}`)} so ${eq(`ȳ = Q<sub>x</sub>/A = ${sig(yb)} ${LU(p)}`)}</p>
+  <p class="final">A = ${sig(A,3)} ${AU(p)}, x̄ = ${sig(xb,3)} ${LU(p)}, ȳ = ${sig(yb,3)} ${LU(p)}.</p>`}};
+
+FLAWS["centroid-wire"]={n:3,step:1,
+  why:"The centroid of a semicircular arc lies 2<i>r</i>/π from the centre of its diameter, not at the centre itself. The wire is bent, so its material is not concentrated on the diameter.",
+  html:(p,s)=>{const rows=[{n:"Horizontal segment",A:p.a,x:p.a/2,y:0},{n:"Vertical segment",A:p.b,x:p.a,y:p.b/2},{n:"Semicircular arc",A:Math.PI*p.rr,x:p.a-p.rr,y:p.b}];
+    const L=rows.reduce((a,q)=>a+q.A,0),xb=rows.reduce((a,q)=>a+q.A*q.x,0)/L,yb=rows.reduce((a,q)=>a+q.A*q.y,0)/L;
+    return `<h3>1. Parts of the wire</h3>
+  <p>The arc has length π<i>r</i> = ${sig(Math.PI*p.rr)} ${LU(p)}, and its centroid is at the centre of the semicircle, (${sig(p.a-p.rr,3)}, ${p.b}) ${LU(p)}.</p>
+  <h3>2. Tabulate</h3>
+  ${ptab(rows,p,LU(p),"L")}
+  <h3>3. Centroid</h3>
+  <p class="final">x̄ = ${sig(xb,3)} ${LU(p)}, ȳ = ${sig(yb,3)} ${LU(p)}.</p>`}};
+
+FLAWS["pappus-guldinus"]={n:2,step:1,
+  why:"The second theorem uses the distance travelled by the <i>centroid</i> of the area, so each part contributes 2π times its own centroidal distance from the axis, not the full width of the region.",
+  html:(p,s)=>{const Arec=p.r*p.H,Atri=p.r*p.d/2,V=2*Math.PI*p.r*(Arec+Atri);
+    return `<h3>1. Volume (second theorem)</h3>
+  <p>The region has area ${eq(`A = ${sig(Arec)} + ${sig(Atri)} = ${sig(Arec+Atri)} ${AU(p)}`)} and extends ${p.r} ${LU(p)} from the axis, so</p>
+  <p>${eq(`V = 2π(${p.r})(${sig(Arec+Atri)}) = ${sig(V)} ${VU(p)}`)}</p>
+  <h3>2. Surface area (first theorem)</h3>
+  <p>${eq(`S = 2π(${p.r})(${p.H}) + π(${p.r})(${sig(s.Ls)}) = ${sig(s.S)} ${AU(p)}`)}</p>
+  <p class="final">V = ${sig(V,3)} ${VU(p)}, S = ${sig(s.S,3)} ${AU(p)}.</p>`}};
+
+FLAWS["trapezoid-load-beam"]={n:3,step:2,
+  why:"The load is not symmetric, so its resultant acts through the centroid of the trapezoid, which lies toward the heavier end rather than at mid-span.",
+  html:(p,s)=>{const xb=p.L/2,Ay=s.R*(p.L-xb)/p.L,By=s.R*xb/p.L;
+    return `<h3>1. Resultant</h3>
+  <p>${eq(`R = ½(${p.w1} + ${p.w2})(${p.L}) = ${sig(s.R)} ${FU(p)}`)}</p>
+  <h3>2. Line of action</h3>
+  <p>The load covers the whole span, so its resultant acts at the middle of the beam:</p>
+  <p>${eq(`x̄ = ${p.L}/2 = ${sig(xb)} ${LU(p)}`)}</p>
+  <h3>3. Reactions</h3>
+  <p>${eq(`A<sub>y</sub> = ${sig(Ay)} ${FU(p)}`)} ${eq(`B<sub>y</sub> = ${sig(By)} ${FU(p)}`)}</p>
+  <p class="final">R = ${sig(s.R,3)} ${FU(p)}, x̄ = ${sig(xb,3)} ${LU(p)}, A<sub>y</sub> = ${sig(Ay,3)} ${FU(p)}, B<sub>y</sub> = ${sig(By,3)} ${FU(p)}.</p>`}};
+
+FLAWS["fluid-gate"]={n:3,step:3,
+  why:"The pressure grows with depth, so the resultant acts below the centroid of the gate, at the centroid of the pressure volume.",
+  html:(p,s)=>{const yc=(p.d1+p.d2)/2,e=p.d2-yc;
+    return `<h3>1. Pressure distribution</h3>
+  <p>${eq(`p = γd`)}, from ${sig(p.g*p.d1)} to ${sig(p.g*p.d2)} ${p.us?"lbf/ft²":"N/m²"}.</p>
+  <h3>2. Resultant force</h3>
+  <p>${eq(`F = ${sig(s.F)} ${FU(p)}`)}</p>
+  <h3>3. Line of action</h3>
+  <p>The resultant of a distributed load acts at the centroid of the loaded area, which is at mid-depth of the gate:</p>
+  <p>${eq(`y<sub>c</sub> = (${p.d1} + ${p.d2})/2 = ${sig(yc)} ${LU(p)}`)} ${eq(`e = ${p.d2} &minus; ${sig(yc)} = ${sig(e)} ${LU(p)}`)}</p>
+  <p class="final">F = ${sig(s.F,3)} ${FU(p)}, y<sub>c</sub> = ${sig(yc,3)} ${LU(p)}, e = ${sig(e,3)} ${LU(p)}.</p>`}};
+
+FLAWS["composite-solid-3d"]={n:3,step:1,
+  why:"The centre of mass of the cylinder is at half its height above the top face of the block, not on the face itself.",
+  html:(p,s)=>{const rows=[{n:"Block",A:p.a*p.b*p.c,x:p.a/2,y:p.b/2,z:p.c/2},{n:"Cylinder",A:Math.PI*p.rr*p.rr*p.hc,x:p.xc,y:p.yc,z:p.c}];
+    const V=rows.reduce((t,q)=>t+q.A,0),xb=rows.reduce((t,q)=>t+q.A*q.x,0)/V,yb=rows.reduce((t,q)=>t+q.A*q.y,0)/V,zb=rows.reduce((t,q)=>t+q.A*q.z,0)/V;
+    return `<h3>1. Parts</h3>
+  <p>The block has its centre at (${p.a/2}, ${p.b/2}, ${p.c/2}) ${LU(p)}. The cylinder stands on the top face, so its centre of mass is on that face at (${p.xc}, ${p.yc}, ${p.c}) ${LU(p)}.</p>
+  <h3>2. Tabulate</h3>
+  <p>${eq(`V<sub>block</sub> = ${sig(rows[0].A)} ${VU(p)}`)} ${eq(`V<sub>cyl</sub> = ${sig(rows[1].A)} ${VU(p)}`)}</p>
+  <h3>3. Center of mass</h3>
+  <p class="final">x̄ = ${sig(xb,3)}, ȳ = ${sig(yb,3)}, z̄ = ${sig(zb,3)} ${LU(p)}.</p>`}};
+
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
 const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
@@ -355,26 +450,53 @@ function reportUrl(){
 }
 
 // ===== page
-let curKey="centroid-composite-area", curSeed=null, cur=null, curFields=[];
+let curKey="centroid-composite-area", curSeed=null, cur=null, curFields=[], curTruth={}, curMode="practice";
 const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+
+function fillTypes(){
+  const keys=hunting()?Object.keys(FLAWS):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+  return curKey;
+}
+
+function setMode(mode,key,seed){
+  curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";
+  $("mError").className=mode==="error"?"":"ghost";
+  const rr=$("reportRow"); if(rr&&rr.firstElementChild)rr.firstElementChild.textContent=hunting()
+    ?"Found a mistake other than the planted one?"
+    :"Found a mistake in a problem or its solution?";
+  curKey=key||curKey; const k=fillTypes();
+  render(k,seed||parseInt($("seedIn").value,10)||1);
+}
 
 function render(key,seed){
-  curKey=key; curSeed=seed; const T=TEMPLATES[key];
-  cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
+  curKey=key; curSeed=seed; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed); const {p,s}=cur;
   $("typeSel").value=key; $("seedIn").value=seed;
-  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
-  $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
+  try{history.replaceState(null,"","#"+key+"-"+seed+(hunting()?"-e":""))}catch(e){}
+  const fc=$("figCard"); if(fc)fc.style.display=T.figure?"":"none";
+  $("fig").innerHTML=T.figure?T.figure(p,s):"";
   $("statement").innerHTML=T.statement(p,s);
+  $("flawCard").style.display=F?"":"none";
+  $("flawed").innerHTML=F?F.html(p,s):"";
+  curFields=T.fields(p,s); curTruth=T.truth(s);
+  if(F){const steps=[];for(let i=1;i<=F.n;i++)steps.push(String(i));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];
+    curTruth={step:String(F.step),...curTruth}}
   $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
     :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
-  $("ansNote").textContent="Answers within 2% are accepted. "+T.note;
-  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
-  $("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+"Answers within 2% are accepted. "+T.note;
+  const sol=$("solution"); sol.style.display="none";
+  sol.innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 
 function check(){
-  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const truth=curTruth;
   const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
   curFields.forEach(f=>{
     const el=$("mk-"+f.id); let raw=$("in-"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");
@@ -391,19 +513,21 @@ function check(){
 
 if(typeof document!=="undefined"){
   const newSeed=()=>1+Math.floor(Math.random()*999999);
-  $("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
   $("typeSel").onchange=e=>render(e.target.value,newSeed());
   $("newBtn").onclick=()=>render(curKey,newSeed());
   $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
   $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
   if(FORM.url)$("reportRow").style.display="";
   $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
   $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-    s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+    s.style.display=show?"block":"none";
+    e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
   (function(){
-    const m=/^#([a-z0-9-]+)-(\d+)$/.exec(location.hash);
-    if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
-    else render("centroid-composite-area",newSeed());
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice","centroid-composite-area",newSeed());
   })();
 }
 if(typeof module!=="undefined")module.exports={TEMPLATES};

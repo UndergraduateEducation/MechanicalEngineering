@@ -53,8 +53,13 @@
 <main>
   <div class="card howto">
     <h2>How to use</h2>
-    <p>Pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
     <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
   </div>
   <div class="card bar">
     <label for="typeSel">Problem type</label><select id="typeSel"></select>
@@ -66,6 +71,10 @@
   </div>
   <div class="card" id="figCard"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -368,40 +377,162 @@ TEMPLATES["belt-drive"]={
   note:"Use 1 hp = 63025 lbf·in·rpm for the US unit calculation."
 };
 
+
+// ===== planted errors: one conceptual mistake per problem type
+const FLAWS={};
+
+FLAWS["block-incline-friction"]={n:2,step:2,
+  why:"The friction a surface can supply is μ<sub>s</sub> times the <i>normal</i> force, and on an incline the normal force is only the perpendicular component of the weight.",
+  html:(p,s)=>{const Fmax=p.mus*p.W,slips=s.Freq>Fmax,F=slips?p.muk*s.N:s.Freq;
+    return `<h3>1. Free body diagram and equilibrium</h3>
+  <p>${eq(`N = W cos ${ang(p.th)} = ${sig(s.N)} ${FU(p)}`)} ${eq(`F<sub>req</sub> = W sin ${ang(p.th)} = ${sig(s.Freq)} ${FU(p)}`)}</p>
+  <h3>2. Friction capacity</h3>
+  <p>The surface can supply friction up to μ<sub>s</sub> times the weight of the block:</p>
+  <p>${eq(`F<sub>max</sub> = ${mu2(p.mus)}(${p.W}) = ${sig(Fmax)} ${FU(p)}`)}</p>
+  <p>Since F<sub>req</sub> is ${slips?"larger":"smaller"}, the block ${slips?"slips":"stays at rest"}.</p>
+  <p class="final">N = ${sig(s.N,3)}, F<sub>req</sub> = ${sig(s.Freq,3)}, F<sub>max</sub> = ${sig(Fmax,3)} ${FU(p)}; the block ${slips?"slips":"stays at rest"}; F = ${sig(F,3)} ${FU(p)}.</p>`}};
+
+FLAWS["push-pull-block"]={n:2,step:1,
+  why:"The applied force is inclined, so its vertical component changes the normal force. The normal force is not simply the weight.",
+  html:(p,s)=>{const P=p.mu*p.W/cs(p.al),F=p.mu*p.W;
+    return `<h3>1. Impending motion</h3>
+  <p>The crate rests on a horizontal floor, so the floor carries its weight:</p>
+  <p>${eq(`N = W = ${p.W} ${FU(p)}`)} ${eq(`F = μ<sub>s</sub>N = ${sig(F)} ${FU(p)}`)}</p>
+  <h3>2. Equilibrium</h3>
+  <p>${eq(`P cos ${ang(p.al)} = F`)} so ${eq(`P = ${sig(P)} ${FU(p)}`)}</p>
+  <p class="final">P = ${sig(P,3)} ${FU(p)}, N = ${p.W} ${FU(p)}, F = ${sig(F,3)} ${FU(p)}.</p>`}};
+
+FLAWS["tip-or-slip"]={n:3,step:2,
+  why:"Tipping is about the far bottom edge, and the weight resists it with a moment arm of half the width, since the weight of a uniform block acts through its centre.",
+  html:(p,s)=>{const Pt=p.W*p.b/p.a,mode=s.Ps<Pt?"slides":"tips",P=Math.min(s.Ps,Pt);
+    return `<h3>1. Sliding</h3>
+  <p>${eq(`P<sub>slide</sub> = μ<sub>s</sub>W = ${sig(s.Ps)} ${FU(p)}`)}</p>
+  <h3>2. Tipping</h3>
+  <p>Taking moments about the far bottom edge, the weight acts at the width of the block:</p>
+  <p>${eq(`P<sub>tip</sub>(${p.a}) = ${p.W}(${p.b})`)} so ${eq(`P<sub>tip</sub> = ${sig(Pt)} ${FU(p)}`)}</p>
+  <h3>3. Which occurs first</h3>
+  <p class="final">P<sub>slide</sub> = ${sig(s.Ps,3)} ${FU(p)}, P<sub>tip</sub> = ${sig(Pt,3)} ${FU(p)}; the block ${mode} first, at P = ${sig(P,3)} ${FU(p)}.</p>`}};
+
+FLAWS["ladder-friction"]={n:3,step:3,
+  why:"The weight of the person is vertical, so its moment arm about the foot is the <i>horizontal</i> distance <i>s</i> cos θ, not the distance measured along the ladder.",
+  html:(p,s)=>{const sm=(s.Fmax*p.L*sn(p.th)-p.W*p.L*cs(p.th)/2)/p.Wp;
+    return `<h3>1. Floor normal force</h3>
+  <p>${eq(`N = ${p.W} + ${p.Wp} = ${sig(s.N)} ${FU(p)}`)}</p>
+  <h3>2. Limiting friction</h3>
+  <p>${eq(`F<sub>max</sub> = ${mu2(p.mu)}(${sig(s.N)}) = ${sig(s.Fmax)} ${FU(p)}`)}</p>
+  <h3>3. Impending slip</h3>
+  <p>Moments about the foot, with the person at a distance <i>s</i> along the ladder:</p>
+  <p>${eq(`F<sub>max</sub>(${p.L} sin ${ang(p.th)}) = ${p.W}(${sig(p.L*cs(p.th)/2)}) + ${p.Wp}(s)`)}</p>
+  <p>${eq(`s = ${sig(sm)} ${LU(p)}`)}</p>
+  <p class="final">N = ${sig(s.N,3)} ${FU(p)}, F<sub>max</sub> = ${sig(s.Fmax,3)} ${FU(p)}, s = ${sig(sm,3)} ${LU(p)}.</p>`}};
+
+FLAWS["stacked-blocks-rope"]={n:2,step:2,
+  why:"Block B rests on A, so its weight passes through A to the floor. The floor carries both blocks.",
+  html:(p,s)=>{const Nf=p.WA,Ff=p.m2*Nf,P=s.T+Ff;
+    return `<h3>1. Free body diagram of B</h3>
+  <p>${eq(`T = μ<sub>1</sub>W<sub>B</sub> = ${mu2(p.m1)}(${p.WB}) = ${sig(s.T)} ${FU(p)}`)}</p>
+  <h3>2. Free body diagram of A</h3>
+  <p>The floor supports block A, so ${eq(`N<sub>floor</sub> = ${p.WA} ${FU(p)}`)} and ${eq(`F<sub>floor</sub> = ${mu2(p.m2)}(${p.WA}) = ${sig(Ff)} ${FU(p)}`)}</p>
+  <p>${eq(`P = ${sig(s.T)} + ${sig(Ff)} = ${sig(P)} ${FU(p)}`)}</p>
+  <p class="final">T = ${sig(s.T,3)} ${FU(p)}, floor friction = ${sig(Ff,3)} ${FU(p)}, P = ${sig(P,3)} ${FU(p)}.</p>`}};
+
+FLAWS["wedge-friction"]={n:3,step:2,
+  why:"Friction acts on both faces of the wedge. The force driving it in must overcome the friction under the wedge as well as the resistance on the inclined face.",
+  html:(p,s)=>{const P=p.W*Math.tan(rad(p.th+s.ph));
+    return `<h3>1. Friction angle</h3>
+  <p>${eq(`φ = arctan ${mu2(p.m1)} = ${ang(s.ph)}`)}</p>
+  <h3>2. Raising the block</h3>
+  <p>The wedge must overcome the inclined face, so</p>
+  <p>${eq(`P = W tan(${p.th}° + ${ang(s.ph)}) = ${sig(P)} ${FU(p)}`)}</p>
+  <h3>3. Withdrawing the wedge</h3>
+  <p>${eq(`P<sub>r</sub> = ${sig(s.Pr)} ${FU(p)}`)}</p>
+  <p class="final">P = ${sig(P,3)} ${FU(p)}, P<sub>r</sub> = ${sig(s.Pr,3)} ${FU(p)}; the wedge ${s.lock==="yes"?"is":"is not"} self-locking.</p>`}};
+
+FLAWS["rope-post"]={n:2,step:2,
+  why:"The exponential acts in favour of the tight side: the larger tension is the one that can be held by the smaller one, so <i>T</i> = <i>F</i>e<sup>μβ</sup>.",
+  html:(p,s)=>{const e=Math.exp(p.mu*s.be),o={};
+    const val=p.mode==="hold"?p.Tl*e:p.mode==="load"?p.Fl/e:Math.log(p.Fl/p.Tl)/s.be;
+    return `<h3>1. Contact angle in radians</h3>
+  <p>${eq(`β = ${p.be}°(π/180°) = ${sig(s.be,4)} rad`)}</p>
+  <h3>2. Belt friction equation</h3>
+  <p>Friction reduces the tension in the direction of the wrap, so the free end carries the larger tension:</p>
+  <p>${eq(`F = T e^{μ<sub>s</sub>β}`)}</p>
+  <p class="final">${p.mode==="hold"?`F = ${p.Tl}(${sig(e,4)}) = ${sig(val,3)} ${FU(p)}`:p.mode==="load"?`T = ${p.Fl}/${sig(e,4)} = ${sig(val,3)} ${FU(p)}`:`μ<sub>s</sub> = ln(${p.Fl}/${p.Tl})/${sig(s.be,4)} = ${sig(val,3)}`}</p>`}};
+
+FLAWS["belt-drive"]={n:3,step:2,
+  why:"The torque comes from the <i>difference</i> of the two tensions. The tight and slack sides pull on opposite sides of the pulley, so their moments partly cancel.",
+  html:(p,s)=>{const Tq=p.us?(p.T1+s.T2)*p.r:(p.T1+s.T2)*p.r/1000,Pw=p.us?Tq*p.n/63025:Tq*p.n*2*Math.PI/60/1000;
+    return `<h3>1. Belt friction equation</h3>
+  <p>${eq(`T<sub>2</sub> = ${p.T1}e^{&minus;${mu2(p.mu)}(${sig(rad(p.be),4)})} = ${sig(s.T2)} ${FU(p)}`)}</p>
+  <h3>2. Torque</h3>
+  <p>Both sides of the belt pull on the rim, so they add:</p>
+  <p>${eq(`T<sub>q</sub> = (${p.T1} + ${sig(s.T2)})(${p.r}${p.us?"":"/1000"}) = ${sig(Tq)} ${p.us?"lbf·in":"N·m"}`)}</p>
+  <h3>3. Power</h3>
+  <p>${eq(`P = ${sig(Pw)} ${p.us?"hp":"kW"}`)}</p>
+  <p class="final">T<sub>2</sub> = ${sig(s.T2,3)} ${FU(p)}, T<sub>q</sub> = ${sig(Tq,3)} ${p.us?"lbf·in":"N·m"}, P = ${sig(Pw,3)} ${p.us?"hp":"kW"}.</p>`}};
+
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
 const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
 function reportUrl(){
   const q=new URLSearchParams({usp:"pp_url"});
   q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
-  q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);
   return FORM.url+"?"+q.toString();
 }
 
 // ===== page
-let curKey="block-incline-friction", cur=null, curFields=[];
+let curKey="block-incline-friction", curSeed=null, cur=null, curFields=[], curTruth={}, curMode="practice";
 const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+
+function fillTypes(){
+  const keys=hunting()?Object.keys(FLAWS):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+  return curKey;
+}
+
+function setMode(mode,key,seed){
+  curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";
+  $("mError").className=mode==="error"?"":"ghost";
+  const rr=$("reportRow"); if(rr&&rr.firstElementChild)rr.firstElementChild.textContent=hunting()
+    ?"Found a mistake other than the planted one?"
+    :"Found a mistake in a problem or its solution?";
+  curKey=key||curKey; const k=fillTypes();
+  render(k,seed||parseInt($("seedIn").value,10)||1);
+}
 
 function render(key,seed){
-  curKey=key; const T=TEMPLATES[key];
-  cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
+  curKey=key; curSeed=seed; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed); const {p,s}=cur;
   $("typeSel").value=key; $("seedIn").value=seed;
-  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
-  $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
+  try{history.replaceState(null,"","#"+key+"-"+seed+(hunting()?"-e":""))}catch(e){}
+  const fc=$("figCard"); if(fc)fc.style.display=T.figure?"":"none";
+  $("fig").innerHTML=T.figure?T.figure(p,s):"";
   $("statement").innerHTML=T.statement(p,s);
+  $("flawCard").style.display=F?"":"none";
+  $("flawed").innerHTML=F?F.html(p,s):"";
+  curFields=T.fields(p,s); curTruth=T.truth(s);
+  if(F){const steps=[];for(let i=1;i<=F.n;i++)steps.push(String(i));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];
+    curTruth={step:String(F.step),...curTruth}}
   $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
     :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
-  $("ansNote").textContent="Answers within 2% are accepted. "+T.note;
-  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
-  $("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+"Answers within 2% are accepted. "+T.note;
+  const sol=$("solution"); sol.style.display="none";
+  sol.innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 
 function check(){
-  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const truth=curTruth;
   const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
   curFields.forEach(f=>{
-    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    const el=$("mk-"+f.id); let raw=$("in-"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");
+    raw=/^-?\d{1,3}(,\d{3})+(\.\d*)?$/.test(raw)?raw.replace(/,/g,""):raw.replace(",",".");
     if(raw===""){el.textContent="";el.className="mark";return}
     if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
     let v=parseFloat(raw), t=truth[f.id];
@@ -414,19 +545,21 @@ function check(){
 
 if(typeof document!=="undefined"){
   const newSeed=()=>1+Math.floor(Math.random()*999999);
-  $("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
   $("typeSel").onchange=e=>render(e.target.value,newSeed());
   $("newBtn").onclick=()=>render(curKey,newSeed());
   $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
   $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
   if(FORM.url)$("reportRow").style.display="";
   $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
   $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-    s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+    s.style.display=show?"block":"none";
+    e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
   (function(){
-    const m=/^#([a-z0-9-]+)-(\d+)$/.exec(location.hash);
-    if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
-    else render("block-incline-friction",newSeed());
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice","block-incline-friction",newSeed());
   })();
 }
 if(typeof module!=="undefined")module.exports={TEMPLATES};

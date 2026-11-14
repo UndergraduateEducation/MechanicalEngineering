@@ -53,8 +53,13 @@
 <main>
   <div class="card howto">
     <h2>How to use</h2>
-    <p>Pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
     <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
   </div>
   <div class="card bar">
     <label for="typeSel">Problem type</label><select id="typeSel"></select>
@@ -66,6 +71,10 @@
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -357,40 +366,152 @@ TEMPLATES["rod-sphere-pivot"]={
   note:"Use the parallel axis theorem twice: to move the sphere to O, then to move from O to G."
 };
 
+
+// ===== planted errors: one conceptual mistake per problem type
+const FLAWS={};
+
+FLAWS["inertia-integration"]={n:4,step:3,
+  why:"A vertical strip of height <i>y</i> has moment of inertia <i>y</i>³/3 about the <i>x</i> axis, because every part of the strip is at a different distance from that axis.",
+  html:(p,s)=>{const Ix=p.h**3*p.b/(3*p.n+1),kx=Math.sqrt(Ix/s.A);
+    return `<h3>1. Area</h3>
+  <p>${eq(`A = ${sig(s.A)} ${p.us?"in²":"mm²"}`)}</p>
+  <h3>2. Moment of inertia about the y axis</h3>
+  <p>${eq(`I<sub>y</sub> = ∫x²(y dx) = ${sig(s.Iy)} ${I4(p)}`)}</p>
+  <h3>3. Moment of inertia about the x axis</h3>
+  <p>Each strip sits at a distance <i>y</i> from the <i>x</i> axis, so</p>
+  <p>${eq(`I<sub>x</sub> = ∫y²(y dx) = ${sig(Ix)} ${I4(p)}`)}</p>
+  <h3>4. Radius of gyration</h3>
+  <p>${eq(`k<sub>x</sub> = √(I<sub>x</sub>/A) = ${sig(kx)} ${lu(p)}`)}</p>
+  <p class="final">A = ${sig(s.A,3)} ${p.us?"in²":"mm²"}, I<sub>x</sub> = ${sig(Ix,3)}, I<sub>y</sub> = ${sig(s.Iy,3)} ${I4(p)}, k<sub>x</sub> = ${sig(kx,3)} ${lu(p)}.</p>`}};
+
+FLAWS["t-section"]={n:2,step:2,
+  why:"Each part has its own centroid away from the centroid of the section, so the parallel axis theorem adds <i>Ad</i>² for each part.",
+  html:(p,s)=>{const Ix=p.b1*p.t1**3/12+p.t2*p.h2**3/12,kx=Math.sqrt(Ix/s.A);
+    return `<h3>1. Centroid</h3>
+  <p>${eq(`ȳ = ${sig(s.yb)} ${lu(p)}`)}</p>
+  <h3>2. Moments of inertia</h3>
+  <p>Adding the moments of inertia of the two rectangles about their own centroids:</p>
+  <p>${eq(`I<sub>x</sub> = ${sig(p.b1*p.t1**3/12)} + ${sig(p.t2*p.h2**3/12)} = ${sig(Ix)} ${I4(p)}`)}</p>
+  <p>${eq(`I<sub>y</sub> = ${sig(s.Iy)} ${I4(p)}`)} ${eq(`k<sub>x</sub> = ${sig(kx)} ${lu(p)}`)}</p>
+  <p class="final">ȳ = ${sig(s.yb,3)} ${lu(p)}, I<sub>x</sub> = ${sig(Ix,3)}, I<sub>y</sub> = ${sig(s.Iy,3)} ${I4(p)}, k<sub>x</sub> = ${sig(kx,3)} ${lu(p)}.</p>`}};
+
+FLAWS["l-section"]={n:2,step:2,
+  why:"The transfer distance in the parallel axis theorem is measured from the centroid of the part to the centroid of the whole section, not to the outer corner.",
+  html:(p,s)=>{const A1=s.A1,A2=s.A2,c1=s.c1,c2=s.c2;
+    const Ix=p.t*p.a**3/12+A1*c1[1]**2+(p.b-p.t)*p.t**3/12+A2*c2[1]**2;
+    const Iy=p.a*p.t**3/12+A1*c1[0]**2+p.t*(p.b-p.t)**3/12+A2*c2[0]**2;
+    return `<h3>1. Centroid</h3>
+  <p>${eq(`x̄ = ${sig(s.xb)} ${lu(p)}`)} ${eq(`ȳ = ${sig(s.yb)} ${lu(p)}`)}</p>
+  <h3>2. Moments of inertia</h3>
+  <p>Transferring each leg from its own centroid to the outer corner:</p>
+  <p>${eq(`I<sub>x</sub> = ${sig(Ix)} ${I4(p)}`)} ${eq(`I<sub>y</sub> = ${sig(Iy)} ${I4(p)}`)}</p>
+  <p class="final">x̄ = ${sig(s.xb,3)}, ȳ = ${sig(s.yb,3)} ${lu(p)}, I<sub>x</sub> = ${sig(Ix,3)}, I<sub>y</sub> = ${sig(Iy,3)} ${I4(p)}.</p>`}};
+
+FLAWS["plate-with-hole"]={n:2,step:1,
+  why:"The hole is off centre, so removing it also removes its transfer term <i>A</i>d², where d is the distance from the centre of the hole to the axis.",
+  html:(p,s)=>{const Ix=p.a*p.b**3/12-Math.PI*p.r**4/4,Iy=p.b*p.a**3/12-Math.PI*p.r**4/4;
+    return `<h3>1. Rectangle minus hole</h3>
+  <p>Subtracting the moment of inertia of the circle about its own centre:</p>
+  <p>${eq(`I<sub>x</sub> = ${sig(p.a*p.b**3/12)} &minus; ${sig(Math.PI*p.r**4/4)} = ${sig(Ix)} ${I4(p)}`)}</p>
+  <p>${eq(`I<sub>y</sub> = ${sig(p.b*p.a**3/12)} &minus; ${sig(Math.PI*p.r**4/4)} = ${sig(Iy)} ${I4(p)}`)}</p>
+  <h3>2. Area and polar moment</h3>
+  <p>${eq(`A = ${sig(s.A)} ${p.us?"in²":"mm²"}`)} ${eq(`J = I<sub>x</sub> + I<sub>y</sub> = ${sig(Ix+Iy)} ${I4(p)}`)}</p>
+  <p class="final">A = ${sig(s.A,3)} ${p.us?"in²":"mm²"}, I<sub>x</sub> = ${sig(Ix,3)}, I<sub>y</sub> = ${sig(Iy,3)}, J = ${sig(Ix+Iy,3)} ${I4(p)}.</p>`}};
+
+FLAWS["shape-parallel-axis"]={n:3,step:3,
+  why:"The parallel axis theorem transfers from the <i>centroidal</i> axis. Starting from the base and adding another transfer term counts the centroidal offset twice.",
+  html:(p,s)=>{const d=p.tri?2*p.h/3:p.r-s.yc,Ia=s.Ib+s.A*d*d;
+    return `<h3>1. About the ${p.tri?"base":"diameter"}</h3>
+  <p>${eq(`I<sub>b</sub> = ${sig(s.Ib)} ${I4(p)}`)}</p>
+  <h3>2. About the centroidal axis</h3>
+  <p>${eq(`I<sub>c</sub> = ${sig(s.Ic)} ${I4(p)}`)}</p>
+  <h3>3. About the ${p.tri?"axis through the apex":"tangent axis at the top"}</h3>
+  <p>${eq(`I<sub>a</sub> = I<sub>b</sub> + Ad² = ${sig(s.Ib)} + ${sig(s.A)}(${sig(d)})² = ${sig(Ia)} ${I4(p)}`)}</p>
+  <p class="final">I<sub>b</sub> = ${sig(s.Ib,3)}, I<sub>c</sub> = ${sig(s.Ic,3)}, I<sub>a</sub> = ${sig(Ia,3)} ${I4(p)}.</p>`}};
+
+FLAWS["mass-inertia-body"]={n:3,step:2,
+  why:"The transfer term in the parallel axis theorem is <i>md</i>², with the distance squared.",
+  html:(p,s)=>{const Id=s.IG+p.m*p.d,k=Math.sqrt(Id/p.m);
+    return `<h3>1. About the centroidal axis</h3>
+  <p>${eq(`I<sub>G</sub> = ${BODIES[p.type].f} = ${sig(s.IG)} ${MI(p)}`)}</p>
+  <h3>2. Parallel axis theorem</h3>
+  <p>${eq(`I<sub>O</sub> = I<sub>G</sub> + md = ${sig(s.IG)} + ${p.m}(${p.d}) = ${sig(Id)} ${MI(p)}`)}</p>
+  <h3>3. Radius of gyration</h3>
+  <p>${eq(`k<sub>O</sub> = √(I<sub>O</sub>/m) = ${sig(k)} ${lm(p)}`)}</p>
+  <p class="final">I<sub>G</sub> = ${sig(s.IG,3)}, I<sub>O</sub> = ${sig(Id,3)} ${MI(p)}, k<sub>O</sub> = ${sig(k,3)} ${lm(p)}.</p>`}};
+
+FLAWS["rod-sphere-pivot"]={n:2,step:1,
+  why:"The sphere has its own moment of inertia about its centre, (2/5)<i>mR</i>², which adds to the transfer term. Treating it as a point mass leaves that out.",
+  html:(p,s)=>{const M=p.mr+p.ms,Io=p.mr*p.L**2/3+p.ms*(p.L+p.R)**2,IG=Io-M*s.xG*s.xG;
+    return `<h3>1. Moment of inertia about O</h3>
+  <p>The rod contributes <i>m<sub>r</sub>L</i>²/3. The sphere is compact, so it counts as a point mass at its centre:</p>
+  <p>${eq(`I<sub>O</sub> = ${sig(p.mr*p.L**2/3)} + ${p.ms}(${sig(p.L+p.R)})² = ${sig(Io)} ${MI(p)}`)}</p>
+  <h3>2. Mass center and I<sub>G</sub></h3>
+  <p>${eq(`x̄ = ${sig(s.xG)} ${lm(p)}`)} ${eq(`I<sub>G</sub> = I<sub>O</sub> &minus; M x̄² = ${sig(IG)} ${MI(p)}`)}</p>
+  <p class="final">I<sub>O</sub> = ${sig(Io,3)} ${MI(p)}, x̄ = ${sig(s.xG,3)} ${lm(p)}, I<sub>G</sub> = ${sig(IG,3)} ${MI(p)}.</p>`}};
+
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
 const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
 function reportUrl(){
   const q=new URLSearchParams({usp:"pp_url"});
   q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
-  q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);
   return FORM.url+"?"+q.toString();
 }
 
 // ===== page
-let curKey="inertia-integration", cur=null, curFields=[];
+let curKey="inertia-integration", curSeed=null, cur=null, curFields=[], curTruth={}, curMode="practice";
 const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+
+function fillTypes(){
+  const keys=hunting()?Object.keys(FLAWS):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+  return curKey;
+}
+
+function setMode(mode,key,seed){
+  curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";
+  $("mError").className=mode==="error"?"":"ghost";
+  const rr=$("reportRow"); if(rr&&rr.firstElementChild)rr.firstElementChild.textContent=hunting()
+    ?"Found a mistake other than the planted one?"
+    :"Found a mistake in a problem or its solution?";
+  curKey=key||curKey; const k=fillTypes();
+  render(k,seed||parseInt($("seedIn").value,10)||1);
+}
 
 function render(key,seed){
-  curKey=key; const T=TEMPLATES[key];
-  cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
+  curKey=key; curSeed=seed; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed); const {p,s}=cur;
   $("typeSel").value=key; $("seedIn").value=seed;
-  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
-  $("fig").innerHTML=T.figure(p,s);
+  try{history.replaceState(null,"","#"+key+"-"+seed+(hunting()?"-e":""))}catch(e){}
+  const fc=$("figCard"); if(fc)fc.style.display=T.figure?"":"none";
+  $("fig").innerHTML=T.figure?T.figure(p,s):"";
   $("statement").innerHTML=T.statement(p,s);
+  $("flawCard").style.display=F?"":"none";
+  $("flawed").innerHTML=F?F.html(p,s):"";
+  curFields=T.fields(p,s); curTruth=T.truth(s);
+  if(F){const steps=[];for(let i=1;i<=F.n;i++)steps.push(String(i));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];
+    curTruth={step:String(F.step),...curTruth}}
   $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
     :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
-  $("ansNote").textContent="Answers within 2% are accepted. "+T.note;
-  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
-  $("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+"Answers within 2% are accepted. "+T.note;
+  const sol=$("solution"); sol.style.display="none";
+  sol.innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 
 function check(){
-  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const truth=curTruth;
   const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
   curFields.forEach(f=>{
-    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    const el=$("mk-"+f.id); let raw=$("in-"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");
+    raw=/^-?\d{1,3}(,\d{3})+(\.\d*)?$/.test(raw)?raw.replace(/,/g,""):raw.replace(",",".");
     if(raw===""){el.textContent="";el.className="mark";return}
     if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
     let v=parseFloat(raw), t=truth[f.id];
@@ -403,19 +524,21 @@ function check(){
 
 if(typeof document!=="undefined"){
   const newSeed=()=>1+Math.floor(Math.random()*999999);
-  $("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
   $("typeSel").onchange=e=>render(e.target.value,newSeed());
   $("newBtn").onclick=()=>render(curKey,newSeed());
   $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
   $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
   if(FORM.url)$("reportRow").style.display="";
   $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
   $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-    s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+    s.style.display=show?"block":"none";
+    e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
   (function(){
-    const m=/^#([a-z0-9-]+)-(\d+)$/.exec(location.hash);
-    if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
-    else render("inertia-integration",newSeed());
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice","inertia-integration",newSeed());
   })();
 }
 if(typeof module!=="undefined")module.exports={TEMPLATES};

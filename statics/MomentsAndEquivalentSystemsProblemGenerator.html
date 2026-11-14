@@ -53,8 +53,13 @@
 <main>
   <div class="card howto">
     <h2>How to use</h2>
-    <p>Pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
     <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
   </div>
   <div class="card bar">
     <label for="typeSel">Problem type</label><select id="typeSel"></select>
@@ -66,6 +71,10 @@
   </div>
   <div class="card" id="figCard"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -434,40 +443,174 @@ TEMPLATES["wrench-3d"]={
   note:"The coordinates are those of the point where the axis crosses the xy plane."
 };
 
+
+// ===== planted errors: one conceptual mistake per problem type
+const FLAWS={};
+
+FLAWS["moment-2d"]={n:3,step:2,
+  why:"The moment is the force times the <i>perpendicular</i> distance from <i>O</i> to the line of action, which is shorter than the distance from <i>O</i> to the point of application unless the force happens to act perpendicular to <i>OP</i>.",
+  html:(p,s)=>{const r=Math.hypot(p.x,p.y),M=Math.sign(s.M)*p.F*r;
+    return `<h3>1. Components of the force</h3>
+  <p>${eq(`F<sub>x</sub> = ${sig(s.Fx)} ${FU(p)}`)} ${eq(`F<sub>y</sub> = ${sig(s.Fy)} ${FU(p)}`)}</p>
+  <h3>2. Moment about O</h3>
+  <p>The force acts at (${p.x}, ${p.y}) ${LU(p)}, a distance ${eq(`r = ${sig(r)} ${LU(p)}`)} from <i>O</i>, so</p>
+  <p>${eq(`M<sub>O</sub> = F r = ${sig(M)} ${MU(p)}`)}</p>
+  <h3>3. Perpendicular distance</h3>
+  <p>${eq(`d = |M<sub>O</sub>|/F = ${sig(r)} ${LU(p)}`)}</p>
+  <p class="final">F<sub>x</sub> = ${sig(s.Fx,3)}, F<sub>y</sub> = ${sig(s.Fy,3)} ${FU(p)}, M<sub>O</sub> = ${sig(M,3)} ${MU(p)}, d = ${sig(r,3)} ${LU(p)}.</p>`}};
+
+FLAWS["moment-two-points"]={n:3,step:3,
+  why:"The position vector from <i>B</i> to <i>P</i> is <i>P</i> &minus; <i>B</i>, so its <i>x</i> component is the difference of the two <i>x</i> coordinates. Adding them places the force on the wrong side of <i>B</i>.",
+  html:(p,s)=>{const MB=(p.a+p.c)*s.Fy-p.b*s.Fx;
+    return `<h3>1. Components of the force</h3>
+  <p>${eq(`F<sub>x</sub> = ${sig(s.Fx)} ${FU(p)}`)} ${eq(`F<sub>y</sub> = ${sig(s.Fy)} ${FU(p)}`)}</p>
+  <h3>2. Moment about A</h3>
+  <p>The position vector from <i>A</i> to <i>P</i> is (${p.a}, ${p.b}) ${LU(p)}, so ${eq(`M<sub>A</sub> = ${p.a}F<sub>y</sub> &minus; ${p.b}F<sub>x</sub> = ${sig(s.MA)} ${MU(p)}`)}</p>
+  <h3>3. Moment about B</h3>
+  <p><i>B</i> is ${p.c} ${LU(p)} from the origin, so the position vector from <i>B</i> to <i>P</i> is (${p.a} + ${p.c}, ${p.b}) ${LU(p)} and</p>
+  <p>${eq(`M<sub>B</sub> = (${p.a+p.c})F<sub>y</sub> &minus; ${p.b}F<sub>x</sub> = ${sig(MB)} ${MU(p)}`)}</p>
+  <p class="final">M<sub>A</sub> = ${sig(s.MA,3)} ${MU(p)}, M<sub>B</sub> = ${sig(MB,3)} ${MU(p)}.</p>`}};
+
+FLAWS["moment-3d"]={n:2,step:2,
+  why:"The moment about <i>O</i> is <b>r</b> × <b>F</b>, with the position vector first. The cross product is not commutative: reversing the order reverses the sign of every component.",
+  html:(p,s)=>{const M=crs(s.F,p.P);
+    return `<h3>1. Force vector</h3>
+  <p>${eq(`λ = ${fv(s.lam)}`)} ${eq(`F = ${p.F}λ = ${fv(s.F)} ${FU(p)}`)}</p>
+  <h3>2. Position vector and cross product</h3>
+  <p>${eq(`r = ${fv(p.P)} ${LU(p)}`)} ${eq(`M<sub>O</sub> = F × r = ${fv(M)} ${MU(p)}`)}</p>
+  <p class="final">M<sub>O</sub> = ${fv(M,3)} ${MU(p)}, |M<sub>O</sub>| = ${sig(nrm(M),3)} ${MU(p)}.</p>`}};
+
+FLAWS["moment-about-line"]={n:4,step:4,
+  why:"The component along the axis and the component perpendicular to it are the two legs of a right triangle whose hypotenuse is <b>M</b><sub>O</sub>, so they combine by Pythagoras, not by subtraction.",
+  html:(p,s)=>{const Mp=nrm(s.M)-Math.abs(s.Ml);
+    return `<h3>1. Moment about O</h3>
+  <p>${eq(`M<sub>O</sub> = r × F = ${fv(s.M)} ${MU(p)}`)}, with magnitude ${sig(s.Mm)} ${MU(p)}.</p>
+  <h3>2. Unit vector along the axis</h3>
+  <p>${eq(`λ<sub>OB</sub> = ${fv(s.ax)}`)}</p>
+  <h3>3. Moment about the line</h3>
+  <p>${eq(`M<sub>OB</sub> = λ<sub>OB</sub> · M<sub>O</sub> = ${sig(s.Ml)} ${MU(p)}`)}</p>
+  <h3>4. Perpendicular part</h3>
+  <p>What is left of the moment after the axial part is removed is</p>
+  <p>${eq(`M<sub>⊥</sub> = |M<sub>O</sub>| &minus; |M<sub>OB</sub>| = ${sig(s.Mm)} &minus; ${sig(Math.abs(s.Ml))} = ${sig(Mp)} ${MU(p)}`)}</p>
+  <p class="final">M<sub>OB</sub> = ${sig(s.Ml,3)} ${MU(p)}, M<sub>⊥</sub> = ${sig(Mp,3)} ${MU(p)}.</p>`}};
+
+FLAWS["couples-2d"]={n:3,step:3,
+  why:"A couple that cancels the resultant must act in the opposite sense. A third couple in the same sense doubles the net moment instead of removing it.",
+  html:(p,s)=>{const dir=s.M>0?"counterclockwise":"clockwise";
+    return `<h3>1. Moment of each couple</h3>
+  <p>${eq(`M<sub>1</sub> = ${p.s1>0?"+":"&minus;"}${p.F1}(${p.d1}) = ${sig(p.s1*p.F1*p.d1)} ${MU(p)}`)} ${eq(`M<sub>2</sub> = ${p.s2>0?"+":"&minus;"}${p.F2}(${p.d2}) = ${sig(p.s2*p.F2*p.d2)} ${MU(p)}`)}</p>
+  <h3>2. Resultant couple</h3>
+  <p>${eq(`M = ${sig(s.M)} ${MU(p)}`)}</p>
+  <h3>3. Balancing couple</h3>
+  <p>${eq(`F<sub>3</sub> = |M|/${p.d3} = ${sig(s.F3)} ${FU(p)}`)}</p>
+  <p>The third couple must match the resultant, so it acts in the same sense.</p>
+  <p class="final">M = ${sig(s.M,3)} ${MU(p)}, F<sub>3</sub> = ${sig(s.F3,3)} ${FU(p)}, acting ${dir}.</p>`}};
+
+FLAWS["force-couple-2d"]={n:2,step:2,
+  why:"The couple is <b>r</b> × <b>F</b>, which uses the perpendicular distance from <i>B</i> to the line of action. The straight-line distance from <i>B</i> to <i>A</i> is longer unless the force is perpendicular to <i>AB</i>.",
+  html:(p,s)=>{const d=Math.hypot(p.ax-p.bx,p.ay-p.by),M=Math.sign(s.M)*p.F*d;
+    return `<h3>1. Force at B</h3>
+  <p>Moving the force to <i>B</i> leaves it unchanged: ${eq(`F<sub>x</sub> = ${sig(s.Fx)} ${FU(p)}`)} ${eq(`F<sub>y</sub> = ${sig(s.Fy)} ${FU(p)}`)}</p>
+  <h3>2. Couple</h3>
+  <p>The force was moved a distance ${eq(`d = ${sig(d)} ${LU(p)}`)} from <i>A</i> to <i>B</i>, so the couple is</p>
+  <p>${eq(`M<sub>B</sub> = F d = ${sig(M)} ${MU(p)}`)}</p>
+  <p class="final">At B: F<sub>x</sub> = ${sig(s.Fx,3)}, F<sub>y</sub> = ${sig(s.Fy,3)} ${FU(p)}, M<sub>B</sub> = ${sig(M,3)} ${MU(p)}.</p>`}};
+
+FLAWS["parallel-forces-resultant"]={n:2,step:2,
+  why:"The line of action follows from moment equivalence, so each force enters with its own direction. Weighting by magnitudes alone treats the upward force as if it acted downward.",
+  html:(p,s)=>{const sa=p.F.reduce((a,b)=>a+b,0),xb=p.F.reduce((a,f,i)=>a+f*p.xs[i],0)/sa;
+    return `<h3>1. Resultant force</h3>
+  <p>${eq(`R = ${p.xs.map((x,i)=>`${p.sg[i]>0?"+":"&minus;"}${p.F[i]}`).join(" ")} = ${sig(s.R)} ${FU(p)}`)} (downward positive)</p>
+  <h3>2. Location</h3>
+  <p>The resultant acts at the average position of the forces, weighted by their magnitudes:</p>
+  <p>${eq(`x̄ = (${p.xs.map((x,i)=>`${p.F[i]}(${x})`).join(" + ")}) / ${sig(sa)} = ${sig(xb)} ${LU(p)}`)}</p>
+  <p class="final">R = ${sig(s.R,3)} ${FU(p)}, x̄ = ${sig(xb,3)} ${LU(p)}.</p>`}};
+
+FLAWS["reduction-2d"]={n:3,step:3,
+  why:"Moving the resultant to the point (x<sub>0</sub>, 0) must reproduce the couple, so x<sub>0</sub>R<sub>y</sub> = M<sub>O</sub>. The minus sign places the line of action on the wrong side of the origin.",
+  html:(p,s)=>{const x0=-s.MO/s.Ry;
+    return `<h3>1. Resultant force</h3>
+  <p>${eq(`R<sub>x</sub> = ${sig(s.Rx)} ${FU(p)}`)} ${eq(`R<sub>y</sub> = ${sig(s.Ry)} ${FU(p)}`)}</p>
+  <h3>2. Couple at O</h3>
+  <p>${eq(`M<sub>O</sub> = ${sig(s.MO)} ${MU(p)}`)}</p>
+  <h3>3. Single equivalent force</h3>
+  <p>Shifting the resultant off the origin must cancel the couple, so</p>
+  <p>${eq(`x<sub>0</sub> = &minus;M<sub>O</sub>/R<sub>y</sub> = ${sig(x0)} ${LU(p)}`)}</p>
+  <p class="final">R<sub>x</sub> = ${sig(s.Rx,3)}, R<sub>y</sub> = ${sig(s.Ry,3)} ${FU(p)}, M<sub>O</sub> = ${sig(s.MO,3)} ${MU(p)}, x<sub>0</sub> = ${sig(x0,3)} ${LU(p)}.</p>`}};
+
+FLAWS["wrench-3d"]={n:3,step:2,
+  why:"Only the part of <b>C</b> parallel to <b>F</b> belongs to the wrench. The perpendicular part is what moves the axis away from <i>O</i>, so it cannot be absorbed into the moment.",
+  html:(p,s)=>{const Cm=nrm(p.C);
+    return `<h3>1. Force magnitude</h3>
+  <p>${eq(`|F| = ${sig(s.Fm)} ${FU(p)}`)}</p>
+  <h3>2. Moment of the wrench</h3>
+  <p>The wrench carries the whole couple, so ${eq(`C<sub>∥</sub> = |C| = ${sig(Cm)} ${MU(p)}`)}.</p>
+  <h3>3. Axis of the wrench</h3>
+  <p>Nothing is left over to shift the axis, so it passes through the origin.</p>
+  <p class="final">|F| = ${sig(s.Fm,3)} ${FU(p)}, C<sub>∥</sub> = ${sig(Cm,3)} ${MU(p)}, the axis crosses the xy plane at (0, 0, 0).</p>`}};
+
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
 const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
 function reportUrl(){
   const q=new URLSearchParams({usp:"pp_url"});
   q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
-  q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);
   return FORM.url+"?"+q.toString();
 }
 
 // ===== page
-let curKey="moment-2d", cur=null, curFields=[];
+let curKey="moment-2d", curSeed=null, cur=null, curFields=[], curTruth={}, curMode="practice";
 const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+
+function fillTypes(){
+  const keys=hunting()?Object.keys(FLAWS):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+  return curKey;
+}
+
+function setMode(mode,key,seed){
+  curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";
+  $("mError").className=mode==="error"?"":"ghost";
+  const rr=$("reportRow"); if(rr&&rr.firstElementChild)rr.firstElementChild.textContent=hunting()
+    ?"Found a mistake other than the planted one?"
+    :"Found a mistake in a problem or its solution?";
+  curKey=key||curKey; const k=fillTypes();
+  render(k,seed||parseInt($("seedIn").value,10)||1);
+}
 
 function render(key,seed){
-  curKey=key; const T=TEMPLATES[key];
-  cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
+  curKey=key; curSeed=seed; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed); const {p,s}=cur;
   $("typeSel").value=key; $("seedIn").value=seed;
-  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
-  $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
+  try{history.replaceState(null,"","#"+key+"-"+seed+(hunting()?"-e":""))}catch(e){}
+  const fc=$("figCard"); if(fc)fc.style.display=T.figure?"":"none";
+  $("fig").innerHTML=T.figure?T.figure(p,s):"";
   $("statement").innerHTML=T.statement(p,s);
+  $("flawCard").style.display=F?"":"none";
+  $("flawed").innerHTML=F?F.html(p,s):"";
+  curFields=T.fields(p,s); curTruth=T.truth(s);
+  if(F){const steps=[];for(let i=1;i<=F.n;i++)steps.push(String(i));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];
+    curTruth={step:String(F.step),...curTruth}}
   $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
     :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
-  $("ansNote").textContent="Answers within 2% are accepted. "+T.note;
-  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
-  $("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+"Answers within 2% are accepted. "+T.note;
+  const sol=$("solution"); sol.style.display="none";
+  sol.innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 
 function check(){
-  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const truth=curTruth;
   const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
   curFields.forEach(f=>{
-    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    const el=$("mk-"+f.id); let raw=$("in-"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");
+    raw=/^-?\d{1,3}(,\d{3})+(\.\d*)?$/.test(raw)?raw.replace(/,/g,""):raw.replace(",",".");
     if(raw===""){el.textContent="";el.className="mark";return}
     if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
     let v=parseFloat(raw), t=truth[f.id];
@@ -480,19 +623,21 @@ function check(){
 
 if(typeof document!=="undefined"){
   const newSeed=()=>1+Math.floor(Math.random()*999999);
-  $("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
   $("typeSel").onchange=e=>render(e.target.value,newSeed());
   $("newBtn").onclick=()=>render(curKey,newSeed());
   $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
   $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
   if(FORM.url)$("reportRow").style.display="";
   $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
   $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-    s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+    s.style.display=show?"block":"none";
+    e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
   (function(){
-    const m=/^#([a-z0-9-]+)-(\d+)$/.exec(location.hash);
-    if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
-    else render("moment-2d",newSeed());
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice","moment-2d",newSeed());
   })();
 }
 if(typeof module!=="undefined")module.exports={TEMPLATES};
