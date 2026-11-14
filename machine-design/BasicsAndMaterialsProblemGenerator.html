@@ -50,9 +50,14 @@
 <body>
 <header>
   <h1>Basics and Materials Problem Generator</h1>
-  <div class="sub">Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem.</div>
+  <div class="sub">Practice mode: generate a problem, enter your answers and check them. Find-the-error mode: the worked solution shown with the problem contains exactly one conceptual error, and every later step follows correctly from it; identify the step where the error first appears and enter the corrected answers. Each problem comes from a seed in the page address, so a link reproduces it.</div>
 </header>
 <main>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
+  </div>
   <div class="card bar">
     <label for="typeSel">Problem type</label><select id="typeSel"></select>
   </div>
@@ -63,6 +68,10 @@
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -324,32 +333,116 @@ const TEMPLATES={
       <p>(a) ${s.bd.name}: highest S<sub>y</sub>. (b) ${s.bW.name}: highest S<sub>y</sub>/w. (c) ${s.bC.name}: lowest (cost × w)/S<sub>y</sub>. (d) ${s.bdl.name}: lowest S<sub>y</sub>/E, because a weaker material needs a larger area at the same load.</p>`,
     note:"" }
 };
+// ===== planted errors for the find-the-error mode: one conceptual mistake per problem type
+const FLAWS={};
+const eqs=s=>`<span class="eq">${s}</span>`;
+
+FLAWS["design-factor"]={step:1,
+  why:"",
+  bad:(p,s)=>({...s,nd:(1+p.uP/100)/((1-p.uS/100)*(1-p.ud/100))}),
+  body:(p,sb)=>`<p>The largest stress occurs with the largest load and the smallest diameter, and the smallest strength must still exceed it. Each uncertainty enters once:</p><p>${eqs(`n<sub>d</sub> = (1 + ${p.uP/100}) / [(1 − ${p.uS/100})(1 − ${p.ud/100})] = ${fmt(sb.nd,3)}`)}</p>`};
+FLAWS["design-factor"].why="The stress varies as 1/d² for axial loading and as 1/d³ for bending or torsion, so the diameter uncertainty enters as (1 − u<sub>d</sub>)² or (1 − u<sub>d</sub>)³, not to the first power.";
+
+FLAWS["rod-diameter"]={step:1,
+  why:"Bending uses the section modulus πd³/32, so σ = 32M/(πd³); torsion uses the polar section modulus πd³/16, so τ = 16T/(πd³).",
+  bad:(p,s)=>{const k=p.tor?32:16,Sall=p.S*(p.us?1000:1)/p.nd,Mx=p.M*(p.us?1:1000),dmin=Math.cbrt(k*Mx/(Math.PI*Sall)),list=p.us?RD_IN.map(x=>x[0]):RD_MM,i=list.findIndex(v=>v>=dmin);
+    const dsel=list[i];return {...s,k,dmin,dsel,n:p.S*(p.us?1000:1)*Math.PI*dsel**3/(k*Mx),lab:p.us?RD_IN[i][1]:String(dsel)}},
+  body:(p,sb)=>{const u=p.us?"in":"mm",L=p.tor?"T":"M";return `<p>The allowable stress is S/n<sub>d</sub> = ${fmt(p.S/p.nd,2)} ${p.us?"kpsi":"MPa"}. For a solid round section the ${p.tor?"shear":"bending"} stress is ${eqs(`${p.tor?"τ":"σ"} = ${sb.k}${L}/(πd³)`)}, so</p><p>${eqs(`d = [${sb.k}${L}n<sub>d</sub>/(πS)]<sup>1/3</sup> = ${fmt(sb.dmin,p.us?4:2)} ${u}`)}</p>`},
+  later:{2:(p,sb)=>{const u=p.us?"in":"mm",L=p.tor?"T":"M";return `<p>The next larger preferred size is <b>${sb.lab} ${u}</b>.</p><p>${eqs(`n = πSd³/(${sb.k}${L}) = ${fmt(sb.n,2)}`)}</p>`}}};
+
+FLAWS["grouped-stats"]={step:2,
+  why:"The value exceeded by R percent of the population lies below the mean, at x = x̄ + zs with Φ(z) = 1 − R; the number failing below a value comes from the lower tail Φ(z).",
+  bad:(p,s)=>p.ctx.b==="below"?{...s,b:s.n*(1-nPhi(s.z))}:{...s,z:-s.z,b:s.m-s.z*s.s},
+  body:(p,sb,s)=>p.ctx.b==="below"?`<p>${eqs(`z = (${fmt(p.x0,1)} − ${fmt(sb.m,2)})/${fmt(sb.s,2)} = ${fmt(sb.z,3)}`)}. The specimens that fail at less than this life are those beyond z: 1 − Φ(z) = ${fmt(1-nPhi(sb.z),4)}.</p><p>Number predicted: ${s.n}(${fmt(1-nPhi(sb.z),4)}) = <b>${fmt(sb.b,1)}</b> specimens.</p>`
+    :`<p>The value exceeded by ${p.R} percent has Φ(z) = ${fmt(p.R/100,2)}, so z = ${fmt(sb.z,3)}.</p><p>${eqs(`x = x̄ + zs = ${fmt(sb.m,2)} + (${fmt(sb.z,3)})(${fmt(sb.s,2)}) = ${fmt(sb.b,2)} ${p.ctx.unit}`)}</p>`};
+
+FLAWS["interference"]={step:2,
+  why:"The standard deviation of the strength-minus-stress margin is √(σ<sub>S</sub>² + σ<sub>σ</sub>²), with σ<sub>S</sub> = C<sub>S</sub>μ<sub>S</sub> and σ<sub>σ</sub> = C<sub>σ</sub>μ<sub>σ</sub>. Dividing by μ<sub>σ</sub> gives √(n<sub>d</sub>²C<sub>S</sub>² + C<sub>σ</sub>²): the strength term carries the factor n<sub>d</sub>².",
+  bad:(p,s)=>{if(p.axial){const z=-(p.nd-1)/Math.hypot(s.CS,s.CP);return {...s,z,R:1-nPhi(z)}}
+    const nd=1+Math.abs(s.z)*Math.hypot(s.CS,s.CT);return {...s,nd,d:Math.cbrt(16*p.T*1e6*nd/(Math.PI*p.S))}},
+  body:(p,sb)=>p.axial?`<p>The margin between strength and stress has a coefficient of variation √(C<sub>S</sub>² + C<sub>σ</sub>²), so ${eqs(`z = −(n<sub>d</sub> − 1)/√(C<sub>S</sub>² + C<sub>σ</sub>²) = ${fmt(sb.z,3)}`)} and ${eqs(`R = 1 − Φ(z) = ${fmt(sb.R,4)}`)}.</p>`
+    :`<p>For R = ${p.R}, z = ${fmt(sb.z,3)}. The mean strength must exceed the mean stress by |z| combined coefficients of variation:</p><p>${eqs(`n<sub>d</sub> = 1 + |z|√(C<sub>S</sub>² + C<sub>τ</sub>²) = ${fmt(sb.nd,3)}`)}</p>`};
+
+FLAWS["tolerance-stack"]={step:1,
+  why:"In a worst-case stack every tolerance adds, whether its dimension is added or subtracted in finding the gap: t<sub>w</sub> = t<sub>D</sub> + Σt.",
+  bad:(p,s)=>{const tw=Math.abs(p.td-p.blk.reduce((a,b)=>a+b.t,0));return {...s,tw,Dreq:p.wmin+tw+s.sa}},
+  body:(p,sb)=>`<p>${eqs(`w̄ = D̄ − Σā = ${f3(p.D)} − ${f3(sb.sa)} = ${f3(sb.w)} in`)}</p><p>The gap is the groove width minus the blocks, and the tolerances combine the same way: ${eqs(`t<sub>w</sub> = |t<sub>D</sub> − Σt| = ${f3(sb.tw)} in`)}, so w = ${f3(sb.w)} ± ${f3(sb.tw)} in and w<sub>min</sub> = ${f3(sb.w-sb.tw)} in.</p>`};
+
+FLAWS["hardness"]={step:1,
+  why:"The standard deviation estimated from a sample divides by n − 1, not n, because the deviations are measured from the sample mean.",
+  bad:(p,s)=>{const n=p.v.length,sH=s.sH*Math.sqrt((n-1)/n);return {...s,sH,s:s.k*sH}},
+  body:(p,sb)=>`<p>${eqs(`H̄<sub>B</sub> = ${fmt(sb.mH,2)}`)}, ${eqs(`s<sub>HB</sub> = √[Σ(H<sub>B</sub> − H̄<sub>B</sub>)²/n] = ${fmt(sb.sH,3)}`)} with n = ${p.v.length}.</p>`};
+
+FLAWS["material-selection"]={step:1,
+  why:"Each rod is sized to the strength requirement, so its area is A = Fn<sub>d</sub>/S<sub>y</sub> and its weight W = Alw is proportional to w/S<sub>y</sub>. A light material with a low yield strength needs a large area, so the lightest rod has the highest specific strength S<sub>y</sub>/w.",
+  bad:(p,s)=>{const i=p.m.reduce((b,m,j)=>m[3]<p.m[b][3]?j:b,0);return {...s,bW:s.res[i]}},
+  body:(p,sb)=>`<p>Area ${eqs(`A = Fn<sub>d</sub>/S<sub>y</sub>`)}, cost = W × (cost per lbf), deflection ${eqs(`δ = Fl/(AE) = S<sub>y</sub>l/(n<sub>d</sub>E)`)}.</p>
+  <table><tr><th>Material</th><th>d (in)</th><th>w (lbf/in³)</th><th>Cost ($)</th><th>δ (in)</th></tr>${sb.res.map((x,i)=>`<tr><td>${x.name}</td><td>${fmt(x.d,3)}</td><td>${p.m[i][3]}</td><td>${fmt(x.C,2)}</td><td>${fmt(x.dl,4)}</td></tr>`).join("")}</table>
+  <p>(a) ${sb.bd.name}: highest S<sub>y</sub>. (b) ${sb.bW.name}: the lowest specific weight w gives the lightest rod. (c) ${sb.bC.name}: lowest (cost × w)/S<sub>y</sub>. (d) ${sb.bdl.name}: lowest S<sub>y</sub>/E.</p>`};
+
 // ===== page
-let curKey="units", cur=null;
+let curKey=null, cur=null, curSeed=null, curFields=[], curTruth={}, curMode="practice";
 const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+const fieldsOf=(T,p,s)=>{const f=typeof T.fields==="function"?T.fields(p,s):T.fields;return f.filter(x=>!(x.skip&&x.skip(p)))};
+
+// ----- find-the-error mode: the flawed worked solution reuses the template's solution with the flawed results;
+// the flawed step's body is replaced by the flaw's own text, and notes are dropped
+const solSections=html=>html.split(/(?=<h3>)/);
+const stepName=sec=>sec.slice(4,sec.indexOf("</h3>")).replace(/<[^>]+>/g,"").trim();
+// a flaw may list variants; the first whose error changes some answer by more than 4 percent is used
+function flawEffect(T,p,s,sb){const t=T.truth(s,p),tb=T.truth(sb,p);
+  return fieldsOf(T,p,s).some(f=>{const a=t[f.id],b=tb[f.id];if(f.choices)return a!==b;if(typeof a!=="number"||typeof b!=="number")return false;
+    return Math.abs(a-b)>0.04*Math.max(Math.abs(a),f.signed?0.05*Math.max(...Object.values(t).filter(v=>typeof v==="number").map(Math.abs)):1e-12)})}
+function flawOf(T,F,p,s){for(const v of F.variants||[F]){if(v.when&&!v.when(p,s))continue;if(flawEffect(T,p,s,v.bad(p,s)))return v}return null}
+function flawView(T,F0,p,s){
+  const F=flawOf(T,F0,p,s), sb=F.bad(p,s);
+  const secs=solSections(T.solution(p,sb)).map(x=>x.replace(/<p class="note">[\s\S]*?<\/p>/g,""));
+  const steps=secs.filter(x=>x.startsWith("<h3>"));
+  const put=(i,fn)=>{const k=secs.indexOf(steps[i-1]);secs[k]=secs[k].slice(0,secs[k].indexOf("</h3>")+5)+fn(p,sb,s)};
+  put(F.step,F.body); for(const i in F.later||{})put(+i,F.later[i]);      // later steps whose wording depends on the error
+  return {F,sb,html:secs.join(""),steps:steps.map(stepName)};
+}
+
+function fillTypes(){
+  const keys=Object.keys(hunting()?FLAWS:TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+}
+function setMode(mode,key,seed){
+  curMode=mode; $("mPractice").className=mode==="practice"?"":"ghost"; $("mError").className=mode==="error"?"":"ghost";
+  if(key)curKey=key; fillTypes(); render(curKey,seed||parseInt($("seedIn").value,10)||newSeed());
+}
 
 function render(key,seed){
-  curKey=key; const T=TEMPLATES[key];
-  cur=T.generate(seed); const {p,s}=cur;
+  curKey=key; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed);
+  if(F)for(let k=0;k<200&&!flawOf(T,F,cur.p,cur.s);k++){seed++;cur=T.generate(seed)}    // skip the rare problems where the planted error changes no answer
+  curSeed=seed; const {p,s}=cur;
   $("typeSel").value=key; $("seedIn").value=seed;
-  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
-  const fh=T.figure(p,s); $("fig").innerHTML=fh; $("fig").parentElement.style.display=fh?"":"none";
+  try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
+  const fh=T.figure?T.figure(p,s):""; $("fig").innerHTML=fh; $("fig").parentElement.style.display=fh?"":"none";
   $("statement").innerHTML=T.statement(p,s);
-  const fields=T.fields.filter(f=>!(f.skip&&f.skip(p)));
-  $("answers").innerHTML=fields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+  curFields=fieldsOf(T,p,s); curTruth=T.truth(s,p);
+  const fc=$("flawCard"); fc.style.display=F?"":"none"; $("flawed").innerHTML="";
+  let FV=null;
+  if(F){const v=flawView(T,F,p,s); FV=v.F; $("flawed").innerHTML=v.html;
+    if(v.steps.length>1){curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:v.steps},...curFields];curTruth={...curTruth,step:v.steps[FV.step-1]}}}
+  $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
     :f.expr?`<input id="in-${f.id}" type="text" class="expr" spellcheck="false" autocomplete="off">`
     :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
-  $("ansNote").textContent=(T.symbolic?"Answers are checked for algebraic equivalence. ":"Answers within 2% are accepted. ")+T.note;
-  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
-  $("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+(T.symbolic?"Answers are checked for algebraic equivalence. ":"Answers within 2% are accepted. ")+T.note;
+  const sol=$("solution"); sol.style.display="none";
+  const steps0=solSections(T.solution(p,s)).filter(x=>x.startsWith("<h3>"));
+  sol.innerHTML=(F?`<p class="note">${steps0.length>1?`The error is in step “${stepName(steps0[FV.step-1])}”. `:""}${FV.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 
 function check(){
-  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
-  const scale=Math.max(...Object.values(truth).filter(v=>typeof v==="number").map(Math.abs));
-  T.fields.filter(f=>!(f.skip&&f.skip(cur.p))).forEach(f=>{
-    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+  const truth=curTruth, scale=Math.max(...Object.values(truth).filter(v=>typeof v==="number").map(Math.abs));
+  curFields.forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").replace(/[−–]/g,"-").trim();
     if(raw===""){el.textContent="";el.className="mark";return}
     if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
     if(f.expr){const r=exprEquivalent(raw,f);el.textContent=r.ok?"Correct":r.msg?"Cannot read: "+r.msg:"Not yet";el.className="mark "+(r.ok?"ok":"bad");return}
@@ -362,18 +455,21 @@ function check(){
 }
 
 const newSeed=()=>1+Math.floor(Math.random()*999999);
-$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
-$("typeSel").onchange=e=>render(e.target.value,newSeed());
-$("newBtn").onclick=()=>render(curKey,newSeed());
-$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
-$("checkBtn").onclick=check;
-$("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
-(function(){
-  const m=/^#([a-z-]+)-(\d+)$/.exec(location.hash);
-  if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
-  else render(Object.keys(TEMPLATES)[0],newSeed());
-})();
+if(typeof document!=="undefined"&&$("typeSel")){
+  $("typeSel").onchange=e=>render(e.target.value,newSeed());
+  $("newBtn").onclick=()=>render(curKey,newSeed());
+  $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+  $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
+  $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+    s.style.display=show?"block":"none";e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+  (function(){
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice",Object.keys(TEMPLATES)[0],newSeed());
+  })();
+}
 
 </script>
 </body>

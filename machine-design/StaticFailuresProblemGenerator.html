@@ -50,9 +50,14 @@
 <body>
 <header>
   <h1>Static Failures Problem Generator</h1>
-  <div class="sub">Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem.</div>
+  <div class="sub">Practice mode: generate a problem, enter your answers and check them. Find-the-error mode: the worked solution shown with the problem contains exactly one conceptual error, and every later step follows correctly from it; identify the step where the error first appears and enter the corrected answers. Each problem comes from a seed in the page address, so a link reproduces it.</div>
 </header>
 <main>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
+  </div>
   <div class="card bar">
     <label for="typeSel">Problem type</label><select id="typeSel"></select>
   </div>
@@ -63,6 +68,10 @@
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -1020,32 +1029,154 @@ const TEMPLATES={
   }
 };
 
+// ===== planted errors for the find-the-error mode: one conceptual mistake per problem type
+const FLAWS={};
+const eqs=s=>`<span class="eq">${s}</span>`;
+
+FLAWS["de-mss"]={variants:[{step:3,
+  when:(p,s)=>s.same,
+  why:"The third principal stress σ<sub>z</sub> = 0 must be included when the principal stresses are ordered. When σ<sub>A</sub> and σ<sub>B</sub> have the same sign, the largest shear stress involves the zero stress, so σ<sub>1</sub> − σ<sub>3</sub> is the larger of |σ<sub>A</sub>| and |σ<sub>B</sub>|.",
+  bad:(p,s)=>{const d13=s.A-s.B;return {...s,d13,nMSS:p.Sy/d13,o:[s.A,s.B,0].sort((u,v)=>v-u)}},
+  body:(p,sb)=>{const u=p.us?"kpsi":"MPa",d=p.us?2:1;return `<p>The maximum shear stress acts in the plane of the two principal stresses, so σ<sub>1</sub> − σ<sub>3</sub> = σ<sub>A</sub> − σ<sub>B</sub> = ${fmt(sb.d13,d)} ${u}.</p><p>${eqs(`n = S<sub>y</sub>/(σ<sub>A</sub> − σ<sub>B</sub>) = ${fmt(p.Sy)}/${fmt(sb.d13,d)}`)}</p><p class="final">n<sub>MSS</sub> = ${fmt(sb.nMSS,2)}</p>`}},
+ {step:3,
+  why:"The maximum-shear-stress theory predicts yield when τ<sub>max</sub> = (σ<sub>1</sub> − σ<sub>3</sub>)/2 reaches the shear yield strength S<sub>y</sub>/2, so n = S<sub>y</sub>/(σ<sub>1</sub> − σ<sub>3</sub>).",
+  bad:(p,s)=>({...s,nMSS:2*p.Sy/s.d13}),
+  body:(p,sb)=>{const u=p.us?"kpsi":"MPa",d=p.us?2:1;return `<p>Order all three principal stresses, including σ<sub>z</sub> = 0: σ<sub>1</sub> = ${fmt(sb.o[0],d)}, σ<sub>2</sub> = ${fmt(sb.o[1],d)}, σ<sub>3</sub> = ${fmt(sb.o[2],d)} ${u}. The largest shear stress is τ<sub>max</sub> = (σ<sub>1</sub> − σ<sub>3</sub>)/2 = ${fmt(sb.d13/2,d)} ${u}, and it is compared with the yield strength:</p><p>${eqs(`n = S<sub>y</sub>/τ<sub>max</sub> = ${fmt(p.Sy)}/${fmt(sb.d13/2,d)}`)}</p><p class="final">n<sub>MSS</sub> = ${fmt(sb.nMSS,2)}</p>`}}]};
+
+FLAWS["de-locus"]={step:2,
+  why:"The von Mises stress in plane stress is σ′ = √(σ<sub>A</sub>² − σ<sub>A</sub>σ<sub>B</sub> + σ<sub>B</sub>²); the cross term σ<sub>A</sub>σ<sub>B</sub> cannot be dropped.",
+  bad:(p,s)=>{const vm=Math.hypot(s.A,s.B);return {...s,vm,nDE:p.Sy/vm}},
+  body:(p,sb)=>{const u=p.us?"kpsi":"MPa",d=p.us?2:1;return `<p>${eqs(`σ′ = √(σ<sub>A</sub>² + σ<sub>B</sub>²) = ${fmt(sb.vm,d)} ${u}`)}&nbsp; ${eqs(`n = S<sub>y</sub>/σ′`)}</p><p class="final">σ′ = ${fmt(sb.vm,d)} ${u}; n = ${fmt(sb.nDE,2)}</p>`}};
+
+FLAWS["brittle-mohr"]={step:2,
+  why:"When σ<sub>A</sub> ≥ 0 ≥ σ<sub>B</sub>, the brittle Coulomb-Mohr line joins S<sub>ut</sub> and −S<sub>uc</sub>, so the compressive principal stress also counts: 1/n = σ<sub>A</sub>/S<sub>ut</sub> − σ<sub>B</sub>/S<sub>uc</sub>.",
+  when:(p,s)=>s.br===1||s.br===2,
+  bad:(p,s)=>({...s,nB:s.Sut/s.A}),
+  body:(p,sb)=>{const u=p.us?"kpsi":"MPa",d=p.us?2:1;return `<p>${sb.m[0]}: S<sub>ut</sub> = ${fmt(sb.Sut,1)} ${u}, S<sub>uc</sub> = ${fmt(sb.Suc,1)} ${u}. A brittle material fails in tension, so only the tensile principal stress matters: ${eqs(`n = S<sub>ut</sub>/σ<sub>A</sub> = ${fmt(sb.Sut,1)}/${fmt(sb.A,d)}`)}</p><p class="final">n<sub>BCM</sub> = ${fmt(sb.nB,2)}</p>`}};
+
+FLAWS["tube-pressure"]={step:1,
+  why:"At a surface loaded by pressure the radial stress equals minus that pressure; it is zero only at an unloaded surface.",
+  bad:(p,s)=>{const qi={...s.qi},qo={...s.qo};if(p.side==="in")qi.r=0;else qo.r=0;const ki=tpVM(qi),ko=tpVM(qo),k=Math.max(ki,ko);
+    return {...s,qi,qo,ki,ko,k,pY:s.Sy/k,crit:ki>=ko?"Inner surface":"Outer surface"}},
+  body:(p,sb)=>{const u=p.us?"in":"mm",P=p.side==="in"?"p<sub>i</sub>":"p<sub>o</sub>";return `<p>With r<sub>i</sub> = ${fmt(p.ID/2,3)} ${u} and r<sub>o</sub> = ${fmt(p.OD/2,3)} ${u}, the tangential stress follows from the Lamé equation, ${eqs(`σ<sub>t</sub> = (p<sub>i</sub>r<sub>i</sub>² − p<sub>o</sub>r<sub>o</sub>²)/(r<sub>o</sub>² − r<sub>i</sub>²) + r<sub>i</sub>²r<sub>o</sub>²(p<sub>i</sub> − p<sub>o</sub>)/[r²(r<sub>o</sub>² − r<sub>i</sub>²)]`)}. The radial stress is zero at both free surfaces of the wall.</p>
+  <p>${p.ends==="closed"?`Closed ends: ${eqs(`σ<sub>l</sub> = (p<sub>i</sub>r<sub>i</sub>² − p<sub>o</sub>r<sub>o</sub>²)/(r<sub>o</sub>² − r<sub>i</sub>²)`)}.`:"Open ends: σ<sub>l</sub> = 0."} Here ${p.side==="in"?"p<sub>o</sub> = 0":"p<sub>i</sub> = 0"}; all stresses per unit ${P}.</p>`}};
+
+FLAWS["pulley-shaft"]={step:1,
+  why:"The torque delivered by a belt is the difference of the two strand tensions times the pulley radius; the sum of the tensions loads the shaft in bending.",
+  bad:(p,s)=>{const T=(p.B1+p.B2)*p.dB/2,M=s.M,Sy=s.Sy;
+    return {...s,T,TC:(p.C1+p.C2)*p.dC/2,dMSS:(32*p.n/(Math.PI*Sy)*Math.hypot(M,T))**(1/3),dDE:(32*p.n/(Math.PI*Sy)*Math.sqrt(M*M+0.75*T*T))**(1/3)}},
+  body:(p,sb)=>{const M=p.us?"lbf·in":"N·m",mc=v=>p.us?fmt(v,0):fmt(v/1000,1);return `<p>Both strands pull on the rim at the pulley radius: ${eqs(`T = (${fmt(p.B1)} + ${fmt(p.B2)})(${fmt(p.dB/2,1)}) = ${mc(sb.T)} ${M}`)}; at <i>C</i>, (${fmt(p.C1)} + ${fmt(p.C2)})(${fmt(p.dC/2,1)}) = ${mc(sb.TC)} ${M}. The torque acts on segment <i>BC</i>.</p>`}};
+
+FLAWS["ductile-cm"]={step:2,
+  when:(p,s)=>s.reg!==0,
+  why:"The ductile Coulomb-Mohr theory uses the tensile yield strength on the tension side and the compressive yield strength on the compression side; it is not the maximum-shear-stress theory with S<sub>yt</sub>.",
+  bad:(p,s)=>({...s,n:s.reg===2?-s.St/s.B:1/(s.A/s.St-s.B/s.St)}),
+  body:(p,sb)=>{const u=p.us?"kpsi":"MPa",d=p.us?2:1;return `<p>${sb.m[0]}: S<sub>yt</sub> = ${fmt(sb.St,1)} ${u}, S<sub>yc</sub> = ${fmt(sb.Sc,1)} ${u}. Yielding is a shear process, so the tensile yield strength applies on both sides: ${eqs(sb.reg===2?`n = −S<sub>yt</sub>/σ<sub>B</sub> = −${fmt(sb.St,1)}/(${fmt(sb.B,d)})`:`1/n = (σ<sub>A</sub> − σ<sub>B</sub>)/S<sub>yt</sub> = (${fmt(sb.A,d)} − (${fmt(sb.B,d)}))/${fmt(sb.St,1)}`)}</p><p class="final">n = ${fmt(sb.n,2)}</p>`}};
+
+FLAWS["bar-ab"]={step:3,
+  why:"Point B lies on the neutral axis of the bending moment, so the bending stress there is zero; only the axial stress acts normally.",
+  bad:(p,s)=>{const c=p.us?1/1000:1,sB=(s.sb+s.sa)*c,vB=Math.hypot(sB,Math.sqrt(3)*s.tB);return {...s,sB,vB,nB:s.Sy*c/vB,crit:s.nA<=s.Sy*c/vB?"A":"B"}},
+  body:(p,sb)=>{const u=p.us?"kpsi":"MPa",d=p.us?2:1;return `<p>The bending and axial stresses act over the whole section, and with F down and T as drawn the torsional and transverse shear stresses at B add: σ = ${fmt(sb.sB,d)} ${u}, τ = ${fmt(sb.tB,d)} ${u}.</p><p>${eqs(`σ′ = ${fmt(sb.vB,d)} ${u}`)}&nbsp; ${eqs(`n<sub>B</sub> = ${fmt(sb.nB,2)}`)}</p><p class="final">n<sub>A</sub> = ${fmt(sb.nA,2)}, n<sub>B</sub> = ${fmt(sb.nB,2)}</p>`}};
+
+FLAWS["power-shaft"]={step:2,
+  why:"The maximum-shear-stress theory compares τ<sub>max</sub> with the shear yield strength S<sub>y</sub>/2, so n = S<sub>y</sub>/(2τ<sub>max</sub>).",
+  bad:(p,s)=>({...s,dM:(16*p.n*s.T/(Math.PI*s.Sy))**(1/3)}),
+  body:(p,sb)=>{const u=p.us?"in":"mm",Tu=p.us?"lbf·in":"N·m",su=p.us?"psi":"MPa";return `<p>τ<sub>max</sub> = 16T/(πd³) and yielding starts when τ<sub>max</sub> reaches S<sub>y</sub>, so n = S<sub>y</sub>/τ<sub>max</sub> and ${eqs(`d = [16nT/(πS<sub>y</sub>)]<sup>1/3</sup>`)} with S<sub>y</sub> = ${fmt(sb.Sy)} ${su}.</p><p class="final">T = ${fmt(sb.Tr,p.us?0:1)} ${Tu}; d<sub>MSS</sub> = ${fmt(sb.dM,p.us?3:1)} ${u}</p>`}};
+
+FLAWS["sphere-vessel"]={step:1,
+  why:"In a thin sphere the wall stress is the same in every direction, σ = pd/(4t); pd/(2t) is the hoop stress of a cylinder.",
+  bad:(p,s)=>{const k=2*p.t/p.D,py=k*s.Sy,pb=k*s.Su;return {...s,py,pb,n:py/p.pw,sw:p.pw/k}},
+  body:()=>`<p>The wall is a thin shell in hoop tension, σ<sub>1</sub> = σ<sub>2</sub> = σ = pd/(2t), with σ<sub>3</sub> ≈ 0. Then ${eqs(`σ′ = √(σ² − σ·σ + σ²) = σ`)}.</p>`,
+  later:{2:(p,sb)=>{const pu=p.us?"psi":"MPa",d=p.us?0:2;return `<p>${eqs(`p<sub>y</sub> = 2tS<sub>y</sub>/d = 2(${fmt(p.t,p.us?4:1)})(${fmt(sb.Sy)})/${fmt(p.D)}`)}&nbsp; ${eqs(`p<sub>b</sub> = 2tS<sub>ut</sub>/d`)}</p><p class="final">p<sub>y</sub> = ${fmt(sb.py,d)} ${pu}; p<sub>b</sub> ≈ ${fmt(sb.pb,d)} ${pu}</p>`}}};
+
+FLAWS["thin-cylinder"]={step:1,
+  why:"With end closures the longitudinal stress is pd<sub>i</sub>/(4t), about half the hoop stress, not equal to it.",
+  bad:(p,s)=>{const sl=s.st,vm=s.st;return {...s,sl,vm,n:s.Sy/vm}},
+  body:(p,sb)=>{const u=p.us?"psi":"MPa",d=p.us?0:1;return `<p>d<sub>i</sub> = d<sub>o</sub> − 2t = ${fmt(sb.di,p.us?3:1)} ${p.us?"in":"mm"}. The closed ends make the wall stress the same in both directions:</p><p>${eqs(`σ<sub>t</sub> = p(d<sub>i</sub> + t)/(2t) = ${fmt(sb.st,d)} ${u}`)}&nbsp; ${eqs(`σ<sub>l</sub> = σ<sub>t</sub> = ${fmt(sb.sl,d)} ${u}`)}</p>`}};
+
+FLAWS["ring-speed"]={step:1,
+  why:"In a rotating ring the tangential stress is largest at the inner surface, where the radial stress is zero; at the outer surface it is smaller.",
+  bad:(p,s)=>{const q=rrStress(s.ri,s.ro,s.nu,s.ro),w=Math.sqrt(s.m[1]*1e6/(s.rho*q.t)),rpm=w*60/(2*Math.PI),qm=rrStress(s.ri,s.ro,s.nu,Math.sqrt(s.ri*s.ro));
+    return {...s,q,w,rpm,srm:s.rho*w*w*qm.r/1e6}},
+  body:(p,sb)=>`<p>The outer rim moves fastest, so σ<sub>t</sub> is largest at the outer surface, where σ<sub>r</sub> = 0. ${sb.m[4]==="y"?"The von Mises stress there is σ′ = σ<sub>t</sub>.":"Both principal stresses are ≥ 0 there, so the modified-Mohr theory gives n = S<sub>ut</sub>/σ<sub>t</sub>."}</p><p>At r = r<sub>o</sub> = ${fmt(sb.ro*1000,1)} mm: ${eqs(`σ<sub>t</sub> = ρω² × ${sb.q.t.toExponential(4)} m²`)}</p>`};
+
+FLAWS["shrink-fit"]={step:1,
+  why:"The pressure formula uses the radial interference, half the diametral interference given.",
+  bad:(p,s)=>sfSolve({...p,delta:2*p.delta}),
+  body:(p,sb)=>`<p>The interference δ = ${fmt(p.delta,4)} mm is used directly. For two members of the same material,</p><p>${eqs(`p = (Eδ/R)·(r<sub>o</sub>² − R²)(R² − r<sub>i</sub>²)/[2R²(r<sub>o</sub>² − r<sub>i</sub>²)]`)} with R = ${fmt(p.R,1)}, r<sub>o</sub> = ${fmt(p.ro,2)}, r<sub>i</sub> = ${fmt(p.ri,2)} mm.</p><p class="final">p = ${fmt(sb.p,2)} MPa</p>`};
+
+FLAWS["crack-plate"]={variants:[{step:2,
+  why:"In a plate of finite width the stress-intensity factor is K = βσ√(πa), with β = [sec(πa/w)]<sup>1/2</sup>; β = 1 holds only for a crack in a very wide plate.",
+  bad:(p,s)=>{const sc=p.K/Math.sqrt(Math.PI*s.a/1000),Fc=sc*p.w*p.t/1000;return {...s,beta:1,sc,Fc,gov:s.Fy<Fc?"Net-section yielding":"Crack growth (fracture)"}},
+  body:(p,sb)=>`<p>a = ${fmt(sb.a,1)} mm. For a through crack in a plate, ${eqs(`σ<sub>c</sub> = K<sub>Ic</sub>/√(πa) = ${p.K}/√(π × ${fmt(sb.a/1000,4)}) = ${fmt(sb.sc,1)} MPa`)}&nbsp; ${eqs(`F<sub>c</sub> = σ<sub>c</sub>wt`)}</p><p class="final">β = 1; F<sub>c</sub> = ${fmt(sb.Fc,1)} kN</p>`},
+ {step:1,
+  why:"Yielding of the cracked plate is resisted by the net section beside the crack, (w − 2a)t, not by the gross section.",
+  bad:(p,s)=>{const Fy=p.Sy*p.w*p.t/1000;return {...s,Fy,gov:Fy<s.Fc?"Net-section yielding":"Crack growth (fracture)"}},
+  body:(p,sb)=>`<p>${eqs(`F<sub>y</sub> = S<sub>y</sub>wt = ${p.Sy}(${fmt(p.w)})(${fmt(p.t)}) N`)}</p><p class="final">F<sub>y</sub> = ${fmt(sb.Fy,1)} kN</p>`}]};
+
 // ===== page
-let curKey="beam-tee", cur=null;
+let curKey=null, cur=null, curSeed=null, curFields=[], curTruth={}, curMode="practice";
 const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+const fieldsOf=(T,p,s)=>{const f=typeof T.fields==="function"?T.fields(p,s):T.fields;return f.filter(x=>!(x.skip&&x.skip(p)))};
+
+// ----- find-the-error mode: the flawed worked solution reuses the template's solution with the flawed results;
+// the flawed step's body is replaced by the flaw's own text, and notes are dropped
+const solSections=html=>html.split(/(?=<h3>)/);
+const stepName=sec=>sec.slice(4,sec.indexOf("</h3>")).replace(/<[^>]+>/g,"").trim();
+// a flaw may list variants; the first whose error changes some answer by more than 4 percent is used
+function flawEffect(T,p,s,sb){const t=T.truth(s,p),tb=T.truth(sb,p);
+  return fieldsOf(T,p,s).some(f=>{const a=t[f.id],b=tb[f.id];if(f.choices)return a!==b;if(typeof a!=="number"||typeof b!=="number")return false;
+    return Math.abs(a-b)>0.04*Math.max(Math.abs(a),f.signed?0.05*Math.max(...Object.values(t).filter(v=>typeof v==="number").map(Math.abs)):1e-12)})}
+function flawOf(T,F,p,s){for(const v of F.variants||[F]){if(v.when&&!v.when(p,s))continue;if(flawEffect(T,p,s,v.bad(p,s)))return v}return null}
+function flawView(T,F0,p,s){
+  const F=flawOf(T,F0,p,s), sb=F.bad(p,s);
+  const secs=solSections(T.solution(p,sb)).map(x=>x.replace(/<p class="note">[\s\S]*?<\/p>/g,""));
+  const steps=secs.filter(x=>x.startsWith("<h3>"));
+  const put=(i,fn)=>{const k=secs.indexOf(steps[i-1]);secs[k]=secs[k].slice(0,secs[k].indexOf("</h3>")+5)+fn(p,sb,s)};
+  put(F.step,F.body); for(const i in F.later||{})put(+i,F.later[i]);      // later steps whose wording depends on the error
+  return {F,sb,html:secs.join(""),steps:steps.map(stepName)};
+}
+
+function fillTypes(){
+  const keys=Object.keys(hunting()?FLAWS:TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+}
+function setMode(mode,key,seed){
+  curMode=mode; $("mPractice").className=mode==="practice"?"":"ghost"; $("mError").className=mode==="error"?"":"ghost";
+  if(key)curKey=key; fillTypes(); render(curKey,seed||parseInt($("seedIn").value,10)||newSeed());
+}
 
 function render(key,seed){
-  curKey=key; const T=TEMPLATES[key];
-  cur=T.generate(seed); const {p,s}=cur;
+  curKey=key; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed);
+  if(F)for(let k=0;k<200&&!flawOf(T,F,cur.p,cur.s);k++){seed++;cur=T.generate(seed)}    // skip the rare problems where the planted error changes no answer
+  curSeed=seed; const {p,s}=cur;
   $("typeSel").value=key; $("seedIn").value=seed;
-  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
-  $("fig").innerHTML=T.figure(p,s);
+  try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
+  const fh=T.figure?T.figure(p,s):""; $("fig").innerHTML=fh; $("fig").parentElement.style.display=fh?"":"none";
   $("statement").innerHTML=T.statement(p,s);
-  const fields=T.fields.filter(f=>!(f.skip&&f.skip(p)));
-  $("answers").innerHTML=fields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+  curFields=fieldsOf(T,p,s); curTruth=T.truth(s,p);
+  const fc=$("flawCard"); fc.style.display=F?"":"none"; $("flawed").innerHTML="";
+  let FV=null;
+  if(F){const v=flawView(T,F,p,s); FV=v.F; $("flawed").innerHTML=v.html;
+    if(v.steps.length>1){curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:v.steps},...curFields];curTruth={...curTruth,step:v.steps[FV.step-1]}}}
+  $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
     :f.expr?`<input id="in-${f.id}" type="text" class="expr" spellcheck="false" autocomplete="off">`
     :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
-  $("ansNote").textContent=(T.symbolic?"Answers are checked for algebraic equivalence. ":"Answers within 2% are accepted. ")+T.note;
-  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
-  $("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+(T.symbolic?"Answers are checked for algebraic equivalence. ":"Answers within 2% are accepted. ")+T.note;
+  const sol=$("solution"); sol.style.display="none";
+  const steps0=solSections(T.solution(p,s)).filter(x=>x.startsWith("<h3>"));
+  sol.innerHTML=(F?`<p class="note">${steps0.length>1?`The error is in step “${stepName(steps0[FV.step-1])}”. `:""}${FV.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 
 function check(){
-  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
-  const scale=Math.max(...Object.values(truth).filter(v=>typeof v==="number").map(Math.abs));
-  T.fields.filter(f=>!(f.skip&&f.skip(cur.p))).forEach(f=>{
-    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+  const truth=curTruth, scale=Math.max(...Object.values(truth).filter(v=>typeof v==="number").map(Math.abs));
+  curFields.forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").replace(/[−–]/g,"-").trim();
     if(raw===""){el.textContent="";el.className="mark";return}
     if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
     if(f.expr){const r=exprEquivalent(raw,f);el.textContent=r.ok?"Correct":r.msg?"Cannot read: "+r.msg:"Not yet";el.className="mark "+(r.ok?"ok":"bad");return}
@@ -1058,19 +1189,21 @@ function check(){
 }
 
 const newSeed=()=>1+Math.floor(Math.random()*999999);
-$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
-$("typeSel").onchange=e=>render(e.target.value,newSeed());
-$("newBtn").onclick=()=>render(curKey,newSeed());
-$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
-$("checkBtn").onclick=check;
-$("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
-(function(){
-  const m=/^#([a-z-]+)-(\d+)$/.exec(location.hash);
-  if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
-  else render(Object.keys(TEMPLATES)[0],newSeed());
-})();
-
+if(typeof document!=="undefined"&&$("typeSel")){
+  $("typeSel").onchange=e=>render(e.target.value,newSeed());
+  $("newBtn").onclick=()=>render(curKey,newSeed());
+  $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+  $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
+  $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+    s.style.display=show?"block":"none";e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+  (function(){
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice",Object.keys(TEMPLATES)[0],newSeed());
+  })();
+}
 
 </script>
 </body>

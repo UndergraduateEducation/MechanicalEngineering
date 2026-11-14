@@ -49,9 +49,14 @@
 <body>
 <header>
   <h1>Loads and Stresses Problem Generator</h1>
-  <div class="sub">Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem.</div>
+  <div class="sub">Practice mode: generate a problem, enter your answers and check them. Find-the-error mode: the worked solution shown with the problem contains exactly one conceptual error, and every later step follows correctly from it; identify the step where the error first appears and enter the corrected answers. Each problem comes from a seed in the page address, so a link reproduces it.</div>
 </header>
 <main>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
+  </div>
   <div class="card bar">
     <label for="typeSel">Problem type</label><select id="typeSel"></select>
   </div>
@@ -62,6 +67,10 @@
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -1837,32 +1846,152 @@ const TEMPLATES={
   }
 };
 
+// ===== planted errors for the find-the-error mode: one conceptual mistake per problem type
+const FLAWS={};
+const eqs=s=>`<span class="eq">${s}</span>`;
+const prin=(sigma,tau)=>{const R=Math.hypot(sigma/2,tau);return {s1:sigma/2+R,s2:sigma/2-R,tmax:R}};
+
+FLAWS["beam-tee"]={step:4,
+  why:"The beam bends both ways: the negative moment at B puts the top fiber in tension and the bottom in compression. Because the section is not symmetric about its neutral axis, the largest tensile or compressive stress can occur at B even though |M<sub>B</sub>| is smaller than M<sub>max</sub>; both sections must be checked.",
+  bad:(p,s)=>{const c=s.cand.slice(2);return {...s,tens:c.reduce((m,q)=>q.v>m.v?q:m),comp:c.reduce((m,q)=>q.v<m.v?q:m)}},
+  body:(p,sb)=>{const psi=v=>`${fmt(Math.abs(v))} psi`;return `<p>The largest bending moment is M<sub>max</sub>, so the extreme stresses occur at that section:</p><table><tr><th>Location</th><th>σ (psi)</th></tr>${sb.cand.slice(2).map(c=>`<tr><td>${c.where}</td><td>${fmt(c.v)}</td></tr>`).join("")}</table>
+  <p class="final">Maximum tension: ${psi(sb.tens.v)} at the ${sb.tens.where}. Maximum compression: ${psi(sb.comp.v)} at the ${sb.comp.where}.</p>`}};
+
+// moments in the two planes are perpendicular vectors; adding magnitudes is the planted error
+const algM=(s,x)=>Math.abs(s.Mk(1,x))+Math.abs(s.Mk(2,x));
+FLAWS["countershaft"]={step:3,
+  why:"The moments in the xy and xz planes act about perpendicular axes, so they combine as vectors: M = √(M<sub>xy</sub>² + M<sub>xz</sub>²).",
+  bad:(p,s)=>{const MA=algM(s,s.xA),MB=algM(s,s.xB),M=Math.max(MA,MB),crit=MA>=MB?"A":"B",sigma=32*M/(Math.PI*p.d**3);return {...s,MA,MB,M,crit,sigma,...prin(sigma,s.tau)}},
+  body:(p,sb)=>{const planes=[[1,"<i>xy</i> plane (vertical loads)"],[2,"<i>xz</i> plane (horizontal loads)"]].filter(([k])=>Math.abs(sb.FA[k])+Math.abs(sb.FB[k])>0);
+    const row=x=>`${fmt(Math.abs(sb.Mk(1,x)))} + ${fmt(Math.abs(sb.Mk(2,x)))} = ${fmt(algM(sb,x))} lbf·in`;
+    return `${planes.map(([k,t])=>csDiagram(p,sb,k,t)).join("")}<p>The total moment at each load is the sum of the moments in the two planes:</p><p>${eqs(`M<sub>A</sub> = ${row(sb.xA)}`)}<br>${eqs(`M<sub>B</sub> = ${row(sb.xB)}`)}</p>
+    <p>The critical section is at <i>${sb.crit}</i>. The torque ${fmt(sb.T)} lbf·in acts on segment <i>AB</i>, so it is present on the <i>AB</i> side of that section.</p>`}};
+
+function gearFB(p,FBm){const xA=p.a,xC=p.a+p.b,xB=p.a+p.b+p.c,phi=p.phi*Math.PI/180,sB=-p.sA,T=p.FA*Math.cos(phi)*p.dA/2;
+  const uA=[0,p.sA*Math.cos(phi),-Math.sin(phi)],uB=[0,sB*Math.cos(phi),-Math.sin(phi)],FA=uA.map(u=>u*p.FA),FB=uB.map(u=>u*FBm),RO=[0,0,0],RC=[0,0,0];
+  for(const k of [1,2]){RC[k]=-(FA[k]*xA+FB[k]*xB)/xC;RO[k]=-(FA[k]+FB[k])-RC[k]}
+  const Mk=(k,x)=>RO[k]*x+(x>xA?FA[k]*(x-xA):0)+(x>xC?RC[k]*(x-xC):0),MA=Math.hypot(Mk(1,xA),Mk(2,xA)),MC=Math.hypot(Mk(1,xC),Mk(2,xC));
+  const M=Math.max(MA,MC),sigma=32*M/(Math.PI*p.d**3),tau=16*T/(Math.PI*p.d**3);
+  return {xA,xC,xB,T,FBm,FA,FB,RO,RC,Mk,MA,MC,crit:MA>=MC?"A":"C",M,sigma,tau,...prin(sigma,tau),ROm:Math.hypot(RO[1],RO[2]),RCm:Math.hypot(RC[1],RC[2])}}
+FLAWS["gear-shaft"]={step:1,
+  why:"The shaft turns at constant speed, so the two gear torques balance: F<sub>A</sub> cos φ (d<sub>A</sub>/2) = F<sub>B</sub> cos φ (d<sub>B</sub>/2). The tooth forces are equal only when the pitch diameters are equal.",
+  bad:p=>gearFB(p,p.FA),
+  body:(p,sb)=>`<p>Only the tangential component at <i>A</i> produces torque: ${eqs(`T = F<sub>A</sub> cos ${p.phi}° (d<sub>A</sub>/2) = ${fmt(sb.T)} lbf·in`)}. The shaft transmits the gear force from <i>A</i> to <i>B</i> unchanged, so F<sub>B</sub> = F<sub>A</sub>.</p>
+  <p class="final">F<sub>B</sub> = ${fmt(sb.FBm,1)} lbf.</p>
+  <p>Components: at <i>A</i>, ${fmt(Math.abs(sb.FA[1]),1)} lbf tangential and ${fmt(Math.abs(sb.FA[2]),1)} lbf radial; at <i>B</i>, ${fmt(Math.abs(sb.FB[1]),1)} lbf tangential and ${fmt(Math.abs(sb.FB[2]),1)} lbf radial.</p>`};
+
+FLAWS["sprocket-shaft"]={step:3,
+  why:"The moments in the xy and xz planes act about perpendicular axes, so they combine as vectors: M = √(M<sub>xy</sub>² + M<sub>xz</sub>²).",
+  bad:(p,s)=>{const cands=s.cands.map(c=>({...c,M:algM(s,c.x)})).sort((u,v)=>v.M-u.M),crit=cands[0],M=crit.M,sigma=32*M/(Math.PI*p.d**3);
+    return {...s,cands,crit,M,margin:cands[0].M/cands[1].M-1,sigma,...prin(sigma,s.tau)}},
+  body:(p,sb)=>{const Nm=v=>fmt(Math.abs(v)/1000,1),rows=sb.cands.slice().sort((u,v)=>u.x-v.x).map(c=>`<tr><td><i>${c.n}</i> (x = ${fmt(c.x)} mm)</td><td>${Nm(sb.Mk(1,c.x))}</td><td>${Nm(sb.Mk(2,c.x))}</td><td>${fmt(c.M/1000,1)}</td></tr>`).join("");
+    return `<p>The total moment at each section is the sum of the moments in the two planes.</p><table><tr><th>Section</th><th>M<sub>xy</sub> (N·m)</th><th>M<sub>xz</sub> (N·m)</th><th>M = |M<sub>xy</sub>| + |M<sub>xz</sub>| (N·m)</th></tr>${rows}</table><p>The moment is largest at <i>${sb.crit.n}</i>.</p>`}};
+
+FLAWS["crank"]={step:3,
+  why:"Transverse shear stress is zero at the surface farthest from the neutral axis, where the bending stress is largest; it is largest on the neutral axis, where the bending stress is zero.",
+  bad:(p,s)=>{const tau=s.tau+s.tv;return {...s,tau,...prin(s.sigma,tau)}},
+  body:(p,sb,s)=>{const pd3=Math.PI*p.d**3;return `<p>${eqs(`σ<sub>x</sub> = 32M/(πd³) = 32(${fmt(sb.Mb)})/${fmt(pd3,3)} = ${fmt(sb.sigma)} psi`)} (tension, along the rod axis)</p>
+  <p>Torsion gives ${eqs(`16T/(πd³) = ${fmt(s.tau)} psi`)} and the transverse shear force adds its maximum ${eqs(`4V/(3A) = ${fmt(sb.tv)} psi`)}, so the shear stress on the element is ${eqs(`τ = ${fmt(sb.tau)} psi`)}.</p>`}};
+
+FLAWS["s-hook"]={step:2,
+  why:"The section is cut at an angle to the line of F, so it carries a normal force F sin θ as well as the moment; the normal stress N/A adds to the bending stress.",
+  bad:(p,s)=>({...s,N:0,sa:0,si:s.bi,so:-s.bo}),
+  body:(p,sb)=>`<p>The load acts at a distance from the section, so the section carries the bending moment ${eqs(`M = F r<sub>c</sub> sin θ = ${fmt(sb.M)} N·mm`)}; the force itself is carried by the hook as a whole and puts no normal force on the section. The moment tends to open the loop, so the inner surface is in tension.</p>`};
+
+FLAWS["bell-crank"]={step:1,
+  why:"Moments about the pivot give F<sub>1</sub>L<sub>1</sub> = F<sub>2</sub>L<sub>2</sub>, so F<sub>1</sub> = F<sub>2</sub>L<sub>2</sub>/L<sub>1</sub>: the force on the shorter arm is the larger.",
+  bad:(p,s)=>({...s,F1:p.F2*p.L1/p.L2}),
+  body:(p,sb)=>`<p>The lever multiplies the force in proportion to the arm lengths: ${eqs(`F<sub>1</sub> = F<sub>2</sub>(${p.L1}/${p.L2})`)}, so</p><p class="final">F<sub>1</sub> = ${fmt(sb.F1,3)} kN.</p>
+  <p>The bending moment at section <i>A</i>–<i>A</i> is ${eqs(`M = F<sub>2</sub> L<sub>2</sub> = ${fmt(sb.M/1000,1)} N·m`)}. Both forces tend to open the inner corner, so the inner surface is in tension.</p>`};
+
+FLAWS["frame"]={step:5,
+  why:"Each pin passes through a clevis and is cut on two planes, so it is in double shear: τ = F/(2A<sub>p</sub>).",
+  bad:(p,s)=>({...s,tO:2*s.tO,tA:2*s.tA}),
+  body:(p,sb)=>`<p>${eqs(`τ<sub>O</sub> = |F<sub>2</sub>|/A<sub>p</sub> = ${fmt(sb.tO,2)} MPa`)}&nbsp; ${eqs(`τ<sub>A</sub> = |F<sub>3</sub>|/A<sub>p</sub> = ${fmt(sb.tA,2)} MPa`)}, with ${eqs(`A<sub>p</sub> = ${fmt(sb.Ap,2)} mm²`)}.</p>`};
+
+FLAWS["mohr"]={step:3,
+  why:"Angles on Mohr's circle are twice the angles on the element: the rotation 2φ<sub>p</sub> on the circle corresponds to φ<sub>p</sub> on the element.",
+  bad:(p,s)=>({...s,tp:2*s.tp,ts:s.ts+s.tp}),
+  body:(p,sb,s)=>{const near=Math.abs(s.tp)<=45?"σ<sub>1</sub>":"σ<sub>2</sub>";return `<p>Point <i>x</i> is closer to ${near} on the circle. The circle shows the rotation from <i>x</i> to σ<sub>1</sub> directly: ${eqs(`φ<sub>p</sub> = ${fmt(Math.abs(sb.tp),1)}° ${sb.dir}`)}, so on the element</p><p class="final">σ<sub>1</sub> acts ${fmt(Math.abs(sb.tp),1)}° ${sb.dir} from the x axis.</p>`}};
+
+FLAWS["strain-gauge"]={step:1,
+  why:"In plane stress each normal stress also produces a Poisson strain in the other direction, so σ<sub>x</sub> = E(ε<sub>x</sub> + νε<sub>y</sub>)/(1 − ν²); σ = Eε holds only for uniaxial stress.",
+  bad:(p,s)=>({...s,sx:s.E*s.ex,sy:s.E*s.ey,ez:-s.nu*(s.ex+s.ey)*1e6}),
+  body:()=>`<p>Each gauge measures the strain in its own direction, and Hooke's law relates stress and strain in that direction:</p><p>${eqs(`σ<sub>x</sub> = Eε<sub>x</sub>`)}&nbsp; ${eqs(`σ<sub>y</sub> = Eε<sub>y</sub>`)}</p>`,
+  later:{2:(p,sb)=>{const u=p.us?"kpsi":"MPa",e=v=>v.toExponential(4);return `<p>${sb.m[0]}: E = ${fmt(sb.E,0)} ${u}.</p><p>${eqs(`σ<sub>x</sub> = ${fmt(sb.E,0)}(${e(sb.ex)}) = ${fmt(sb.sx,p.us?2:1)} ${u}`)}</p><p>${eqs(`σ<sub>y</sub> = ${fmt(sb.E,0)}(${e(sb.ey)}) = ${fmt(sb.sy,p.us?2:1)} ${u}`)}</p>`},
+    3:(p,sb)=>{const u=p.us?"kpsi":"MPa";return `<p>${eqs(`ε<sub>z</sub> = −ν(σ<sub>x</sub> + σ<sub>y</sub>)/E = ${fmt(sb.ez,0)} με`)}</p><p class="final">σ<sub>x</sub> = ${fmt(sb.sx,p.us?2:1)} ${u}, σ<sub>y</sub> = ${fmt(sb.sy,p.us?2:1)} ${u}, ε<sub>z</sub> = ${fmt(sb.ez,0)} με.</p>`}}};
+
+FLAWS["cross-section"]={step:2,
+  why:"Each layer's own second moment bh³/12 is about its own centroid; the parallel-axis terms Ad² move them to the neutral axis of the whole section and cannot be dropped.",
+  bad:(p,s)=>{const I=s.parts.reduce((a,q)=>a+q.Io,0),Mu=p.us?p.M:p.M*1e6,pts=s.pts.map(q=>({...q,sig:-Mu*(q.y-s.yb)/I}));return {...s,I,pts,smax:Math.max(...pts.map(q=>Math.abs(q.sig)))}},
+  body:(p,sb)=>{const u=p.us?"in":"mm",e=v=>v.toExponential(4);return `<p>Add the second moments of the layers: ${eqs(`I = Σ bh³/12 = ${p.us?fmt(sb.I,4):e(sb.I)} ${u}⁴`)}</p><p class="final">I = ${p.us?fmt(sb.I,4):e(sb.I)} ${u}⁴; ȳ = ${fmt(sb.yb,4)} ${u}; c<sub>top</sub> = ${fmt(sb.ct,4)} ${u}, c<sub>bottom</sub> = ${fmt(sb.cb,4)} ${u}.</p>`}};
+
 // ===== page
-let curKey="beam-tee", cur=null;
+let curKey=null, cur=null, curSeed=null, curFields=[], curTruth={}, curMode="practice";
 const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+const fieldsOf=(T,p,s)=>{const f=typeof T.fields==="function"?T.fields(p,s):T.fields;return f.filter(x=>!(x.skip&&x.skip(p)))};
+
+// ----- find-the-error mode: the flawed worked solution reuses the template's solution with the flawed results;
+// the flawed step's body is replaced by the flaw's own text, and notes are dropped
+const solSections=html=>html.split(/(?=<h3>)/);
+const stepName=sec=>sec.slice(4,sec.indexOf("</h3>")).replace(/<[^>]+>/g,"").trim();
+// a flaw may list variants; the first whose error changes some answer by more than 4 percent is used
+function flawEffect(T,p,s,sb){const t=T.truth(s,p),tb=T.truth(sb,p);
+  return fieldsOf(T,p,s).some(f=>{const a=t[f.id],b=tb[f.id];if(f.choices)return a!==b;if(typeof a!=="number"||typeof b!=="number")return false;
+    return Math.abs(a-b)>0.04*Math.max(Math.abs(a),f.signed?0.05*Math.max(...Object.values(t).filter(v=>typeof v==="number").map(Math.abs)):1e-12)})}
+function flawOf(T,F,p,s){for(const v of F.variants||[F]){if(v.when&&!v.when(p,s))continue;if(flawEffect(T,p,s,v.bad(p,s)))return v}return null}
+function flawView(T,F0,p,s){
+  const F=flawOf(T,F0,p,s), sb=F.bad(p,s);
+  const secs=solSections(T.solution(p,sb)).map(x=>x.replace(/<p class="note">[\s\S]*?<\/p>/g,""));
+  const steps=secs.filter(x=>x.startsWith("<h3>"));
+  const put=(i,fn)=>{const k=secs.indexOf(steps[i-1]);secs[k]=secs[k].slice(0,secs[k].indexOf("</h3>")+5)+fn(p,sb,s)};
+  put(F.step,F.body); for(const i in F.later||{})put(+i,F.later[i]);      // later steps whose wording depends on the error
+  return {F,sb,html:secs.join(""),steps:steps.map(stepName)};
+}
+
+function fillTypes(){
+  const keys=Object.keys(hunting()?FLAWS:TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+}
+function setMode(mode,key,seed){
+  curMode=mode; $("mPractice").className=mode==="practice"?"":"ghost"; $("mError").className=mode==="error"?"":"ghost";
+  if(key)curKey=key; fillTypes(); render(curKey,seed||parseInt($("seedIn").value,10)||newSeed());
+}
 
 function render(key,seed){
-  curKey=key; const T=TEMPLATES[key];
-  cur=T.generate(seed); const {p,s}=cur;
+  curKey=key; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed);
+  if(F)for(let k=0;k<200&&!flawOf(T,F,cur.p,cur.s);k++){seed++;cur=T.generate(seed)}    // skip the rare problems where the planted error changes no answer
+  curSeed=seed; const {p,s}=cur;
   $("typeSel").value=key; $("seedIn").value=seed;
-  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
-  $("fig").innerHTML=T.figure(p,s);
+  try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
+  const fh=T.figure?T.figure(p,s):""; $("fig").innerHTML=fh; $("fig").parentElement.style.display=fh?"":"none";
   $("statement").innerHTML=T.statement(p,s);
-  $("answers").innerHTML=T.fields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+  curFields=fieldsOf(T,p,s); curTruth=T.truth(s,p);
+  const fc=$("flawCard"); fc.style.display=F?"":"none"; $("flawed").innerHTML="";
+  let FV=null;
+  if(F){const v=flawView(T,F,p,s); FV=v.F; $("flawed").innerHTML=v.html;
+    if(v.steps.length>1){curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:v.steps},...curFields];curTruth={...curTruth,step:v.steps[FV.step-1]}}}
+  $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :f.expr?`<input id="in-${f.id}" type="text" class="expr" spellcheck="false" autocomplete="off">`
     :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
-  $("ansNote").textContent="Answers within 2% are accepted. "+T.note;
-  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
-  $("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+(T.symbolic?"Answers are checked for algebraic equivalence. ":"Answers within 2% are accepted. ")+T.note;
+  const sol=$("solution"); sol.style.display="none";
+  const steps0=solSections(T.solution(p,s)).filter(x=>x.startsWith("<h3>"));
+  sol.innerHTML=(F?`<p class="note">${steps0.length>1?`The error is in step “${stepName(steps0[FV.step-1])}”. `:""}${FV.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 
 function check(){
-  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
-  const scale=Math.max(...Object.values(truth).filter(v=>typeof v==="number").map(Math.abs));
-  T.fields.forEach(f=>{
-    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+  const truth=curTruth, scale=Math.max(...Object.values(truth).filter(v=>typeof v==="number").map(Math.abs));
+  curFields.forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").replace(/[−–]/g,"-").trim();
     if(raw===""){el.textContent="";el.className="mark";return}
     if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    if(f.expr){const r=exprEquivalent(raw,f);el.textContent=r.ok?"Correct":r.msg?"Cannot read: "+r.msg:"Not yet";el.className="mark "+(r.ok?"ok":"bad");return}
     let v=parseFloat(raw), t=truth[f.id];
     if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
     const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scale:0);
@@ -1872,18 +2001,21 @@ function check(){
 }
 
 const newSeed=()=>1+Math.floor(Math.random()*999999);
-$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
-$("typeSel").onchange=e=>render(e.target.value,newSeed());
-$("newBtn").onclick=()=>render(curKey,newSeed());
-$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
-$("checkBtn").onclick=check;
-$("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
-(function(){
-  const m=/^#([a-z-]+)-(\d+)$/.exec(location.hash);
-  if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
-  else{const old=/^#seed-(\d+)$/.exec(location.hash);render("beam-tee",old?parseInt(old[1],10):newSeed())}
-})();
+if(typeof document!=="undefined"&&$("typeSel")){
+  $("typeSel").onchange=e=>render(e.target.value,newSeed());
+  $("newBtn").onclick=()=>render(curKey,newSeed());
+  $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+  $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
+  $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+    s.style.display=show?"block":"none";e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+  (function(){
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice",Object.keys(TEMPLATES)[0],newSeed());
+  })();
+}
 
 </script>
 </body>

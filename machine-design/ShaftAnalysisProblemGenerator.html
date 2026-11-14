@@ -50,9 +50,14 @@
 <body>
 <header>
   <h1>Shaft Analysis Problem Generator</h1>
-  <div class="sub">Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem.</div>
+  <div class="sub">Practice mode: generate a problem, enter your answers and check them. Find-the-error mode: the worked solution shown with the problem contains exactly one conceptual error, and every later step follows correctly from it; identify the step where the error first appears and enter the corrected answers. Each problem comes from a seed in the page address, so a link reproduces it.</div>
 </header>
 <main>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
+  </div>
   <div class="card bar">
     <label for="typeSel">Problem type</label><select id="typeSel"></select>
   </div>
@@ -63,6 +68,10 @@
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -327,32 +336,129 @@ const TEMPLATES={
     truth:s=>({pmin:s.pmin,pmax:s.pmax,nh:s.nh,ns:s.ns,T:s.T}), note:"Same E for hub and shaft; plane stress." }
 };
 
+// ===== planted errors for the find-the-error mode: one conceptual mistake per problem type
+const FLAWS={};
+const eqs=s=>`<span class="eq">${s}</span>`;
+
+function ddFrom(p,cm,ct){const c=p.us?1:1000,n=p.n,Se=p.Se*(p.us?1000:1),Su=p.Su*(p.us?1000:1),Sy=p.Sy*(p.us?1000:1);
+  const A=Math.sqrt(cm*(p.Kf*p.Ma*c)**2+ct*(p.Kfs*p.Ta*c)**2),B=Math.sqrt(cm*(p.Kf*p.Mm*c)**2+ct*(p.Kfs*p.Tm*c)**2);
+  const dG=(16*n/Math.PI*(A/Se+B/Su))**(1/3),dS=(16*n/Math.PI*(A/Se+B/Sy))**(1/3),dR=(8*n*A/(Math.PI*Se)*(1+Math.sqrt(1+(2*B*Se/(A*Su))**2)))**(1/3);
+  const dE=(16*n/Math.PI*Math.sqrt(cm*(p.Kf*p.Ma*c/Se)**2+ct*(p.Kfs*p.Ta*c/Se)**2+cm*(p.Kf*p.Mm*c/Sy)**2+ct*(p.Kfs*p.Tm*c/Sy)**2))**(1/3);
+  return {A,B,dG,dS,dR,dE}}
+FLAWS["de-diameter"]={variants:[{step:1,
+  why:"The distortion-energy criterion combines the stresses as σ′ = √(σ² + 3τ²); with σ = 32M/(πd³) and τ = 16T/(πd³) this gives the factors 4 and 3 in A and B. A factor of 4 on the torque terms is the maximum-shear-stress combination.",
+  bad:p=>ddFrom(p,4,4),
+  body:(p,sb)=>`<p>With moments in ${p.us?"lbf·in":"N·mm"}, combine bending and torsion as for the maximum shear stress, √(σ² + 4τ²):</p><p>${eqs(`A = √[4(K<sub>f</sub>M<sub>a</sub>)² + 4(K<sub>fs</sub>T<sub>a</sub>)²] = ${fmt(sb.A)}`)} ${eqs(`B = √[4(K<sub>f</sub>M<sub>m</sub>)² + 4(K<sub>fs</sub>T<sub>m</sub>)²] = ${fmt(sb.B)}`)}</p><p>The ASME-elliptic expression uses the same factor of 4 on the torque terms.</p>`},
+ {step:1,
+  why:"With σ = 32M/(πd³) and τ = 16T/(πd³), the von Mises stress √(σ² + 3τ²) gives (16/(πd³))√[4M² + 3T²]; the factor 4 on the moment terms comes from 32 = 2 × 16.",
+  bad:p=>ddFrom(p,1,3),
+  body:(p,sb)=>`<p>With moments in ${p.us?"lbf·in":"N·mm"}: ${eqs(`A = √[(K<sub>f</sub>M<sub>a</sub>)² + 3(K<sub>fs</sub>T<sub>a</sub>)²] = ${fmt(sb.A)}`)} ${eqs(`B = √[(K<sub>f</sub>M<sub>m</sub>)² + 3(K<sub>fs</sub>T<sub>m</sub>)²] = ${fmt(sb.B)}`)}</p><p>The ASME-elliptic expression is written with the same coefficients.</p>`}]};
+
+function scFrom(p,s,Kf,Kfs){const z=Math.PI*p.d**3,k=v=>v*(p.us?1:1000)/z/(p.us?1000:1);
+  const sa=Kf*32*k(p.Ma),sm=Kf*32*k(p.Mm),ta=Kfs*16*k(p.Ta),tm=Kfs*16*k(p.Tm);
+  const va=Math.hypot(sa,Math.sqrt(3)*ta),vm=Math.hypot(sm,Math.sqrt(3)*tm),vx=Math.hypot(sa+sm,Math.sqrt(3)*(ta+tm));
+  return {...s,Kf,Kfs,sa,sm,ta,tm,va,vm,vx,nG:faGood(va,vm,s.Se,s.Su),nA:faAsme(va,vm,s.Se,s.Sy),nR:faGerb(va,vm,s.Se,s.Su),ny:s.Sy/vx}}
+FLAWS["shoulder-check"]={variants:[{step:2,
+  why:"Fatigue is governed by the fatigue stress-concentration factors K<sub>f</sub> = 1 + q(K<sub>t</sub> − 1) and K<sub>fs</sub> = 1 + q<sub>s</sub>(K<sub>ts</sub> − 1), which account for the notch sensitivity of the material.",
+  bad:(p,s)=>scFrom(p,s,p.Kt,p.Kts),
+  body:(p,sb)=>{const u=faU(p.us),d=p.us?2:1;return `<p>The fillet multiplies the nominal stresses by its stress-concentration factors: ${eqs(`K<sub>t</sub> = ${fmt(sb.Kf,3)}`)} ${eqs(`K<sub>ts</sub> = ${fmt(sb.Kfs,3)}`)} ${eqs(`σ<sub>a</sub> = K<sub>t</sub>32M<sub>a</sub>/(πd³) = ${fmt(sb.sa,d)}`)} ${eqs(`τ<sub>m</sub> = K<sub>ts</sub>16T<sub>m</sub>/(πd³) = ${fmt(sb.tm,d)}`)}${p.Ta?` ${eqs(`τ<sub>a</sub> = ${fmt(sb.ta,d)}`)}`:""}</p>
+  <p>${eqs(`σ′<sub>a</sub> = √(σ<sub>a</sub>² + 3τ<sub>a</sub>²) = ${fmt(sb.va,d)} ${u}`)} ${eqs(`σ′<sub>m</sub> = √(σ<sub>m</sub>² + 3τ<sub>m</sub>²) = ${fmt(sb.vm,d)} ${u}`)}</p>`}},
+ {step:1,
+  why:"The rotating-beam limit S′<sub>e</sub> must be reduced by the size factor k<sub>b</sub> for the actual diameter as well as by the surface factor.",
+  bad:(p,s)=>{const Se=s.ka*s.S0;return {...s,kb:1,Se,nG:faGood(s.va,s.vm,Se,s.Su),nA:faAsme(s.va,s.vm,Se,s.Sy),nR:faGerb(s.va,s.vm,Se,s.Su)}},
+  body:(p,sb)=>{const u=faU(p.us),d=p.us?2:1;return `<p>The size effect is already part of the rotating-beam test, so only the surface factor applies: ${eqs(`S′<sub>e</sub> = ${fmt(sb.S0,d)} ${u}`)} ${eqs(`k<sub>a</sub> = ${fmt(sb.ka,4)}`)} ${eqs(`S<sub>e</sub> = k<sub>a</sub>S′<sub>e</sub> = ${fmt(sb.Se,d)} ${u}`)}</p>`}}]};
+
+FLAWS["critical-speed"]={step:2,
+  why:"Since ω<sub>1</sub> = (π/L)²(d/4)√(E/ρ), the critical speed is proportional to d/L²: the stiffness EI grows as d⁴ but the mass per length ρA grows as d², so the speed is linear in d.",
+  bad:(p,s)=>({...s,dNew:p.d*Math.sqrt(p.k),Nmodel:s.N}),
+  body:(p,sb)=>`<p>The critical speed is proportional to √(EI) ∝ d²/L², so the diameter scales by √${p.k}.</p><p class="final">(b) d = ${fmt(sb.dNew,1)} mm</p>
+  <p>For a geometrically similar model scaled by s, d → sd and L → sL, so ω<sub>1</sub> ∝ s²/s² = 1.</p><p class="final">(c) N<sub>model</sub> = ${fmt(sb.Nmodel)} rev/min</p>`};
+
+FLAWS["rayleigh"]={step:2,
+  why:"Rayleigh's method weights each mass by its deflection: ω² = gΣW<sub>i</sub>y<sub>i</sub>/ΣW<sub>i</sub>y<sub>i</sub>². The single-mass result √(g/y) does not apply with two masses.",
+  bad:(p,s)=>{const wL=Math.sqrt(9.81/Math.max(...s.Y)),wC=1/Math.sqrt(1/wL**2+1/s.wS**2),rpm=w=>w*60/(2*Math.PI);return {...s,wL,wC,NL:rpm(wL),NC:rpm(wC)}},
+  body:(p,sb)=>`<p>Use the larger static deflection, as for a single mass on a spring: ${eqs(`ω = √(g/y<sub>max</sub>)`)}</p><p class="final">(a) ω = ${fmt(sb.wL,1)} rad/s; N = ${fmt(sb.NL)} rev/min</p>`};
+
+FLAWS["square-key"]={step:3,
+  why:"Only half the key height bears against the hub (or the shaft), so the bearing area is wl/2, not wl.",
+  bad:(p,s)=>{const lb=s.lb/2;return {...s,lb,l:Math.max(s.ls,lb),gov:s.ls>=lb?"Shear":"Bearing (crushing)"}},
+  body:(p,sb)=>{const L=p.us?"in":"mm",d=p.us?3:1;return `<p>The force bears on the side of the key: ${eqs(`σ = F/(wl) = S<sub>y</sub>/n ⇒ l = Fn/(S<sub>y</sub>w)`)}</p><p class="final">l<sub>bearing</sub> = ${fmt(sb.lb,d)} ${L}</p><p class="final">The key must be at least ${fmt(sb.l,d)} ${L} long.</p>`}};
+
+FLAWS["iso-fit"]={step:2,
+  why:"For shaft letters a to h the fundamental deviation is the upper deviation; for j to zc it is the lower deviation. The other limit follows by subtracting or adding the tolerance grade.",
+  bad:(p,s)=>{const up=!"dfgh".includes(s.F[3]),fl=up?s.dev-s.ITs:s.dev,fu=up?s.dev:s.dev+s.ITs,smin=p.D+fl/1000,smax=p.D+fu/1000;return {...s,smin,smax,cmax:s.Hmax-smin,cmin:s.Hmin-smax}},
+  body:(p,sb,s)=>{const f=v=>v.toFixed(3),lo="dfgh".includes(s.F[3]);return `<p>${lo?`The fundamental deviation ${s.dev} μm is the lower deviation; the upper deviation is ${s.dev} + ${s.ITs} = ${s.dev+s.ITs} μm.`:`The fundamental deviation +${s.dev} μm is the upper deviation; the lower deviation is ${s.dev} − ${s.ITs} = ${s.dev-s.ITs} μm.`}</p>
+  <p class="final">Hole ${f(sb.Hmin)} to ${f(sb.Hmax)} mm; shaft ${f(sb.smin)} to ${f(sb.smax)} mm</p>`}};
+
+FLAWS["press-fit"]={step:2,
+  why:"At the hub bore the radial stress −p acts together with the tangential stress, so the von Mises stress is √(σ<sub>t</sub>² − σ<sub>t</sub>σ<sub>r</sub> + σ<sub>r</sub>²), which exceeds σ<sub>t</sub>.",
+  bad:(p,s)=>({...s,vh:s.hubT,nh:p.Syh/s.hubT}),
+  body:(p,sb)=>`<p>Hub bore: the tangential stress is the largest stress, ${eqs(`σ<sub>t</sub> = p(d<sub>o</sub>² + d²)/(d<sub>o</sub>² − d²) = ${fmt(sb.hubT,1)} MPa`)}, so it is compared directly with the yield strength. Solid shaft: σ<sub>t</sub> = σ<sub>r</sub> = −p, so σ′ = p.</p>
+  <p class="final">n<sub>hub</sub> = ${fmt(sb.nh,2)}, n<sub>shaft</sub> = ${fmt(sb.ns,2)}</p>`};
+
 // ===== page
-let curKey="beam-tee", cur=null;
+let curKey=null, cur=null, curSeed=null, curFields=[], curTruth={}, curMode="practice";
 const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+const fieldsOf=(T,p,s)=>{const f=typeof T.fields==="function"?T.fields(p,s):T.fields;return f.filter(x=>!(x.skip&&x.skip(p)))};
+
+// ----- find-the-error mode: the flawed worked solution reuses the template's solution with the flawed results;
+// the flawed step's body is replaced by the flaw's own text, and notes are dropped
+const solSections=html=>html.split(/(?=<h3>)/);
+const stepName=sec=>sec.slice(4,sec.indexOf("</h3>")).replace(/<[^>]+>/g,"").trim();
+// a flaw may list variants; the first whose error changes some answer by more than 4 percent is used
+function flawEffect(T,p,s,sb){const t=T.truth(s,p),tb=T.truth(sb,p);
+  return fieldsOf(T,p,s).some(f=>{const a=t[f.id],b=tb[f.id];if(f.choices)return a!==b;if(typeof a!=="number"||typeof b!=="number")return false;
+    return Math.abs(a-b)>0.04*Math.max(Math.abs(a),f.signed?0.05*Math.max(...Object.values(t).filter(v=>typeof v==="number").map(Math.abs)):1e-12)})}
+function flawOf(T,F,p,s){for(const v of F.variants||[F]){if(v.when&&!v.when(p,s))continue;if(flawEffect(T,p,s,v.bad(p,s)))return v}return null}
+function flawView(T,F0,p,s){
+  const F=flawOf(T,F0,p,s), sb=F.bad(p,s);
+  const secs=solSections(T.solution(p,sb)).map(x=>x.replace(/<p class="note">[\s\S]*?<\/p>/g,""));
+  const steps=secs.filter(x=>x.startsWith("<h3>"));
+  const put=(i,fn)=>{const k=secs.indexOf(steps[i-1]);secs[k]=secs[k].slice(0,secs[k].indexOf("</h3>")+5)+fn(p,sb,s)};
+  put(F.step,F.body); for(const i in F.later||{})put(+i,F.later[i]);      // later steps whose wording depends on the error
+  return {F,sb,html:secs.join(""),steps:steps.map(stepName)};
+}
+
+function fillTypes(){
+  const keys=Object.keys(hunting()?FLAWS:TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+}
+function setMode(mode,key,seed){
+  curMode=mode; $("mPractice").className=mode==="practice"?"":"ghost"; $("mError").className=mode==="error"?"":"ghost";
+  if(key)curKey=key; fillTypes(); render(curKey,seed||parseInt($("seedIn").value,10)||newSeed());
+}
 
 function render(key,seed){
-  curKey=key; const T=TEMPLATES[key];
-  cur=T.generate(seed); const {p,s}=cur;
+  curKey=key; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed);
+  if(F)for(let k=0;k<200&&!flawOf(T,F,cur.p,cur.s);k++){seed++;cur=T.generate(seed)}    // skip the rare problems where the planted error changes no answer
+  curSeed=seed; const {p,s}=cur;
   $("typeSel").value=key; $("seedIn").value=seed;
-  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
-  $("fig").innerHTML=T.figure(p,s);
+  try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
+  const fh=T.figure?T.figure(p,s):""; $("fig").innerHTML=fh; $("fig").parentElement.style.display=fh?"":"none";
   $("statement").innerHTML=T.statement(p,s);
-  const fields=T.fields.filter(f=>!(f.skip&&f.skip(p)));
-  $("answers").innerHTML=fields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+  curFields=fieldsOf(T,p,s); curTruth=T.truth(s,p);
+  const fc=$("flawCard"); fc.style.display=F?"":"none"; $("flawed").innerHTML="";
+  let FV=null;
+  if(F){const v=flawView(T,F,p,s); FV=v.F; $("flawed").innerHTML=v.html;
+    if(v.steps.length>1){curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:v.steps},...curFields];curTruth={...curTruth,step:v.steps[FV.step-1]}}}
+  $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
     :f.expr?`<input id="in-${f.id}" type="text" class="expr" spellcheck="false" autocomplete="off">`
     :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
-  $("ansNote").textContent=(T.symbolic?"Answers are checked for algebraic equivalence. ":"Answers within 2% are accepted. ")+T.note;
-  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
-  $("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+(T.symbolic?"Answers are checked for algebraic equivalence. ":"Answers within 2% are accepted. ")+T.note;
+  const sol=$("solution"); sol.style.display="none";
+  const steps0=solSections(T.solution(p,s)).filter(x=>x.startsWith("<h3>"));
+  sol.innerHTML=(F?`<p class="note">${steps0.length>1?`The error is in step “${stepName(steps0[FV.step-1])}”. `:""}${FV.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 
 function check(){
-  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
-  const scale=Math.max(...Object.values(truth).filter(v=>typeof v==="number").map(Math.abs));
-  T.fields.filter(f=>!(f.skip&&f.skip(cur.p))).forEach(f=>{
-    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+  const truth=curTruth, scale=Math.max(...Object.values(truth).filter(v=>typeof v==="number").map(Math.abs));
+  curFields.forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").replace(/[−–]/g,"-").trim();
     if(raw===""){el.textContent="";el.className="mark";return}
     if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
     if(f.expr){const r=exprEquivalent(raw,f);el.textContent=r.ok?"Correct":r.msg?"Cannot read: "+r.msg:"Not yet";el.className="mark "+(r.ok?"ok":"bad");return}
@@ -365,19 +471,21 @@ function check(){
 }
 
 const newSeed=()=>1+Math.floor(Math.random()*999999);
-$("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
-$("typeSel").onchange=e=>render(e.target.value,newSeed());
-$("newBtn").onclick=()=>render(curKey,newSeed());
-$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
-$("checkBtn").onclick=check;
-$("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-  s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
-(function(){
-  const m=/^#([a-z-]+)-(\d+)$/.exec(location.hash);
-  if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
-  else render(Object.keys(TEMPLATES)[0],newSeed());
-})();
-
+if(typeof document!=="undefined"&&$("typeSel")){
+  $("typeSel").onchange=e=>render(e.target.value,newSeed());
+  $("newBtn").onclick=()=>render(curKey,newSeed());
+  $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+  $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
+  $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+    s.style.display=show?"block":"none";e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+  (function(){
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice",Object.keys(TEMPLATES)[0],newSeed());
+  })();
+}
 
 </script>
 </body>
