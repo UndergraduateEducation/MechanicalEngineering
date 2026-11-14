@@ -155,7 +155,7 @@ const MU=p=>p.us?"lbf·ft":"N·m";
 const sg=v=>v>=0?"counterclockwise":"clockwise";
 const ri=(r,a,b)=>a+Math.floor(r()*(b-a+1));
 const angs=r=>pick(r,[...range(10,170,5),...range(190,350,5)]);
-const thArc=(P,th,r0)=>({t:"arc",p:P,r:r0,t0:0,t1:th,la:th>180?(th+360)/2:undefined,l:ang(th)});
+const thArc=(P,th,r0)=>({t:"arc",p:P,r:r0,t0:0,t1:th,la:th>180?th/2:undefined,l:ang(th)});
 const TEMPLATES={};
 
 // 1. moment of a force in a plane
@@ -172,7 +172,7 @@ TEMPLATES["moment-2d"]={
   statement:p=>`<p>A force of magnitude <i>F</i> = ${p.F} ${FU(p)} acts at point <i>A</i>(${p.x}, ${p.y}) ${LU(p)}. Its direction is <i>θ</i> = ${p.th}°, measured counterclockwise from the positive <i>x</i> axis. Determine the components of the force, the moment of the force about the origin <i>O</i> (counterclockwise positive), and the perpendicular distance from <i>O</i> to the line of action of the force.</p>`,
   figure:p=>{const A=[p.x,p.y],e=Math.max(Math.abs(p.x),Math.abs(p.y))+1.3,tip=[p.x+2.2*cs(p.th),p.y+2.2*sn(p.th)];
     return draw([{a:[Math.min(0,p.x)-1,0],b:[Math.max(0,p.x)+3,0],t:"ln",c:"x",d:1,w:1},{a:[0,Math.min(0,p.y)-1],b:[0,Math.max(0,p.y)+3],t:"ln",c:"x",d:1,w:1},
-      {a:[0,0],b:A,t:"ln",d:1,w:1.2},{t:"pt",p:[0,0],l:it("O"),dx:-14,dy:16,r:4.5},{t:"pt",p:A,l:`${it("A")}(${p.x}, ${p.y}) ${LU(p)}`,dx:-8,dy:p.th>180?-46:20,an:"end"},
+      {a:[0,0],b:A,t:"ln",d:1,w:1.2},{t:"pt",p:[0,0],l:it("O"),dx:-14,dy:16,r:4.5},{t:"pt",p:A,l:`${it("A")}(${p.x}, ${p.y}) ${LU(p)}`,dx:-8,dy:p.th>180?-40:20,an:"end"},
       {a:A,b:tip,c:"r",l:Wl(p,"F"),off:10},thArc(A,p.th,.75),{a:A,b:[p.x+1.6,p.y],t:"ln",c:"x",d:1,w:1}],560,340)},
   solution:(p,s)=>`<h3>1. Components of the force</h3>
   <p>${eq(`F<sub>x</sub> = F cos θ = ${p.F} cos ${p.th}° = ${sig(s.Fx)} ${FU(p)}`)} ${eq(`F<sub>y</sub> = F sin θ = ${p.F} sin ${p.th}° = ${sig(s.Fy)} ${FU(p)}`)}</p>
@@ -200,10 +200,10 @@ TEMPLATES["moment-two-points"]={
     throw new Error("no valid problem");},
   statement:p=>`<p>A triangular plate has corners <i>A</i>(0, 0), <i>B</i>(${p.c}, 0), and <i>P</i>(${p.a}, ${p.b}), with dimensions in ${LU(p)}. A force of magnitude <i>F</i> = ${p.F} ${FU(p)} acts at <i>P</i> in the direction <i>θ</i> = ${p.th}°, measured counterclockwise from the positive <i>x</i> axis. Determine the moment of the force about <i>A</i> and about <i>B</i> (counterclockwise positive).</p>`,
   figure:p=>{const A=[0,0],B=[p.c,0],P=[p.a,p.b],tip=[p.a+2.6*cs(p.th),p.b+2.6*sn(p.th)];
-    const xd=Math.max(p.a,p.c)+.9,up=p.th<180,lf=cs(p.th)>=0;
+    const xd=Math.max(p.a,p.c)+.9,up=p.th<180,dn=!up,T=dn?[P[0]-2.4*cs(p.th),P[1]-2.4*sn(p.th)]:P,Fa=dn?{a:T,b:P,c:"r"}:{a:P,b:tip,c:"r",l:Wl(p,"F"),off:10};
     return draw([{t:"poly",pts:[A,B,P],fill:"#f1ead6"},{t:"pt",p:A,l:it("A"),dx:-14,dy:16,r:4.5},{t:"pt",p:B,l:it("B"),dx:8,dy:16,r:4.5},
-      up?{t:"pt",p:P,l:it("P"),dx:-22*cs(p.th),dy:22*sn(p.th)+4,an:"middle",r:4.5}:{t:"pt",p:P,l:it("P"),dx:-24*cs(p.th),dy:-46,an:"middle",r:4.5},
-      {a:P,b:tip,c:"r",l:Wl(p,"F"),off:10},{t:"txt",p:[tip[0]+(cs(p.th)>=0?3.4:-3.4),tip[1]],l:""},thArc(P,p.th,.75),{a:P,b:[p.a+1.4,p.b],t:"ln",c:"x",d:1,w:1},
+      up?{t:"pt",p:P,l:it("P"),dx:-22*cs(p.th),dy:22*sn(p.th)+4,an:"middle",r:4.5}:{t:"pt",p:P,l:it("P"),dx:cs(p.th)>=0?-14:14,dy:22,an:"middle",r:4.5},
+      Fa,...(dn?[{t:"txt",p:[T[0]+(cs(p.th)>=0?1.7:-1.7),T[1]+.5],l:Wl(p,"F"),an:cs(p.th)>=0?"start":"end",c:"r"}]:[]),{t:"txt",p:[tip[0]+(cs(p.th)>=0?3.4:-3.4),tip[1]],l:""},thArc(T,p.th,.75),{a:T,b:[T[0]+1.6,T[1]],t:"ln",c:"x",d:1,w:1},
       {t:"ln",a:[p.a,-.1],b:[p.a,-1.3],c:"x",d:1,w:.8},{t:"ln",a:[p.c,-.2],b:[p.c,-2.2],c:"x",d:1,w:.8},
       {t:"dim",a:[0,-1.1],b:[p.a,-1.1],l:`${p.a} ${LU(p)}`,flip:1},{t:"dim",a:[0,-2],b:[p.c,-2],l:`${p.c} ${LU(p)}`,flip:1},
       {t:"ln",a:[p.a+.15,p.b],b:[xd+.1,p.b],c:"x",d:1,w:.8},{t:"ln",a:[p.c+.15,0],b:[xd+.1,0],c:"x",d:1,w:.8},
@@ -323,7 +323,7 @@ TEMPLATES["force-couple-2d"]={
     throw new Error("no valid problem");},
   statement:p=>`<p>A force of magnitude <i>F</i> = ${p.F} ${FU(p)} acts at point <i>A</i>(${p.ax}, ${p.ay}) ${LU(p)} in the direction <i>θ</i> = ${p.th}°, measured counterclockwise from the positive <i>x</i> axis. Replace it with an equivalent force-couple system at point <i>B</i>(${p.bx}, ${p.by}) ${LU(p)}. Give the force components and the couple moment (counterclockwise positive).</p>`,
   figure:p=>{const A=[p.ax,p.ay],B=[p.bx,p.by],tip=[p.ax+2.2*cs(p.th),p.ay+2.2*sn(p.th)];
-    return draw([{a:B,b:A,t:"ln",d:1,w:1.2},{t:"pt",p:B,l:`${it("B")}(${p.bx}, ${p.by})`,dx:-8,dy:18,r:4.5,an:"end"},{t:"pt",p:A,l:`${it("A")}(${p.ax}, ${p.ay})`,dx:-8,dy:p.th>180?-46:20,an:"end",r:4.5},
+    return draw([{a:B,b:A,t:"ln",d:1,w:1.2},{t:"pt",p:B,l:`${it("B")}(${p.bx}, ${p.by})`,dx:-8,dy:18,r:4.5,an:"end"},{t:"pt",p:A,l:`${it("A")}(${p.ax}, ${p.ay})`,dx:-8,dy:p.th>180?-40:20,an:"end",r:4.5},
       {a:A,b:tip,c:"r",l:Wl(p,"F"),off:10},thArc(A,p.th,.75),{a:A,b:[p.ax+1.6,p.ay],t:"ln",c:"x",d:1,w:1},{a:[Math.min(p.bx,p.ax)-.8,0],b:[Math.max(p.bx,p.ax)+3,0],t:"ln",c:"x",d:1,w:1}],560,340)},
   solution:(p,s)=>`<h3>1. Force at B</h3>
   <p>Moving a force to another point does not change it: ${eq(`F<sub>x</sub> = ${sig(s.Fx)} ${FU(p)}`)} ${eq(`F<sub>y</sub> = ${sig(s.Fy)} ${FU(p)}`)}</p>
