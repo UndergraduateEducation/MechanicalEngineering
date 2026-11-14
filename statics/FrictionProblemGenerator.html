@@ -64,7 +64,7 @@
     <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
     <button class="ghost" id="loadBtn">Load seed</button>
   </div>
-  <div class="card"><div id="fig"></div></div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
   <div class="card">
     <div class="answers" id="answers"></div>
@@ -331,20 +331,17 @@ TEMPLATES["rope-post"]={
     if(mode==="hold"){p.Tl=Math.round(p.Fl*e/10)*10;return {p,s:{be:rad(p.be),F:p.Tl/Math.exp(p.mu*rad(p.be))}}}
     if(mode==="load")return {p,s:{be:rad(p.be),T:p.Fl*e}};
     p.Tl=Math.round(p.Fl*e/10)*10;return {p,s:{be:rad(p.be),mu:Math.log(p.Tl/p.Fl)/rad(p.be)}};},
-  statement:p=>{const tail=p.mode==="hold"?`holds a load <i>T</i> = ${p.Tl} ${FU(p)}. The coefficient of static friction is <i>μ<sub>s</sub></i> = ${mu2(p.mu)}. Determine the contact angle <i>β</i> in radians and the smallest force <i>F</i> at the free end that holds the load.`:p.mode==="load"?`is held by a force <i>F</i> = ${p.Fl} ${FU(p)} at the free end. The coefficient of static friction is <i>μ<sub>s</sub></i> = ${mu2(p.mu)}. Determine the contact angle <i>β</i> in radians and the largest load <i>T</i> that can be held.`:`holds a load <i>T</i> = ${p.Tl} ${FU(p)} with a force <i>F</i> = ${p.Fl} ${FU(p)} at the free end. Determine the contact angle <i>β</i> in radians and the smallest coefficient of static friction <i>μ<sub>s</sub></i> for which this is possible.`;
-    return `<p>A rope is wrapped ${p.k} turn${p.k===1?"":"s"} around a fixed rough post, so the contact angle is ${p.be}°. The rope ${tail}</p>`},
-  figure:p=>{const lk=p.mode==="hold"?`${it("T")} = ${p.Tl} ${FU(p)}`:p.mode==="load"?`${it("T")} = ?`:`${it("T")} = ${p.Tl} ${FU(p)}`,rk=p.mode==="hold"?`${it("F")} = ?`:`${it("F")} = ${p.Fl} ${FU(p)}`;
-    return draw([{t:"arc",p:[0,0],r:1.2,t0:0,t1:360},{t:"arc",p:[0,0],r:1.35,t0:0,t1:180},{a:[-1.35,0],b:[-1.35,-2.8],c:"m",t:"ln",w:2.4},{a:[1.35,0],b:[1.35,-2.8],c:"m",t:"ln",w:2.4},{a:[-1.35,-2.8],b:[-1.35,-4.2],c:"r"},{a:[1.35,-2.8],b:[1.35,-4.2],c:"r"},
-      {t:"txt",p:[-1.55,-3.9],l:lk,an:"end"},{t:"txt",p:[1.55,-3.9],l:rk,an:"start"},{t:"txt",p:[0,0],l:`${it("β")} = ${p.be}°`}],600,400)},
-  solution:(p,s)=>{const e=`e<sup>μ<sub>s</sub>β</sup>`;return `<h3>1. Contact angle</h3>
-  <p>${eq(`β = ${p.be}° = ${sig(s.be,4)} rad`)}</p>
+  statement:p=>{const tail=p.mode==="hold"?`holds a load <i>T</i> = ${p.Tl} ${FU(p)}. The coefficient of static friction is <i>μ<sub>s</sub></i> = ${mu2(p.mu)}. Determine the smallest force <i>F</i> at the free end that holds the load.`:p.mode==="load"?`is held by a force <i>F</i> = ${p.Fl} ${FU(p)} at the free end. The coefficient of static friction is <i>μ<sub>s</sub></i> = ${mu2(p.mu)}. Determine the largest load <i>T</i> that can be held.`:`holds a load <i>T</i> = ${p.Tl} ${FU(p)} with a force <i>F</i> = ${p.Fl} ${FU(p)} at the free end. Determine the smallest coefficient of static friction <i>μ<sub>s</sub></i> for which this is possible.`;
+    return `<p>A rope is wrapped ${p.k} turn${p.k===1?"":"s"} around a fixed rough post, so the rope spans ${p.be}° around the post. The rope ${tail}</p>`},
+  solution:(p,s)=>{const e=`e<sup>μ<sub>s</sub>β</sup>`;return `<h3>1. Contact angle in radians</h3>
+  <p>${eq(`β = ${p.be}°(π/180°) = ${sig(s.be,4)} rad`)}</p>
   <h3>2. Belt friction equation</h3>
   <p>At impending slip, the tension on the side toward which the rope tends to slip is related to the tension on the other side by ${eq(`T = F ${e}`)}</p>
   ${p.mode==="hold"?`<p>${eq(`F = T e<sup>&minus;μ<sub>s</sub>β</sup> = ${p.Tl} e<sup>&minus;${mu2(p.mu)}(${sig(s.be,4)})</sup> = ${sig(s.F)} ${FU(p)}`)}</p>`:p.mode==="load"?`<p>${eq(`T = F ${e} = ${p.Fl} e<sup>${mu2(p.mu)}(${sig(s.be,4)})</sup> = ${sig(s.T)} ${FU(p)}`)}</p>`:`<p>${eq(`μ<sub>s</sub> = ln(T/F)/β = ln(${p.Tl}/${p.Fl})/${sig(s.be,4)} = ${sig(s.mu,3)}`)}</p>`}
   <p class="final">β = ${sig(s.be,4)} rad; ${p.mode==="hold"?`F = ${sig(s.F,3)} ${FU(p)}`:p.mode==="load"?`T = ${sig(s.T,3)} ${FU(p)}`:`μ<sub>s</sub> = ${sig(s.mu,3)}`}.</p>`},
-  fields:p=>[{id:"be",label:"Contact angle β (radians)",unit:"rad"},p.mode==="hold"?{id:"F",label:"Smallest holding force F",unit:FU(p)}:p.mode==="load"?{id:"T",label:"Largest load T",unit:FU(p)}:{id:"mu",label:"Smallest coefficient μ<sub>s</sub>",unit:""}],
+  fields:p=>[p.mode==="hold"?{id:"F",label:"Smallest holding force F",unit:FU(p)}:p.mode==="load"?{id:"T",label:"Largest load T",unit:FU(p)}:{id:"mu",label:"Smallest coefficient μ<sub>s</sub>",unit:""}],
   truth:s=>({be:s.be,F:s.F,T:s.T,mu:s.mu}),
-  note:"The angle β must be in radians in the exponent."
+  note:"Convert the contact angle to radians before using it in the exponent."
 };
 
 // 8. flat belt drive
@@ -390,7 +387,7 @@ function render(key,seed){
   cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
   $("typeSel").value=key; $("seedIn").value=seed;
   try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
-  $("fig").innerHTML=T.figure(p,s);
+  $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
   $("statement").innerHTML=T.statement(p,s);
   $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
