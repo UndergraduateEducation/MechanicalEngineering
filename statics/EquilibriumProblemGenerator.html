@@ -53,8 +53,13 @@
 <main>
   <div class="card howto">
     <h2>How to use</h2>
-    <p>Pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2% (angles within half a degree). Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
     <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
   </div>
   <div class="card bar">
     <label for="typeSel">Problem type</label><select id="typeSel"></select>
@@ -66,6 +71,10 @@
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
   <div class="card">
     <div class="answers" id="answers"></div>
     <div class="bar" style="margin-top:12px">
@@ -469,40 +478,183 @@ TEMPLATES["mast-cables-3d"]={
   note:"Enter magnitudes."
 };
 
+
+// ===== planted errors: one conceptual mistake per problem type
+const FLAWS={};
+
+FLAWS["two-cables-weight"]={n:2,step:1,
+  why:"The angles are measured from the horizontal, so the horizontal component of a cable tension is <i>T</i> cos of that angle and the vertical component is <i>T</i> sin of it. The equations below use the sine for the horizontal direction.",
+  html:(p,s)=>{const d=sn(p.a)*cs(p.b)+cs(p.a)*sn(p.b),T1=p.W*sn(p.b)/d,T2=p.W*sn(p.a)/d;
+    return `<h3>1. Equilibrium of ring C</h3>
+  <p>${eq(`ΣF<sub>x</sub> = 0: &minus;T<sub>CA</sub> sin ${ang(p.a)} + T<sub>CB</sub> sin ${ang(p.b)} = 0`)}</p>
+  <p>${eq(`ΣF<sub>y</sub> = 0: T<sub>CA</sub> cos ${ang(p.a)} + T<sub>CB</sub> cos ${ang(p.b)} &minus; ${p.W} = 0`)}</p>
+  <h3>2. Solve</h3>
+  <p class="final">T<sub>CA</sub> = ${sig(T1,3)} ${FU(p)}, T<sub>CB</sub> = ${sig(T2,3)} ${FU(p)}.</p>`}};
+
+FLAWS["allowable-load"]={n:3,step:3,
+  why:"Each cable sets an upper limit on the weight. The weight must satisfy both limits at once, so the smaller value governs. Taking the larger one overloads the other cable.",
+  html:(p,s)=>{const W=Math.max(s.W1,s.W2),gov=s.W1>s.W2?"CA":"CB",To=gov==="CA"?W*cs(p.a)/s.sab:W*cs(p.b)/s.sab;
+    return `<h3>1. Tensions in terms of W</h3>
+  <p>${eq(`T<sub>CA</sub> = W cos β / sin(α + β)`)} ${eq(`T<sub>CB</sub> = W cos α / sin(α + β)`)}</p>
+  <h3>2. Weight at which each cable reaches its limit</h3>
+  <p>${eq(`W<sub>CA</sub> = ${sig(s.W1)} ${FU(p)}`)} ${eq(`W<sub>CB</sub> = ${sig(s.W2)} ${FU(p)}`)}</p>
+  <h3>3. Largest weight</h3>
+  <p>The larger of the two values is the most the pair of cables can carry, so cable <i>${gov}</i> sets it.</p>
+  <p class="final">W<sub>max</sub> = ${sig(W,3)} ${FU(p)}; cable ${gov} governs; the other cable carries ${sig(To,3)} ${FU(p)}.</p>`}};
+
+FLAWS["pulley-ring"]={n:3,step:3,
+  why:"The two cable segments pull on the pulley in different directions, so their resultant follows from vector addition and is smaller than the sum of the magnitudes.",
+  html:(p,s)=>`<h3>1. Tension in the pulley cable</h3>
+  <p>The pulley is frictionless, so ${eq(`T<sub>CP</sub> = W<sub>1</sub> = ${p.W1} ${FU(p)}`)}.</p>
+  <h3>2. Equilibrium of ring C</h3>
+  <p>${eq(`T<sub>CD</sub> = ${sig(s.T)} ${FU(p)}`)} ${eq(`W<sub>2</sub> = ${sig(s.W2)} ${FU(p)}`)}</p>
+  <h3>3. Force on the pulley</h3>
+  <p>Each of the two segments pulls on the pulley with ${p.W1} ${FU(p)}, so the pulley carries both:</p>
+  <p class="final">T<sub>CD</sub> = ${sig(s.T,3)} ${FU(p)}, W<sub>2</sub> = ${sig(s.W2,3)} ${FU(p)}, R<sub>P</sub> = 2(${p.W1}) = ${sig(2*p.W1,3)} ${FU(p)}.</p>`};
+
+FLAWS["smooth-incline"]={n:2,step:2,
+  why:"The plane is inclined, so the weight presses on it with its perpendicular component <i>W</i> cos θ, not with the full weight.",
+  html:(p,s)=>{const T=p.W*sn(p.th)/cs(p.al),N=p.W-T*sn(p.al);
+    return `<h3>1. Free body diagram</h3>
+  <p>The block carries its weight, the cable tension at ${ang(p.al)} to the plane, and the normal force perpendicular to the plane.</p>
+  <h3>2. Axes along and perpendicular to the incline</h3>
+  <p>${eq(`ΣF<sub>∥</sub> = 0: T cos ${ang(p.al)} &minus; W sin ${ang(p.th)} = 0`)} so ${eq(`T = ${sig(T)} ${FU(p)}`)}</p>
+  <p>The plane carries the weight of the block less the lift from the cable:</p>
+  <p>${eq(`ΣF<sub>⊥</sub> = 0: N + T sin ${ang(p.al)} &minus; W = 0`)} so ${eq(`N = ${sig(N)} ${FU(p)}`)}</p>
+  <p class="final">T = ${sig(T,3)} ${FU(p)}, N = ${sig(N,3)} ${FU(p)}.</p>`}};
+
+FLAWS["spring-ring"]={n:3,step:2,
+  why:"The spring is horizontal and the cable is not, so the spring force balances only the horizontal component of the tension, <i>T</i> cos θ.",
+  html:(p,s)=>{const T=p.W/sn(p.theta),Fs=T,d=Fs/p.k;
+    return `<h3>1. Vertical equilibrium of ring C</h3>
+  <p>${eq(`T sin ${ang(p.theta)} &minus; ${p.W} = 0`)} so ${eq(`T = ${sig(T)} ${FU(p)}`)}</p>
+  <h3>2. Spring force</h3>
+  <p>The spring and the cable are the only two members attached to the ring, so the spring carries the whole cable tension:</p>
+  <p>${eq(`F<sub>s</sub> = T = ${sig(Fs)} ${FU(p)}`)}</p>
+  <h3>3. Stretch and length</h3>
+  <p>${eq(`δ = F<sub>s</sub>/k = ${sig(d)} ${SU(p)}`)} ${eq(`L = ${p.L0} + ${sig(d)} = ${sig(p.L0+d)} ${SU(p)}`)}</p>
+  <p class="final">T = ${sig(T,3)} ${FU(p)}, F<sub>s</sub> = ${sig(Fs,3)} ${FU(p)}, δ = ${sig(d,3)} ${SU(p)}, L = ${sig(p.L0+d,3)} ${SU(p)}.</p>`}};
+
+FLAWS["bar-cable-boom"]={n:3,step:2,
+  why:"Bar <i>AB</i> runs from the wall at <i>A</i> up to <i>B</i>, so it is inclined, not horizontal. Its force acts along <i>AB</i> and has a vertical component.",
+  html:(p,s)=>{const T=p.W*s.Lc/(p.H-p.h),Fb=T*p.b/s.Lc;
+    return `<h3>1. Geometry</h3>
+  <p>${eq(`L<sub>AB</sub> = ${sig(s.Lb)} ${LU(p)}`)} ${eq(`L<sub>BC</sub> = ${sig(s.Lc)} ${LU(p)}`)}</p>
+  <h3>2. Free body diagram of joint B</h3>
+  <p>The bar is horizontal, so it carries no vertical load and the cable alone supports the weight:</p>
+  <p>${eq(`ΣF<sub>y</sub> = 0: T<sub>BC</sub>(${p.H-p.h}/${sig(s.Lc)}) &minus; ${p.W} = 0`)} so ${eq(`T<sub>BC</sub> = ${sig(T)} ${FU(p)}`)}</p>
+  <h3>3. Bar force</h3>
+  <p>${eq(`ΣF<sub>x</sub> = 0: F<sub>AB</sub> &minus; T<sub>BC</sub>(${p.b}/${sig(s.Lc)}) = 0`)} so ${eq(`F<sub>AB</sub> = ${sig(Fb)} ${FU(p)}`)}</p>
+  <p class="final">The bar carries ${sig(Fb,3)} ${FU(p)} in compression; the cable tension is ${sig(T,3)} ${FU(p)}.</p>`}};
+
+FLAWS["two-particles-chain"]={n:3,step:1,
+  why:"The tension is the same throughout a single cable only when it passes over a frictionless pulley or runs straight through. Here each ring is a separate body that carries a weight, so each segment has its own tension.",
+  html:(p,s)=>{const T=p.WA/(sn(p.t1)-sn(p.t2)),WB=T*(sn(p.t2)+sn(p.t3));
+    return `<h3>1. Tension along the cable</h3>
+  <p>The three segments belong to one continuous cable, so the tension is the same in all three: <i>T</i><sub>1</sub> = <i>T</i><sub>2</sub> = <i>T</i><sub>3</sub> = <i>T</i>.</p>
+  <h3>2. Ring A</h3>
+  <p>${eq(`ΣF<sub>y</sub> = 0: T sin ${ang(p.t1)} &minus; T sin ${ang(p.t2)} &minus; ${p.WA} = 0`)} so ${eq(`T = ${sig(T)} ${FU(p)}`)}</p>
+  <h3>3. Ring B</h3>
+  <p>${eq(`W<sub>B</sub> = T sin ${ang(p.t2)} + T sin ${ang(p.t3)} = ${sig(WB)} ${FU(p)}`)}</p>
+  <p class="final">T<sub>1</sub> = T<sub>2</sub> = T<sub>3</sub> = ${sig(T,3)} ${FU(p)}, W<sub>B</sub> = ${sig(WB,3)} ${FU(p)}.</p>`}};
+
+FLAWS["parallel-springs"]={n:3,step:2,
+  why:"The platform stays level, so the two springs are compressed by the same amount, not loaded by the same force. The stiffer spring carries the larger share.",
+  html:(p,s)=>{const F=p.W/2,d=F/p.k1;
+    return `<h3>1. Equilibrium</h3>
+  <p>${eq(`F<sub>1</sub> + F<sub>2</sub> = W = ${p.W} ${FU(p)}`)}</p>
+  <h3>2. Sharing the load</h3>
+  <p>The platform is rigid and level, so the two springs carry equal forces:</p>
+  <p>${eq(`F<sub>1</sub> = F<sub>2</sub> = ${p.W}/2 = ${sig(F)} ${FU(p)}`)}</p>
+  <h3>3. Compression</h3>
+  <p>${eq(`δ = F<sub>1</sub>/k<sub>1</sub> = ${sig(F)}/${p.k1} = ${sig(d)} ${SU(p)}`)}</p>
+  <p class="final">F<sub>1</sub> = ${sig(F,3)} ${FU(p)}, F<sub>2</sub> = ${sig(F,3)} ${FU(p)}, δ = ${sig(d,3)} ${SU(p)}.</p>`}};
+
+FLAWS["tripod-3d"]={n:3,step:1,
+  why:"A cable force is the tension times a <i>unit</i> vector along the cable. The vectors below are the position vectors of the anchors, which are not unit vectors, so each equation is scaled by the wrong length.",
+  html:(p,s)=>{const M=[0,1,2].map(i=>[p.A,p.B,p.C].map(q=>q[i])),T=solve3(M,[0,0,p.W]);
+    return `<h3>1. Vectors from O toward each anchor</h3>
+  <p>${eq(`λ<sub>OA</sub> = ${fv(p.A)}`)} ${eq(`λ<sub>OB</sub> = ${fv(p.B)}`)} ${eq(`λ<sub>OC</sub> = ${fv(p.C)}`)}</p>
+  <h3>2. Equilibrium of the joint</h3>
+  <p>${eq(`T<sub>A</sub> λ<sub>OA</sub> + T<sub>B</sub> λ<sub>OB</sub> + T<sub>C</sub> λ<sub>OC</sub> + (0, 0, &minus;${p.W}) = 0`)}</p>
+  <h3>3. Solve</h3>
+  <p class="final">T<sub>A</sub> = ${sig(T[0],3)} ${FU(p)}, T<sub>B</sub> = ${sig(T[1],3)} ${FU(p)}, T<sub>C</sub> = ${sig(T[2],3)} ${FU(p)}.</p>`}};
+
+FLAWS["mast-cables-3d"]={n:3,step:1,
+  why:"A cable pulls the top of the mast toward its ground anchor, so the unit vector runs from <i>B</i> to the anchor. Reversing it reverses the sign of both tensions, and a cable cannot push.",
+  html:(p,s)=>{const B=[0,0,p.h],la=unit(sub(B,p.A)),lc=unit(sub(B,p.C)),Px=p.P*cs(p.phi),Py=p.P*sn(p.phi);
+    const d=la[0]*lc[1]-lc[0]*la[1],TA=(-Px*lc[1]+Py*lc[0])/d,TC=(-la[0]*Py+la[1]*Px)/d;
+    return `<h3>1. Unit vectors</h3>
+  <p>${eq(`λ<sub>BA</sub> = ${fv(la)}`)} ${eq(`λ<sub>BC</sub> = ${fv(lc)}`)}</p>
+  <h3>2. Horizontal equilibrium of joint B</h3>
+  <p>${eq(`x: ${sig(la[0])}T<sub>A</sub> + ${sig(lc[0])}T<sub>C</sub> + ${sig(Px)} = 0`)}</p>
+  <p>${eq(`y: ${sig(la[1])}T<sub>A</sub> + ${sig(lc[1])}T<sub>C</sub> + ${sig(Py)} = 0`)}</p>
+  <p>${eq(`T<sub>A</sub> = ${sig(TA)} ${FU(p)}`)} ${eq(`T<sub>C</sub> = ${sig(TC)} ${FU(p)}`)}</p>
+  <h3>3. Mast force</h3>
+  <p class="final">T<sub>A</sub> = ${sig(TA,3)}, T<sub>C</sub> = ${sig(TC,3)}, F<sub>m</sub> = ${sig(-(TA*la[2]+TC*lc[2]),3)} ${FU(p)} (compression).</p>`}};
+
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
 const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
 function reportUrl(){
   const q=new URLSearchParams({usp:"pp_url"});
   q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
-  q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);
   return FORM.url+"?"+q.toString();
 }
 
 // ===== page
-let curKey="two-cables-weight", cur=null, curFields=[];
+let curKey="two-cables-weight", curSeed=null, cur=null, curFields=[], curTruth={}, curMode="practice";
 const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+
+function fillTypes(){
+  const keys=hunting()?Object.keys(FLAWS):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+  return curKey;
+}
+
+function setMode(mode,key,seed){
+  curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";
+  $("mError").className=mode==="error"?"":"ghost";
+  const rr=$("reportRow"); if(rr&&rr.firstElementChild)rr.firstElementChild.textContent=hunting()
+    ?"Found a mistake other than the planted one?"
+    :"Found a mistake in a problem or its solution?";
+  curKey=key||curKey; const k=fillTypes();
+  render(k,seed||parseInt($("seedIn").value,10)||1);
+}
 
 function render(key,seed){
-  curKey=key; const T=TEMPLATES[key];
-  cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
+  curKey=key; curSeed=seed; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed); const {p,s}=cur;
   $("typeSel").value=key; $("seedIn").value=seed;
-  try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
-  $("fig").innerHTML=T.figure(p,s);
+  try{history.replaceState(null,"","#"+key+"-"+seed+(hunting()?"-e":""))}catch(e){}
+  const fc=$("figCard"); if(fc)fc.style.display=T.figure?"":"none";
+  $("fig").innerHTML=T.figure?T.figure(p,s):"";
   $("statement").innerHTML=T.statement(p,s);
+  $("flawCard").style.display=F?"":"none";
+  $("flawed").innerHTML=F?F.html(p,s):"";
+  curFields=T.fields(p,s); curTruth=T.truth(s);
+  if(F){const steps=[];for(let i=1;i<=F.n;i++)steps.push(String(i));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];
+    curTruth={step:String(F.step),...curTruth}}
   $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
     :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
-  $("ansNote").textContent="Answers within 2% are accepted. "+T.note;
-  const sol=$("solution"); sol.style.display="none"; sol.innerHTML=T.solution(p,s);
-  $("solBtn").textContent="Show solution";
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+"Answers within 2% are accepted. "+T.note;
+  const sol=$("solution"); sol.style.display="none";
+  sol.innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
 }
 
 function check(){
-  const T=TEMPLATES[curKey], truth=T.truth(cur.s);
+  const truth=curTruth;
   const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
   curFields.forEach(f=>{
-    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    const el=$("mk-"+f.id); let raw=$("in-"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");
+    raw=/^-?\d{1,3}(,\d{3})+(\.\d*)?$/.test(raw)?raw.replace(/,/g,""):raw.replace(",",".");
     if(raw===""){el.textContent="";el.className="mark";return}
     if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
     let v=parseFloat(raw), t=truth[f.id];
@@ -515,19 +667,21 @@ function check(){
 
 if(typeof document!=="undefined"){
   const newSeed=()=>1+Math.floor(Math.random()*999999);
-  $("typeSel").innerHTML=Object.entries(TEMPLATES).map(([k,t])=>`<option value="${k}">${t.name}</option>`).join("");
   $("typeSel").onchange=e=>render(e.target.value,newSeed());
   $("newBtn").onclick=()=>render(curKey,newSeed());
   $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
   $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
   if(FORM.url)$("reportRow").style.display="";
   $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
   $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
-    s.style.display=show?"block":"none";e.target.textContent=show?"Hide solution":"Show solution"};
+    s.style.display=show?"block":"none";
+    e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
   (function(){
-    const m=/^#([a-z0-9-]+)-(\d+)$/.exec(location.hash);
-    if(m&&TEMPLATES[m[1]]) render(m[1],parseInt(m[2],10));
-    else render("two-cables-weight",newSeed());
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice","two-cables-weight",newSeed());
   })();
 }
 if(typeof module!=="undefined")module.exports={TEMPLATES};

@@ -70,6 +70,7 @@ const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
 const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
 function fmt(v,d=0){return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
 function sig(v,n=3){if(v===0)return "0";const e=Math.floor(Math.log10(Math.abs(v)));return fmt(+v.toPrecision(n),Math.min(20,Math.max(0,n-1-e)))}
+function fx(v){for(let d=0;d<=4;d++)if(Math.abs(+v.toFixed(d)-v)<1e-9*Math.max(1,Math.abs(v)))return fmt(v,d);return sig(v,4)}
 const FR={0.25:"¼",0.375:"⅜",0.5:"½",0.625:"⅝",0.75:"¾",0.875:"⅞",1:"1",1.25:"1¼",1.5:"1½"};
 const dstr=v=>FR[v]||String(v);
 const C={fill:"#f7e2c4",ln:"#78461a",load:"#aa1e28",dim:"#5b6470",ink:"#1f2328",green:"#1e5a32",light:"#cde1cd",steel:"#dfe4ea",steelln:"#46505c"};
@@ -335,28 +336,32 @@ function bmDraw(bm,o={}){
   bm.W.forEach(d=>{const h=v=>14+46*Math.abs(v)/mxw,ya=yb-th/2-6;
     s+=`<polygon points="${X(d.a)},${ya} ${X(d.a)},${ya-h(d.w1)} ${X(d.b)},${ya-h(d.w2)} ${X(d.b)},${ya}" fill="#f3d6d8" stroke="${C.load}" stroke-width="1.2"/>`;
     const n=Math.max(2,Math.round((d.b-d.a)*sc/28));for(let i=0;i<=n;i++){const x=d.a+(d.b-d.a)*i/n,hh=h(wAt(d,x));if(hh>16)s+=AR(X(x),ya-hh,X(x),ya,C.load,1.3)}
-    const lab=d.w1===d.w2?`${fmt(d.w1)} ${u.w}`:(d.w1===0?`${fmt(d.w2)} ${u.w}`:d.w2===0?`${fmt(d.w1)} ${u.w}`:`${fmt(d.w1)} to ${fmt(d.w2)} ${u.w}`);
+    const lab=d.w1===d.w2?`${fx(d.w1)} ${u.w}`:(d.w1===0?`${fx(d.w2)} ${u.w}`:d.w2===0?`${fx(d.w1)} ${u.w}`:`${fx(d.w1)} to ${fx(d.w2)} ${u.w}`);
     s+=TX((X(d.a)+X(d.b))/2+(d.w1===0?20:d.w2===0?-20:0),ya-h(Math.max(d.w1,d.w2))-8,lab,{s:13,c:C.load})});
   if(o.steps)o.steps.forEach(([a,c,h])=>{s+=RC(X(a),yb-h/2,X(c)-X(a),h,{f:"#f7e2c4",c:C.ln})});else s+=RC(X(0),yb-th/2,W,th,{f:"#f7e2c4",c:C.ln});
   // supports
   const pin=x=>`<polygon points="${X(x)},${yb+th/2} ${X(x)-11},${yb+th/2+18} ${X(x)+11},${yb+th/2+18}" fill="#eceae4" stroke="${C.ln}" stroke-width="1.3"/>`+HATCH(X(x)-16,yb+th/2+18,32,7);
   const rol=x=>`<polygon points="${X(x)},${yb+th/2} ${X(x)-10},${yb+th/2+13} ${X(x)+10},${yb+th/2+13}" fill="#eceae4" stroke="${C.ln}" stroke-width="1.3"/>`+CI(X(x)-5,yb+th/2+17,4,{f:"#fff"})+CI(X(x)+5,yb+th/2+17,4,{f:"#fff"})+HATCH(X(x)-16,yb+th/2+21,32,7);
-  if(s0.kind==="ss")s+=pin(s0.xa)+rol(s0.xb);
+  if(o.sups){o.sups.forEach(q=>{if(q.t==="pin")s+=pin(q.x);if(q.t==="roller")s+=rol(q.x);if(q.t==="wallL")s+=HATCH(X(0)-18,yb-50,18,100);if(q.t==="wallR")s+=HATCH(X(bm.L),yb-50,18,100);
+    if(q.t==="spring"){const x=X(q.x),y1=yb+th/2,y2=yb+th/2+60;let z=`M${x},${y1} L${x},${y1+8}`;for(let i=0;i<6;i++)z+=` L${x+(i%2?-8:8)},${y1+12+i*6}`;z+=` L${x},${y2-8} L${x},${y2}`;
+      s+=`<path d="${z}" fill="none" stroke="${C.steelln}" stroke-width="1.6"/>`+HATCH(x-16,y2,32,7)+(q.lab?TX(x+16,y1+30,q.lab,{s:12,c:C.dim,a:"start"}):"")}
+    if(q.t==="gap"){const x=X(q.x);s+=`<polygon points="${x},${yb+th/2+14} ${x-10},${yb+th/2+27} ${x+10},${yb+th/2+27}" fill="#eceae4" stroke="${C.ln}" stroke-width="1.3"/>`+HATCH(x-16,yb+th/2+27,32,7)+TX(x+16,yb+th/2+14,q.lab,{s:12,c:C.dim,a:"start"})}})}
+  else if(s0.kind==="ss")s+=pin(s0.xa)+rol(s0.xb);
   if(s0.kind==="fixL"||s0.kind==="hinge")s+=HATCH(X(0)-18,yb-50,18,100);
   if(s0.kind==="fixR")s+=HATCH(X(bm.L),yb-50,18,100);
   if(s0.kind==="hinge")s+=rol(s0.xc)+CI(X(s0.xh),yb,6,{f:"#fff"});
   // point loads and couples
   const covered=x=>bm.W.some(d=>x>=d.a-1e-9&&x<=d.b+1e-9);
   bm.P.forEach(q=>{const dn=q.F>0,top=covered(q.x)?112:74;s+=dn?AR(X(q.x),yb-th/2-top,X(q.x),yb-th/2-2,C.load,2.6):AR(X(q.x),yb+th/2+70,X(q.x),yb+th/2+2,C.load,2.6);
-    s+=TX(X(q.x)+(covered(q.x)?-6:6),dn?yb-th/2-top-6:yb+th/2+86,`${fmt(Math.abs(q.F))} ${u.F}`,{s:13,c:C.load,a:covered(q.x)?"end":"middle"})});
-  bm.C.forEach(c=>{const r=24,cx=X(c.x),cw=c.C>0,lab=`${fmt(Math.abs(c.C))} ${u.M}`;
+    s+=TX(X(q.x)+(covered(q.x)?-6:6),dn?yb-th/2-top-6:yb+th/2+86,`${fx(Math.abs(q.F))} ${u.F}`,{s:13,c:C.load,a:covered(q.x)?"end":"middle"})});
+  bm.C.forEach(c=>{const r=24,cx=X(c.x),cw=c.C>0,lab=`${fx(Math.abs(c.C))} ${u.M}`;
     if(!bm.W.length){const cy=yb-th/2-3,sx=cw?cx-r:cx+r,ex=cw?cx+r:cx-r;
       s+=`<path d="M${sx},${cy} A${r},${r} 0 0,${cw?1:0} ${ex},${cy}" fill="none" stroke="${C.load}" stroke-width="2"/><polygon points="${ex},${cy+2} ${ex-5},${cy-9} ${ex+5},${cy-9}" fill="${C.load}"/>`+TX(cx,cy-r-8,lab,{s:13,c:C.load})}
     else{const cy=yb+th/2+3,sx=cw?cx+r:cx-r,ex=cw?cx-r:cx+r;
       s+=`<path d="M${sx},${cy} A${r},${r} 0 0,${cw?1:0} ${ex},${cy}" fill="none" stroke="${C.load}" stroke-width="2"/><polygon points="${ex},${cy-2} ${ex-5},${cy+9} ${ex+5},${cy+9}" fill="${C.load}"/>`+TX(cx+r+6,cy+r,lab,{s:13,c:C.load,a:"start"})}});
   // labels and dimensions
   const pts=o.labels||bmLabels(bm);
-  const wallAt=x=>(s0.kind==="fixL"||s0.kind==="hinge")&&x===0?14:s0.kind==="fixR"&&x===bm.L?-14:0;
+  const hasW=t=>(o.sups||[]).some(q=>q.t===t),onSpring=x=>(o.sups||[]).some(q=>q.t==="spring"&&Math.abs(q.x-x)<1e-9),wallAt=x=>onSpring(x)?-16:(s0.kind==="fixL"||s0.kind==="hinge"||hasW("wallL"))&&x===0?14:(s0.kind==="fixR"||hasW("wallR"))&&x===bm.L?-14:0;
   pts.forEach(([x,n])=>{s+=TX(X(x)+wallAt(x),yb+th/2+44,n,{s:14,i:1})});
   const xs=pts.map(p=>p[0]);for(let i=0;i+1<xs.length;i++)s+=DIMH(X(xs[i]),X(xs[i+1]),yb+th/2+70,`${fmtx(xs[i+1]-xs[i])} ${u.L}`);
   if(o.section!==undefined)s+=LN(X(o.section),yb-40,X(o.section),yb+40,{c:C.green,w:1.5,d:"5 3"})+TX(X(o.section),yb-46,"section",{s:12,c:C.green});
@@ -365,7 +370,7 @@ function bmDraw(bm,o={}){
 function bmLabels(bm){const xs=[...new Set(bm.ev)].sort((a,b)=>a-b);return xs.map((x,i)=>[x,NODES[i]])}
 const ptName=(bm,x)=>{const l=bmLabels(bm).find(p=>Math.abs(p[0]-x)<1e-9);return l?l[1]:"x = "+fmtx(x)};
 // shear and moment diagrams
-function bmDiagram(bm,which){
+function bmDiagram(bm,which,dg=3){
   const u=U4(bm.us),x0=90,W=560,sc=W/bm.L,X=x=>x0+x*sc,H=110,f=which==="V"?bm.V:bm.M,e=1e-9*bm.L;
   const segs=[];for(let i=0;i+1<bm.ev.length;i++){const a=bm.ev[i],b=bm.ev[i+1],pts=[];for(let k=0;k<=60;k++){const x=a+(b-a)*k/60;pts.push([x,f(Math.min(Math.max(x,a+e),b-e))])}segs.push(pts)}
   const all=segs.flat().map(p=>p[1]),mx=Math.max(1e-9,...all.map(Math.abs)),y0=20+H*Math.max(...all,0)/(Math.max(...all,0)-Math.min(...all,0)||1),k=H/(Math.max(...all,0)-Math.min(...all,0)||1),Y=v=>y0-v*k;
@@ -374,7 +379,7 @@ function bmDiagram(bm,which){
   s+=`<path d="${path}" fill="${which==="V"?"#dbe7f3":"#e3efe0"}" stroke="${which==="V"?"#2a5d8f":C.green}" stroke-width="1.8"/>`;
   const labs=[];bm.ev.forEach(x=>{[x-e,x+e].forEach(t=>{if(t>0&&t<bm.L){const v=f(t);if(Math.abs(v)>mx*0.02&&!labs.some(l=>Math.abs(l.v-v)<mx*0.02&&Math.abs(l.x-x)<1e-9))labs.push({x,v})}})});
   if(which==="M")bm.cand.filter(c=>c.z).forEach(c=>labs.push({x:c.x,v:c.m,z:1}));
-  labs.forEach(l=>{s+=CI(X(l.x),Y(l.v),2.5,{f:"#333",c:"#333"})+TX(X(l.x)+(l.z?0:4),Y(l.v)+(l.v>=0?-6:15),sig(l.v,3),{s:11,c:C.ink})});
+  labs.forEach(l=>{s+=CI(X(l.x),Y(l.v),2.5,{f:"#333",c:"#333"})+TX(X(l.x)+(l.z?0:4),Y(l.v)+(l.v>=0?-6:15),sig(l.v,dg),{s:11,c:C.ink})});
   bm.ev.forEach(x=>{s+=LN(X(x),12,X(x),H+30,{c:"#c8cdd4",w:.7,d:"2 3"})});
   s+=TX(X(0)-8,y0+4,which==="V"?`V (${u.F})`:`M (${u.M})`,{s:12,c:C.dim,a:"end"});
   return SVG(760,H+42,s);
@@ -531,7 +536,7 @@ function s6Generate(seed){
 }
 function s6Figure(p){
   const u=U4(p.us),x0=90,W=560,sc=W/p.L,X=x=>x0+x*sc;
-  let s=TX(380,16,"Shear force diagram (no couples act on the beam)",{s:13,c:C.dim})+`<g transform="translate(0,16)">${bmDiagram(p,"V").replace(/<svg[^>]*>|<\/svg>/g,"")}</g>`;
+  let s=TX(380,16,"Shear force diagram (no couples act on the beam)",{s:13,c:C.dim})+`<g transform="translate(0,16)">${bmDiagram(p,"V",4).replace(/<svg[^>]*>|<\/svg>/g,"")}</g>`;
   const pts=bmLabels(p);pts.forEach(([x,n])=>{s+=TX(X(x),186,n,{s:14,i:1})});
   for(let i=0;i+1<pts.length;i++)s+=DIMH(X(pts[i][0]),X(pts[i+1][0]),206,`${fmtx(pts[i+1][0]-pts[i][0])} ${u.L}`);
   return SVG(760,230,s);
@@ -791,14 +796,15 @@ const TEMPLATES={"ss-deflection":D1,"cantilever":D2,"overhang":D3,"partial-load"
 
 const $=id=>document.getElementById(id);
 let curKey,curSeed,cur;
+const tidy=h=>h.replace(/\bin\.\.(?!\.)/g,"in.").replace(/\b([Aa]) (aluminum|inelastic|unequal)\b/g,"$1n $2");
 function render(key,seed){
   curKey=key;curSeed=seed;const T=TEMPLATES[key];cur=T.generate(seed);const {p,s}=cur;
   $("typeSel").value=key;$("seedIn").value=seed;history.replaceState(null,"","#"+key+"-"+seed);
-  $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=T.statement(p,s);
+  $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=tidy(T.statement(p,s));
   $("answers").innerHTML=T.fields(p,s).map(f=>f.choices
-    ?`<label>${f.label}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
-    :`<label>${f.label}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
-  $("ansNote").textContent=T.note||"";$("solution").innerHTML=T.solution(p,s);
+    ?`<label>${tidy(f.label)}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
+    :`<label>${tidy(f.label)}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
+  $("ansNote").textContent=T.note||"";$("solution").innerHTML=tidy(T.solution(p,s));
   $("solution").style.display="none";$("solBtn").textContent="Show solution";
 }
 function check(){
@@ -807,8 +813,9 @@ function check(){
     const el=$("m_"+f.id),raw=$("a_"+f.id).value.trim();let ok=false;
     if(f.choices)ok=raw===tr[f.id];
     else{const v=parseFloat(raw.replace(/,/g,"")),t=tr[f.id];
-      if(isFinite(v)) ok=f.signed?Math.abs(v-t)<=0.02*Math.abs(t)+1e-9:Math.abs(Math.abs(v)-Math.abs(t))<=0.02*Math.abs(t)+1e-9;
-      if(isFinite(v)&&f.signed&&Math.abs(v)>0&&Math.sign(v)!==Math.sign(t)) ok=false}
+      if(isFinite(v)&&f.abs!==undefined) ok=Math.abs(v-t)<=f.abs;
+      else if(isFinite(v)) ok=f.signed?Math.abs(v-t)<=0.02*Math.abs(t)+1e-9:Math.abs(Math.abs(v)-Math.abs(t))<=0.02*Math.abs(t)+1e-9;
+      if(isFinite(v)&&f.signed&&f.abs===undefined&&Math.abs(v)>0&&Math.sign(v)!==Math.sign(t)) ok=false}
     el.textContent=raw===""?"":ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");
   });
 }

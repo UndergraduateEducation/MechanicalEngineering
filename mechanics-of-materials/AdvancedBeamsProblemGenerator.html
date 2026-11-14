@@ -70,6 +70,7 @@ const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
 const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
 function fmt(v,d=0){return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
 function sig(v,n=3){if(v===0)return "0";const e=Math.floor(Math.log10(Math.abs(v)));return fmt(+v.toPrecision(n),Math.min(20,Math.max(0,n-1-e)))}
+function fx(v){for(let d=0;d<=4;d++)if(Math.abs(+v.toFixed(d)-v)<1e-9*Math.max(1,Math.abs(v)))return fmt(v,d);return sig(v,4)}
 const FR={0.25:"¼",0.375:"⅜",0.5:"½",0.625:"⅝",0.75:"¾",0.875:"⅞",1:"1",1.25:"1¼",1.5:"1½"};
 const dstr=v=>FR[v]||String(v);
 const C={fill:"#f7e2c4",ln:"#78461a",load:"#aa1e28",dim:"#5b6470",ink:"#1f2328",green:"#1e5a32",light:"#cde1cd",steel:"#dfe4ea",steelln:"#46505c"};
@@ -604,8 +605,8 @@ const A1={name:"Shear flow in a thin-walled I-section",generate:a1Generate,
   <h3>2. Shear flow q = VQ/I</h3><p>Flange: q grows linearly from zero at each tip. At the web, each half flange has Q = (b/2)t<sub>f</sub>(h/2): q₁ = ${sig(s.q1,4)} ${u.q}.</p>
   <p>Web top: the two half-flange flows join, q₂ = 2q₁ = ${sig(s.q2,4)} ${u.q}. Neutral axis: q = q₂ + Vt<sub>w</sub>(h/2)(h/4)/I = ${sig(s.qna,4)} ${u.q} (parabolic in the web).</p>
   <h3>3. Stress and web share</h3><p>τ<sub>max</sub> = q<sub>max</sub>/t<sub>w</sub> = ${sig(s.tm,4)} ${u.S}. Integrating q over the web height: V<sub>web</sub> = q₂h + (2/3)(q<sub>NA</sub> − q₂)h, which is ${sig(s.pw,3)}% of V. In this idealization the web carries all of V, since the flange flows are horizontal and cancel.</p>`},
-  fields:p=>{const u=AU(p.us);return [{id:"I",label:"Moment of inertia",unit:u.d+"⁴"},{id:"q1",label:"Flange shear flow at the web",unit:u.q},{id:"q2",label:"Web shear flow at the flange",unit:u.q},{id:"qn",label:"Web shear flow at the neutral axis",unit:u.q},{id:"tm",label:"Maximum shear stress",unit:u.S}]},
-  truth:(p,s)=>({I:s.I,q1:s.q1,q2:s.q2,qn:s.qna,tm:s.tm}),note:"Answers within 2% are accepted."};
+  fields:p=>{const u=AU(p.us);return [{id:"I",label:"Moment of inertia",unit:u.d+"⁴"},{id:"q1",label:"Flange shear flow at the web",unit:u.q},{id:"q2",label:"Web shear flow at the flange",unit:u.q},{id:"qn",label:"Web shear flow at the neutral axis",unit:u.q},{id:"tm",label:"Maximum shear stress",unit:u.S},{id:"pw",label:"Share of V carried by the web",unit:"%"}]},
+  truth:(p,s)=>({I:s.I,q1:s.q1,q2:s.q2,qn:s.qna,tm:s.tm,pw:s.pw}),note:"Answers within 2% are accepted."};
 
 // ----- 2. shear center of a channel, or of an I-section with unequal flanges
 function a2Generate(seed){
@@ -755,21 +756,22 @@ const A5={name:"Curved beam (hook): curved-beam formula and allowable load",gene
   <h3>3. Stresses (Eq. 11.9 plus P/A)</h3><p class="eq">σ = P/A + [M/(A(r̄ − R))](R/ρ − 1), M = P r̄</p><p>Inner (ρ = r₁): σ = ${sig(s.kin*(p.us?1:1),4)}P; outer (ρ = r₂): σ = ${sig(s.kout,4)}P (${u.S} with P in ${U}).</p>
   <h3>4. Allowable load</h3><p class="final">P = σ<sub>w</sub>/max|σ per unit P| = ${sig(s.Pm/AU(p.us).Ff,4)} ${u.F}, governed by the ${s.gov.toLowerCase()}.</p>
   <p>The straight-beam formula would give σ<sub>inner</sub> = P/A + Mc/I = ${sig(s.kst,4)}P, which ${s.kst<s.kin?"underestimates":"overestimates"} the curved-beam value.</p>`},
-  fields:p=>{const u=AU(p.us);return [{id:"rb",label:"Centroidal radius r̄",unit:u.d},{id:"R",label:"Neutral-surface radius R",unit:u.d},{id:"ki",label:`Inner-fiber stress per unit P (${u.S} per ${p.us?"lb":"N"})`,unit:"",signed:true},{id:"ko",label:`Outer-fiber stress per unit P (${u.S} per ${p.us?"lb":"N"})`,unit:"",signed:true},{id:"P",label:"Largest safe P",unit:u.F}]},
-  truth:(p,s)=>({rb:s.rbar,R:s.R,ki:s.kin,ko:s.kout,P:s.Pm/AU(p.us).Ff}),note:"Answers within 2% are accepted; R needs four or more significant figures."};
+  fields:p=>{const u=AU(p.us);return [{id:"rb",label:"Centroidal radius r̄",unit:u.d},{id:"R",label:"Neutral-surface radius R",unit:u.d},{id:"ki",label:`Inner-fiber stress per unit P (${u.S} per ${p.us?"lb":"N"})`,unit:"",signed:true},{id:"ko",label:`Outer-fiber stress per unit P (${u.S} per ${p.us?"lb":"N"})`,unit:"",signed:true},{id:"P",label:"Largest safe P",unit:u.F},{id:"kst",label:`Straight-beam inner-fiber stress per unit P (${u.S} per ${p.us?"lb":"N"})`,unit:"",signed:true}]},
+  truth:(p,s)=>({rb:s.rbar,R:s.R,ki:s.kin,ko:s.kout,P:s.Pm/AU(p.us).Ff,kst:s.kst}),note:"Answers within 2% are accepted; R needs four or more significant figures."};
 
 const TEMPLATES={"shear-flow":A1,"shear-center":A2,"inclined-moment":A3,"angle-bending":A4,"curved-beam":A5};
 
 const $=id=>document.getElementById(id);
 let curKey,curSeed,cur;
+const tidy=h=>h.replace(/\bin\.\.(?!\.)/g,"in.").replace(/\b([Aa]) (aluminum|inelastic|unequal)\b/g,"$1n $2");
 function render(key,seed){
   curKey=key;curSeed=seed;const T=TEMPLATES[key];cur=T.generate(seed);const {p,s}=cur;
   $("typeSel").value=key;$("seedIn").value=seed;history.replaceState(null,"","#"+key+"-"+seed);
-  $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=T.statement(p,s);
+  $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=tidy(T.statement(p,s));
   $("answers").innerHTML=T.fields(p,s).map(f=>f.choices
-    ?`<label>${f.label}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
-    :`<label>${f.label}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
-  $("ansNote").textContent=T.note||"";$("solution").innerHTML=T.solution(p,s);
+    ?`<label>${tidy(f.label)}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
+    :`<label>${tidy(f.label)}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
+  $("ansNote").textContent=T.note||"";$("solution").innerHTML=tidy(T.solution(p,s));
   $("solution").style.display="none";$("solBtn").textContent="Show solution";
 }
 function check(){
