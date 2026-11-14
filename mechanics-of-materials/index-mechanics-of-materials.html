@@ -5,39 +5,103 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mechanics of Materials: Problem Generator</title>
 <style>
-  :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#ffffff;--accent:#1e5a32}
+  :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#fff;--accent:#1e5a32;--part:#eec878;--partline:#7d5014}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Georgia","Times New Roman",serif}
-  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
-  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
-  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
-  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 20px;margin:12px 0;display:flex;justify-content:space-between;gap:16px;align-items:baseline}
-  .card a{color:var(--accent);font-weight:600;text-decoration:none}
-  .card a:hover{text-decoration:underline}
-  .card .d{color:var(--muted);font-family:system-ui,sans-serif;font-size:.88rem}
-  .soon{opacity:.55}
+  body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 Georgia,"Times New Roman",serif}
+  header,main,footer{max-width:900px;margin:0 auto;padding:0 24px}
+  header{padding-top:42px;padding-bottom:6px;border-bottom:3px solid var(--part)}
+  h1{font-size:2rem;font-weight:600;margin:0 0 .3em}
+  .lede{color:var(--muted);margin:0 0 1.2em;max-width:46em}
+  .card{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--part);border-radius:10px;padding:18px 22px;margin:22px 0}
+  .card.soon{background:transparent;border-style:dashed;border-left-style:dashed}
+  .card.soon h2{color:var(--muted)}
+  .head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .num{font-family:system-ui,sans-serif;font-weight:700;color:var(--partline);font-size:1.1rem}
+  h2{font-size:1.3rem;font-weight:600;margin:0}
+  h2 a{color:var(--ink);text-decoration:none} h2 a:hover{color:var(--accent)}
+  .card p{margin:.5em 0}
+  .btn{display:inline-block;font-family:system-ui,sans-serif;font-size:.9rem;background:var(--accent);color:#fff;text-decoration:none;border-radius:7px;padding:7px 16px}
+  .btn:hover{filter:brightness(1.1)}
+  .how{font-size:.95rem;color:var(--muted)}
+  footer{padding:18px 24px 40px;color:var(--muted);font-family:system-ui,sans-serif;font-size:.8rem}
 </style>
 </head>
 <body>
 <header>
   <h1>Mechanics of Materials: Problem Generator</h1>
-  <div class="sub">One page per chapter. Each problem is generated from a seed with randomized data, a redrawn figure, a worked solution, and answer checking.</div>
+  <p class="lede">Practice problems for an undergraduate mechanics of materials course, generated on demand. Each problem is a fresh variant of a classic textbook exercise, with its own numbers, geometry and figure, an answer checker, and a worked solution.</p>
 </header>
 <main>
-  <div class="card"><a href="StressProblemGenerator.html">1. Stress</a><span class="d">Stepped bars, trusses, glued joints, rivets, pins, punching</span></div>
-  <div class="card"><a href="StrainProblemGenerator.html">2. Strain</a><span class="d">Deformation, Hooke's law, indeterminate members, thermal stress</span></div>
-  <div class="card"><a href="TorsionProblemGenerator.html">3. Torsion</a><span class="d">Shafts, power, indeterminate shafts, thin-walled tubes</span></div>
-  <div class="card"><a href="ShearMomentProblemGenerator.html">4. Shear and moment in beams</a><span class="d">Reactions, shear and moment diagrams, hinged beams</span></div>
-  <div class="card"><a href="BeamStressProblemGenerator.html">5. Stresses in beams</a><span class="d">Flexure formula, shear stress, design, built-up beams</span></div>
-  <div class="card"><a href="DeflectionProblemGenerator.html">6. Deflection of beams</a><span class="d">Elastic curve, cantilevers, overhangs, stiffness design, superposition</span></div>
-  <div class="card"><a href="IndeterminateBeamsProblemGenerator.html">7. Statically indeterminate beams</a><span class="d">Redundant reactions by superposition and compatibility</span></div>
-  <div class="card"><a href="CombinedLoadsProblemGenerator.html">8. Stresses due to combined loads</a><span class="d">Pressure vessels, eccentric loads, Mohr's circle, strain rosettes</span></div>
-  <div class="card"><a href="CompositeBeamsProblemGenerator.html">9. Composite beams</a><span class="d">Transformed sections, sandwich beams, reinforced concrete</span></div>
-  <div class="card"><a href="ColumnsProblemGenerator.html">10. Columns</a><span class="d">Euler buckling, AISC design strength, secant formula</span></div>
-  <div class="card"><a href="AdvancedBeamsProblemGenerator.html">11. Additional beam topics</a><span class="d">Shear flow, shear center, unsymmetrical bending, curved beams</span></div>
-  <div class="card"><a href="SpecialTopicsProblemGenerator.html">12. Special topics</a><span class="d">Castigliano, impact, failure theories, stress concentration</span></div>
-  <div class="card"><a href="InelasticProblemGenerator.html">13. Inelastic action</a><span class="d">Plastic torsion and bending, shape factors, residual stresses, limit analysis</span></div>
+  <section class="how">
+    <h2 style="font-size:1.1rem">How to use</h2>
+    <p>Choose a chapter, pick a problem type, and press <b>New problem</b>. Enter your answers and press <b>Check answers</b>; numerical answers within 2% are accepted. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with.</p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">1</span><h2><a href="StressProblemGenerator.html">Stress</a></h2></div>
+    <p>Normal and shear stress in stepped bars, trusses, glued joints, rivets, pins, and punching shear.</p>
+    <p class="go"><a class="btn" href="StressProblemGenerator.html">Open the stress generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">2</span><h2><a href="StrainProblemGenerator.html">Strain</a></h2></div>
+    <p>Deformation, Hooke's law, statically indeterminate axial members, and thermal stress.</p>
+    <p class="go"><a class="btn" href="StrainProblemGenerator.html">Open the strain generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">3</span><h2><a href="TorsionProblemGenerator.html">Torsion</a></h2></div>
+    <p>Circular shafts, power transmission, statically indeterminate shafts, and thin-walled tubes.</p>
+    <p class="go"><a class="btn" href="TorsionProblemGenerator.html">Open the torsion generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">4</span><h2><a href="ShearMomentProblemGenerator.html">Shear and Moment in Beams</a></h2></div>
+    <p>Support reactions, shear and moment diagrams, and beams with internal hinges.</p>
+    <p class="go"><a class="btn" href="ShearMomentProblemGenerator.html">Open the shear and moment in beams generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">5</span><h2><a href="BeamStressProblemGenerator.html">Stresses in Beams</a></h2></div>
+    <p>The flexure formula, shear stress in beams, beam design, and built-up beams.</p>
+    <p class="go"><a class="btn" href="BeamStressProblemGenerator.html">Open the stresses in beams generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">6</span><h2><a href="DeflectionProblemGenerator.html">Deflection of Beams</a></h2></div>
+    <p>The elastic curve, cantilevers, overhangs, stiffness design, and superposition.</p>
+    <p class="go"><a class="btn" href="DeflectionProblemGenerator.html">Open the deflection of beams generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">7</span><h2><a href="IndeterminateBeamsProblemGenerator.html">Statically Indeterminate Beams</a></h2></div>
+    <p>Redundant reactions found by superposition and compatibility.</p>
+    <p class="go"><a class="btn" href="IndeterminateBeamsProblemGenerator.html">Open the statically indeterminate beams generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">8</span><h2><a href="CombinedLoadsProblemGenerator.html">Stresses Due to Combined Loads</a></h2></div>
+    <p>Pressure vessels, eccentric loads, Mohr's circle, and strain rosettes.</p>
+    <p class="go"><a class="btn" href="CombinedLoadsProblemGenerator.html">Open the stresses due to combined loads generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">9</span><h2><a href="CompositeBeamsProblemGenerator.html">Composite Beams</a></h2></div>
+    <p>Transformed sections, sandwich beams, and reinforced concrete.</p>
+    <p class="go"><a class="btn" href="CompositeBeamsProblemGenerator.html">Open the composite beams generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">10</span><h2><a href="ColumnsProblemGenerator.html">Columns</a></h2></div>
+    <p>Euler buckling, AISC design strength, and the secant formula.</p>
+    <p class="go"><a class="btn" href="ColumnsProblemGenerator.html">Open the columns generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">11</span><h2><a href="AdvancedBeamsProblemGenerator.html">Additional Beam Topics</a></h2></div>
+    <p>Shear flow, shear center, unsymmetrical bending, and curved beams.</p>
+    <p class="go"><a class="btn" href="AdvancedBeamsProblemGenerator.html">Open the additional beam topics generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">12</span><h2><a href="SpecialTopicsProblemGenerator.html">Special Topics</a></h2></div>
+    <p>Castigliano's theorem, impact loading, failure theories, and stress concentration.</p>
+    <p class="go"><a class="btn" href="SpecialTopicsProblemGenerator.html">Open the special topics generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">13</span><h2><a href="InelasticProblemGenerator.html">Inelastic Action</a></h2></div>
+    <p>Plastic torsion and bending, shape factors, residual stresses, and limit analysis.</p>
+    <p class="go"><a class="btn" href="InelasticProblemGenerator.html">Open the inelastic action generator</a></p>
+  </section>
 </main>
+<footer>The problems are for practice. Answers and solutions are computed in the page itself.</footer>
 </body>
 </html>
