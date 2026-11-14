@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fluid and Thermal Systems Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --load:#aa1e28; --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .fr{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 .15em;line-height:1.25}
+  .fr>span{padding:0 .25em;white-space:nowrap}
+  .fr>span:first-child{border-bottom:1px solid currentColor}
+  .eq{line-height:1.9}
+  .mat{display:inline-table;vertical-align:middle;border-left:1.5px solid currentColor;border-right:1.5px solid currentColor;border-radius:5px;padding:0 .15em;margin:0 .2em}
+  .mat>span{display:table-row}
+  .mat>span>span{display:table-cell;padding:.05em .45em;text-align:center}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Fluid and Thermal Systems Problem Generator</h1>
+</header>
+<main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
+  </div>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+// ----- numeric helpers
+const nz=(r,a,b)=>pick(r,range(a,b,1).filter(v=>v!==0));
+const two=(r,a,b)=>{const x=pick(r,range(a,b,1));let y=x;while(y===x)y=pick(r,range(a,b,1));return x<y?[x,y]:[y,x]};
+const PI=Math.PI;
+const wdOf=(z,wn)=>wn*Math.sqrt(1-z*z);
+const MpOf=z=>100*Math.exp(-z*PI/Math.sqrt(1-z*z));
+const trOf=(z,wn)=>(PI-Math.acos(z))/wdOf(z,wn);
+// angle condition on the ray s = r(-z + j sqrt(1-z^2)) for G = K/(s(s+p1)(s+p2))
+function rlZeta(p1,p2,z){const c=Math.sqrt(1-z*z);
+  const phi=r=>{const x=-z*r,y=c*r;return Math.atan2(y,x)+Math.atan2(y,x+p1)+Math.atan2(y,x+p2)-PI};
+  let a=1e-9,b=1e3;for(let i=0;i<200;i++){const m=(a+b)/2;if(phi(m)<0)a=m;else b=m}
+  const r=(a+b)/2,sg=z*r,wd=c*r,K=Math.hypot(sg,wd)*Math.hypot(p1-sg,wd)*Math.hypot(p2-sg,wd);
+  return {sg,wd,K,s3:-(p1+p2)+2*sg}}
+
+// ----- formatting
+const sig=(x,n=4)=>{if(Math.abs(x)<1e-9)return "0";const d=Math.max(0,n-1-Math.floor(Math.log10(Math.abs(x))));return Number(x).toFixed(Math.min(d,8)).replace("-","−")};
+const nf=x=>Math.abs(x-Math.round(x))<1e-9?String(Math.round(x)).replace("-","−"):sig(x,4).replace(/(\.\d*?)0+$/,"$1").replace(/\.$/,"");
+const eq=s=>`<span class="eq">${s}</span>`;
+const S="<i>s</i>";
+const SUP={2:"²",3:"³",4:"⁴"};
+const mono=k=>k===0?"":k===1?S:S+SUP[k];
+function sum(terms){let o="";terms.forEach(([c,m])=>{if(Math.abs(c)<1e-12)return;const a=Math.abs(c);
+  const cf=(m&&Math.abs(a-1)<1e-12)?"":nf(a);o+=o?(c<0?" − ":" + "):(c<0?"−":"");o+=cf+m});return o||"0"}
+const poly=c=>sum(c.map((a,i)=>[a,mono(c.length-1-i)]));
+const fac=p=>p===0?S:`(${S} + ${nf(p)})`;
+const frac=(n,d)=>`<span class="fr"><span>${n}</span><span>${d}</span></span>`;
+const ze="ζ", wn_="ω<sub>n</sub>", wd_="ω<sub>d</sub>";
+const CR=`<i>C</i>(${S})/<i>R</i>(${S})`;
+
+// ----- block-diagram toolkit
+// blk: block at center (x,y) with label l or fraction n/d; sum: summing junction with signs {w,n,s};
+// w: wire polyline with arrowhead; dot: pickoff point; lab: free text. Single letters in labels are set in italics.
+const IT=v=>`<tspan font-style="italic">${v}</tspan>`;
+const ml=t=>String(t).replace(/-/g,"−").replace(/\b([GKH])([a-z]{1,2})\b|(?<![A-Za-z])([a-zA-Z])(?![A-Za-z0-9])/g,(m,a,b,c)=>c?IT(c):IT(a)+`<tspan font-size="11" baseline-shift="sub" font-style="italic">${b}</tspan>`);
+const tw=t=>String(t).length*7.6+20;
+function bd(items,W=560,H=200){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker></defs>`;
+  items.forEach(e=>{
+    if(e.t==="blk"){const w=e.w||Math.max(44,tw(e.l||""),tw(e.n||""),tw(e.d||"")),h=e.d?46:34;
+      o+=`<rect x="${e.x-w/2}" y="${e.y-h/2}" width="${w}" height="${h}" fill="#fff" stroke="#222" stroke-width="1.3"/>`;
+      if(e.d)o+=`<text x="${e.x}" y="${e.y-6}" text-anchor="middle">${ml(e.n)}</text><line x1="${e.x-w/2+8}" y1="${e.y}" x2="${e.x+w/2-8}" y2="${e.y}" stroke="#222"/><text x="${e.x}" y="${e.y+16}" text-anchor="middle">${ml(e.d)}</text>`;
+      else o+=`<text x="${e.x}" y="${e.y+5}" text-anchor="middle">${ml(e.l)}</text>`;return}
+    if(e.t==="sum"){o+=`<circle cx="${e.x}" cy="${e.y}" r="10" fill="#fff" stroke="#222" stroke-width="1.3"/>`;
+      const sg=e.s||{};if(sg.w)o+=`<text x="${e.x-20}" y="${e.y-6}" text-anchor="middle" font-size="14">${sg.w}</text>`;
+      if(sg.s)o+=`<text x="${e.x+14}" y="${e.y+24}" text-anchor="middle" font-size="14">${sg.s}</text>`;
+      if(sg.n)o+=`<text x="${e.x+14}" y="${e.y-14}" text-anchor="middle" font-size="14">${sg.n}</text>`;return}
+    if(e.t==="w"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" fill="none" stroke="#222" stroke-width="1.3"${e.a===false?"":' marker-end="url(#ah)"'}/>`;return}
+    if(e.t==="dot"){o+=`<circle cx="${e.x}" cy="${e.y}" r="3" fill="#222"/>`;return}
+    if(e.t==="lab"){o+=`<text x="${e.x}" y="${e.y}" text-anchor="${e.an||"middle"}">${ml(e.l)}</text>`;return}
+  });
+  return o+"</svg>";
+}
+// unity-feedback loop with a chain of blocks between the summing junction and the output
+function loopFig(blocks){
+  const y=70,items=[{t:"lab",x:22,y:y+5,l:"R(s)"},{t:"w",p:[[44,y],[80,y]]},{t:"sum",x:90,y,s:{w:"+",s:"−"}}];
+  let x=100;blocks.forEach(b=>{const w=Math.max(44,tw(b.l||""),tw(b.n||""),tw(b.d||""));items.push({t:"w",p:[[x,y],[x+30,y]]});items.push({t:"blk",x:x+30+w/2,y,w,...b});x+=30+w});
+  items.push({t:"w",p:[[x,y],[x+60,y]]},{t:"dot",x:x+30,y},{t:"lab",x:x+64,y:y+5,l:"C(s)",an:"start"},{t:"w",p:[[x+30,y],[x+30,y+70],[90,y+70],[90,y+10]]});
+  return bd(items,x+120,170);
+}
+
+const rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+const cs=d=>Math.cos(rad(d)), sn=d=>Math.sin(rad(d));
+const Tt="<i>t</i>";
+const ex=p=>`<i>e</i><sup>−${p===1?"":nf(p)}<i>t</i></sup>`;
+const wt=w=>`${w===1?"":nf(w)}${Tt}`;
+const cf1=c=>c===1?"":nf(c);
+// ----- figure toolkit (2D drawing of arrows, lines, points, text)
+const COL={k:"#222",r:"#aa1e28",b:"#2b5d8a",g:"#1e5a32",m:"#7d5014",x:"#888"};
+function draw(els,W=520,H=300){
+  const pts=[];els.forEach(e=>{[e.a,e.b,e.p].forEach(q=>q&&pts.push(q))});
+  const x0=Math.min(...pts.map(q=>q[0])),x1=Math.max(...pts.map(q=>q[0])),y0=Math.min(...pts.map(q=>q[1])),y1=Math.max(...pts.map(q=>q[1]));
+  const mx=80,my=40,s=Math.min((W-2*mx)/Math.max(x1-x0,1e-6),(H-2*my)/Math.max(y1-y0,1e-6));
+  const X=q=>mx+(q[0]-x0)*s+(W-2*mx-(x1-x0)*s)/2, Y=q=>H-my-(q[1]-y0)*s-(H-2*my-(y1-y0)*s)/2, f1=v=>v.toFixed(1);
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="16" style="max-height:${H}px"><defs>`;
+  for(const k in COL)o+=`<marker id="vx${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="${COL[k]}"/></marker>`;
+  o+="</defs>";
+  els.forEach(e=>{
+    const c=e.c||"k";
+    if(e.t==="txt"){o+=`<text x="${f1(X(e.p))}" y="${f1(Y(e.p)+5)}" text-anchor="${e.an||"middle"}" class="halo">${e.l}</text>`;return}
+    const ax=X(e.a),ay=Y(e.a),bx=X(e.b),by=Y(e.b),dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1;
+    const head=e.t==="ln"?"":` marker-end="url(#vx${c})"`;
+    o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="${COL[c]}" stroke-width="${e.w||(c==="r"||c==="b"||c==="g"?2.6:1.4)}" ${e.d?'stroke-dasharray="5 4"':""}${head}/>`;
+    if(e.l){const ux=dx/L,uy=dy/L,an=Math.abs(ux)<.3?"middle":ux>0?"start":"end";
+      o+=`<text x="${f1(bx+ux*12)}" y="${f1(by+uy*12+(uy>.5?14:uy<-.5?-2:5))}" text-anchor="${an}" fill="${COL[c]}" class="halo">${e.l}</text>`}
+  });
+  return o+"</svg>";
+}
+
+
+// ----- mechanical-schematic toolkit (pixel coordinates)
+// wall {x,y1,y2,side}, gnd {x1,x2,y}, spr {a,b,l}, dmp {a,b,l}, box {x,y,w,h,l}, ln {p,d}, arr {a,b,l}, circ {x,y,r,f}, txt {x,y,l,an}
+function mech(items,W=520,H=220){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px"><defs><marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker></defs>`;
+  const ST='stroke="#222" stroke-width="1.5" fill="none"';
+  const lab=(x,y,l,an="middle")=>`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" class="halo">${ml(l)}</text>`;
+  items.forEach(e=>{
+    if(e.t==="wall"){const dx=e.side==="r"?1:-1;o+=`<line x1="${e.x}" y1="${e.y1}" x2="${e.x}" y2="${e.y2}" stroke="#222" stroke-width="2"/>`;
+      for(let y=e.y1;y<e.y2;y+=10)o+=`<line x1="${e.x}" y1="${y+10}" x2="${e.x+dx*8}" y2="${y}" stroke="#666"/>`;return}
+    if(e.t==="gnd"){o+=`<line x1="${e.x1}" y1="${e.y}" x2="${e.x2}" y2="${e.y}" stroke="#222" stroke-width="2"/>`;
+      for(let x=e.x1;x<e.x2;x+=10)o+=`<line x1="${x}" y1="${e.y+8}" x2="${x+10}" y2="${e.y}" stroke="#666"/>`;return}
+    if(e.t==="spr"||e.t==="dmp"){const [ax,ay]=e.a,[bx,by]=e.b,L=Math.hypot(bx-ax,by-ay),ang=Math.atan2(by-ay,bx-ax)*180/Math.PI;
+      let g="";
+      if(e.t==="spr"){const n=8,l0=L*0.18,step=(L-2*l0)/n;let pts=[[0,0],[l0,0]];for(let i=0;i<n;i++)pts.push([l0+step*(i+0.5),(i%2?8:-8)]);pts.push([L-l0,0],[L,0]);
+        g=`<polyline points="${pts.map(q=>q.map(v=>v.toFixed(1)).join(",")).join(" ")}" ${ST}/>`}
+      else{const m=L/2;g=`<polyline points="0,0 ${m-12},0" ${ST}/><polyline points="${m+14},-10 ${m-12},-10 ${m-12},10 ${m+14},10" ${ST}/><line x1="${m+4}" y1="-7" x2="${m+4}" y2="7" stroke="#222" stroke-width="2.5"/><line x1="${m+4}" y1="0" x2="${L}" y2="0" stroke="#222" stroke-width="1.5"/>`}
+      o+=`<g transform="translate(${ax},${ay}) rotate(${ang.toFixed(2)})">${g}</g>`;
+      if(e.l){const hor=Math.abs(bx-ax)>=Math.abs(by-ay),lp=e.lp||(hor?[(ax+bx)/2,(ay+by)/2-16]:[(ax+bx)/2+16,(ay+by)/2+5]);o+=lab(lp[0],lp[1],e.l,e.an||(hor?"middle":"start"))}
+      return}
+    if(e.t==="box"){o+=`<rect${e.rot?` transform="rotate(${e.rot} ${e.x} ${e.y})"`:""} x="${e.x-e.w/2}" y="${e.y-e.h/2}" width="${e.w}" height="${e.h}" fill="${e.f||"#eec878"}" stroke="${e.sc||"#7d5014"}" stroke-width="1.6"/>`;if(e.l)o+=lab(e.x,e.y+5,e.l);return}
+    if(e.t==="ln"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" stroke="#222" stroke-width="${e.w||1.5}" fill="none"${e.d?' stroke-dasharray="5 4"':""}/>`;return}
+    if(e.t==="arr"){o+=`<line x1="${e.a[0]}" y1="${e.a[1]}" x2="${e.b[0]}" y2="${e.b[1]}" stroke="#aa1e28" stroke-width="1.8" marker-end="url(#ma)"/>`;if(e.l)o+=lab(e.b[0]+(e.dx??8),e.b[1]+(e.dy??5),e.l,"start");return}
+    if(e.t==="circ"){o+=`<circle cx="${e.x}" cy="${e.y}" r="${e.r}" fill="${e.f||"#fff"}" stroke="#222" stroke-width="1.5"/>`;return}
+    if(e.t==="txt"){o+=lab(e.x,e.y,e.l,e.an||"middle");return}
+  });
+  return o+"</svg>";
+}
+const G0=9.81;
+
+const mat=rows=>`<span class="mat">${rows.map(r=>`<span>${r.map(v=>`<span>${typeof v==="number"?nf(v):v}</span>`).join("")}</span>`).join("")}</span>`;
+
+// ----- circuit toolkit (pixel coordinates)
+// R/C/L {a,b,l}: component on a straight wire from a to b; w {p}: wire; src {x,y,l}: voltage source (vertical, + on top);
+// gnd {x,y}; node {x,y}; oa {x,y}: op-amp with − input at (x−40,y−12), + input at (x−40,y+12), output at (x+40,y); sw {a,b,l}: open switch; txt {x,y,l,an}
+function ckt(items,W=520,H=220){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px">`;
+  const ST='stroke="#222" stroke-width="1.6" fill="none"';
+  const lab=(x,y,l,an="middle")=>`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" class="halo">${ml(l)}</text>`;
+  items.forEach(e=>{
+    if(e.t==="R"||e.t==="C"||e.t==="L"||e.t==="sw"){const [ax,ay]=e.a,[bx,by]=e.b,Ln=Math.hypot(bx-ax,by-ay),ang=Math.atan2(by-ay,bx-ax)*180/Math.PI,m=Ln/2;let g="";
+      if(e.t==="R"){const pts=[[0,0],[m-24,0]];for(let i=0;i<6;i++)pts.push([m-24+8*(i+0.5),i%2?7:-7]);pts.push([m+24,0],[Ln,0]);g=`<polyline points="${pts.map(q=>q.join(",")).join(" ")}" ${ST}/>`}
+      if(e.t==="C")g=`<polyline points="0,0 ${m-5},0" ${ST}/><line x1="${m-5}" y1="-12" x2="${m-5}" y2="12" stroke="#222" stroke-width="2.2"/><line x1="${m+5}" y1="-12" x2="${m+5}" y2="12" stroke="#222" stroke-width="2.2"/><polyline points="${m+5},0 ${Ln},0" ${ST}/>`;
+      if(e.t==="L"){let d=`M0,0 L${m-24},0`;for(let i=0;i<4;i++)d+=` a6,7 0 0 1 12,0`;d+=` L${Ln},0`;g=`<path d="${d}" ${ST}/>`}
+      if(e.t==="sw")g=`<polyline points="0,0 ${m-12},0" ${ST}/><circle cx="${m-12}" cy="0" r="2.5" fill="#222"/><line x1="${m-12}" y1="0" x2="${m+12}" y2="-12" stroke="#222" stroke-width="1.6"/><circle cx="${m+12}" cy="0" r="2.5" fill="#222"/><polyline points="${m+12},0 ${Ln},0" ${ST}/>`;
+      o+=`<g transform="translate(${ax},${ay}) rotate(${ang.toFixed(2)})">${g}</g>`;
+      if(e.l){const hor=Math.abs(bx-ax)>=Math.abs(by-ay),lp=e.lp||(hor?[(ax+bx)/2,(ay+by)/2-16]:[(ax+bx)/2+16,(ay+by)/2+5]);o+=lab(lp[0],lp[1],e.l,e.an||(hor?"middle":"start"))}return}
+    if(e.t==="w"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" ${ST}/>`;return}
+    if(e.t==="src"){o+=`<circle cx="${e.x}" cy="${e.y}" r="16" fill="#fff" stroke="#222" stroke-width="1.6"/><text x="${e.x}" y="${e.y-3}" text-anchor="middle" font-size="13">+</text><text x="${e.x}" y="${e.y+11}" text-anchor="middle" font-size="13">−</text>`;if(e.l)o+=lab(e.x-24,e.y+5,e.l,"end");return}
+    if(e.t==="gnd"){o+=`<line x1="${e.x-10}" y1="${e.y}" x2="${e.x+10}" y2="${e.y}" stroke="#222" stroke-width="1.6"/><line x1="${e.x-6}" y1="${e.y+4}" x2="${e.x+6}" y2="${e.y+4}" stroke="#222" stroke-width="1.6"/><line x1="${e.x-2}" y1="${e.y+8}" x2="${e.x+2}" y2="${e.y+8}" stroke="#222" stroke-width="1.6"/>`;return}
+    if(e.t==="node"){o+=`<circle cx="${e.x}" cy="${e.y}" r="3" fill="#222"/>`;if(e.l)o+=lab(e.x+(e.dx??0),e.y+(e.dy??-10),e.l);return}
+    if(e.t==="oa"){const x=e.x,y=e.y;o+=`<polygon points="${x-40},${y-30} ${x-40},${y+30} ${x+40},${y}" fill="#fff" stroke="#222" stroke-width="1.6"/><text x="${x-32}" y="${y-7}" font-size="14">−</text><text x="${x-32}" y="${y+18}" font-size="14">+</text>`;return}
+    if(e.t==="txt"){o+=lab(e.x,e.y,e.l,e.an||"middle");return}
+  });
+  return o+"</svg>";
+}
+
+// ----- templates
+const TEMPLATES={};
+const WAT="#a9cbe8";
+const tankFig=(x,w,h,lev,lab)=>[{t:"ln",p:[[x,30],[x,30+h],[x+w,30+h],[x+w,30]]},{t:"box",x:x+w/2,y:30+h-lev/2,w:w-3,h:lev,f:WAT,sc:WAT,l:""},{t:"txt",x:x+w/2,y:30+h-lev/2+5,l:lab}];
+
+// 1. tank with linear outflow resistance: time to reach a level
+TEMPLATES["tank-fill-time"]={
+  name:"Liquid-level system: steady head and time to reach a level",
+  generate(seed){const r=mulberry32(seed);
+    const p={A:pick(r,range(1,5,0.5)),R:pick(r,range(20,200,10)),qi:pick(r,[0.01,0.015,0.02,0.025,0.03,0.04,0.05])};
+    const hi=p.R*p.qi;p.H1=+(hi*pick(r,[0.1,0.2,0.3])).toFixed(2);p.H2=+(hi*pick(r,[0.6,0.7,0.8,0.9])).toFixed(2);
+    return {p,s:{hi,t:p.R*p.A*Math.log((hi-p.H1)/(hi-p.H2))}};},
+  statement:p=>`<p>A tank of cross-sectional area <i>A</i> = ${nf(p.A)} m² drains through a valve whose flow is <i>q<sub>o</sub></i> = <i>h</i>/<i>R</i>, with <i>R</i> = ${p.R} s/m². The head is ${nf(p.H1)} m when, at <i>t</i> = 0, the inflow is set to <i>q<sub>i</sub></i> = ${nf(p.qi)} m³/s and held constant. Determine the final head and the time at which the head reaches ${nf(p.H2)} m.</p>`,
+  figure:p=>mech([{t:"arr",a:[60,20],b:[60,60],l:"qᵢ"},...tankFig(30,180,140,80,"h"),{t:"ln",p:[[210,165],[300,165]],w:3},{t:"txt",x:255,y:155,l:"R"},{t:"arr",a:[300,165],b:[340,165],l:"qₒ"}],380,190),
+  solution:(p,s)=>`<h3>1. Model and final head</h3>
+  <p>${eq(`<i>A</i>${frac("<i>dh</i>","<i>dt</i>")} = <i>q<sub>i</sub></i> − <i>h</i>/<i>R</i>`)}, so the head settles at ${eq(`<i>h</i><sub>∞</sub> = <i>Rq<sub>i</sub></i> = ${sig(s.hi)} m`)}, with time constant <i>RA</i> = ${sig(p.R*p.A)} s.</p>
+  <h3>2. Time to reach the level</h3>
+  <p>${eq(`<i>h</i>(<i>t</i>) = <i>h</i><sub>∞</sub> − (<i>h</i><sub>∞</sub> − ${nf(p.H1)})<i>e</i><sup>−<i>t</i>/(<i>RA</i>)</sup>`)}, so ${eq(`<i>t</i> = <i>RA</i> ln ${frac(`<i>h</i><sub>∞</sub> − ${nf(p.H1)}`,`<i>h</i><sub>∞</sub> − ${nf(p.H2)}`)}`)}</p>
+  <p class="final"><i>h</i><sub>∞</sub> = ${sig(s.hi,3)} m, <i>t</i> = ${sig(s.t,3)} s.</p>`,
+  fields:p=>[{id:"hi",label:"Final head",unit:"m"},{id:"t",label:`Time to reach ${nf(p.H2)} m`,unit:"s"}],
+  truth:s=>({hi:s.hi,t:s.t}),
+  note:""
+};
+
+// 2. two interacting tanks
+TEMPLATES["interacting-tanks"]={
+  name:"Two interacting tanks: transfer function and steady heads",
+  generate(seed){const r=mulberry32(seed);
+    const p={C1:pick(r,range(1,5,1)),C2:pick(r,range(1,5,1)),R1:pick(r,range(10,100,10)),R2:pick(r,range(10,100,10)),q:pick(r,[0.001,0.002,0.005,0.01])};
+    return {p,s:{a2:p.R1*p.C1*p.R2*p.C2,a1:p.R1*p.C1+p.R2*p.C2+p.R2*p.C1,h1:p.q*(p.R1+p.R2)}};},
+  statement:p=>`<p>Tank 1 (capacitance <i>C</i><sub>1</sub> = ${p.C1} m²) receives a small change in inflow <i>q</i>. It discharges into tank 2 (<i>C</i><sub>2</sub> = ${p.C2} m²) through a valve of resistance <i>R</i><sub>1</sub> = ${p.R1} s/m², and tank 2 discharges through a valve of resistance <i>R</i><sub>2</sub> = ${p.R2} s/m². The flow through each valve is proportional to the difference in head across it. Write ${eq(`<i>Q</i><sub>2</sub>(${S})/<i>Q</i>(${S}) = 1/(<i>a</i><sub>2</sub>${S}² + <i>a</i><sub>1</sub>${S} + 1)`)}, and find the steady change in the head of tank 1 for a step <i>q</i> = ${nf(p.q)} m³/s.</p>`,
+  figure:p=>mech([{t:"arr",a:[60,10],b:[60,45],l:"q"},...tankFig(30,140,140,90,"h₁"),{t:"ln",p:[[170,165],[260,165]],w:3},{t:"txt",x:215,y:155,l:"R₁"},...tankFig(260,140,140,60,"h₂"),{t:"ln",p:[[400,165],[470,165]],w:3},{t:"txt",x:435,y:155,l:"R₂"},{t:"arr",a:[470,165],b:[505,165],l:"q₂"}],540,190),
+  solution:(p,s)=>`<h3>1. Equations</h3>
+  <p>${eq(`<i>C</i><sub>1</sub>ḣ<sub>1</sub> = <i>q</i> − (<i>h</i><sub>1</sub> − <i>h</i><sub>2</sub>)/<i>R</i><sub>1</sub>`)} ${eq(`<i>C</i><sub>2</sub>ḣ<sub>2</sub> = (<i>h</i><sub>1</sub> − <i>h</i><sub>2</sub>)/<i>R</i><sub>1</sub> − <i>h</i><sub>2</sub>/<i>R</i><sub>2</sub>`)}</p>
+  <h3>2. Eliminate h<sub>1</sub></h3>
+  <p>The flow from tank 1 depends on <i>h</i><sub>2</sub>, so the tanks interact: ${eq(`${frac(`<i>Q</i><sub>2</sub>`,"<i>Q</i>")} = ${frac(1,`<i>R</i><sub>1</sub><i>C</i><sub>1</sub><i>R</i><sub>2</sub><i>C</i><sub>2</sub>${S}² + (<i>R</i><sub>1</sub><i>C</i><sub>1</sub> + <i>R</i><sub>2</sub><i>C</i><sub>2</sub> + <i>R</i><sub>2</sub><i>C</i><sub>1</sub>)${S} + 1`)}`)}</p>
+  <h3>3. Steady heads</h3>
+  <p>In the steady state the flow <i>q</i> passes through both valves: <i>h</i><sub>2</sub> = <i>qR</i><sub>2</sub> and <i>h</i><sub>1</sub> = <i>h</i><sub>2</sub> + <i>qR</i><sub>1</sub>.</p>
+  <p class="final"><i>a</i><sub>2</sub> = ${nf(s.a2)} s², <i>a</i><sub>1</sub> = ${nf(s.a1)} s, <i>h</i><sub>1</sub> = ${sig(s.h1,3)} m.</p>`,
+  fields:p=>[{id:"a2",label:"<i>a</i><sub>2</sub>",unit:"s²"},{id:"a1",label:"<i>a</i><sub>1</sub>",unit:"s"},{id:"h1",label:"Steady change in <i>h</i><sub>1</sub>",unit:"m"}],
+  truth:s=>({a2:s.a2,a1:s.a1,h1:s.h1}),
+  note:""
+};
+
+// 3. conical tank draining through a turbulent valve
+TEMPLATES["conical-tank-drain"]={
+  name:"Draining time of a conical tank with turbulent outflow",
+  generate(seed){const r=mulberry32(seed);
+    const p={r0:pick(r,range(0.5,2,0.25)),H0:pick(r,range(1,4,0.5)),k:pick(r,[0.002,0.003,0.005,0.008,0.01]),f:pick(r,[0,0.25,0.5])};
+    p.H1=+(p.H0*p.f).toFixed(3);
+    const c=PI*p.r0*p.r0/(p.H0*p.H0);
+    return {p,s:{Q0:p.k*Math.sqrt(p.H0),t:c/p.k*0.4*(p.H0**2.5-p.H1**2.5)}};},
+  statement:p=>`<p>A conical tank stands with its vertex at the bottom. When full, the head is <i>H</i><sub>0</sub> = ${nf(p.H0)} m and the water surface has radius ${nf(p.r0)} m. Water leaves through a valve at the vertex with turbulent flow <i>Q</i> = ${nf(p.k)}√<i>H</i> m³/s (<i>H</i> in m). Starting full, determine the initial outflow and the time for the head to fall to ${nf(p.H1)} m.</p>`,
+  figure:p=>mech([{t:"ln",p:[[60,30],[200,170],[340,30]],w:2},{t:"ln",p:[[95,65],[305,65]]},{t:"ln",p:[[200,170],[200,195],[260,195]],w:3},{t:"arr",a:[260,195],b:[300,195],l:"Q"},{t:"txt",x:200,y:100,l:"H"},{t:"ln",p:[[350,65],[350,170]],w:1},{t:"txt",x:358,y:120,l:"H",an:"start"}],400,210),
+  solution:(p,s)=>`<h3>1. Surface area as a function of head</h3>
+  <p>The radius grows linearly with <i>H</i>: ${eq(`<i>A</i>(<i>H</i>) = π(${nf(p.r0)}<i>H</i>/${nf(p.H0)})² = ${sig(PI*p.r0**2/p.H0**2)}<i>H</i>²`)}</p>
+  <h3>2. Integrate</h3>
+  <p>${eq(`<i>A</i>(<i>H</i>)${frac("<i>dH</i>","<i>dt</i>")} = −${nf(p.k)}√<i>H</i> &nbsp;⇒&nbsp; <i>t</i> = ${frac(sig(PI*p.r0**2/p.H0**2),nf(p.k))}∫<sub>${nf(p.H1)}</sub><sup>${nf(p.H0)}</sup> <i>H</i><sup>3/2</sup><i>dH</i> = ${frac(sig(PI*p.r0**2/p.H0**2),nf(p.k))}·${frac(2,5)}(${nf(p.H0)}<sup>5/2</sup> − ${nf(p.H1)}<sup>5/2</sup>)`)}</p>
+  <p class="final"><i>Q</i>(0) = ${sig(s.Q0,3)} m³/s, <i>t</i> = ${sig(s.t,3)} s.</p>`,
+  fields:p=>[{id:"Q0",label:"Initial outflow",unit:"m³/s"},{id:"t",label:"Time",unit:"s"}],
+  truth:s=>({Q0:s.Q0,t:s.t}),
+  note:""
+};
+
+// 4. compressed air in a tank
+TEMPLATES["air-tank"]={
+  name:"Mass and pressure of compressed air in a tank",
+  generate(seed){const r=mulberry32(seed);
+    const p={V:pick(r,range(1,20,1)),pg:pick(r,range(2,10,1))*1e5,T1:pick(r,range(10,30,5)),dT:pick(r,range(10,60,10))};p.T2=p.T1+p.dT;
+    const pa=1.013e5,pab=p.pg+pa;
+    return {p,s:{m:pab*p.V/(287*(p.T1+273.15)),p2:(pab*(p.T2+273.15)/(p.T1+273.15)-pa)/1000}};},
+  statement:p=>`<p>A rigid tank of volume ${p.V} m³ holds air at a gage pressure of ${nf(p.pg/1e5)} × 10⁵ N/m² and a temperature of ${p.T1}°C. Taking atmospheric pressure as 1.013 × 10⁵ N/m² and the gas constant of air as 287 N·m/(kg·K), determine the mass of air in the tank and the gage pressure after the air is heated to ${p.T2}°C.</p>`,
+  solution:(p,s)=>`<h3>1. Mass of air</h3>
+  <p>The ideal gas law uses absolute pressure and temperature: ${eq(`<i>p</i> = ${nf(p.pg/1e5)} × 10⁵ + 1.013 × 10⁵ = ${sig((p.pg+1.013e5)/1e5)} × 10⁵ N/m²`)}, ${eq(`<i>T</i> = ${sig(p.T1+273.15)} K`)}, so ${eq(`<i>m</i> = <i>pV</i>/(<i>RT</i>) = ${sig(s.m)} kg`)}</p>
+  <h3>2. Heating at constant volume</h3>
+  <p>${eq(`<i>p</i><sub>2</sub> = <i>p</i><sub>1</sub><i>T</i><sub>2</sub>/<i>T</i><sub>1</sub>`)} in absolute terms; subtracting atmospheric pressure gives the gage value.</p>
+  <p class="final"><i>m</i> = ${sig(s.m,3)} kg, gage pressure = ${sig(s.p2,3)} kPa.</p>`,
+  fields:p=>[{id:"m",label:"Mass of air",unit:"kg"},{id:"p2",label:"Gage pressure after heating",unit:"kPa"}],
+  truth:s=>({m:s.m,p2:s.p2}),
+  note:""
+};
+
+// 5. linearization of turbulent flow
+TEMPLATES["linearize-turbulent-flow"]={
+  name:"Linearization of turbulent flow about an operating point",
+  generate(seed){const r=mulberry32(seed);
+    const p={k:pick(r,[0.05,0.08,0.1,0.12,0.15,0.2]),H0:pick(r,range(1,9,1))};
+    const Q0=p.k*Math.sqrt(p.H0),sl=p.k/(2*Math.sqrt(p.H0));
+    return {p,s:{Q0,sl,R:1/sl}};},
+  statement:p=>`<p>The flow through a valve is <i>Q</i> = ${nf(p.k)}√<i>H</i>, with <i>Q</i> in m³/s and <i>H</i> in m. Linearize about the operating head <i>H</i> = ${p.H0} m: determine the operating flow, the slope d<i>Q</i>/d<i>H</i>, and the turbulent resistance <i>R</i> = d<i>H</i>/d<i>Q</i>.</p>`,
+  solution:(p,s)=>`<h3>1. Operating point</h3>
+  <p>${eq(`<i>Q</i><sub>0</sub> = ${nf(p.k)}√${p.H0} = ${sig(s.Q0)} m³/s`)}</p>
+  <h3>2. Tangent at the operating point</h3>
+  <p>${eq(`${frac("<i>dQ</i>","<i>dH</i>")} = ${frac(nf(p.k),"2√<i>H</i>")} = ${sig(s.sl)} m²/s`)}, so ${eq(`<i>Q</i> − <i>Q</i><sub>0</sub> ≈ ${sig(s.sl)}(<i>H</i> − ${p.H0})`)} and <i>R</i> = 2<i>H</i><sub>0</sub>/<i>Q</i><sub>0</sub>.</p>
+  <p class="final"><i>Q</i><sub>0</sub> = ${sig(s.Q0,3)} m³/s, d<i>Q</i>/d<i>H</i> = ${sig(s.sl,3)} m²/s, <i>R</i> = ${sig(s.R,3)} s/m².</p>`,
+  fields:p=>[{id:"Q0",label:"Operating flow <i>Q</i><sub>0</sub>",unit:"m³/s"},{id:"sl",label:"Slope d<i>Q</i>/d<i>H</i>",unit:"m²/s"},{id:"R",label:"Turbulent resistance <i>R</i>",unit:"s/m²"}],
+  truth:s=>({Q0:s.Q0,sl:s.sl,R:s.R}),
+  note:""
+};
+
+// 6. heated liquid tank (thermal system)
+TEMPLATES["thermal-tank"]={
+  name:"Thermal system: heated, stirred tank with through-flow",
+  generate(seed){const r=mulberry32(seed);
+    const p={M:pick(r,range(50,500,50)),G:pick(r,[0.1,0.2,0.5,1,2]),c:pick(r,[2000,4180]),h:pick(r,range(1000,20000,1000)),q:pick(r,[0.5,1,2])};
+    const R=1/(p.G*p.c),Cth=p.M*p.c,tau=R*Cth;p.t1=+(p.q*tau).toPrecision(3);
+    return {p,s:{R,tau,th:p.h*R*(1-Math.exp(-p.t1/tau))}};},
+  statement:p=>`<p>A well-stirred tank holds ${p.M} kg of liquid with specific heat ${p.c} J/(kg·K). Liquid flows in and out at ${nf(p.G)} kg/s, with constant inlet temperature. The system is at steady state when the heater input is increased by ${p.h} W at <i>t</i> = 0. Determine the thermal resistance <i>R</i>, the time constant, and the rise in outflow temperature at <i>t</i> = ${nf(p.t1)} s.</p>`,
+  solution:(p,s)=>`<h3>1. Thermal resistance and capacitance</h3>
+  <p>A temperature rise θ carries away heat at the rate <i>Gc</i>θ, so ${eq(`<i>R</i> = 1/(<i>Gc</i>) = ${sig(s.R)} K/W`)}; the capacitance is ${eq(`<i>C</i> = <i>Mc</i> = ${p.M*p.c} J/K`)}.</p>
+  <h3>2. Response</h3>
+  <p>${eq(`<i>RC</i>θ̇ + θ = <i>Rh</i>`)}, with τ = <i>RC</i> = <i>M</i>/<i>G</i> = ${sig(s.tau)} s: ${eq(`θ(<i>t</i>) = <i>hR</i>(1 − <i>e</i><sup>−<i>t</i>/τ</sup>)`)}</p>
+  <p class="final"><i>R</i> = ${sig(s.R,3)} K/W, τ = ${sig(s.tau,3)} s, θ(${nf(p.t1)}) = ${sig(s.th,3)} K.</p>`,
+  fields:p=>[{id:"R",label:"Thermal resistance <i>R</i>",unit:"K/W"},{id:"tau",label:"Time constant",unit:"s"},{id:"th",label:`Temperature rise at ${nf(p.t1)} s`,unit:"K"}],
+  truth:s=>({R:s.R,tau:s.tau,th:s.th}),
+  note:""
+};
+
+// 7. hydraulic press
+TEMPLATES["hydraulic-press"]={
+  name:"Hydraulic press: force and displacement ratios (Pascal's law)",
+  generate(seed){const r=mulberry32(seed);
+    const p={D1:pick(r,range(10,50,5)),D2:pick(r,range(100,400,50)),F1:pick(r,range(50,500,50)),x1:pick(r,range(10,100,10))};
+    const ra=(p.D2/p.D1)**2;
+    return {p,s:{F2:p.F1*ra,x2:p.x1/ra}};},
+  statement:p=>`<p>In a hydraulic press, a force of ${p.F1} N is applied to a piston of diameter ${p.D1} mm. The fluid acts on a second piston of diameter ${p.D2} mm. Neglecting friction and treating the fluid as incompressible, determine the force on the large piston and its displacement when the small piston moves ${p.x1} mm.</p>`,
+  figure:p=>mech([{t:"ln",p:[[60,40],[60,170],[340,170],[340,40]],w:2},{t:"ln",p:[[90,40],[90,140],[230,140],[230,40]],w:2},{t:"box",x:75,y:70,w:28,h:14,l:""},{t:"box",x:285,y:60,w:108,h:14,l:""},
+    {t:"box",x:75,y:120,w:27,h:84,f:WAT,sc:WAT,l:""},{t:"box",x:200,y:155,w:276,h:27,f:WAT,sc:WAT,l:""},{t:"box",x:285,y:115,w:107,h:96,f:WAT,sc:WAT,l:""},
+    {t:"arr",a:[75,20],b:[75,60],l:"F₁"},{t:"arr",a:[285,52],b:[285,15],l:"F₂"}],400,190),
+  solution:(p,s)=>`<h3>1. Force</h3>
+  <p>The pressure is the same on both pistons: ${eq(`<i>F</i><sub>2</sub> = <i>F</i><sub>1</sub>(<i>D</i><sub>2</sub>/<i>D</i><sub>1</sub>)² = ${p.F1}(${p.D2}/${p.D1})² = ${sig(s.F2)} N`)}</p>
+  <h3>2. Displacement</h3>
+  <p>The volume displaced by the small piston equals the volume swept by the large piston: ${eq(`<i>x</i><sub>2</sub> = <i>x</i><sub>1</sub>(<i>D</i><sub>1</sub>/<i>D</i><sub>2</sub>)² = ${sig(s.x2)} mm`)}</p>
+  <p class="final"><i>F</i><sub>2</sub> = ${sig(s.F2,3)} N, <i>x</i><sub>2</sub> = ${sig(s.x2,3)} mm.</p>`,
+  fields:p=>[{id:"F2",label:"Force on the large piston",unit:"N"},{id:"x2",label:"Displacement of the large piston",unit:"mm"}],
+  truth:s=>({F2:s.F2,x2:s.x2}),
+  note:""
+};
+
+// 8. pneumatic cylinder on an incline
+TEMPLATES["pneumatic-incline"]={
+  name:"Minimum piston area to push a load up an incline",
+  generate(seed){const r=mulberry32(seed);
+    const p={m:pick(r,range(100,2000,100)),mu:pick(r,[0.1,0.15,0.2,0.3,0.4,0.5]),th:pick(r,range(10,40,5)),dp:pick(r,range(2,8,1))*1e5};
+    const F=p.m*G0*(sn(p.th)+p.mu*cs(p.th)),A=F/p.dp;
+    return {p,s:{F,A:A*1e4,D:Math.sqrt(4*A/PI)*1000}};},
+  statement:p=>`<p>A pneumatic cylinder pushes a mass of ${p.m} kg up a plane inclined at ${p.th}° to the horizontal, acting parallel to the plane. The coefficient of friction is μ = ${p.mu}, and the pressure difference across the piston is ${nf(p.dp/1e5)} × 10⁵ N/m². Determine the minimum piston area and diameter needed to move the load (<i>g</i> = 9.81 m/s²).</p>`,
+  figure:p=>{const a=p.th*PI/180,L=330,x0=40,y0=190,x1=x0+L*Math.cos(a),y1=y0-L*Math.sin(a),bx=x0+0.6*L*Math.cos(a),by=y0-0.6*L*Math.sin(a);
+    return mech([{t:"ln",p:[[x0,y0],[x1,y1],[x1,y0],[x0,y0]],w:2},{t:"box",x:bx-14*Math.sin(a),y:by-14*Math.cos(a),w:40,h:28,l:"m",rot:-p.th},{t:"ln",p:[[x0+0.15*L*Math.cos(a)-12*Math.sin(a),y0-0.15*L*Math.sin(a)-12*Math.cos(a)],[bx-20*Math.cos(a)-14*Math.sin(a),by+20*Math.sin(a)-14*Math.cos(a)]],w:5},{t:"txt",x:x0+60,y:y0-8,l:"θ"}],420,210)},
+  solution:(p,s)=>`<h3>1. Required force</h3>
+  <p>Along the plane the piston must overcome the weight component and friction: ${eq(`<i>F</i> = <i>mg</i>(sin θ + μ cos θ) = ${sig(s.F)} N`)}</p>
+  <h3>2. Area and diameter</h3>
+  <p>${eq(`<i>A</i> = <i>F</i>/Δ<i>p</i> = ${sig(s.A)} cm²`)}, ${eq(`<i>D</i> = √(4<i>A</i>/π) = ${sig(s.D)} mm`)}</p>
+  <p class="final"><i>A</i><sub>min</sub> = ${sig(s.A,3)} cm², <i>D</i><sub>min</sub> = ${sig(s.D,3)} mm.</p>`,
+  fields:p=>[{id:"A",label:"Minimum area",unit:"cm²"},{id:"D",label:"Minimum diameter",unit:"mm"}],
+  truth:s=>({A:s.A,D:s.D}),
+  note:""
+};
+
+
+// ===== planted errors
+const FLAWS={};
+
+FLAWS["tank-fill-time"]={n:2,step:2,
+  why:"The outflow <i>h</i>/<i>R</i> grows as the tank fills, so the net inflow decreases and the level approaches <i>h</i><sub>∞</sub> exponentially. Dividing the added volume by <i>q<sub>i</sub></i> ignores the outflow.",
+  wrong:(p,s)=>({hi:s.hi,t:p.A*(p.H2-p.H1)/p.qi}),
+  html:(p,s,w)=>`<h3>1. Model and final head</h3><p>${eq(`<i>h</i><sub>∞</sub> = <i>Rq<sub>i</sub></i> = ${sig(s.hi)} m`)}</p>
+  <h3>2. Time to reach the level</h3><p>The volume to be added is <i>A</i>(${nf(p.H2)} − ${nf(p.H1)}) m³, supplied at <i>q<sub>i</sub></i>: ${eq(`<i>t</i> = <i>A</i>(<i>H</i><sub>2</sub> − <i>H</i><sub>1</sub>)/<i>q<sub>i</sub></i> = ${sig(w.t)} s`)}</p>
+  <p class="final"><i>h</i><sub>∞</sub> = ${sig(w.hi,3)} m, <i>t</i> = ${sig(w.t,3)} s.</p>`};
+
+FLAWS["interacting-tanks"]={n:3,step:2,
+  why:"The flow out of tank 1 is (<i>h</i><sub>1</sub> − <i>h</i><sub>2</sub>)/<i>R</i><sub>1</sub>, which depends on the head in tank 2. The tanks interact, and elimination produces the extra term <i>R</i><sub>2</sub><i>C</i><sub>1</sub>. The product (<i>R</i><sub>1</sub><i>C</i><sub>1</sub><i>s</i> + 1)(<i>R</i><sub>2</sub><i>C</i><sub>2</sub><i>s</i> + 1) holds only when tank 1 discharges freely into tank 2.",
+  wrong:(p,s)=>({a2:s.a2,a1:p.R1*p.C1+p.R2*p.C2,h1:p.q*p.R1}),
+  html:(p,s,w)=>`<h3>1. Equations</h3><p>As in the correct solution.</p>
+  <h3>2. Eliminate h<sub>1</sub></h3><p>Each tank is a first-order lag, and the two lags are in series: ${eq(`${frac(`<i>Q</i><sub>2</sub>`,"<i>Q</i>")} = ${frac(1,`(<i>R</i><sub>1</sub><i>C</i><sub>1</sub>${S} + 1)(<i>R</i><sub>2</sub><i>C</i><sub>2</sub>${S} + 1)`)}`)}</p>
+  <h3>3. Steady heads</h3><p>Tank 1 drains through <i>R</i><sub>1</sub>, so <i>h</i><sub>1</sub> = <i>qR</i><sub>1</sub>.</p>
+  <p class="final"><i>a</i><sub>2</sub> = ${nf(w.a2)} s², <i>a</i><sub>1</sub> = ${nf(w.a1)} s, <i>h</i><sub>1</sub> = ${sig(w.h1,3)} m.</p>`};
+
+FLAWS["conical-tank-drain"]={n:2,step:1,
+  why:"The surface area of a cone shrinks as the level falls, <i>A</i> ∝ <i>H</i>². Using the area of the full surface for every level overstates the volume near the bottom.",
+  wrong:(p,s)=>({Q0:s.Q0,t:PI*p.r0*p.r0*2*(Math.sqrt(p.H0)-Math.sqrt(p.H1))/p.k}),
+  html:(p,s,w)=>`<h3>1. Surface area as a function of head</h3><p>The surface area is that of the full tank, ${eq(`<i>A</i> = π(${nf(p.r0)})² = ${sig(PI*p.r0**2)} m²`)}.</p>
+  <h3>2. Integrate</h3><p>${eq(`<i>t</i> = ${frac(`2<i>A</i>`,nf(p.k))}(√${nf(p.H0)} − √${nf(p.H1)})`)}</p><p class="final"><i>Q</i>(0) = ${sig(w.Q0,3)} m³/s, <i>t</i> = ${sig(w.t,3)} s.</p>`};
+
+FLAWS["air-tank"]={n:2,step:1,
+  why:"The ideal gas law <i>pV</i> = <i>mRT</i> relates absolute pressure and absolute temperature. Gage pressure must be converted by adding atmospheric pressure.",
+  wrong:(p,s)=>({m:p.pg*p.V/(287*(p.T1+273.15)),p2:p.pg*(p.T2+273.15)/(p.T1+273.15)/1000}),
+  html:(p,s,w)=>`<h3>1. Mass of air</h3><p>${eq(`<i>m</i> = <i>pV</i>/(<i>RT</i>) = ${frac(`${nf(p.pg/1e5)} × 10⁵ × ${p.V}`,`287 × ${sig(p.T1+273.15)}`)} = ${sig(w.m)} kg`)}</p>
+  <h3>2. Heating at constant volume</h3><p>${eq(`<i>p</i><sub>2</sub> = <i>p</i><sub>1</sub><i>T</i><sub>2</sub>/<i>T</i><sub>1</sub>`)}</p><p class="final"><i>m</i> = ${sig(w.m,3)} kg, gage pressure = ${sig(w.p2,3)} kPa.</p>`};
+
+FLAWS["linearize-turbulent-flow"]={n:2,step:2,
+  why:"The linearized resistance is the slope of the <i>H</i>–<i>Q</i> curve at the operating point, d<i>H</i>/d<i>Q</i> = 2<i>H</i><sub>0</sub>/<i>Q</i><sub>0</sub>. The ratio <i>H</i><sub>0</sub>/<i>Q</i><sub>0</sub> is the slope of the secant line through the origin.",
+  wrong:(p,s)=>({Q0:s.Q0,sl:s.Q0/p.H0,R:p.H0/s.Q0}),
+  html:(p,s,w)=>`<h3>1. Operating point</h3><p>${eq(`<i>Q</i><sub>0</sub> = ${sig(s.Q0)} m³/s`)}</p>
+  <h3>2. Tangent at the operating point</h3><p>The resistance is head divided by flow at the operating point: ${eq(`<i>R</i> = <i>H</i><sub>0</sub>/<i>Q</i><sub>0</sub> = ${sig(w.R)} s/m²`)}, so d<i>Q</i>/d<i>H</i> = ${sig(w.sl)} m²/s.</p>
+  <p class="final"><i>Q</i><sub>0</sub> = ${sig(w.Q0,3)} m³/s, d<i>Q</i>/d<i>H</i> = ${sig(w.sl,3)} m²/s, <i>R</i> = ${sig(w.R,3)} s/m².</p>`};
+
+FLAWS["thermal-tank"]={n:2,step:1,
+  why:"The heat carried away by the through-flow is <i>Gc</i>θ: mass flow times specific heat times temperature rise. The thermal resistance is therefore 1/(<i>Gc</i>) in K/W.",
+  wrong:(p,s)=>{const R=1/p.G,tau=R*p.M*p.c;return {R,tau,th:p.h*R*(1-Math.exp(-p.t1/tau))}},
+  html:(p,s,w)=>`<h3>1. Thermal resistance and capacitance</h3><p>The through-flow removes heat in proportion to the mass flow, so ${eq(`<i>R</i> = 1/<i>G</i> = ${sig(w.R)}`)} and <i>C</i> = <i>Mc</i> = ${p.M*p.c} J/K.</p>
+  <h3>2. Response</h3><p class="final"><i>R</i> = ${sig(w.R,3)} K/W, τ = ${sig(w.tau,3)} s, θ(${nf(p.t1)}) = ${sig(w.th,3)} K.</p>`};
+
+FLAWS["hydraulic-press"]={n:2,step:2,
+  why:"Because the fluid is incompressible, the volume <i>A</i><sub>1</sub><i>x</i><sub>1</sub> leaving the small cylinder equals <i>A</i><sub>2</sub><i>x</i><sub>2</sub>, so the large piston moves less. Equal displacements would make the output work exceed the input work.",
+  wrong:(p,s)=>({F2:s.F2,x2:p.x1}),
+  html:(p,s,w)=>`<h3>1. Force</h3><p>${eq(`<i>F</i><sub>2</sub> = ${sig(s.F2)} N`)}</p>
+  <h3>2. Displacement</h3><p>The incompressible fluid transmits the motion directly, so <i>x</i><sub>2</sub> = <i>x</i><sub>1</sub>.</p><p class="final"><i>F</i><sub>2</sub> = ${sig(w.F2,3)} N, <i>x</i><sub>2</sub> = ${sig(w.x2,3)} mm.</p>`};
+
+FLAWS["pneumatic-incline"]={n:2,step:1,
+  why:"On an incline the piston must also lift the weight component <i>mg</i> sin θ along the plane, and the normal force, and hence the friction, is reduced to μ<i>mg</i> cos θ.",
+  wrong:(p,s)=>{const F=p.mu*p.m*G0,A=F/p.dp;return {A:A*1e4,D:Math.sqrt(4*A/PI)*1000}},
+  html:(p,s,w)=>`<h3>1. Required force</h3><p>The piston must overcome friction: ${eq(`<i>F</i> = μ<i>mg</i> = ${sig(p.mu*p.m*G0)} N`)}</p>
+  <h3>2. Area and diameter</h3><p class="final"><i>A</i><sub>min</sub> = ${sig(w.A,3)} cm², <i>D</i><sub>min</sub> = ${sig(w.D,3)} mm.</p>`};
+// ===== error report form (Google Form with prefilled fields)
+// Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
+const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLScjsI98ID72Fn3xgheP4VJIsApQnUPwZpik_x4HQVk6annBhQ/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){
+  const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
+  q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
+  return FORM.url+"?"+q.toString();
+}
+
+// ===== page
+let curKey=Object.keys(TEMPLATES)[0], cur=null, curFields=[], curTruth={}, curMode="practice";
+const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+
+function fillTypes(){
+  const keys=hunting()?Object.keys(FLAWS):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+  return curKey;
+}
+
+function setMode(mode,key,seed){
+  curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";
+  $("mError").className=mode==="error"?"":"ghost";
+  $("reportRow").firstElementChild.textContent=hunting()
+    ?"Found a mistake other than the planted one?"
+    :"Found a mistake in a problem or its solution?";
+  curKey=key||curKey; const k=fillTypes();
+  render(k,seed||parseInt($("seedIn").value,10)||1);
+}
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed); const {p,s}=cur;
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed+(hunting()?"-e":""))}catch(e){}
+  $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
+  $("statement").innerHTML=T.statement(p,s);
+  $("flawCard").style.display=F?"":"none";
+  $("flawed").innerHTML=F?F.html(p,s,F.wrong(p,s)):"";
+  curFields=T.fields(p,s); curTruth=T.truth(s);
+  if(F){const steps=[];for(let i=1;i<=F.n;i++)steps.push(String(i));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];
+    curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+"Answers within 2% are accepted. "+(T.note||"");
+  const sol=$("solution"); sol.style.display="none";
+  sol.innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
+}
+
+function check(){
+  const truth=curTruth;
+  const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
+  curFields.forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scaleOf(f.unit):0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+if(typeof document!=="undefined"){
+  const newSeed=()=>1+Math.floor(Math.random()*999999);
+  $("typeSel").onchange=e=>render(e.target.value,newSeed());
+  $("newBtn").onclick=()=>render(curKey,newSeed());
+  $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+  $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
+  if(FORM.url)$("reportRow").style.display="";
+  $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+  $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+    s.style.display=show?"block":"none";
+    e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+  (function(){
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice",Object.keys(TEMPLATES)[0],newSeed());
+  })();
+}
+if(typeof module!=="undefined")module.exports={TEMPLATES,FLAWS};
+
+</script>
+</body>
+</html>

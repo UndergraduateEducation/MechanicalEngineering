@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mechanical Systems Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --load:#aa1e28; --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .fr{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 .15em;line-height:1.25}
+  .fr>span{padding:0 .25em;white-space:nowrap}
+  .fr>span:first-child{border-bottom:1px solid currentColor}
+  .eq{line-height:1.9}
+  .mat{display:inline-table;vertical-align:middle;border-left:1.5px solid currentColor;border-right:1.5px solid currentColor;border-radius:5px;padding:0 .15em;margin:0 .2em}
+  .mat>span{display:table-row}
+  .mat>span>span{display:table-cell;padding:.05em .45em;text-align:center}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mechanical Systems Problem Generator</h1>
+</header>
+<main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
+  </div>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+// ----- numeric helpers
+const nz=(r,a,b)=>pick(r,range(a,b,1).filter(v=>v!==0));
+const two=(r,a,b)=>{const x=pick(r,range(a,b,1));let y=x;while(y===x)y=pick(r,range(a,b,1));return x<y?[x,y]:[y,x]};
+const PI=Math.PI;
+const wdOf=(z,wn)=>wn*Math.sqrt(1-z*z);
+const MpOf=z=>100*Math.exp(-z*PI/Math.sqrt(1-z*z));
+const trOf=(z,wn)=>(PI-Math.acos(z))/wdOf(z,wn);
+// angle condition on the ray s = r(-z + j sqrt(1-z^2)) for G = K/(s(s+p1)(s+p2))
+function rlZeta(p1,p2,z){const c=Math.sqrt(1-z*z);
+  const phi=r=>{const x=-z*r,y=c*r;return Math.atan2(y,x)+Math.atan2(y,x+p1)+Math.atan2(y,x+p2)-PI};
+  let a=1e-9,b=1e3;for(let i=0;i<200;i++){const m=(a+b)/2;if(phi(m)<0)a=m;else b=m}
+  const r=(a+b)/2,sg=z*r,wd=c*r,K=Math.hypot(sg,wd)*Math.hypot(p1-sg,wd)*Math.hypot(p2-sg,wd);
+  return {sg,wd,K,s3:-(p1+p2)+2*sg}}
+
+// ----- formatting
+const sig=(x,n=4)=>{if(Math.abs(x)<1e-9)return "0";const d=Math.max(0,n-1-Math.floor(Math.log10(Math.abs(x))));return Number(x).toFixed(Math.min(d,8)).replace("-","−")};
+const nf=x=>Math.abs(x-Math.round(x))<1e-9?String(Math.round(x)).replace("-","−"):sig(x,4).replace(/(\.\d*?)0+$/,"$1").replace(/\.$/,"");
+const eq=s=>`<span class="eq">${s}</span>`;
+const S="<i>s</i>";
+const SUP={2:"²",3:"³",4:"⁴"};
+const mono=k=>k===0?"":k===1?S:S+SUP[k];
+function sum(terms){let o="";terms.forEach(([c,m])=>{if(Math.abs(c)<1e-12)return;const a=Math.abs(c);
+  const cf=(m&&Math.abs(a-1)<1e-12)?"":nf(a);o+=o?(c<0?" − ":" + "):(c<0?"−":"");o+=cf+m});return o||"0"}
+const poly=c=>sum(c.map((a,i)=>[a,mono(c.length-1-i)]));
+const fac=p=>p===0?S:`(${S} + ${nf(p)})`;
+const frac=(n,d)=>`<span class="fr"><span>${n}</span><span>${d}</span></span>`;
+const ze="ζ", wn_="ω<sub>n</sub>", wd_="ω<sub>d</sub>";
+const CR=`<i>C</i>(${S})/<i>R</i>(${S})`;
+
+// ----- block-diagram toolkit
+// blk: block at center (x,y) with label l or fraction n/d; sum: summing junction with signs {w,n,s};
+// w: wire polyline with arrowhead; dot: pickoff point; lab: free text. Single letters in labels are set in italics.
+const IT=v=>`<tspan font-style="italic">${v}</tspan>`;
+const ml=t=>String(t).replace(/-/g,"−").replace(/\b([GKH])([a-z]{1,2})\b|(?<![A-Za-z])([a-zA-Z])(?![A-Za-z0-9])/g,(m,a,b,c)=>c?IT(c):IT(a)+`<tspan font-size="11" baseline-shift="sub" font-style="italic">${b}</tspan>`);
+const tw=t=>String(t).length*7.6+20;
+function bd(items,W=560,H=200){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker></defs>`;
+  items.forEach(e=>{
+    if(e.t==="blk"){const w=e.w||Math.max(44,tw(e.l||""),tw(e.n||""),tw(e.d||"")),h=e.d?46:34;
+      o+=`<rect x="${e.x-w/2}" y="${e.y-h/2}" width="${w}" height="${h}" fill="#fff" stroke="#222" stroke-width="1.3"/>`;
+      if(e.d)o+=`<text x="${e.x}" y="${e.y-6}" text-anchor="middle">${ml(e.n)}</text><line x1="${e.x-w/2+8}" y1="${e.y}" x2="${e.x+w/2-8}" y2="${e.y}" stroke="#222"/><text x="${e.x}" y="${e.y+16}" text-anchor="middle">${ml(e.d)}</text>`;
+      else o+=`<text x="${e.x}" y="${e.y+5}" text-anchor="middle">${ml(e.l)}</text>`;return}
+    if(e.t==="sum"){o+=`<circle cx="${e.x}" cy="${e.y}" r="10" fill="#fff" stroke="#222" stroke-width="1.3"/>`;
+      const sg=e.s||{};if(sg.w)o+=`<text x="${e.x-20}" y="${e.y-6}" text-anchor="middle" font-size="14">${sg.w}</text>`;
+      if(sg.s)o+=`<text x="${e.x+14}" y="${e.y+24}" text-anchor="middle" font-size="14">${sg.s}</text>`;
+      if(sg.n)o+=`<text x="${e.x+14}" y="${e.y-14}" text-anchor="middle" font-size="14">${sg.n}</text>`;return}
+    if(e.t==="w"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" fill="none" stroke="#222" stroke-width="1.3"${e.a===false?"":' marker-end="url(#ah)"'}/>`;return}
+    if(e.t==="dot"){o+=`<circle cx="${e.x}" cy="${e.y}" r="3" fill="#222"/>`;return}
+    if(e.t==="lab"){o+=`<text x="${e.x}" y="${e.y}" text-anchor="${e.an||"middle"}">${ml(e.l)}</text>`;return}
+  });
+  return o+"</svg>";
+}
+// unity-feedback loop with a chain of blocks between the summing junction and the output
+function loopFig(blocks){
+  const y=70,items=[{t:"lab",x:22,y:y+5,l:"R(s)"},{t:"w",p:[[44,y],[80,y]]},{t:"sum",x:90,y,s:{w:"+",s:"−"}}];
+  let x=100;blocks.forEach(b=>{const w=Math.max(44,tw(b.l||""),tw(b.n||""),tw(b.d||""));items.push({t:"w",p:[[x,y],[x+30,y]]});items.push({t:"blk",x:x+30+w/2,y,w,...b});x+=30+w});
+  items.push({t:"w",p:[[x,y],[x+60,y]]},{t:"dot",x:x+30,y},{t:"lab",x:x+64,y:y+5,l:"C(s)",an:"start"},{t:"w",p:[[x+30,y],[x+30,y+70],[90,y+70],[90,y+10]]});
+  return bd(items,x+120,170);
+}
+
+const rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+const cs=d=>Math.cos(rad(d)), sn=d=>Math.sin(rad(d));
+const Tt="<i>t</i>";
+const ex=p=>`<i>e</i><sup>−${p===1?"":nf(p)}<i>t</i></sup>`;
+const wt=w=>`${w===1?"":nf(w)}${Tt}`;
+const cf1=c=>c===1?"":nf(c);
+// ----- figure toolkit (2D drawing of arrows, lines, points, text)
+const COL={k:"#222",r:"#aa1e28",b:"#2b5d8a",g:"#1e5a32",m:"#7d5014",x:"#888"};
+function draw(els,W=520,H=300){
+  const pts=[];els.forEach(e=>{[e.a,e.b,e.p].forEach(q=>q&&pts.push(q))});
+  const x0=Math.min(...pts.map(q=>q[0])),x1=Math.max(...pts.map(q=>q[0])),y0=Math.min(...pts.map(q=>q[1])),y1=Math.max(...pts.map(q=>q[1]));
+  const mx=80,my=40,s=Math.min((W-2*mx)/Math.max(x1-x0,1e-6),(H-2*my)/Math.max(y1-y0,1e-6));
+  const X=q=>mx+(q[0]-x0)*s+(W-2*mx-(x1-x0)*s)/2, Y=q=>H-my-(q[1]-y0)*s-(H-2*my-(y1-y0)*s)/2, f1=v=>v.toFixed(1);
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="16" style="max-height:${H}px"><defs>`;
+  for(const k in COL)o+=`<marker id="vx${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="${COL[k]}"/></marker>`;
+  o+="</defs>";
+  els.forEach(e=>{
+    const c=e.c||"k";
+    if(e.t==="txt"){o+=`<text x="${f1(X(e.p))}" y="${f1(Y(e.p)+5)}" text-anchor="${e.an||"middle"}" class="halo">${e.l}</text>`;return}
+    const ax=X(e.a),ay=Y(e.a),bx=X(e.b),by=Y(e.b),dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1;
+    const head=e.t==="ln"?"":` marker-end="url(#vx${c})"`;
+    o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="${COL[c]}" stroke-width="${e.w||(c==="r"||c==="b"||c==="g"?2.6:1.4)}" ${e.d?'stroke-dasharray="5 4"':""}${head}/>`;
+    if(e.l){const ux=dx/L,uy=dy/L,an=Math.abs(ux)<.3?"middle":ux>0?"start":"end";
+      o+=`<text x="${f1(bx+ux*12)}" y="${f1(by+uy*12+(uy>.5?14:uy<-.5?-2:5))}" text-anchor="${an}" fill="${COL[c]}" class="halo">${e.l}</text>`}
+  });
+  return o+"</svg>";
+}
+
+
+// ----- mechanical-schematic toolkit (pixel coordinates)
+// wall {x,y1,y2,side}, gnd {x1,x2,y}, spr {a,b,l}, dmp {a,b,l}, box {x,y,w,h,l}, ln {p,d}, arr {a,b,l}, circ {x,y,r,f}, txt {x,y,l,an}
+function mech(items,W=520,H=220){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px"><defs><marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker></defs>`;
+  const ST='stroke="#222" stroke-width="1.5" fill="none"';
+  const lab=(x,y,l,an="middle")=>`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" class="halo">${ml(l)}</text>`;
+  items.forEach(e=>{
+    if(e.t==="wall"){const dx=e.side==="r"?1:-1;o+=`<line x1="${e.x}" y1="${e.y1}" x2="${e.x}" y2="${e.y2}" stroke="#222" stroke-width="2"/>`;
+      for(let y=e.y1;y<e.y2;y+=10)o+=`<line x1="${e.x}" y1="${y+10}" x2="${e.x+dx*8}" y2="${y}" stroke="#666"/>`;return}
+    if(e.t==="gnd"){o+=`<line x1="${e.x1}" y1="${e.y}" x2="${e.x2}" y2="${e.y}" stroke="#222" stroke-width="2"/>`;
+      for(let x=e.x1;x<e.x2;x+=10)o+=`<line x1="${x}" y1="${e.y+8}" x2="${x+10}" y2="${e.y}" stroke="#666"/>`;return}
+    if(e.t==="spr"||e.t==="dmp"){const [ax,ay]=e.a,[bx,by]=e.b,L=Math.hypot(bx-ax,by-ay),ang=Math.atan2(by-ay,bx-ax)*180/Math.PI;
+      let g="";
+      if(e.t==="spr"){const n=8,l0=L*0.18,step=(L-2*l0)/n;let pts=[[0,0],[l0,0]];for(let i=0;i<n;i++)pts.push([l0+step*(i+0.5),(i%2?8:-8)]);pts.push([L-l0,0],[L,0]);
+        g=`<polyline points="${pts.map(q=>q.map(v=>v.toFixed(1)).join(",")).join(" ")}" ${ST}/>`}
+      else{const m=L/2;g=`<polyline points="0,0 ${m-12},0" ${ST}/><polyline points="${m+14},-10 ${m-12},-10 ${m-12},10 ${m+14},10" ${ST}/><line x1="${m+4}" y1="-7" x2="${m+4}" y2="7" stroke="#222" stroke-width="2.5"/><line x1="${m+4}" y1="0" x2="${L}" y2="0" stroke="#222" stroke-width="1.5"/>`}
+      o+=`<g transform="translate(${ax},${ay}) rotate(${ang.toFixed(2)})">${g}</g>`;
+      if(e.l){const hor=Math.abs(bx-ax)>=Math.abs(by-ay),lp=e.lp||(hor?[(ax+bx)/2,(ay+by)/2-16]:[(ax+bx)/2+16,(ay+by)/2+5]);o+=lab(lp[0],lp[1],e.l,e.an||(hor?"middle":"start"))}
+      return}
+    if(e.t==="box"){o+=`<rect${e.rot?` transform="rotate(${e.rot} ${e.x} ${e.y})"`:""} x="${e.x-e.w/2}" y="${e.y-e.h/2}" width="${e.w}" height="${e.h}" fill="${e.f||"#eec878"}" stroke="${e.sc||"#7d5014"}" stroke-width="1.6"/>`;if(e.l)o+=lab(e.x,e.y+5,e.l);return}
+    if(e.t==="ln"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" stroke="#222" stroke-width="${e.w||1.5}" fill="none"${e.d?' stroke-dasharray="5 4"':""}/>`;return}
+    if(e.t==="arr"){o+=`<line x1="${e.a[0]}" y1="${e.a[1]}" x2="${e.b[0]}" y2="${e.b[1]}" stroke="#aa1e28" stroke-width="1.8" marker-end="url(#ma)"/>`;if(e.l)o+=lab(e.b[0]+(e.dx??8),e.b[1]+(e.dy??5),e.l,"start");return}
+    if(e.t==="circ"){o+=`<circle cx="${e.x}" cy="${e.y}" r="${e.r}" fill="${e.f||"#fff"}" stroke="#222" stroke-width="1.5"/>`;return}
+    if(e.t==="txt"){o+=lab(e.x,e.y,e.l,e.an||"middle");return}
+  });
+  return o+"</svg>";
+}
+const G0=9.81;
+
+const mat=rows=>`<span class="mat">${rows.map(r=>`<span>${r.map(v=>`<span>${typeof v==="number"?nf(v):v}</span>`).join("")}</span>`).join("")}</span>`;
+
+// ----- circuit toolkit (pixel coordinates)
+// R/C/L {a,b,l}: component on a straight wire from a to b; w {p}: wire; src {x,y,l}: voltage source (vertical, + on top);
+// gnd {x,y}; node {x,y}; oa {x,y}: op-amp with − input at (x−40,y−12), + input at (x−40,y+12), output at (x+40,y); sw {a,b,l}: open switch; txt {x,y,l,an}
+function ckt(items,W=520,H=220){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px">`;
+  const ST='stroke="#222" stroke-width="1.6" fill="none"';
+  const lab=(x,y,l,an="middle")=>`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" class="halo">${ml(l)}</text>`;
+  items.forEach(e=>{
+    if(e.t==="R"||e.t==="C"||e.t==="L"||e.t==="sw"){const [ax,ay]=e.a,[bx,by]=e.b,Ln=Math.hypot(bx-ax,by-ay),ang=Math.atan2(by-ay,bx-ax)*180/Math.PI,m=Ln/2;let g="";
+      if(e.t==="R"){const pts=[[0,0],[m-24,0]];for(let i=0;i<6;i++)pts.push([m-24+8*(i+0.5),i%2?7:-7]);pts.push([m+24,0],[Ln,0]);g=`<polyline points="${pts.map(q=>q.join(",")).join(" ")}" ${ST}/>`}
+      if(e.t==="C")g=`<polyline points="0,0 ${m-5},0" ${ST}/><line x1="${m-5}" y1="-12" x2="${m-5}" y2="12" stroke="#222" stroke-width="2.2"/><line x1="${m+5}" y1="-12" x2="${m+5}" y2="12" stroke="#222" stroke-width="2.2"/><polyline points="${m+5},0 ${Ln},0" ${ST}/>`;
+      if(e.t==="L"){let d=`M0,0 L${m-24},0`;for(let i=0;i<4;i++)d+=` a6,7 0 0 1 12,0`;d+=` L${Ln},0`;g=`<path d="${d}" ${ST}/>`}
+      if(e.t==="sw")g=`<polyline points="0,0 ${m-12},0" ${ST}/><circle cx="${m-12}" cy="0" r="2.5" fill="#222"/><line x1="${m-12}" y1="0" x2="${m+12}" y2="-12" stroke="#222" stroke-width="1.6"/><circle cx="${m+12}" cy="0" r="2.5" fill="#222"/><polyline points="${m+12},0 ${Ln},0" ${ST}/>`;
+      o+=`<g transform="translate(${ax},${ay}) rotate(${ang.toFixed(2)})">${g}</g>`;
+      if(e.l){const hor=Math.abs(bx-ax)>=Math.abs(by-ay),lp=e.lp||(hor?[(ax+bx)/2,(ay+by)/2-16]:[(ax+bx)/2+16,(ay+by)/2+5]);o+=lab(lp[0],lp[1],e.l,e.an||(hor?"middle":"start"))}return}
+    if(e.t==="w"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" ${ST}/>`;return}
+    if(e.t==="src"){o+=`<circle cx="${e.x}" cy="${e.y}" r="16" fill="#fff" stroke="#222" stroke-width="1.6"/><text x="${e.x}" y="${e.y-3}" text-anchor="middle" font-size="13">+</text><text x="${e.x}" y="${e.y+11}" text-anchor="middle" font-size="13">−</text>`;if(e.l)o+=lab(e.x-24,e.y+5,e.l,"end");return}
+    if(e.t==="gnd"){o+=`<line x1="${e.x-10}" y1="${e.y}" x2="${e.x+10}" y2="${e.y}" stroke="#222" stroke-width="1.6"/><line x1="${e.x-6}" y1="${e.y+4}" x2="${e.x+6}" y2="${e.y+4}" stroke="#222" stroke-width="1.6"/><line x1="${e.x-2}" y1="${e.y+8}" x2="${e.x+2}" y2="${e.y+8}" stroke="#222" stroke-width="1.6"/>`;return}
+    if(e.t==="node"){o+=`<circle cx="${e.x}" cy="${e.y}" r="3" fill="#222"/>`;if(e.l)o+=lab(e.x+(e.dx??0),e.y+(e.dy??-10),e.l);return}
+    if(e.t==="oa"){const x=e.x,y=e.y;o+=`<polygon points="${x-40},${y-30} ${x-40},${y+30} ${x+40},${y}" fill="#fff" stroke="#222" stroke-width="1.6"/><text x="${x-32}" y="${y-7}" font-size="14">−</text><text x="${x-32}" y="${y+18}" font-size="14">+</text>`;return}
+    if(e.t==="txt"){o+=lab(e.x,e.y,e.l,e.an||"middle");return}
+  });
+  return o+"</svg>";
+}
+
+// ----- templates
+const TEMPLATES={};
+const W_=v=>`${sig(v)}`;
+
+// 1. moment of inertia of a disk, torque to spin it up, power
+TEMPLATES["flywheel-torque"]={
+  name:"Moment of inertia of a disk, accelerating torque, and power",
+  generate(seed){const r=mulberry32(seed);
+    const p={D:pick(r,range(0.4,2,0.1)),m:pick(r,range(20,200,10)),f:pick(r,range(5,30,1)),t:pick(r,range(2,10,1))};
+    const J=p.m*p.D*p.D/8,w=2*PI*p.f,T=J*w/p.t;
+    return {p,s:{J,w,T,P:T*w}};},
+  statement:p=>`<p>A homogeneous disk flywheel has a diameter of ${nf(p.D)} m and a mass of ${p.m} kg. Starting from rest, it is driven by a constant torque and reaches a speed of ${p.f} Hz (revolutions per second) in ${p.t} s. Determine the moment of inertia <i>J</i> about the axis of rotation, the torque <i>T</i>, and the power delivered at the end of the ${p.t}-s interval.</p>`,
+  solution:(p,s)=>`<h3>1. Moment of inertia</h3>
+  <p>For a solid disk of radius <i>R</i> = ${nf(p.D/2)} m, ${eq(`<i>J</i> = ½<i>mR</i>² = ½(${p.m})(${nf(p.D/2)})² = ${sig(s.J)} kg·m²`)}</p>
+  <h3>2. Torque</h3>
+  <p>${eq(`ω = 2π(${p.f}) = ${sig(s.w)} rad/s`)}, and the constant angular acceleration is ω/<i>t</i>, so ${eq(`<i>T</i> = <i>J</i>ω/<i>t</i> = ${sig(s.T)} N·m`)}</p>
+  <h3>3. Power</h3>
+  <p class="final"><i>J</i> = ${sig(s.J,3)} kg·m², <i>T</i> = ${sig(s.T,3)} N·m, <i>P</i> = <i>T</i>ω = ${sig(s.P,3)} W.</p>`,
+  fields:p=>[{id:"J",label:"Moment of inertia <i>J</i>",unit:"kg·m²"},{id:"T",label:"Torque <i>T</i>",unit:"N·m"},{id:"P",label:"Power at the final speed",unit:"W"}],
+  truth:s=>({J:s.J,T:s.T,P:s.P}),
+  note:""
+};
+
+// 2. braking flywheel: constant deceleration
+TEMPLATES["brake-deceleration"]={
+  name:"Constant angular deceleration of a braked flywheel",
+  generate(seed){const r=mulberry32(seed);
+    const w0=pick(r,range(60,200,10)),w1=pick(r,range(10,w0-30,10)),t=pick(r,range(5,20,1));
+    return {p:{w0,w1,t},s:{al:(w1-w0)/t,th:(w0+w1)*t/2}};},
+  statement:p=>`<p>A brake is applied to a flywheel rotating at ${p.w0} rad/s. The angular velocity decreases uniformly to ${p.w1} rad/s in ${p.t} s. Determine the angular acceleration α (negative for a deceleration) and the total angle θ through which the flywheel turns during the ${p.t}-s interval.</p>`,
+  solution:(p,s)=>`<h3>1. Angular acceleration</h3>
+  <p>${eq(`α = (ω<sub>1</sub> − ω<sub>0</sub>)/<i>t</i> = (${p.w1} − ${p.w0})/${p.t} = ${sig(s.al)} rad/s²`)}</p>
+  <h3>2. Angle turned</h3>
+  <p>For constant acceleration, ${eq(`θ = ω<sub>0</sub><i>t</i> + ½α<i>t</i>² = ½(ω<sub>0</sub> + ω<sub>1</sub>)<i>t</i> = ${sig(s.th)} rad`)}</p>
+  <p class="final">α = ${sig(s.al,3)} rad/s², θ = ${sig(s.th,3)} rad.</p>`,
+  fields:p=>[{id:"al",label:"Angular acceleration α (with sign)",unit:"rad/s²",signed:true},{id:"th",label:"Angle turned θ",unit:"rad"}],
+  truth:s=>({al:s.al,th:s.th}),
+  note:"The acceleration carries its sign."
+};
+
+// 3. free fall
+TEMPLATES["free-fall"]={
+  name:"Free fall: time and impact velocity",
+  generate(seed){const r=mulberry32(seed);const h=pick(r,range(20,200,10));
+    return {p:{h},s:{t:Math.sqrt(2*h/G0),v:Math.sqrt(2*G0*h)}};},
+  statement:p=>`<p>A ball is dropped from rest at a height of ${p.h} m. Neglecting air resistance and taking <i>g</i> = 9.81 m/s², determine the time to reach the ground and the speed at impact.</p>`,
+  solution:(p,s)=>`<h3>1. Time of fall</h3>
+  <p>${eq(`<i>h</i> = ½<i>gt</i>² &nbsp;⇒&nbsp; <i>t</i> = √(2<i>h</i>/<i>g</i>) = √(2(${p.h})/9.81) = ${sig(s.t)} s`)}</p>
+  <h3>2. Impact speed</h3>
+  <p>${eq(`<i>v</i> = <i>gt</i> = ${sig(s.v)} m/s`)}</p>
+  <p class="final"><i>t</i> = ${sig(s.t,3)} s, <i>v</i> = ${sig(s.v,3)} m/s.</p>`,
+  fields:p=>[{id:"t",label:"Time of fall",unit:"s"},{id:"v",label:"Impact speed",unit:"m/s"}],
+  truth:s=>({t:s.t,v:s.v}),
+  note:""
+};
+
+// 4. equivalent spring constant and natural frequency
+TEMPLATES["spring-network"]={
+  name:"Equivalent spring constant and natural frequency",
+  generate(seed){const r=mulberry32(seed);
+    const p={k1:pick(r,range(200,2000,100)),k2:pick(r,range(100,1000,50)),k3:pick(r,range(100,1000,50)),m:pick(r,range(1,20,1))};
+    const k=p.k1*(p.k2+p.k3)/(p.k1+p.k2+p.k3);
+    return {p,s:{k,wn:Math.sqrt(k/p.m)}};},
+  statement:p=>`<p>In the system shown, spring <i>k</i><sub>1</sub> = ${p.k1} N/m connects the wall to a light plate, and springs <i>k</i><sub>2</sub> = ${p.k2} N/m and <i>k</i><sub>3</sub> = ${p.k3} N/m connect the plate to a mass <i>m</i> = ${p.m} kg that slides without friction. Determine the equivalent spring constant <i>k</i><sub>eq</sub> acting on the mass and the undamped natural frequency ${wn_}.</p>`,
+  figure:p=>mech([{t:"wall",x:40,y1:40,y2:160,side:"l"},{t:"spr",a:[40,100],b:[170,100],l:"k₁"},{t:"ln",p:[[170,60],[170,140]],w:4},
+    {t:"spr",a:[170,70],b:[320,70],l:"k₂"},{t:"spr",a:[170,130],b:[320,130],l:"k₃",lp:[245,160]},{t:"box",x:360,y:100,w:80,h:90,l:"m"},
+    {t:"gnd",x1:300,x2:430,y:146},{t:"arr",a:[400,30],b:[450,30],l:"x"}],520,190),
+  solution:(p,s)=>`<h3>1. Equivalent spring constant</h3>
+  <p>Springs <i>k</i><sub>2</sub> and <i>k</i><sub>3</sub> act in parallel: ${eq(`<i>k</i><sub>2</sub> + <i>k</i><sub>3</sub> = ${p.k2+p.k3} N/m`)}. That pair is in series with <i>k</i><sub>1</sub>:</p>
+  <p>${eq(`<i>k</i><sub>eq</sub> = ${frac(`<i>k</i><sub>1</sub>(<i>k</i><sub>2</sub> + <i>k</i><sub>3</sub>)`,`<i>k</i><sub>1</sub> + <i>k</i><sub>2</sub> + <i>k</i><sub>3</sub>`)} = ${frac(`${p.k1}(${p.k2+p.k3})`,p.k1+p.k2+p.k3)} = ${sig(s.k)} N/m`)}</p>
+  <h3>2. Natural frequency</h3>
+  <p class="final"><i>k</i><sub>eq</sub> = ${sig(s.k,3)} N/m, ${wn_} = √(<i>k</i><sub>eq</sub>/<i>m</i>) = ${sig(s.wn,3)} rad/s.</p>`,
+  fields:p=>[{id:"k",label:"Equivalent spring constant <i>k</i><sub>eq</sub>",unit:"N/m"},{id:"wn",label:`Natural frequency ${wn_}`,unit:"rad/s"}],
+  truth:s=>({k:s.k,wn:s.wn}),
+  note:""
+};
+
+// 5. equivalent damping coefficient
+TEMPLATES["damper-network"]={
+  name:"Equivalent viscous-friction coefficient of a damper network",
+  generate(seed){const r=mulberry32(seed);
+    const p={b1:pick(r,range(10,200,10)),b2:pick(r,range(20,300,10)),b3:pick(r,range(20,300,10)),v:pick(r,range(0.1,2,0.1))};
+    const b23=p.b2*p.b3/(p.b2+p.b3),b=p.b1+b23;
+    return {p,s:{b23,b,F:b*p.v}};},
+  statement:p=>`<p>Damper <i>b</i><sub>1</sub> = ${p.b1} N·s/m connects points <i>A</i> and <i>B</i> directly. Dampers <i>b</i><sub>2</sub> = ${p.b2} N·s/m and <i>b</i><sub>3</sub> = ${p.b3} N·s/m are connected end to end and also join <i>A</i> to <i>B</i>, as shown. Determine the equivalent viscous-friction coefficient <i>b</i><sub>eq</sub> between <i>A</i> and <i>B</i>, and the force required to move <i>B</i> relative to <i>A</i> at ${nf(p.v)} m/s.</p>`,
+  figure:p=>mech([{t:"wall",x:50,y1:40,y2:170,side:"l"},{t:"ln",p:[[50,105],[90,105]]},{t:"ln",p:[[90,60],[90,150]],w:3},{t:"txt",x:80,y:185,l:"A"},
+    {t:"dmp",a:[90,65],b:[370,65],l:"b₁"},{t:"dmp",a:[90,145],b:[230,145],l:"b₂",lp:[160,180]},{t:"dmp",a:[230,145],b:[370,145],l:"b₃",lp:[300,180]},
+    {t:"ln",p:[[370,60],[370,150]],w:3},{t:"txt",x:382,y:185,l:"B"},{t:"ln",p:[[370,105],[410,105]]},{t:"arr",a:[410,105],b:[470,105],l:"F"}],520,200),
+  solution:(p,s)=>`<h3>1. Dampers in series</h3>
+  <p>Dampers in series carry the same force, so their velocities add: ${eq(`<i>b</i><sub>23</sub> = ${frac(`<i>b</i><sub>2</sub><i>b</i><sub>3</sub>`,`<i>b</i><sub>2</sub> + <i>b</i><sub>3</sub>`)} = ${sig(s.b23)} N·s/m`)}</p>
+  <h3>2. Parallel combination and force</h3>
+  <p>Dampers in parallel have the same velocity, so their forces add: ${eq(`<i>b</i><sub>eq</sub> = <i>b</i><sub>1</sub> + <i>b</i><sub>23</sub> = ${sig(s.b)} N·s/m`)}</p>
+  <p class="final"><i>b</i><sub>eq</sub> = ${sig(s.b,3)} N·s/m, <i>F</i> = <i>b</i><sub>eq</sub><i>v</i> = ${sig(s.F,3)} N.</p>`,
+  fields:p=>[{id:"b",label:"Equivalent coefficient <i>b</i><sub>eq</sub>",unit:"N·s/m"},{id:"F",label:"Force <i>F</i>",unit:"N"}],
+  truth:s=>({b:s.b,F:s.F}),
+  note:""
+};
+
+// 6. lever with a spring
+TEMPLATES["lever-spring"]={
+  name:"Natural frequency of a mass on a spring-supported lever",
+  generate(seed){const r=mulberry32(seed);
+    const p={W:pick(r,range(2,20,1)),k:pick(r,range(100,1000,50)),l:pick(r,range(0.2,1,0.1)),fa:pick(r,[0.3,0.4,0.5,0.6,0.7])};
+    p.a=+(p.l*p.fa).toFixed(3);const m=p.W/G0,wn=(p.a/p.l)*Math.sqrt(p.k/m);
+    return {p,s:{m,wn,f:wn/(2*PI)}};},
+  statement:p=>`<p>A rigid, massless rod is pivoted at <i>P</i> and is horizontal at equilibrium. A weight of ${p.W} N is attached at its end, a distance <i>l</i> = ${nf(p.l)} m from <i>P</i>, and a spring of constant <i>k</i> = ${p.k} N/m is attached a distance <i>a</i> = ${nf(p.a)} m from <i>P</i>. For small oscillations about equilibrium, determine the natural frequency in rad/s and in Hz (<i>g</i> = 9.81 m/s²).</p>`,
+  figure:p=>mech([{t:"circ",x:70,y:80,r:6,f:"#222"},{t:"ln",p:[[60,95],[70,80],[80,95]]},{t:"gnd",x1:50,x2:420,y:165},{t:"ln",p:[[70,95],[70,165]]},{t:"txt",x:55,y:72,l:"P"},
+    {t:"ln",p:[[70,80],[380,80]],w:4},{t:"spr",a:[70+310*p.fa,80],b:[70+310*p.fa,165],l:"k"},{t:"box",x:395,y:80,w:30,h:30,l:""},{t:"txt",x:395,y:55,l:"m"},
+    {t:"ln",p:[[70,190],[70+310*p.fa,190]],w:1},{t:"txt",x:70+155*p.fa,y:208,l:"a"},{t:"ln",p:[[70,30],[395,30]],w:1},{t:"txt",x:230,y:24,l:"l"},
+    {t:"arr",a:[420,95],b:[420,135],l:"x"}],480,215),
+  solution:(p,s)=>`<h3>1. Equation of motion</h3>
+  <p>For a small rotation θ about <i>P</i>, the spring stretches <i>a</i>θ and exerts the moment <i>ka</i>²θ, while the mass has moment of inertia <i>ml</i>² about <i>P</i>. Gravity is balanced by the static spring force at equilibrium, so</p>
+  <p>${eq(`<i>ml</i>²θ̈ + <i>ka</i>²θ = 0`)}, with ${eq(`<i>m</i> = ${p.W}/9.81 = ${sig(s.m)} kg`)}</p>
+  <h3>2. Natural frequency</h3>
+  <p>${eq(`${wn_} = ${frac("<i>a</i>","<i>l</i>")}√(<i>k</i>/<i>m</i>) = ${frac(nf(p.a),nf(p.l))}√(${p.k}/${sig(s.m)}) = ${sig(s.wn)} rad/s`)}</p>
+  <p class="final">${wn_} = ${sig(s.wn,3)} rad/s, <i>f</i> = ${wn_}/2π = ${sig(s.f,3)} Hz.</p>`,
+  fields:p=>[{id:"wn",label:`Natural frequency ${wn_}`,unit:"rad/s"},{id:"f",label:"Natural frequency <i>f</i>",unit:"Hz"}],
+  truth:s=>({wn:s.wn,f:s.f}),
+  note:""
+};
+
+// 7. damped free vibration
+TEMPLATES["damped-free-vibration"]={
+  name:"Free vibration of a spring–mass–damper system",
+  generate(seed){const r=mulberry32(seed);
+    const p={m:pick(r,range(1,10,1)),k:pick(r,range(10,200,10)),z0:pick(r,range(0.2,0.6,0.05)),x0:pick(r,[0.05,0.1,0.15,0.2]),t1:pick(r,[0.5,1,1.5])};
+    p.b=+(2*p.z0*Math.sqrt(p.k*p.m)).toFixed(1);
+    const wn=Math.sqrt(p.k/p.m),z=p.b/(2*Math.sqrt(p.k*p.m)),wd=wn*Math.sqrt(1-z*z),sg=z*wn;
+    const x1=Math.exp(-sg*p.t1)*(p.x0*Math.cos(wd*p.t1)+(sg*p.x0/wd)*Math.sin(wd*p.t1));
+    return {p,s:{wn,z,wd,sg,x1}};},
+  statement:p=>`<p>A mass <i>m</i> = ${p.m} kg is supported by a spring <i>k</i> = ${p.k} N/m and a damper <i>b</i> = ${nf(p.b)} N·s/m. It is displaced <i>x</i>(0) = ${nf(p.x0)} m from equilibrium and released from rest. Determine the damping ratio ${ze}, the damped natural frequency ${wd_}, and the displacement at <i>t</i> = ${nf(p.t1)} s.</p>`,
+  figure:p=>mech([{t:"gnd",x1:120,x2:300,y:190},{t:"spr",a:[170,190],b:[170,110],l:"k",lp:[140,155],an:"end"},{t:"dmp",a:[250,190],b:[250,110],l:"b"},{t:"box",x:210,y:85,w:150,h:50,l:"m"},{t:"arr",a:[310,95],b:[310,55],l:"x"}],420,210),
+  solution:(p,s)=>`<h3>1. Damping ratio and natural frequencies</h3>
+  <p>${eq(`${wn_} = √(<i>k</i>/<i>m</i>) = ${sig(s.wn)} rad/s`)} ${eq(`${ze} = <i>b</i>/(2√(<i>km</i>)) = ${sig(s.z)}`)}</p>
+  <h3>2. Damped frequency</h3>
+  <p>${eq(`${wd_} = ${wn_}√(1 − ${ze}²) = ${sig(s.wd)} rad/s`)}</p>
+  <h3>3. Displacement</h3>
+  <p>With <i>x</i>(0) = <i>x</i><sub>0</sub> and ẋ(0) = 0, ${eq(`<i>x</i>(<i>t</i>) = <i>x</i><sub>0</sub><i>e</i><sup>−${ze}${wn_}<i>t</i></sup>[cos ${wd_}<i>t</i> + (${ze}${wn_}/${wd_}) sin ${wd_}<i>t</i>]`)}</p>
+  <p class="final">${ze} = ${sig(s.z,3)}, ${wd_} = ${sig(s.wd,3)} rad/s, <i>x</i>(${nf(p.t1)}) = ${sig(s.x1,3)} m.</p>`,
+  fields:p=>[{id:"z",label:`Damping ratio ${ze}`,unit:"",tolAbs:0.01},{id:"wd",label:`Damped frequency ${wd_}`,unit:"rad/s"},{id:"x1",label:`<i>x</i>(${nf(p.t1)}) (with sign)`,unit:"m",signed:true,tolAbs:0.002}],
+  truth:s=>({z:s.z,wd:s.wd,x1:s.x1}),
+  note:"The damping ratio is accepted within 0.01 and the displacement within 0.002 m."
+};
+
+// 8. pendulum with a rod of non-negligible mass
+TEMPLATES["pendulum-rod-mass"]={
+  name:"Natural frequency of a pendulum including the rod mass",
+  generate(seed){const r=mulberry32(seed);
+    const M=pick(r,range(1,5,0.5)),p={M,m:+(M*pick(r,[0.4,0.5,0.6,0.8,1])).toFixed(2),l:pick(r,range(0.3,2,0.1))};
+    const J=(p.M+p.m/3)*p.l*p.l,K=(p.M+p.m/2)*G0*p.l,wn=Math.sqrt(K/J);
+    return {p,s:{J,K,wn,T:2*PI/wn}};},
+  statement:p=>`<p>A pendulum consists of a uniform rod of mass <i>m</i> = ${nf(p.m)} kg and length <i>l</i> = ${nf(p.l)} m, pivoted at its upper end, with a concentrated mass <i>M</i> = ${nf(p.M)} kg at its lower end. Including the effect of the rod mass, determine the natural frequency ${wn_} and the period of small oscillations (<i>g</i> = 9.81 m/s²).</p>`,
+  figure:p=>mech([{t:"gnd",x1:120,x2:220,y:30},{t:"circ",x:170,y:38,r:5,f:"#222"},{t:"ln",p:[[170,38],[170,190]],d:1,w:1},{t:"ln",p:[[170,38],[225,180]],w:4},{t:"circ",x:229,y:190,r:14,f:"#eec878"},
+    {t:"txt",x:252,y:196,l:"M",an:"start"},{t:"txt",x:208,y:110,l:"m, l",an:"start"},{t:"txt",x:180,y:85,l:"θ",an:"start"}],360,220),
+  solution:(p,s)=>`<h3>1. Moment of inertia and restoring moment</h3>
+  <p>About the pivot, ${eq(`<i>J</i> = (<i>M</i> + <i>m</i>/3)<i>l</i>² = ${sig(s.J)} kg·m²`)}. The rod weight acts at <i>l</i>/2, so for small θ the restoring moment is ${eq(`(<i>M</i> + <i>m</i>/2)<i>gl</i>θ = ${sig(s.K)}θ N·m`)}.</p>
+  <h3>2. Natural frequency and period</h3>
+  <p>${eq(`${wn_} = √(${sig(s.K)}/${sig(s.J)}) = ${sig(s.wn)} rad/s`)}</p>
+  <p class="final">${wn_} = ${sig(s.wn,3)} rad/s, period = 2π/${wn_} = ${sig(s.T,3)} s.</p>`,
+  fields:p=>[{id:"wn",label:`Natural frequency ${wn_}`,unit:"rad/s"},{id:"T",label:"Period",unit:"s"}],
+  truth:s=>({wn:s.wn,T:s.T}),
+  note:""
+};
+
+// 9. inverted pendulum with springs, energy method
+TEMPLATES["inverted-pendulum-energy"]={
+  name:"Spring-loaded inverted pendulum by the energy method",
+  generate(seed){const r=mulberry32(seed);
+    for(let i=0;i<5000;i++){
+      const p={m:pick(r,range(0.5,5,0.5)),l:pick(r,range(0.3,1.5,0.1)),fa:pick(r,[0.3,0.4,0.5,0.6]),k:pick(r,range(100,2000,50))};
+      p.a=+(p.l*p.fa).toFixed(3);const num=2*p.k*p.a*p.a-p.m*G0*p.l;
+      if(num<0.2*p.m*G0*p.l) continue;
+      return {p,s:{num,wn:Math.sqrt(num/(p.m*p.l*p.l)),kmin:p.m*G0*p.l/(2*p.a*p.a)}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>An inverted pendulum consists of a mass <i>m</i> = ${nf(p.m)} kg on top of a massless rod of length <i>l</i> = ${nf(p.l)} m pivoted at its base. Two horizontal springs, each of constant <i>k</i> = ${p.k} N/m, are attached to the rod at a height <i>a</i> = ${nf(p.a)} m above the pivot, one on each side, and are unstretched when the rod is vertical. Using the energy method, determine the natural frequency ${wn_} for small oscillations and the smallest spring constant <i>k</i> for which the vertical position is stable (<i>g</i> = 9.81 m/s²).</p>`,
+  figure:p=>{const ya=200-150*p.fa;return mech([{t:"gnd",x1:100,x2:300,y:200},{t:"circ",x:200,y:200,r:5,f:"#222"},{t:"ln",p:[[200,200],[200,50]],w:4},{t:"circ",x:200,y:40,r:14,f:"#eec878"},{t:"txt",x:222,y:36,l:"m",an:"start"},
+    {t:"wall",x:90,y1:ya-25,y2:ya+25,side:"l"},{t:"wall",x:310,y1:ya-25,y2:ya+25,side:"r"},{t:"spr",a:[90,ya],b:[200,ya],l:"k"},{t:"spr",a:[200,ya],b:[310,ya],l:"k"},
+    {t:"ln",p:[[330,200],[330,ya]],w:1},{t:"txt",x:340,y:(200+ya)/2,l:"a",an:"start"}],400,220)},
+  solution:(p,s)=>`<h3>1. Kinetic energy</h3>
+  <p>${eq(`<i>T</i> = ½<i>ml</i>²θ̇²`)}</p>
+  <h3>2. Potential energy</h3>
+  <p>Each spring stretches <i>a</i>θ, and the mass drops <i>l</i>(1 − cos θ) ≈ <i>l</i>θ²/2, so ${eq(`<i>U</i> = 2·½<i>k</i>(<i>a</i>θ)² − ½<i>mgl</i>θ² = ½(2<i>ka</i>² − <i>mgl</i>)θ²`)}</p>
+  <h3>3. Natural frequency and stability limit</h3>
+  <p>Equating <i>T</i><sub>max</sub> and <i>U</i><sub>max</sub> with θ = Θ sin ${wn_}<i>t</i>: ${eq(`${wn_}² = ${frac("2<i>ka</i>² − <i>mgl</i>","<i>ml</i>²")} = ${frac(sig(s.num),sig(p.m*p.l*p.l))}`)}. The vertical position is stable only if 2<i>ka</i>² &gt; <i>mgl</i>.</p>
+  <p class="final">${wn_} = ${sig(s.wn,3)} rad/s, <i>k</i><sub>min</sub> = <i>mgl</i>/(2<i>a</i>²) = ${sig(s.kmin,3)} N/m.</p>`,
+  fields:p=>[{id:"wn",label:`Natural frequency ${wn_}`,unit:"rad/s"},{id:"kmin",label:"Smallest stabilizing <i>k</i>",unit:"N/m"}],
+  truth:s=>({wn:s.wn,kmin:s.kmin}),
+  note:""
+};
+
+// 10. spring-mass-pulley
+TEMPLATES["pulley-spring-mass"]={
+  name:"Spring–mass–pulley system: effective mass and natural frequency",
+  generate(seed){const r=mulberry32(seed);
+    const p={m:pick(r,range(1,10,1)),R:pick(r,range(0.1,0.3,0.05)),k:pick(r,range(100,2000,100)),q:pick(r,[0.2,0.3,0.5,0.8,1])};
+    p.J=+(p.q*p.m*p.R*p.R).toFixed(4);const me=p.m+p.J/(p.R*p.R),wn=Math.sqrt(p.k/me);
+    return {p,s:{me,wn,T:2*PI/wn}};},
+  statement:p=>`<p>A mass <i>m</i> = ${p.m} kg hangs from an inextensible wire that passes over a pulley of radius <i>R</i> = ${nf(p.R)} m and moment of inertia <i>J</i> = ${nf(p.J)} kg·m². The other end of the wire is attached to a spring <i>k</i> = ${p.k} N/m anchored to the floor. The wire does not slip. The mass is pulled down slightly and released. Determine the effective mass, the natural frequency ${wn_}, and the period.</p>`,
+  figure:p=>mech([{t:"gnd",x1:100,x2:200,y:20},{t:"ln",p:[[150,20],[150,70]]},{t:"circ",x:150,y:70,r:40},{t:"circ",x:150,y:70,r:4,f:"#222"},{t:"txt",x:150,y:100,l:"J, R"},
+    {t:"ln",p:[[110,70],[110,170]]},{t:"box",x:110,y:185,w:50,h:34,l:"m"},{t:"ln",p:[[190,70],[190,120]]},{t:"spr",a:[190,120],b:[190,215],l:"k"},{t:"gnd",x1:160,x2:230,y:215},
+    {t:"arr",a:[60,170],b:[60,210],l:"x"}],300,235),
+  solution:(p,s)=>`<h3>1. Equation of motion</h3>
+  <p>With wire tensions <i>T</i><sub>1</sub> (mass side) and <i>T</i><sub>2</sub> = <i>kx</i> (spring side) and θ = <i>x</i>/<i>R</i>: ${eq(`<i>mẍ</i> = −<i>T</i><sub>1</sub>`)} and ${eq(`<i>J</i>ẍ/<i>R</i> = (<i>T</i><sub>1</sub> − <i>kx</i>)<i>R</i>`)}, measured from equilibrium. Eliminating <i>T</i><sub>1</sub>:</p>
+  <p>${eq(`(<i>m</i> + <i>J</i>/<i>R</i>²)ẍ + <i>kx</i> = 0`)}, so the effective mass is ${eq(`${p.m} + ${nf(p.J)}/${nf(p.R)}² = ${sig(s.me)} kg`)}</p>
+  <h3>2. Natural frequency and period</h3>
+  <p class="final"><i>m</i><sub>eff</sub> = ${sig(s.me,3)} kg, ${wn_} = √(<i>k</i>/<i>m</i><sub>eff</sub>) = ${sig(s.wn,3)} rad/s, period = ${sig(s.T,3)} s.</p>`,
+  fields:p=>[{id:"me",label:"Effective mass",unit:"kg"},{id:"wn",label:`Natural frequency ${wn_}`,unit:"rad/s"},{id:"T",label:"Period",unit:"s"}],
+  truth:s=>({me:s.me,wn:s.wn,T:s.T}),
+  note:""
+};
+
+
+// ===== planted errors
+const FLAWS={};
+
+FLAWS["flywheel-torque"]={n:3,step:2,
+  why:"A speed in hertz counts revolutions per second. The angular velocity in rad/s is 2π times that value.",
+  wrong:(p,s)=>{const T=s.J*p.f/p.t;return {J:s.J,T,P:T*p.f}},
+  html:(p,s,w)=>`<h3>1. Moment of inertia</h3><p>${eq(`<i>J</i> = ½<i>mR</i>² = ${sig(s.J)} kg·m²`)}</p>
+  <h3>2. Torque</h3><p>The final angular velocity is ω = ${p.f} rad/s, so ${eq(`<i>T</i> = <i>J</i>ω/<i>t</i> = ${sig(w.T)} N·m`)}</p>
+  <h3>3. Power</h3><p class="final"><i>J</i> = ${sig(w.J,3)} kg·m², <i>T</i> = ${sig(w.T,3)} N·m, <i>P</i> = <i>T</i>ω = ${sig(w.P,3)} W.</p>`};
+
+FLAWS["brake-deceleration"]={n:2,step:2,
+  why:"θ = ½α<i>t</i>² holds only for motion that starts from rest. With an initial angular velocity, θ = ω<sub>0</sub><i>t</i> + ½α<i>t</i>².",
+  wrong:(p,s)=>({al:s.al,th:0.5*Math.abs(s.al)*p.t*p.t}),
+  html:(p,s,w)=>`<h3>1. Angular acceleration</h3><p>${eq(`α = (${p.w1} − ${p.w0})/${p.t} = ${sig(s.al)} rad/s²`)}</p>
+  <h3>2. Angle turned</h3><p>For constant acceleration, ${eq(`θ = ½|α|<i>t</i>² = ${sig(w.th)} rad`)}</p>
+  <p class="final">α = ${sig(w.al,3)} rad/s², θ = ${sig(w.th,3)} rad.</p>`};
+
+FLAWS["free-fall"]={n:2,step:2,
+  why:"<i>h</i>/<i>t</i> is the average speed over the fall. The speed grows linearly from zero, so the impact speed is <i>gt</i>, twice the average.",
+  wrong:(p,s)=>({t:s.t,v:p.h/s.t}),
+  html:(p,s,w)=>`<h3>1. Time of fall</h3><p>${eq(`<i>t</i> = √(2<i>h</i>/<i>g</i>) = ${sig(s.t)} s`)}</p>
+  <h3>2. Impact speed</h3><p>${eq(`<i>v</i> = <i>h</i>/<i>t</i> = ${p.h}/${sig(s.t)} = ${sig(w.v)} m/s`)}</p>
+  <p class="final"><i>t</i> = ${sig(w.t,3)} s, <i>v</i> = ${sig(w.v,3)} m/s.</p>`};
+
+FLAWS["spring-network"]={n:2,step:1,
+  why:"Springs connected end to end carry the same force and their deflections add, so their compliances 1/<i>k</i> add. Spring <i>k</i><sub>1</sub> is in series with the parallel pair <i>k</i><sub>2</sub> + <i>k</i><sub>3</sub>.",
+  wrong:(p,s)=>{const k=p.k1+p.k2+p.k3;return {k,wn:Math.sqrt(k/p.m)}},
+  html:(p,s,w)=>`<h3>1. Equivalent spring constant</h3><p>All three springs resist the motion of the mass, so their stiffnesses add: ${eq(`<i>k</i><sub>eq</sub> = ${p.k1} + ${p.k2} + ${p.k3} = ${w.k} N/m`)}</p>
+  <h3>2. Natural frequency</h3><p class="final"><i>k</i><sub>eq</sub> = ${sig(w.k,3)} N/m, ${wn_} = ${sig(w.wn,3)} rad/s.</p>`};
+
+FLAWS["damper-network"]={n:2,step:2,
+  why:"Dampers in parallel move with the same velocity and their forces add, so <i>b</i><sub>eq</sub> = <i>b</i><sub>1</sub> + <i>b</i><sub>23</sub>. The reciprocal rule applies to dampers in series.",
+  wrong:(p,s)=>{const b=p.b1*s.b23/(p.b1+s.b23);return {b,F:b*p.v}},
+  html:(p,s,w)=>`<h3>1. Dampers in series</h3><p>${eq(`<i>b</i><sub>23</sub> = ${frac(`<i>b</i><sub>2</sub><i>b</i><sub>3</sub>`,`<i>b</i><sub>2</sub> + <i>b</i><sub>3</sub>`)} = ${sig(s.b23)} N·s/m`)}</p>
+  <h3>2. Parallel combination and force</h3><p>${eq(`<i>b</i><sub>eq</sub> = ${frac(`<i>b</i><sub>1</sub><i>b</i><sub>23</sub>`,`<i>b</i><sub>1</sub> + <i>b</i><sub>23</sub>`)} = ${sig(w.b)} N·s/m`)}</p>
+  <p class="final"><i>b</i><sub>eq</sub> = ${sig(w.b,3)} N·s/m, <i>F</i> = ${sig(w.F,3)} N.</p>`};
+
+FLAWS["lever-spring"]={n:2,step:1,
+  why:"The spring and the mass are at different distances from the pivot. Moments about <i>P</i> give <i>ml</i>²θ̈ + <i>ka</i>²θ = 0, so the lever ratio <i>a</i>/<i>l</i> multiplies √(<i>k</i>/<i>m</i>).",
+  wrong:(p,s)=>{const wn=Math.sqrt(p.k/s.m);return {wn,f:wn/(2*PI)}},
+  html:(p,s,w)=>`<h3>1. Equation of motion</h3><p>The mass moves vertically against the spring: ${eq(`<i>mẍ</i> + <i>kx</i> = 0`)}, with <i>m</i> = ${sig(s.m)} kg.</p>
+  <h3>2. Natural frequency</h3><p class="final">${wn_} = √(<i>k</i>/<i>m</i>) = ${sig(w.wn,3)} rad/s, <i>f</i> = ${sig(w.f,3)} Hz.</p>`};
+
+FLAWS["damped-free-vibration"]={n:3,step:2,
+  why:"An underdamped system oscillates at the damped natural frequency ω<sub><i>d</i></sub> = ω<sub><i>n</i></sub>√(1 − ζ²), not at ω<sub><i>n</i></sub>.",
+  wrong:(p,s)=>{const w=s.wn,x1=Math.exp(-s.sg*p.t1)*(p.x0*Math.cos(w*p.t1)+(s.sg*p.x0/w)*Math.sin(w*p.t1));return {z:s.z,wd:w,x1}},
+  html:(p,s,w)=>`<h3>1. Damping ratio and natural frequencies</h3><p>${eq(`${wn_} = ${sig(s.wn)} rad/s`)} ${eq(`${ze} = ${sig(s.z)}`)}</p>
+  <h3>2. Damped frequency</h3><p>Damping reduces the amplitude through the exponential envelope; the oscillation frequency is ${wd_} = ${wn_} = ${sig(w.wd)} rad/s.</p>
+  <h3>3. Displacement</h3><p class="final">${ze} = ${sig(w.z,3)}, ${wd_} = ${sig(w.wd,3)} rad/s, <i>x</i>(${nf(p.t1)}) = ${sig(w.x1,3)} m.</p>`};
+
+FLAWS["pendulum-rod-mass"]={n:2,step:1,
+  why:"The rod mass is distributed along its length: it contributes <i>ml</i>²/3 to the moment of inertia and its weight acts at <i>l</i>/2. Lumping it with <i>M</i> at the end overstates both terms and gives the simple-pendulum result.",
+  wrong:(p,s)=>{const wn=Math.sqrt(G0/p.l);return {wn,T:2*PI/wn}},
+  html:(p,s,w)=>`<h3>1. Moment of inertia and restoring moment</h3><p>Lumping the rod mass with <i>M</i> at the end: ${eq(`<i>J</i> = (<i>M</i> + <i>m</i>)<i>l</i>²`)}, restoring moment ${eq(`(<i>M</i> + <i>m</i>)<i>gl</i>θ`)}.</p>
+  <h3>2. Natural frequency and period</h3><p class="final">${wn_} = √(<i>g</i>/<i>l</i>) = ${sig(w.wn,3)} rad/s, period = ${sig(w.T,3)} s.</p>`};
+
+FLAWS["inverted-pendulum-energy"]={n:3,step:2,
+  why:"In the inverted position the mass falls as the rod tilts, so gravity lowers the potential energy by ½<i>mgl</i>θ². Gravity is destabilizing here and enters with a minus sign.",
+  wrong:(p,s)=>{const num=2*p.k*p.a*p.a+p.m*G0*p.l;return {wn:Math.sqrt(num/(p.m*p.l*p.l)),kmin:0}},
+  html:(p,s,w)=>`<h3>1. Kinetic energy</h3><p>${eq(`<i>T</i> = ½<i>ml</i>²θ̇²`)}</p>
+  <h3>2. Potential energy</h3><p>${eq(`<i>U</i> = <i>k</i>(<i>a</i>θ)² + ½<i>mgl</i>θ² = ½(2<i>ka</i>² + <i>mgl</i>)θ²`)}</p>
+  <h3>3. Natural frequency and stability limit</h3><p>Both terms are positive, so the vertical position is stable for any <i>k</i> &gt; 0.</p>
+  <p class="final">${wn_} = ${sig(w.wn,3)} rad/s, <i>k</i><sub>min</sub> = 0.</p>`};
+
+FLAWS["pulley-spring-mass"]={n:2,step:1,
+  why:"The pulley rotates with the wire, θ̈ = ẍ/<i>R</i>, so its inertia adds <i>J</i>/<i>R</i>² to the effective translating mass.",
+  wrong:(p,s)=>{const wn=Math.sqrt(p.k/p.m);return {me:p.m,wn,T:2*PI/wn}},
+  html:(p,s,w)=>`<h3>1. Equation of motion</h3><p>The wire transmits the spring force directly to the mass: ${eq(`<i>mẍ</i> + <i>kx</i> = 0`)}, so the effective mass is ${p.m} kg.</p>
+  <h3>2. Natural frequency and period</h3><p class="final"><i>m</i><sub>eff</sub> = ${w.me} kg, ${wn_} = ${sig(w.wn,3)} rad/s, period = ${sig(w.T,3)} s.</p>`};
+// ===== error report form (Google Form with prefilled fields)
+// Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
+const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLScjsI98ID72Fn3xgheP4VJIsApQnUPwZpik_x4HQVk6annBhQ/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){
+  const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
+  q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
+  return FORM.url+"?"+q.toString();
+}
+
+// ===== page
+let curKey=Object.keys(TEMPLATES)[0], cur=null, curFields=[], curTruth={}, curMode="practice";
+const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+
+function fillTypes(){
+  const keys=hunting()?Object.keys(FLAWS):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+  return curKey;
+}
+
+function setMode(mode,key,seed){
+  curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";
+  $("mError").className=mode==="error"?"":"ghost";
+  $("reportRow").firstElementChild.textContent=hunting()
+    ?"Found a mistake other than the planted one?"
+    :"Found a mistake in a problem or its solution?";
+  curKey=key||curKey; const k=fillTypes();
+  render(k,seed||parseInt($("seedIn").value,10)||1);
+}
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed); const {p,s}=cur;
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed+(hunting()?"-e":""))}catch(e){}
+  $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
+  $("statement").innerHTML=T.statement(p,s);
+  $("flawCard").style.display=F?"":"none";
+  $("flawed").innerHTML=F?F.html(p,s,F.wrong(p,s)):"";
+  curFields=T.fields(p,s); curTruth=T.truth(s);
+  if(F){const steps=[];for(let i=1;i<=F.n;i++)steps.push(String(i));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];
+    curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+"Answers within 2% are accepted. "+(T.note||"");
+  const sol=$("solution"); sol.style.display="none";
+  sol.innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
+}
+
+function check(){
+  const truth=curTruth;
+  const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
+  curFields.forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scaleOf(f.unit):0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+if(typeof document!=="undefined"){
+  const newSeed=()=>1+Math.floor(Math.random()*999999);
+  $("typeSel").onchange=e=>render(e.target.value,newSeed());
+  $("newBtn").onclick=()=>render(curKey,newSeed());
+  $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+  $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
+  if(FORM.url)$("reportRow").style.display="";
+  $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+  $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+    s.style.display=show?"block":"none";
+    e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+  (function(){
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice",Object.keys(TEMPLATES)[0],newSeed());
+  })();
+}
+if(typeof module!=="undefined")module.exports={TEMPLATES,FLAWS};
+
+</script>
+</body>
+</html>

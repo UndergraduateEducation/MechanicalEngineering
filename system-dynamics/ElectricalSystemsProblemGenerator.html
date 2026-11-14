@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Electrical and Electromechanical Systems Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --load:#aa1e28; --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .fr{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 .15em;line-height:1.25}
+  .fr>span{padding:0 .25em;white-space:nowrap}
+  .fr>span:first-child{border-bottom:1px solid currentColor}
+  .eq{line-height:1.9}
+  .mat{display:inline-table;vertical-align:middle;border-left:1.5px solid currentColor;border-right:1.5px solid currentColor;border-radius:5px;padding:0 .15em;margin:0 .2em}
+  .mat>span{display:table-row}
+  .mat>span>span{display:table-cell;padding:.05em .45em;text-align:center}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Electrical and Electromechanical Systems Problem Generator</h1>
+</header>
+<main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
+  </div>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+// ----- numeric helpers
+const nz=(r,a,b)=>pick(r,range(a,b,1).filter(v=>v!==0));
+const two=(r,a,b)=>{const x=pick(r,range(a,b,1));let y=x;while(y===x)y=pick(r,range(a,b,1));return x<y?[x,y]:[y,x]};
+const PI=Math.PI;
+const wdOf=(z,wn)=>wn*Math.sqrt(1-z*z);
+const MpOf=z=>100*Math.exp(-z*PI/Math.sqrt(1-z*z));
+const trOf=(z,wn)=>(PI-Math.acos(z))/wdOf(z,wn);
+// angle condition on the ray s = r(-z + j sqrt(1-z^2)) for G = K/(s(s+p1)(s+p2))
+function rlZeta(p1,p2,z){const c=Math.sqrt(1-z*z);
+  const phi=r=>{const x=-z*r,y=c*r;return Math.atan2(y,x)+Math.atan2(y,x+p1)+Math.atan2(y,x+p2)-PI};
+  let a=1e-9,b=1e3;for(let i=0;i<200;i++){const m=(a+b)/2;if(phi(m)<0)a=m;else b=m}
+  const r=(a+b)/2,sg=z*r,wd=c*r,K=Math.hypot(sg,wd)*Math.hypot(p1-sg,wd)*Math.hypot(p2-sg,wd);
+  return {sg,wd,K,s3:-(p1+p2)+2*sg}}
+
+// ----- formatting
+const sig=(x,n=4)=>{if(Math.abs(x)<1e-9)return "0";const d=Math.max(0,n-1-Math.floor(Math.log10(Math.abs(x))));return Number(x).toFixed(Math.min(d,8)).replace("-","−")};
+const nf=x=>Math.abs(x-Math.round(x))<1e-9?String(Math.round(x)).replace("-","−"):sig(x,4).replace(/(\.\d*?)0+$/,"$1").replace(/\.$/,"");
+const eq=s=>`<span class="eq">${s}</span>`;
+const S="<i>s</i>";
+const SUP={2:"²",3:"³",4:"⁴"};
+const mono=k=>k===0?"":k===1?S:S+SUP[k];
+function sum(terms){let o="";terms.forEach(([c,m])=>{if(Math.abs(c)<1e-12)return;const a=Math.abs(c);
+  const cf=(m&&Math.abs(a-1)<1e-12)?"":nf(a);o+=o?(c<0?" − ":" + "):(c<0?"−":"");o+=cf+m});return o||"0"}
+const poly=c=>sum(c.map((a,i)=>[a,mono(c.length-1-i)]));
+const fac=p=>p===0?S:`(${S} + ${nf(p)})`;
+const frac=(n,d)=>`<span class="fr"><span>${n}</span><span>${d}</span></span>`;
+const ze="ζ", wn_="ω<sub>n</sub>", wd_="ω<sub>d</sub>";
+const CR=`<i>C</i>(${S})/<i>R</i>(${S})`;
+
+// ----- block-diagram toolkit
+// blk: block at center (x,y) with label l or fraction n/d; sum: summing junction with signs {w,n,s};
+// w: wire polyline with arrowhead; dot: pickoff point; lab: free text. Single letters in labels are set in italics.
+const IT=v=>`<tspan font-style="italic">${v}</tspan>`;
+const ml=t=>String(t).replace(/-/g,"−").replace(/\b([GKH])([a-z]{1,2})\b|(?<![A-Za-z])([a-zA-Z])(?![A-Za-z0-9])/g,(m,a,b,c)=>c?IT(c):IT(a)+`<tspan font-size="11" baseline-shift="sub" font-style="italic">${b}</tspan>`);
+const tw=t=>String(t).length*7.6+20;
+function bd(items,W=560,H=200){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker></defs>`;
+  items.forEach(e=>{
+    if(e.t==="blk"){const w=e.w||Math.max(44,tw(e.l||""),tw(e.n||""),tw(e.d||"")),h=e.d?46:34;
+      o+=`<rect x="${e.x-w/2}" y="${e.y-h/2}" width="${w}" height="${h}" fill="#fff" stroke="#222" stroke-width="1.3"/>`;
+      if(e.d)o+=`<text x="${e.x}" y="${e.y-6}" text-anchor="middle">${ml(e.n)}</text><line x1="${e.x-w/2+8}" y1="${e.y}" x2="${e.x+w/2-8}" y2="${e.y}" stroke="#222"/><text x="${e.x}" y="${e.y+16}" text-anchor="middle">${ml(e.d)}</text>`;
+      else o+=`<text x="${e.x}" y="${e.y+5}" text-anchor="middle">${ml(e.l)}</text>`;return}
+    if(e.t==="sum"){o+=`<circle cx="${e.x}" cy="${e.y}" r="10" fill="#fff" stroke="#222" stroke-width="1.3"/>`;
+      const sg=e.s||{};if(sg.w)o+=`<text x="${e.x-20}" y="${e.y-6}" text-anchor="middle" font-size="14">${sg.w}</text>`;
+      if(sg.s)o+=`<text x="${e.x+14}" y="${e.y+24}" text-anchor="middle" font-size="14">${sg.s}</text>`;
+      if(sg.n)o+=`<text x="${e.x+14}" y="${e.y-14}" text-anchor="middle" font-size="14">${sg.n}</text>`;return}
+    if(e.t==="w"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" fill="none" stroke="#222" stroke-width="1.3"${e.a===false?"":' marker-end="url(#ah)"'}/>`;return}
+    if(e.t==="dot"){o+=`<circle cx="${e.x}" cy="${e.y}" r="3" fill="#222"/>`;return}
+    if(e.t==="lab"){o+=`<text x="${e.x}" y="${e.y}" text-anchor="${e.an||"middle"}">${ml(e.l)}</text>`;return}
+  });
+  return o+"</svg>";
+}
+// unity-feedback loop with a chain of blocks between the summing junction and the output
+function loopFig(blocks){
+  const y=70,items=[{t:"lab",x:22,y:y+5,l:"R(s)"},{t:"w",p:[[44,y],[80,y]]},{t:"sum",x:90,y,s:{w:"+",s:"−"}}];
+  let x=100;blocks.forEach(b=>{const w=Math.max(44,tw(b.l||""),tw(b.n||""),tw(b.d||""));items.push({t:"w",p:[[x,y],[x+30,y]]});items.push({t:"blk",x:x+30+w/2,y,w,...b});x+=30+w});
+  items.push({t:"w",p:[[x,y],[x+60,y]]},{t:"dot",x:x+30,y},{t:"lab",x:x+64,y:y+5,l:"C(s)",an:"start"},{t:"w",p:[[x+30,y],[x+30,y+70],[90,y+70],[90,y+10]]});
+  return bd(items,x+120,170);
+}
+
+const rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+const cs=d=>Math.cos(rad(d)), sn=d=>Math.sin(rad(d));
+const Tt="<i>t</i>";
+const ex=p=>`<i>e</i><sup>−${p===1?"":nf(p)}<i>t</i></sup>`;
+const wt=w=>`${w===1?"":nf(w)}${Tt}`;
+const cf1=c=>c===1?"":nf(c);
+// ----- figure toolkit (2D drawing of arrows, lines, points, text)
+const COL={k:"#222",r:"#aa1e28",b:"#2b5d8a",g:"#1e5a32",m:"#7d5014",x:"#888"};
+function draw(els,W=520,H=300){
+  const pts=[];els.forEach(e=>{[e.a,e.b,e.p].forEach(q=>q&&pts.push(q))});
+  const x0=Math.min(...pts.map(q=>q[0])),x1=Math.max(...pts.map(q=>q[0])),y0=Math.min(...pts.map(q=>q[1])),y1=Math.max(...pts.map(q=>q[1]));
+  const mx=80,my=40,s=Math.min((W-2*mx)/Math.max(x1-x0,1e-6),(H-2*my)/Math.max(y1-y0,1e-6));
+  const X=q=>mx+(q[0]-x0)*s+(W-2*mx-(x1-x0)*s)/2, Y=q=>H-my-(q[1]-y0)*s-(H-2*my-(y1-y0)*s)/2, f1=v=>v.toFixed(1);
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="16" style="max-height:${H}px"><defs>`;
+  for(const k in COL)o+=`<marker id="vx${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="${COL[k]}"/></marker>`;
+  o+="</defs>";
+  els.forEach(e=>{
+    const c=e.c||"k";
+    if(e.t==="txt"){o+=`<text x="${f1(X(e.p))}" y="${f1(Y(e.p)+5)}" text-anchor="${e.an||"middle"}" class="halo">${e.l}</text>`;return}
+    const ax=X(e.a),ay=Y(e.a),bx=X(e.b),by=Y(e.b),dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1;
+    const head=e.t==="ln"?"":` marker-end="url(#vx${c})"`;
+    o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="${COL[c]}" stroke-width="${e.w||(c==="r"||c==="b"||c==="g"?2.6:1.4)}" ${e.d?'stroke-dasharray="5 4"':""}${head}/>`;
+    if(e.l){const ux=dx/L,uy=dy/L,an=Math.abs(ux)<.3?"middle":ux>0?"start":"end";
+      o+=`<text x="${f1(bx+ux*12)}" y="${f1(by+uy*12+(uy>.5?14:uy<-.5?-2:5))}" text-anchor="${an}" fill="${COL[c]}" class="halo">${e.l}</text>`}
+  });
+  return o+"</svg>";
+}
+
+
+// ----- mechanical-schematic toolkit (pixel coordinates)
+// wall {x,y1,y2,side}, gnd {x1,x2,y}, spr {a,b,l}, dmp {a,b,l}, box {x,y,w,h,l}, ln {p,d}, arr {a,b,l}, circ {x,y,r,f}, txt {x,y,l,an}
+function mech(items,W=520,H=220){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px"><defs><marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker></defs>`;
+  const ST='stroke="#222" stroke-width="1.5" fill="none"';
+  const lab=(x,y,l,an="middle")=>`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" class="halo">${ml(l)}</text>`;
+  items.forEach(e=>{
+    if(e.t==="wall"){const dx=e.side==="r"?1:-1;o+=`<line x1="${e.x}" y1="${e.y1}" x2="${e.x}" y2="${e.y2}" stroke="#222" stroke-width="2"/>`;
+      for(let y=e.y1;y<e.y2;y+=10)o+=`<line x1="${e.x}" y1="${y+10}" x2="${e.x+dx*8}" y2="${y}" stroke="#666"/>`;return}
+    if(e.t==="gnd"){o+=`<line x1="${e.x1}" y1="${e.y}" x2="${e.x2}" y2="${e.y}" stroke="#222" stroke-width="2"/>`;
+      for(let x=e.x1;x<e.x2;x+=10)o+=`<line x1="${x}" y1="${e.y+8}" x2="${x+10}" y2="${e.y}" stroke="#666"/>`;return}
+    if(e.t==="spr"||e.t==="dmp"){const [ax,ay]=e.a,[bx,by]=e.b,L=Math.hypot(bx-ax,by-ay),ang=Math.atan2(by-ay,bx-ax)*180/Math.PI;
+      let g="";
+      if(e.t==="spr"){const n=8,l0=L*0.18,step=(L-2*l0)/n;let pts=[[0,0],[l0,0]];for(let i=0;i<n;i++)pts.push([l0+step*(i+0.5),(i%2?8:-8)]);pts.push([L-l0,0],[L,0]);
+        g=`<polyline points="${pts.map(q=>q.map(v=>v.toFixed(1)).join(",")).join(" ")}" ${ST}/>`}
+      else{const m=L/2;g=`<polyline points="0,0 ${m-12},0" ${ST}/><polyline points="${m+14},-10 ${m-12},-10 ${m-12},10 ${m+14},10" ${ST}/><line x1="${m+4}" y1="-7" x2="${m+4}" y2="7" stroke="#222" stroke-width="2.5"/><line x1="${m+4}" y1="0" x2="${L}" y2="0" stroke="#222" stroke-width="1.5"/>`}
+      o+=`<g transform="translate(${ax},${ay}) rotate(${ang.toFixed(2)})">${g}</g>`;
+      if(e.l){const hor=Math.abs(bx-ax)>=Math.abs(by-ay),lp=e.lp||(hor?[(ax+bx)/2,(ay+by)/2-16]:[(ax+bx)/2+16,(ay+by)/2+5]);o+=lab(lp[0],lp[1],e.l,e.an||(hor?"middle":"start"))}
+      return}
+    if(e.t==="box"){o+=`<rect${e.rot?` transform="rotate(${e.rot} ${e.x} ${e.y})"`:""} x="${e.x-e.w/2}" y="${e.y-e.h/2}" width="${e.w}" height="${e.h}" fill="${e.f||"#eec878"}" stroke="${e.sc||"#7d5014"}" stroke-width="1.6"/>`;if(e.l)o+=lab(e.x,e.y+5,e.l);return}
+    if(e.t==="ln"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" stroke="#222" stroke-width="${e.w||1.5}" fill="none"${e.d?' stroke-dasharray="5 4"':""}/>`;return}
+    if(e.t==="arr"){o+=`<line x1="${e.a[0]}" y1="${e.a[1]}" x2="${e.b[0]}" y2="${e.b[1]}" stroke="#aa1e28" stroke-width="1.8" marker-end="url(#ma)"/>`;if(e.l)o+=lab(e.b[0]+(e.dx??8),e.b[1]+(e.dy??5),e.l,"start");return}
+    if(e.t==="circ"){o+=`<circle cx="${e.x}" cy="${e.y}" r="${e.r}" fill="${e.f||"#fff"}" stroke="#222" stroke-width="1.5"/>`;return}
+    if(e.t==="txt"){o+=lab(e.x,e.y,e.l,e.an||"middle");return}
+  });
+  return o+"</svg>";
+}
+const G0=9.81;
+
+const mat=rows=>`<span class="mat">${rows.map(r=>`<span>${r.map(v=>`<span>${typeof v==="number"?nf(v):v}</span>`).join("")}</span>`).join("")}</span>`;
+
+// ----- circuit toolkit (pixel coordinates)
+// R/C/L {a,b,l}: component on a straight wire from a to b; w {p}: wire; src {x,y,l}: voltage source (vertical, + on top);
+// gnd {x,y}; node {x,y}; oa {x,y}: op-amp with − input at (x−40,y−12), + input at (x−40,y+12), output at (x+40,y); sw {a,b,l}: open switch; txt {x,y,l,an}
+function ckt(items,W=520,H=220){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px">`;
+  const ST='stroke="#222" stroke-width="1.6" fill="none"';
+  const lab=(x,y,l,an="middle")=>`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" class="halo">${ml(l)}</text>`;
+  items.forEach(e=>{
+    if(e.t==="R"||e.t==="C"||e.t==="L"||e.t==="sw"){const [ax,ay]=e.a,[bx,by]=e.b,Ln=Math.hypot(bx-ax,by-ay),ang=Math.atan2(by-ay,bx-ax)*180/Math.PI,m=Ln/2;let g="";
+      if(e.t==="R"){const pts=[[0,0],[m-24,0]];for(let i=0;i<6;i++)pts.push([m-24+8*(i+0.5),i%2?7:-7]);pts.push([m+24,0],[Ln,0]);g=`<polyline points="${pts.map(q=>q.join(",")).join(" ")}" ${ST}/>`}
+      if(e.t==="C")g=`<polyline points="0,0 ${m-5},0" ${ST}/><line x1="${m-5}" y1="-12" x2="${m-5}" y2="12" stroke="#222" stroke-width="2.2"/><line x1="${m+5}" y1="-12" x2="${m+5}" y2="12" stroke="#222" stroke-width="2.2"/><polyline points="${m+5},0 ${Ln},0" ${ST}/>`;
+      if(e.t==="L"){let d=`M0,0 L${m-24},0`;for(let i=0;i<4;i++)d+=` a6,7 0 0 1 12,0`;d+=` L${Ln},0`;g=`<path d="${d}" ${ST}/>`}
+      if(e.t==="sw")g=`<polyline points="0,0 ${m-12},0" ${ST}/><circle cx="${m-12}" cy="0" r="2.5" fill="#222"/><line x1="${m-12}" y1="0" x2="${m+12}" y2="-12" stroke="#222" stroke-width="1.6"/><circle cx="${m+12}" cy="0" r="2.5" fill="#222"/><polyline points="${m+12},0 ${Ln},0" ${ST}/>`;
+      o+=`<g transform="translate(${ax},${ay}) rotate(${ang.toFixed(2)})">${g}</g>`;
+      if(e.l){const hor=Math.abs(bx-ax)>=Math.abs(by-ay),lp=e.lp||(hor?[(ax+bx)/2,(ay+by)/2-16]:[(ax+bx)/2+16,(ay+by)/2+5]);o+=lab(lp[0],lp[1],e.l,e.an||(hor?"middle":"start"))}return}
+    if(e.t==="w"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" ${ST}/>`;return}
+    if(e.t==="src"){o+=`<circle cx="${e.x}" cy="${e.y}" r="16" fill="#fff" stroke="#222" stroke-width="1.6"/><text x="${e.x}" y="${e.y-3}" text-anchor="middle" font-size="13">+</text><text x="${e.x}" y="${e.y+11}" text-anchor="middle" font-size="13">−</text>`;if(e.l)o+=lab(e.x-24,e.y+5,e.l,"end");return}
+    if(e.t==="gnd"){o+=`<line x1="${e.x-10}" y1="${e.y}" x2="${e.x+10}" y2="${e.y}" stroke="#222" stroke-width="1.6"/><line x1="${e.x-6}" y1="${e.y+4}" x2="${e.x+6}" y2="${e.y+4}" stroke="#222" stroke-width="1.6"/><line x1="${e.x-2}" y1="${e.y+8}" x2="${e.x+2}" y2="${e.y+8}" stroke="#222" stroke-width="1.6"/>`;return}
+    if(e.t==="node"){o+=`<circle cx="${e.x}" cy="${e.y}" r="3" fill="#222"/>`;if(e.l)o+=lab(e.x+(e.dx??0),e.y+(e.dy??-10),e.l);return}
+    if(e.t==="oa"){const x=e.x,y=e.y;o+=`<polygon points="${x-40},${y-30} ${x-40},${y+30} ${x+40},${y}" fill="#fff" stroke="#222" stroke-width="1.6"/><text x="${x-32}" y="${y-7}" font-size="14">−</text><text x="${x-32}" y="${y+18}" font-size="14">+</text>`;return}
+    if(e.t==="txt"){o+=lab(e.x,e.y,e.l,e.an||"middle");return}
+  });
+  return o+"</svg>";
+}
+
+// ----- templates
+const TEMPLATES={};
+const OH="Ω", kO="kΩ", uF="μF";
+
+// 1. delta-connected resistors
+TEMPLATES["delta-resistance"]={
+  name:"Resistance between two corners of a triangle of resistors",
+  generate(seed){const r=mulberry32(seed);
+    const p={R1:pick(r,range(10,200,10)),R2:pick(r,range(10,200,10)),R3:pick(r,range(10,200,10)),E:pick(r,range(5,24,1))};
+    const R=p.R1*(p.R2+p.R3)/(p.R1+p.R2+p.R3);
+    return {p,s:{R,i:p.E/R}};},
+  statement:p=>`<p>Three resistors form a triangle: <i>R</i><sub>1</sub> = ${p.R1} ${OH} between corners <i>A</i> and <i>B</i>, <i>R</i><sub>2</sub> = ${p.R2} ${OH} between <i>B</i> and <i>C</i>, and <i>R</i><sub>3</sub> = ${p.R3} ${OH} between <i>C</i> and <i>A</i>. Determine the resistance <i>R<sub>AB</sub></i> between <i>A</i> and <i>B</i>, and the current drawn when ${p.E} V is applied across <i>A</i> and <i>B</i>.</p>`,
+  figure:p=>ckt([{t:"R",a:[100,60],b:[400,60],l:"R₁"},{t:"R",a:[100,60],b:[250,190],l:"R₃",lp:[150,145],an:"end"},{t:"R",a:[250,190],b:[400,60],l:"R₂",lp:[350,145],an:"start"},
+    {t:"node",x:100,y:60,l:"A",dx:-14,dy:5},{t:"node",x:400,y:60,l:"B",dx:14,dy:5},{t:"node",x:250,y:190,l:"C",dy:22}],500,220),
+  solution:(p,s)=>`<h3>1. Identify series and parallel paths</h3>
+  <p>Between <i>A</i> and <i>B</i> there are two paths: <i>R</i><sub>1</sub> directly, and <i>R</i><sub>3</sub> followed by <i>R</i><sub>2</sub> through <i>C</i>. The second path is a series combination, ${p.R2+p.R3} ${OH}, in parallel with <i>R</i><sub>1</sub>.</p>
+  <h3>2. Combine</h3>
+  <p>${eq(`<i>R<sub>AB</sub></i> = ${frac(`<i>R</i><sub>1</sub>(<i>R</i><sub>2</sub> + <i>R</i><sub>3</sub>)`,`<i>R</i><sub>1</sub> + <i>R</i><sub>2</sub> + <i>R</i><sub>3</sub>`)} = ${frac(`${p.R1}(${p.R2+p.R3})`,p.R1+p.R2+p.R3)} = ${sig(s.R)} ${OH}`)}</p>
+  <p class="final"><i>R<sub>AB</sub></i> = ${sig(s.R,3)} ${OH}, <i>i</i> = ${p.E}/<i>R<sub>AB</sub></i> = ${sig(s.i,3)} A.</p>`,
+  fields:p=>[{id:"R",label:"<i>R<sub>AB</sub></i>",unit:OH},{id:"i",label:"Current",unit:"A"}],
+  truth:s=>({R:s.R,i:s.i}),
+  note:""
+};
+
+// 2. RC circuit after a switch opens
+TEMPLATES["rc-switch-transient"]={
+  name:"Capacitor discharge after a switch opens",
+  generate(seed){const r=mulberry32(seed);
+    const p={E:pick(r,range(5,24,1)),R1:pick(r,range(1,10,1)),R2:pick(r,range(1,10,1)),C:pick(r,range(10,100,10)),q:pick(r,[0.5,1,2])};
+    const v0=p.E*p.R2/(p.R1+p.R2),tau=p.R2*p.C;p.t1=p.q*tau;
+    return {p,s:{v0,tau,i1:v0/p.R2*Math.exp(-p.t1/tau)}};},
+  statement:p=>`<p>In the circuit shown, <i>E</i> = ${p.E} V, <i>R</i><sub>1</sub> = ${p.R1} ${kO}, <i>R</i><sub>2</sub> = ${p.R2} ${kO}, and <i>C</i> = ${p.C} ${uF}. The circuit is in a steady state with switch <i>S</i> closed, and <i>S</i> is opened at <i>t</i> = 0. Determine the capacitor voltage at <i>t</i> = 0, the time constant of the discharge, and the current <i>i</i> through <i>R</i><sub>2</sub> at <i>t</i> = ${nf(p.t1)} ms.</p>`,
+  figure:p=>ckt([{t:"src",x:60,y:120,l:"E"},{t:"w",p:[[60,104],[60,50],[90,50]]},{t:"sw",a:[90,50],b:[160,50],l:"S"},{t:"R",a:[160,50],b:[290,50],l:"R₁"},{t:"w",p:[[290,50],[400,50]]},
+    {t:"C",a:[290,50],b:[290,190],l:"C"},{t:"R",a:[400,50],b:[400,190],l:"R₂"},{t:"w",p:[[60,136],[60,190],[400,190]]},{t:"node",x:290,y:50},{t:"node",x:290,y:190},{t:"txt",x:430,y:110,l:"i ↓",an:"start"}],480,210),
+  solution:(p,s)=>`<h3>1. Initial capacitor voltage</h3>
+  <p>In the steady state the capacitor draws no current, so <i>R</i><sub>1</sub> and <i>R</i><sub>2</sub> form a voltage divider: ${eq(`<i>v<sub>C</sub></i>(0) = <i>E</i>${frac("<i>R</i><sub>2</sub>","<i>R</i><sub>1</sub> + <i>R</i><sub>2</sub>")} = ${sig(s.v0)} V`)}</p>
+  <h3>2. Time constant</h3>
+  <p>With <i>S</i> open, no current flows in <i>R</i><sub>1</sub>, and the capacitor discharges through <i>R</i><sub>2</sub> alone: ${eq(`τ = <i>R</i><sub>2</sub><i>C</i> = (${p.R2} ${kO})(${p.C} ${uF}) = ${sig(s.tau)} ms`)}</p>
+  <h3>3. Current</h3>
+  <p>${eq(`<i>i</i>(<i>t</i>) = ${frac(`<i>v<sub>C</sub></i>(0)`,`<i>R</i><sub>2</sub>`)}<i>e</i><sup>−<i>t</i>/τ</sup>`)}</p>
+  <p class="final"><i>v<sub>C</sub></i>(0) = ${sig(s.v0,3)} V, τ = ${sig(s.tau,3)} ms, <i>i</i>(${nf(p.t1)} ms) = ${sig(s.i1,3)} mA.</p>`,
+  fields:p=>[{id:"v0",label:"<i>v<sub>C</sub></i>(0)",unit:"V"},{id:"tau",label:"Time constant τ",unit:"ms"},{id:"i1",label:`<i>i</i>(${nf(p.t1)} ms)`,unit:"mA"}],
+  truth:s=>({v0:s.v0,tau:s.tau,i1:s.i1}),
+  note:""
+};
+
+// 3. series RLC circuit
+TEMPLATES["series-rlc"]={
+  name:"Series RLC circuit: transfer function, natural frequency, damping ratio",
+  generate(seed){const r=mulberry32(seed);
+    for(let i=0;i<5000;i++){
+      const p={R:pick(r,range(2,100,2)),L:pick(r,[0.01,0.02,0.05,0.1,0.2,0.5,1]),C:pick(r,[10,22,47,100,220,470,1000])};
+      const Cf=p.C*1e-6,wn=1/Math.sqrt(p.L*Cf),z=(p.R/2)*Math.sqrt(Cf/p.L);
+      if(z<0.05||z>1.5||Math.abs(z-0.5*Math.sqrt(p.L/Cf)/p.R)<0.05*z) continue;
+      return {p,s:{wn,z}};}},
+  statement:p=>`<p>In the circuit shown, the input voltage <i>e<sub>i</sub></i> drives a resistor <i>R</i> = ${p.R} ${OH}, an inductor <i>L</i> = ${nf(p.L)} H, and a capacitor <i>C</i> = ${p.C} ${uF} in series, and the output <i>e<sub>o</sub></i> is the capacitor voltage. Obtain <i>E<sub>o</sub></i>(${S})/<i>E<sub>i</sub></i>(${S}), and determine its undamped natural frequency ${wn_} and damping ratio ${ze}.</p>`,
+  figure:p=>ckt([{t:"w",p:[[40,60],[70,60]]},{t:"R",a:[70,60],b:[190,60],l:"R"},{t:"L",a:[190,60],b:[310,60],l:"L"},{t:"w",p:[[310,60],[400,60]]},{t:"C",a:[350,60],b:[350,170],l:"C"},{t:"w",p:[[40,170],[400,170]]},
+    {t:"node",x:40,y:60},{t:"node",x:40,y:170},{t:"node",x:400,y:60},{t:"node",x:400,y:170},{t:"txt",x:30,y:120,l:"eᵢ",an:"end"},{t:"txt",x:412,y:120,l:"eₒ",an:"start"},{t:"node",x:350,y:60},{t:"node",x:350,y:170}],460,195),
+  solution:(p,s)=>`<h3>1. Transfer function</h3>
+  <p>By the impedance method the capacitor takes the fraction ${frac("1/(<i>Cs</i>)","<i>R</i> + <i>Ls</i> + 1/(<i>Cs</i>)")} of the input:</p>
+  <p>${eq(`${frac(`<i>E<sub>o</sub></i>(${S})`,`<i>E<sub>i</sub></i>(${S})`)} = ${frac(1,`<i>LC</i>${S}² + <i>RC</i>${S} + 1`)}`)}</p>
+  <h3>2. Standard form</h3>
+  <p>Dividing by <i>LC</i>: ${eq(`${wn_}² = 1/(<i>LC</i>)`)} and ${eq(`2${ze}${wn_} = <i>R</i>/<i>L</i>`)}, so ${eq(`${ze} = ${frac("<i>R</i>",2)}√(<i>C</i>/<i>L</i>)`)}.</p>
+  <p class="final">${wn_} = ${sig(s.wn,3)} rad/s, ${ze} = ${sig(s.z,3)}.</p>`,
+  fields:p=>[{id:"wn",label:`Natural frequency ${wn_}`,unit:"rad/s"},{id:"z",label:`Damping ratio ${ze}`,unit:""}],
+  truth:s=>({wn:s.wn,z:s.z}),
+  note:""
+};
+
+// 4. lead network by the impedance method
+TEMPLATES["lead-network"]={
+  name:"Impedance method: R–C lead network",
+  generate(seed){const r=mulberry32(seed);
+    const p={R1:pick(r,range(10,100,10)),R2:pick(r,range(1,50,1)),C:pick(r,[0.1,0.2,0.5,1,2,5,10])};
+    const T=p.R1*p.C*1e-3;
+    return {p,s:{z:-1/T,pl:-(p.R1+p.R2)/(p.R1*p.R2*p.C*1e-3),dc:p.R2/(p.R1+p.R2)}};},
+  statement:p=>`<p>In the circuit shown, <i>R</i><sub>1</sub> = ${p.R1} ${kO} and <i>C</i> = ${nf(p.C)} ${uF} are connected in parallel between the input and the output node, and <i>R</i><sub>2</sub> = ${p.R2} ${kO} connects the output node to ground. Using the impedance method, obtain <i>E<sub>o</sub></i>(${S})/<i>E<sub>i</sub></i>(${S}), its zero, its pole, and its static gain.</p>`,
+  figure:p=>ckt([{t:"w",p:[[40,90],[120,90]]},{t:"w",p:[[120,50],[120,130]]},{t:"R",a:[120,50],b:[280,50],l:"R₁"},{t:"C",a:[120,130],b:[280,130],l:"C",lp:[200,158]},{t:"w",p:[[280,50],[280,130]]},{t:"w",p:[[280,90],[420,90]]},
+    {t:"R",a:[360,90],b:[360,200],l:"R₂"},{t:"w",p:[[40,200],[420,200]]},{t:"node",x:40,y:90},{t:"node",x:40,y:200},{t:"node",x:420,y:90},{t:"node",x:420,y:200},{t:"node",x:360,y:90},{t:"node",x:360,y:200},
+    {t:"txt",x:30,y:150,l:"eᵢ",an:"end"},{t:"txt",x:432,y:150,l:"eₒ",an:"start"}],480,220),
+  solution:(p,s)=>`<h3>1. Impedances</h3>
+  <p>${eq(`<i>Z</i><sub>1</sub> = <i>R</i><sub>1</sub> ∥ ${frac(1,"<i>Cs</i>")} = ${frac("<i>R</i><sub>1</sub>","<i>R</i><sub>1</sub><i>Cs</i> + 1")}`)} and ${eq(`<i>Z</i><sub>2</sub> = <i>R</i><sub>2</sub>`)}.</p>
+  <h3>2. Transfer function</h3>
+  <p>${eq(`${frac("<i>E<sub>o</sub></i>","<i>E<sub>i</sub></i>")} = ${frac("<i>Z</i><sub>2</sub>","<i>Z</i><sub>1</sub> + <i>Z</i><sub>2</sub>")} = ${frac(`<i>R</i><sub>2</sub>(<i>R</i><sub>1</sub><i>Cs</i> + 1)`,`<i>R</i><sub>1</sub><i>R</i><sub>2</sub><i>Cs</i> + <i>R</i><sub>1</sub> + <i>R</i><sub>2</sub>`)}`)}, with <i>R</i><sub>1</sub><i>C</i> = ${sig(p.R1*p.C)} ms.</p>
+  <h3>3. Zero, pole, and static gain</h3>
+  <p class="final">zero = −1/(<i>R</i><sub>1</sub><i>C</i>) = ${sig(s.z,3)} s<sup>−1</sup>, pole = −(<i>R</i><sub>1</sub> + <i>R</i><sub>2</sub>)/(<i>R</i><sub>1</sub><i>R</i><sub>2</sub><i>C</i>) = ${sig(s.pl,3)} s<sup>−1</sup>, static gain = <i>R</i><sub>2</sub>/(<i>R</i><sub>1</sub> + <i>R</i><sub>2</sub>) = ${sig(s.dc,3)}.</p>`,
+  fields:p=>[{id:"z",label:"Zero (with sign)",unit:"s<sup>−1</sup>",signed:true},{id:"pl",label:"Pole (with sign)",unit:"s<sup>−1</sup>",signed:true},{id:"dc",label:"Static gain",unit:""}],
+  truth:s=>({z:s.z,pl:s.pl,dc:s.dc}),
+  note:"Zero and pole carry their signs."
+};
+
+// 5. inverting op-amp with an RC feedback network
+TEMPLATES["opamp-lag"]={
+  name:"Inverting op-amp circuit with a parallel RC feedback path",
+  generate(seed){const r=mulberry32(seed);
+    const p={R1:pick(r,range(1,50,1)),R2:pick(r,range(10,500,10)),C:pick(r,[0.1,0.22,0.47,1,2.2,4.7,10])};
+    return {p,s:{K:-p.R2/p.R1,tau:p.R2*p.C}};},
+  statement:p=>`<p>In the operational-amplifier circuit shown, the input resistor is <i>R</i><sub>1</sub> = ${p.R1} ${kO}, and the feedback path is <i>R</i><sub>2</sub> = ${p.R2} ${kO} in parallel with <i>C</i> = ${nf(p.C)} ${uF}. The noninverting input is grounded. Obtain <i>E<sub>o</sub></i>(${S})/<i>E<sub>i</sub></i>(${S}) and report its static gain and time constant.</p>`,
+  figure:p=>ckt([{t:"w",p:[[30,108],[60,108]]},{t:"R",a:[60,108],b:[190,108],l:"R₁"},{t:"w",p:[[190,108],[260,108]]},{t:"oa",x:300,y:120},{t:"w",p:[[260,132],[240,132],[240,170]]},{t:"gnd",x:240,y:170},
+    {t:"w",p:[[200,108],[200,60]]},{t:"R",a:[200,60],b:[380,60],l:"R₂"},{t:"w",p:[[200,60],[200,20]]},{t:"C",a:[200,20],b:[380,20],l:"C",lp:[302,26],an:"start"},{t:"w",p:[[380,20],[380,120]]},{t:"w",p:[[340,120],[430,120]]},
+    {t:"node",x:30,y:108},{t:"node",x:430,y:120},{t:"node",x:200,y:108},{t:"node",x:380,y:120},{t:"txt",x:22,y:113,l:"eᵢ",an:"end"},{t:"txt",x:440,y:125,l:"eₒ",an:"start"}],480,190),
+  solution:(p,s)=>`<h3>1. Impedances</h3>
+  <p>${eq(`<i>Z</i><sub>1</sub> = <i>R</i><sub>1</sub>`)} and ${eq(`<i>Z</i><sub>2</sub> = <i>R</i><sub>2</sub> ∥ ${frac(1,"<i>Cs</i>")} = ${frac("<i>R</i><sub>2</sub>","<i>R</i><sub>2</sub><i>Cs</i> + 1")}`)}</p>
+  <h3>2. Transfer function</h3>
+  <p>The inverting input is a virtual ground, so the current through <i>Z</i><sub>1</sub> flows through <i>Z</i><sub>2</sub>: ${eq(`${frac("<i>E<sub>o</sub></i>","<i>E<sub>i</sub></i>")} = −${frac("<i>Z</i><sub>2</sub>","<i>Z</i><sub>1</sub>")} = −${frac("<i>R</i><sub>2</sub>/<i>R</i><sub>1</sub>","<i>R</i><sub>2</sub><i>Cs</i> + 1")}`)}</p>
+  <p class="final">Static gain = −<i>R</i><sub>2</sub>/<i>R</i><sub>1</sub> = ${sig(s.K,3)}, time constant = <i>R</i><sub>2</sub><i>C</i> = ${sig(s.tau,3)} ms.</p>`,
+  fields:p=>[{id:"K",label:"Static gain (with sign)",unit:"",signed:true},{id:"tau",label:"Time constant",unit:"ms"}],
+  truth:s=>({K:s.K,tau:s.tau}),
+  note:"The gain carries its sign."
+};
+
+// 6. op-amp difference amplifier
+TEMPLATES["opamp-difference"]={
+  name:"Op-amp circuit with inputs on both terminals",
+  generate(seed){const r=mulberry32(seed);
+    for(let i=0;i<5000;i++){
+      const p={R1:pick(r,range(1,20,1)),R2:pick(r,range(1,20,1)),R3:pick(r,range(1,50,1)),R4:pick(r,range(1,50,1)),e1:pick(r,[-2,-1,-0.5,0.5,1,2]),e2:pick(r,[-2,-1,-0.5,0.5,1,2])};
+      const c1=-p.R3/p.R1,c2=(p.R4/(p.R2+p.R4))*(1+p.R3/p.R1),eo=c1*p.e1+c2*p.e2;
+      if(Math.abs(eo)<0.2||Math.abs(eo)>12||Math.abs(eo-(c1*p.e1+(1+p.R3/p.R1)*p.e2))<0.05*Math.abs(eo)+0.05) continue;
+      return {p,s:{c1,c2,eo}};}},
+  statement:p=>`<p>In the circuit shown, <i>e</i><sub>1</sub> drives the inverting input through <i>R</i><sub>1</sub> = ${p.R1} ${kO}, with feedback resistor <i>R</i><sub>3</sub> = ${p.R3} ${kO}. The voltage <i>e</i><sub>2</sub> drives the noninverting input through <i>R</i><sub>2</sub> = ${p.R2} ${kO}, and <i>R</i><sub>4</sub> = ${p.R4} ${kO} connects the noninverting input to ground. Write <i>e<sub>o</sub></i> = <i>c</i><sub>1</sub><i>e</i><sub>1</sub> + <i>c</i><sub>2</sub><i>e</i><sub>2</sub> and evaluate <i>e<sub>o</sub></i> for <i>e</i><sub>1</sub> = ${nf(p.e1)} V and <i>e</i><sub>2</sub> = ${nf(p.e2)} V.</p>`,
+  figure:p=>ckt([{t:"w",p:[[30,98],[50,98]]},{t:"R",a:[50,98],b:[180,98],l:"R₁"},{t:"w",p:[[180,98],[260,98]]},{t:"oa",x:300,y:110},{t:"w",p:[[200,98],[200,40]]},{t:"R",a:[200,40],b:[380,40],l:"R₃"},{t:"w",p:[[380,40],[380,110]]},{t:"w",p:[[340,110],[430,110]]},
+    {t:"w",p:[[30,160],[50,160]]},{t:"R",a:[50,160],b:[180,160],l:"R₂",lp:[115,186]},{t:"w",p:[[180,160],[220,160],[220,122],[260,122]]},{t:"R",a:[220,160],b:[220,230],l:"R₄"},{t:"gnd",x:220,y:230},
+    {t:"node",x:30,y:98},{t:"node",x:30,y:160},{t:"node",x:430,y:110},{t:"txt",x:22,y:103,l:"e₁",an:"end"},{t:"txt",x:22,y:165,l:"e₂",an:"end"},{t:"txt",x:440,y:115,l:"eₒ",an:"start"},{t:"node",x:200,y:98},{t:"node",x:220,y:160},{t:"node",x:380,y:110}],480,250),
+  solution:(p,s)=>`<h3>1. Voltage at the noninverting input</h3>
+  <p>No current enters the op-amp, so <i>R</i><sub>2</sub> and <i>R</i><sub>4</sub> divide <i>e</i><sub>2</sub>: ${eq(`<i>e</i><sub>+</sub> = ${frac("<i>R</i><sub>4</sub>","<i>R</i><sub>2</sub> + <i>R</i><sub>4</sub>")}<i>e</i><sub>2</sub>`)}</p>
+  <h3>2. Inverting input</h3>
+  <p>With <i>e</i><sub>−</sub> = <i>e</i><sub>+</sub>, the current balance (<i>e</i><sub>1</sub> − <i>e</i><sub>+</sub>)/<i>R</i><sub>1</sub> = (<i>e</i><sub>+</sub> − <i>e<sub>o</sub></i>)/<i>R</i><sub>3</sub> gives ${eq(`<i>e<sub>o</sub></i> = −${frac("<i>R</i><sub>3</sub>","<i>R</i><sub>1</sub>")}<i>e</i><sub>1</sub> + (1 + ${frac("<i>R</i><sub>3</sub>","<i>R</i><sub>1</sub>")})<i>e</i><sub>+</sub>`)}</p>
+  <h3>3. Evaluate</h3>
+  <p class="final"><i>c</i><sub>1</sub> = ${sig(s.c1,3)}, <i>c</i><sub>2</sub> = ${sig(s.c2,3)}, <i>e<sub>o</sub></i> = ${sig(s.eo,3)} V.</p>`,
+  fields:p=>[{id:"c1",label:"<i>c</i><sub>1</sub> (with sign)",unit:"",signed:true},{id:"c2",label:"<i>c</i><sub>2</sub> (with sign)",unit:"",signed:true},{id:"eo",label:"<i>e<sub>o</sub></i> (with sign)",unit:"V",signed:true}],
+  truth:s=>({c1:s.c1,c2:s.c2,eo:s.eo}),
+  note:"Values carry their signs."
+};
+
+// 7. armature-controlled dc motor
+TEMPLATES["dc-motor"]={
+  name:"Armature-controlled dc motor: speed transfer function",
+  generate(seed){const r=mulberry32(seed);
+    const p={Ra:pick(r,[0.5,1,1.5,2,3,5]),K:pick(r,[0.05,0.08,0.1,0.15,0.2,0.3]),J:pick(r,[0.0005,0.001,0.002,0.005,0.01]),b:pick(r,[0.0001,0.0005,0.001,0.002]),Ea:pick(r,[6,12,24,48])};
+    const D=p.Ra*p.b+p.K*p.K;
+    return {p,s:{D,Km:p.K/D,Tm:p.Ra*p.J/D,w:p.K*p.Ea/D}};},
+  statement:p=>`<p>An armature-controlled dc motor has armature resistance <i>R<sub>a</sub></i> = ${nf(p.Ra)} ${OH}, negligible armature inductance, torque constant <i>K</i> = ${nf(p.K)} N·m/A, and back-emf constant <i>K<sub>b</sub></i> = ${nf(p.K)} V·s/rad. The rotor and load have moment of inertia <i>J</i> = ${nf(p.J)} kg·m² and viscous friction <i>b</i> = ${nf(p.b)} N·m·s/rad. Obtain Ω(${S})/<i>E<sub>a</sub></i>(${S}) = <i>K<sub>m</sub></i>/(<i>T<sub>m</sub></i>${S} + 1), and the steady-state speed for <i>e<sub>a</sub></i> = ${p.Ea} V.</p>`,
+  solution:(p,s)=>`<h3>1. Circuit and mechanical equations</h3>
+  <p>${eq(`<i>R<sub>a</sub>i<sub>a</sub></i> + <i>K<sub>b</sub></i>ω = <i>e<sub>a</sub></i>`)} and ${eq(`<i>J</i>ω̇ + <i>b</i>ω = <i>Ki<sub>a</sub></i>`)}. The back emf opposes the applied voltage.</p>
+  <h3>2. Transfer function</h3>
+  <p>Eliminating <i>i<sub>a</sub></i>: ${eq(`${frac("Ω","<i>E<sub>a</sub></i>")} = ${frac("<i>K</i>",`<i>R<sub>a</sub>J</i>${S} + <i>R<sub>a</sub>b</i> + <i>KK<sub>b</sub></i>`)}`)}, with <i>R<sub>a</sub>b</i> + <i>KK<sub>b</sub></i> = ${sig(s.D)}.</p>
+  <h3>3. Gain, time constant, and speed</h3>
+  <p class="final"><i>K<sub>m</sub></i> = ${sig(s.Km,3)} rad/(s·V), <i>T<sub>m</sub></i> = ${sig(s.Tm,3)} s, ω<sub>ss</sub> = ${sig(s.w,3)} rad/s.</p>`,
+  fields:p=>[{id:"Km",label:"Gain <i>K<sub>m</sub></i>",unit:"rad/(s·V)"},{id:"Tm",label:"Time constant <i>T<sub>m</sub></i>",unit:"s"},{id:"w",label:"Steady-state speed",unit:"rad/s"}],
+  truth:s=>({Km:s.Km,Tm:s.Tm,w:s.w}),
+  note:""
+};
+
+// 8. force-voltage analogy
+TEMPLATES["force-voltage-analogy"]={
+  name:"Electrical analog of a mechanical system (force–voltage analogy)",
+  generate(seed){const r=mulberry32(seed);
+    const p={m:pick(r,range(0.5,10,0.5)),b:pick(r,range(1,50,1)),k:pick(r,range(10,1000,10))};
+    return {p,s:{L:p.m,R:p.b,C:1/p.k}};},
+  statement:p=>`<p>A mass <i>m</i> = ${nf(p.m)} kg, attached to a spring <i>k</i> = ${p.k} N/m and a damper <i>b</i> = ${p.b} N·s/m, is driven by a force <i>p</i>(<i>t</i>). Using the force–voltage analogy, the equivalent circuit is a series <i>LRC</i> loop driven by a voltage source, with charge <i>q</i> corresponding to displacement. Determine <i>L</i>, <i>R</i>, and <i>C</i>.</p>`,
+  solution:(p,s)=>`<h3>1. Equations</h3>
+  <p>${eq(`<i>mẍ</i> + <i>b</i>ẋ + <i>kx</i> = <i>p</i>`)} and ${eq(`<i>L</i>q̈ + <i>R</i>q̇ + <i>q</i>/<i>C</i> = <i>e</i>`)}</p>
+  <h3>2. Match terms</h3>
+  <p>Matching coefficients: <i>L</i> ↔ <i>m</i>, <i>R</i> ↔ <i>b</i>, and 1/<i>C</i> ↔ <i>k</i>.</p>
+  <p class="final"><i>L</i> = ${nf(s.L)} H, <i>R</i> = ${nf(s.R)} ${OH}, <i>C</i> = 1/<i>k</i> = ${sig(s.C,3)} F.</p>`,
+  fields:p=>[{id:"L",label:"<i>L</i>",unit:"H"},{id:"R",label:"<i>R</i>",unit:OH},{id:"C",label:"<i>C</i>",unit:"F"}],
+  truth:s=>({L:s.L,R:s.R,C:s.C}),
+  note:""
+};
+
+
+// ===== planted errors
+const FLAWS={};
+
+FLAWS["delta-resistance"]={n:2,step:1,
+  why:"Seen from <i>A</i> and <i>B</i>, <i>R</i><sub>3</sub> and <i>R</i><sub>2</sub> carry the same current through corner <i>C</i>, so they are in series. Only that series pair is in parallel with <i>R</i><sub>1</sub>.",
+  wrong:(p,s)=>{const R=1/(1/p.R1+1/p.R2+1/p.R3);return {R,i:p.E/R}},
+  html:(p,s,w)=>`<h3>1. Identify series and parallel paths</h3><p>Each resistor has one end at <i>A</i> or <i>B</i>, so the three resistors are in parallel.</p>
+  <h3>2. Combine</h3><p>${eq(`1/<i>R<sub>AB</sub></i> = 1/${p.R1} + 1/${p.R2} + 1/${p.R3}`)}</p><p class="final"><i>R<sub>AB</sub></i> = ${sig(w.R,3)} ${OH}, <i>i</i> = ${sig(w.i,3)} A.</p>`};
+
+FLAWS["rc-switch-transient"]={n:3,step:2,
+  why:"Opening <i>S</i> disconnects the branch containing <i>E</i> and <i>R</i><sub>1</sub>, so no current flows in <i>R</i><sub>1</sub>. The capacitor discharges through <i>R</i><sub>2</sub> alone, and τ = <i>R</i><sub>2</sub><i>C</i>.",
+  wrong:(p,s)=>{const tau=(p.R1+p.R2)*p.C;return {v0:s.v0,tau,i1:s.v0/p.R2*Math.exp(-p.t1/tau)}},
+  html:(p,s,w)=>`<h3>1. Initial capacitor voltage</h3><p>${eq(`<i>v<sub>C</sub></i>(0) = ${sig(s.v0)} V`)}</p>
+  <h3>2. Time constant</h3><p>The capacitor sees both resistors: ${eq(`τ = (<i>R</i><sub>1</sub> + <i>R</i><sub>2</sub>)<i>C</i> = ${sig(w.tau)} ms`)}</p>
+  <h3>3. Current</h3><p class="final"><i>v<sub>C</sub></i>(0) = ${sig(w.v0,3)} V, τ = ${sig(w.tau,3)} ms, <i>i</i>(${nf(p.t1)} ms) = ${sig(w.i1,3)} mA.</p>`};
+
+FLAWS["series-rlc"]={n:2,step:2,
+  why:"From 2ζω<sub><i>n</i></sub> = <i>R</i>/<i>L</i> and ω<sub><i>n</i></sub> = 1/√(<i>LC</i>), the series circuit has ζ = (<i>R</i>/2)√(<i>C</i>/<i>L</i>): damping grows with <i>R</i>. The expression (1/(2<i>R</i>))√(<i>L</i>/<i>C</i>) belongs to the parallel <i>RLC</i> circuit.",
+  wrong:(p,s)=>({wn:s.wn,z:0.5*Math.sqrt(p.L/(p.C*1e-6))/p.R}),
+  html:(p,s,w)=>`<h3>1. Transfer function</h3><p>${eq(`${frac("<i>E<sub>o</sub></i>","<i>E<sub>i</sub></i>")} = ${frac(1,`<i>LC</i>${S}² + <i>RC</i>${S} + 1`)}`)}</p>
+  <h3>2. Standard form</h3><p>${eq(`${wn_} = 1/√(<i>LC</i>)`)} and ${eq(`${ze} = ${frac(1,"2<i>R</i>")}√(<i>L</i>/<i>C</i>)`)}</p><p class="final">${wn_} = ${sig(w.wn,3)} rad/s, ${ze} = ${sig(w.z,3)}.</p>`};
+
+FLAWS["lead-network"]={n:3,step:1,
+  why:"<i>R</i><sub>1</sub> and <i>C</i> connect the same two nodes, so they are in parallel and <i>Z</i><sub>1</sub> = <i>R</i><sub>1</sub>/(<i>R</i><sub>1</sub><i>Cs</i> + 1). Treating them as a series combination blocks the dc path through <i>R</i><sub>1</sub>.",
+  wrong:(p,s)=>({z:0,pl:-1/((p.R1+p.R2)*p.C*1e-3),dc:0}),
+  html:(p,s,w)=>`<h3>1. Impedances</h3><p>${eq(`<i>Z</i><sub>1</sub> = <i>R</i><sub>1</sub> + ${frac(1,"<i>Cs</i>")}`)}, ${eq(`<i>Z</i><sub>2</sub> = <i>R</i><sub>2</sub>`)}</p>
+  <h3>2. Transfer function</h3><p>${eq(`${frac("<i>E<sub>o</sub></i>","<i>E<sub>i</sub></i>")} = ${frac(`<i>R</i><sub>2</sub><i>Cs</i>`,`(<i>R</i><sub>1</sub> + <i>R</i><sub>2</sub>)<i>Cs</i> + 1`)}`)}</p>
+  <h3>3. Zero, pole, and static gain</h3><p class="final">zero = 0, pole = ${sig(w.pl,3)} s<sup>−1</sup>, static gain = 0.</p>`};
+
+FLAWS["opamp-lag"]={n:2,step:2,
+  why:"The input is applied to the inverting terminal and the noninverting terminal is grounded, so <i>E<sub>o</sub></i>/<i>E<sub>i</sub></i> = −<i>Z</i><sub>2</sub>/<i>Z</i><sub>1</sub>. The form 1 + <i>Z</i><sub>2</sub>/<i>Z</i><sub>1</sub> applies when the input drives the noninverting terminal.",
+  wrong:(p,s)=>({K:1+p.R2/p.R1,tau:s.tau}),
+  html:(p,s,w)=>`<h3>1. Impedances</h3><p>${eq(`<i>Z</i><sub>1</sub> = <i>R</i><sub>1</sub>`)}, ${eq(`<i>Z</i><sub>2</sub> = ${frac("<i>R</i><sub>2</sub>","<i>R</i><sub>2</sub><i>Cs</i> + 1")}`)}</p>
+  <h3>2. Transfer function</h3><p>${eq(`${frac("<i>E<sub>o</sub></i>","<i>E<sub>i</sub></i>")} = 1 + ${frac("<i>Z</i><sub>2</sub>","<i>Z</i><sub>1</sub>")}`)}, whose static gain is 1 + <i>R</i><sub>2</sub>/<i>R</i><sub>1</sub>.</p>
+  <p class="final">Static gain = ${sig(w.K,3)}, time constant = ${sig(w.tau,3)} ms.</p>`};
+
+FLAWS["opamp-difference"]={n:3,step:1,
+  why:"The noninverting input draws no current, so <i>R</i><sub>2</sub> and <i>R</i><sub>4</sub> form a voltage divider and <i>e</i><sub>+</sub> = <i>R</i><sub>4</sub><i>e</i><sub>2</sub>/(<i>R</i><sub>2</sub> + <i>R</i><sub>4</sub>).",
+  wrong:(p,s)=>{const c2=1+p.R3/p.R1;return {c1:s.c1,c2,eo:s.c1*p.e1+c2*p.e2}},
+  html:(p,s,w)=>`<h3>1. Voltage at the noninverting input</h3><p>No current flows into the op-amp, so there is no drop across <i>R</i><sub>2</sub>: <i>e</i><sub>+</sub> = <i>e</i><sub>2</sub>.</p>
+  <h3>2. Inverting input</h3><p>${eq(`<i>e<sub>o</sub></i> = −${frac("<i>R</i><sub>3</sub>","<i>R</i><sub>1</sub>")}<i>e</i><sub>1</sub> + (1 + ${frac("<i>R</i><sub>3</sub>","<i>R</i><sub>1</sub>")})<i>e</i><sub>+</sub>`)}</p>
+  <h3>3. Evaluate</h3><p class="final"><i>c</i><sub>1</sub> = ${sig(w.c1,3)}, <i>c</i><sub>2</sub> = ${sig(w.c2,3)}, <i>e<sub>o</sub></i> = ${sig(w.eo,3)} V.</p>`};
+
+FLAWS["dc-motor"]={n:3,step:1,
+  why:"The rotating armature generates the back emf <i>K<sub>b</sub></i>ω, which opposes the applied voltage. It adds <i>KK<sub>b</sub></i> to the effective damping and is usually the dominant term.",
+  wrong:(p,s)=>{const D=p.Ra*p.b;return {Km:p.K/D,Tm:p.Ra*p.J/D,w:p.K*p.Ea/D}},
+  html:(p,s,w)=>`<h3>1. Circuit and mechanical equations</h3><p>${eq(`<i>R<sub>a</sub>i<sub>a</sub></i> = <i>e<sub>a</sub></i>`)} and ${eq(`<i>J</i>ω̇ + <i>b</i>ω = <i>Ki<sub>a</sub></i>`)}</p>
+  <h3>2. Transfer function</h3><p>${eq(`${frac("Ω","<i>E<sub>a</sub></i>")} = ${frac("<i>K</i>",`<i>R<sub>a</sub>J</i>${S} + <i>R<sub>a</sub>b</i>`)}`)}</p>
+  <h3>3. Gain, time constant, and speed</h3><p class="final"><i>K<sub>m</sub></i> = ${sig(w.Km,3)} rad/(s·V), <i>T<sub>m</sub></i> = ${sig(w.Tm,3)} s, ω<sub>ss</sub> = ${sig(w.w,3)} rad/s.</p>`};
+
+FLAWS["force-voltage-analogy"]={n:2,step:2,
+  why:"The capacitor voltage is <i>q</i>/<i>C</i>, so the spring force <i>kx</i> corresponds to <i>q</i>/<i>C</i> and <i>C</i> = 1/<i>k</i>: a stiff spring corresponds to a small capacitance.",
+  wrong:(p,s)=>({L:s.L,R:s.R,C:p.k}),
+  html:(p,s,w)=>`<h3>1. Equations</h3><p>${eq(`<i>mẍ</i> + <i>b</i>ẋ + <i>kx</i> = <i>p</i>`)}</p>
+  <h3>2. Match terms</h3><p>Element for element: <i>L</i> ↔ <i>m</i>, <i>R</i> ↔ <i>b</i>, <i>C</i> ↔ <i>k</i>.</p><p class="final"><i>L</i> = ${nf(w.L)} H, <i>R</i> = ${nf(w.R)} ${OH}, <i>C</i> = ${nf(w.C)} F.</p>`};
+// ===== error report form (Google Form with prefilled fields)
+// Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
+const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLScjsI98ID72Fn3xgheP4VJIsApQnUPwZpik_x4HQVk6annBhQ/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){
+  const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
+  q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
+  return FORM.url+"?"+q.toString();
+}
+
+// ===== page
+let curKey=Object.keys(TEMPLATES)[0], cur=null, curFields=[], curTruth={}, curMode="practice";
+const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+
+function fillTypes(){
+  const keys=hunting()?Object.keys(FLAWS):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+  return curKey;
+}
+
+function setMode(mode,key,seed){
+  curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";
+  $("mError").className=mode==="error"?"":"ghost";
+  $("reportRow").firstElementChild.textContent=hunting()
+    ?"Found a mistake other than the planted one?"
+    :"Found a mistake in a problem or its solution?";
+  curKey=key||curKey; const k=fillTypes();
+  render(k,seed||parseInt($("seedIn").value,10)||1);
+}
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed); const {p,s}=cur;
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed+(hunting()?"-e":""))}catch(e){}
+  $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
+  $("statement").innerHTML=T.statement(p,s);
+  $("flawCard").style.display=F?"":"none";
+  $("flawed").innerHTML=F?F.html(p,s,F.wrong(p,s)):"";
+  curFields=T.fields(p,s); curTruth=T.truth(s);
+  if(F){const steps=[];for(let i=1;i<=F.n;i++)steps.push(String(i));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];
+    curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+"Answers within 2% are accepted. "+(T.note||"");
+  const sol=$("solution"); sol.style.display="none";
+  sol.innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
+}
+
+function check(){
+  const truth=curTruth;
+  const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
+  curFields.forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scaleOf(f.unit):0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+if(typeof document!=="undefined"){
+  const newSeed=()=>1+Math.floor(Math.random()*999999);
+  $("typeSel").onchange=e=>render(e.target.value,newSeed());
+  $("newBtn").onclick=()=>render(curKey,newSeed());
+  $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+  $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
+  if(FORM.url)$("reportRow").style.display="";
+  $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+  $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+    s.style.display=show?"block":"none";
+    e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+  (function(){
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice",Object.keys(TEMPLATES)[0],newSeed());
+  })();
+}
+if(typeof module!=="undefined")module.exports={TEMPLATES,FLAWS};
+
+</script>
+</body>
+</html>

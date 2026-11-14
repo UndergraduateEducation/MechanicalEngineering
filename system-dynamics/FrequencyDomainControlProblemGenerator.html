@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frequency-Domain Analysis and Design of Control Systems Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --load:#aa1e28; --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .fr{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 .15em;line-height:1.25}
+  .fr>span{padding:0 .25em;white-space:nowrap}
+  .fr>span:first-child{border-bottom:1px solid currentColor}
+  .eq{line-height:1.9}
+  .mat{display:inline-table;vertical-align:middle;border-left:1.5px solid currentColor;border-right:1.5px solid currentColor;border-radius:5px;padding:0 .15em;margin:0 .2em}
+  .mat>span{display:table-row}
+  .mat>span>span{display:table-cell;padding:.05em .45em;text-align:center}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Frequency-Domain Analysis and Design of Control Systems Problem Generator</h1>
+</header>
+<main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
+  </div>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+// ----- numeric helpers
+const nz=(r,a,b)=>pick(r,range(a,b,1).filter(v=>v!==0));
+const two=(r,a,b)=>{const x=pick(r,range(a,b,1));let y=x;while(y===x)y=pick(r,range(a,b,1));return x<y?[x,y]:[y,x]};
+const PI=Math.PI;
+const wdOf=(z,wn)=>wn*Math.sqrt(1-z*z);
+const MpOf=z=>100*Math.exp(-z*PI/Math.sqrt(1-z*z));
+const trOf=(z,wn)=>(PI-Math.acos(z))/wdOf(z,wn);
+// angle condition on the ray s = r(-z + j sqrt(1-z^2)) for G = K/(s(s+p1)(s+p2))
+function rlZeta(p1,p2,z){const c=Math.sqrt(1-z*z);
+  const phi=r=>{const x=-z*r,y=c*r;return Math.atan2(y,x)+Math.atan2(y,x+p1)+Math.atan2(y,x+p2)-PI};
+  let a=1e-9,b=1e3;for(let i=0;i<200;i++){const m=(a+b)/2;if(phi(m)<0)a=m;else b=m}
+  const r=(a+b)/2,sg=z*r,wd=c*r,K=Math.hypot(sg,wd)*Math.hypot(p1-sg,wd)*Math.hypot(p2-sg,wd);
+  return {sg,wd,K,s3:-(p1+p2)+2*sg}}
+
+// ----- formatting
+const sig=(x,n=4)=>{if(Math.abs(x)<1e-9)return "0";const d=Math.max(0,n-1-Math.floor(Math.log10(Math.abs(x))));return Number(x).toFixed(Math.min(d,8)).replace("-","−")};
+const nf=x=>Math.abs(x-Math.round(x))<1e-9?String(Math.round(x)).replace("-","−"):sig(x,4).replace(/(\.\d*?)0+$/,"$1").replace(/\.$/,"");
+const eq=s=>`<span class="eq">${s}</span>`;
+const S="<i>s</i>";
+const SUP={2:"²",3:"³",4:"⁴"};
+const mono=k=>k===0?"":k===1?S:S+SUP[k];
+function sum(terms){let o="";terms.forEach(([c,m])=>{if(Math.abs(c)<1e-12)return;const a=Math.abs(c);
+  const cf=(m&&Math.abs(a-1)<1e-12)?"":nf(a);o+=o?(c<0?" − ":" + "):(c<0?"−":"");o+=cf+m});return o||"0"}
+const poly=c=>sum(c.map((a,i)=>[a,mono(c.length-1-i)]));
+const fac=p=>p===0?S:`(${S} + ${nf(p)})`;
+const frac=(n,d)=>`<span class="fr"><span>${n}</span><span>${d}</span></span>`;
+const ze="ζ", wn_="ω<sub>n</sub>", wd_="ω<sub>d</sub>";
+const CR=`<i>C</i>(${S})/<i>R</i>(${S})`;
+
+// ----- block-diagram toolkit
+// blk: block at center (x,y) with label l or fraction n/d; sum: summing junction with signs {w,n,s};
+// w: wire polyline with arrowhead; dot: pickoff point; lab: free text. Single letters in labels are set in italics.
+const IT=v=>`<tspan font-style="italic">${v}</tspan>`;
+const ml=t=>String(t).replace(/-/g,"−").replace(/\b([GKH])([a-z]{1,2})\b|(?<![A-Za-z])([a-zA-Z])(?![A-Za-z0-9])/g,(m,a,b,c)=>c?IT(c):IT(a)+`<tspan font-size="11" baseline-shift="sub" font-style="italic">${b}</tspan>`);
+const tw=t=>String(t).length*7.6+20;
+function bd(items,W=560,H=200){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker></defs>`;
+  items.forEach(e=>{
+    if(e.t==="blk"){const w=e.w||Math.max(44,tw(e.l||""),tw(e.n||""),tw(e.d||"")),h=e.d?46:34;
+      o+=`<rect x="${e.x-w/2}" y="${e.y-h/2}" width="${w}" height="${h}" fill="#fff" stroke="#222" stroke-width="1.3"/>`;
+      if(e.d)o+=`<text x="${e.x}" y="${e.y-6}" text-anchor="middle">${ml(e.n)}</text><line x1="${e.x-w/2+8}" y1="${e.y}" x2="${e.x+w/2-8}" y2="${e.y}" stroke="#222"/><text x="${e.x}" y="${e.y+16}" text-anchor="middle">${ml(e.d)}</text>`;
+      else o+=`<text x="${e.x}" y="${e.y+5}" text-anchor="middle">${ml(e.l)}</text>`;return}
+    if(e.t==="sum"){o+=`<circle cx="${e.x}" cy="${e.y}" r="10" fill="#fff" stroke="#222" stroke-width="1.3"/>`;
+      const sg=e.s||{};if(sg.w)o+=`<text x="${e.x-20}" y="${e.y-6}" text-anchor="middle" font-size="14">${sg.w}</text>`;
+      if(sg.s)o+=`<text x="${e.x+14}" y="${e.y+24}" text-anchor="middle" font-size="14">${sg.s}</text>`;
+      if(sg.n)o+=`<text x="${e.x+14}" y="${e.y-14}" text-anchor="middle" font-size="14">${sg.n}</text>`;return}
+    if(e.t==="w"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" fill="none" stroke="#222" stroke-width="1.3"${e.a===false?"":' marker-end="url(#ah)"'}/>`;return}
+    if(e.t==="dot"){o+=`<circle cx="${e.x}" cy="${e.y}" r="3" fill="#222"/>`;return}
+    if(e.t==="lab"){o+=`<text x="${e.x}" y="${e.y}" text-anchor="${e.an||"middle"}">${ml(e.l)}</text>`;return}
+  });
+  return o+"</svg>";
+}
+// unity-feedback loop with a chain of blocks between the summing junction and the output
+function loopFig(blocks){
+  const y=70,items=[{t:"lab",x:22,y:y+5,l:"R(s)"},{t:"w",p:[[44,y],[80,y]]},{t:"sum",x:90,y,s:{w:"+",s:"−"}}];
+  let x=100;blocks.forEach(b=>{const w=Math.max(44,tw(b.l||""),tw(b.n||""),tw(b.d||""));items.push({t:"w",p:[[x,y],[x+30,y]]});items.push({t:"blk",x:x+30+w/2,y,w,...b});x+=30+w});
+  items.push({t:"w",p:[[x,y],[x+60,y]]},{t:"dot",x:x+30,y},{t:"lab",x:x+64,y:y+5,l:"C(s)",an:"start"},{t:"w",p:[[x+30,y],[x+30,y+70],[90,y+70],[90,y+10]]});
+  return bd(items,x+120,170);
+}
+
+const rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+const cs=d=>Math.cos(rad(d)), sn=d=>Math.sin(rad(d));
+const Tt="<i>t</i>";
+const ex=p=>`<i>e</i><sup>−${p===1?"":nf(p)}<i>t</i></sup>`;
+const wt=w=>`${w===1?"":nf(w)}${Tt}`;
+const cf1=c=>c===1?"":nf(c);
+// ----- figure toolkit (2D drawing of arrows, lines, points, text)
+const COL={k:"#222",r:"#aa1e28",b:"#2b5d8a",g:"#1e5a32",m:"#7d5014",x:"#888"};
+function draw(els,W=520,H=300){
+  const pts=[];els.forEach(e=>{[e.a,e.b,e.p].forEach(q=>q&&pts.push(q))});
+  const x0=Math.min(...pts.map(q=>q[0])),x1=Math.max(...pts.map(q=>q[0])),y0=Math.min(...pts.map(q=>q[1])),y1=Math.max(...pts.map(q=>q[1]));
+  const mx=80,my=40,s=Math.min((W-2*mx)/Math.max(x1-x0,1e-6),(H-2*my)/Math.max(y1-y0,1e-6));
+  const X=q=>mx+(q[0]-x0)*s+(W-2*mx-(x1-x0)*s)/2, Y=q=>H-my-(q[1]-y0)*s-(H-2*my-(y1-y0)*s)/2, f1=v=>v.toFixed(1);
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="16" style="max-height:${H}px"><defs>`;
+  for(const k in COL)o+=`<marker id="vx${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="${COL[k]}"/></marker>`;
+  o+="</defs>";
+  els.forEach(e=>{
+    const c=e.c||"k";
+    if(e.t==="txt"){o+=`<text x="${f1(X(e.p))}" y="${f1(Y(e.p)+5)}" text-anchor="${e.an||"middle"}" class="halo">${e.l}</text>`;return}
+    const ax=X(e.a),ay=Y(e.a),bx=X(e.b),by=Y(e.b),dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1;
+    const head=e.t==="ln"?"":` marker-end="url(#vx${c})"`;
+    o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="${COL[c]}" stroke-width="${e.w||(c==="r"||c==="b"||c==="g"?2.6:1.4)}" ${e.d?'stroke-dasharray="5 4"':""}${head}/>`;
+    if(e.l){const ux=dx/L,uy=dy/L,an=Math.abs(ux)<.3?"middle":ux>0?"start":"end";
+      o+=`<text x="${f1(bx+ux*12)}" y="${f1(by+uy*12+(uy>.5?14:uy<-.5?-2:5))}" text-anchor="${an}" fill="${COL[c]}" class="halo">${e.l}</text>`}
+  });
+  return o+"</svg>";
+}
+
+
+// ----- mechanical-schematic toolkit (pixel coordinates)
+// wall {x,y1,y2,side}, gnd {x1,x2,y}, spr {a,b,l}, dmp {a,b,l}, box {x,y,w,h,l}, ln {p,d}, arr {a,b,l}, circ {x,y,r,f}, txt {x,y,l,an}
+function mech(items,W=520,H=220){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px"><defs><marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker></defs>`;
+  const ST='stroke="#222" stroke-width="1.5" fill="none"';
+  const lab=(x,y,l,an="middle")=>`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" class="halo">${ml(l)}</text>`;
+  items.forEach(e=>{
+    if(e.t==="wall"){const dx=e.side==="r"?1:-1;o+=`<line x1="${e.x}" y1="${e.y1}" x2="${e.x}" y2="${e.y2}" stroke="#222" stroke-width="2"/>`;
+      for(let y=e.y1;y<e.y2;y+=10)o+=`<line x1="${e.x}" y1="${y+10}" x2="${e.x+dx*8}" y2="${y}" stroke="#666"/>`;return}
+    if(e.t==="gnd"){o+=`<line x1="${e.x1}" y1="${e.y}" x2="${e.x2}" y2="${e.y}" stroke="#222" stroke-width="2"/>`;
+      for(let x=e.x1;x<e.x2;x+=10)o+=`<line x1="${x}" y1="${e.y+8}" x2="${x+10}" y2="${e.y}" stroke="#666"/>`;return}
+    if(e.t==="spr"||e.t==="dmp"){const [ax,ay]=e.a,[bx,by]=e.b,L=Math.hypot(bx-ax,by-ay),ang=Math.atan2(by-ay,bx-ax)*180/Math.PI;
+      let g="";
+      if(e.t==="spr"){const n=8,l0=L*0.18,step=(L-2*l0)/n;let pts=[[0,0],[l0,0]];for(let i=0;i<n;i++)pts.push([l0+step*(i+0.5),(i%2?8:-8)]);pts.push([L-l0,0],[L,0]);
+        g=`<polyline points="${pts.map(q=>q.map(v=>v.toFixed(1)).join(",")).join(" ")}" ${ST}/>`}
+      else{const m=L/2;g=`<polyline points="0,0 ${m-12},0" ${ST}/><polyline points="${m+14},-10 ${m-12},-10 ${m-12},10 ${m+14},10" ${ST}/><line x1="${m+4}" y1="-7" x2="${m+4}" y2="7" stroke="#222" stroke-width="2.5"/><line x1="${m+4}" y1="0" x2="${L}" y2="0" stroke="#222" stroke-width="1.5"/>`}
+      o+=`<g transform="translate(${ax},${ay}) rotate(${ang.toFixed(2)})">${g}</g>`;
+      if(e.l){const hor=Math.abs(bx-ax)>=Math.abs(by-ay),lp=e.lp||(hor?[(ax+bx)/2,(ay+by)/2-16]:[(ax+bx)/2+16,(ay+by)/2+5]);o+=lab(lp[0],lp[1],e.l,e.an||(hor?"middle":"start"))}
+      return}
+    if(e.t==="box"){o+=`<rect${e.rot?` transform="rotate(${e.rot} ${e.x} ${e.y})"`:""} x="${e.x-e.w/2}" y="${e.y-e.h/2}" width="${e.w}" height="${e.h}" fill="${e.f||"#eec878"}" stroke="${e.sc||"#7d5014"}" stroke-width="1.6"/>`;if(e.l)o+=lab(e.x,e.y+5,e.l);return}
+    if(e.t==="ln"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" stroke="#222" stroke-width="${e.w||1.5}" fill="none"${e.d?' stroke-dasharray="5 4"':""}/>`;return}
+    if(e.t==="arr"){o+=`<line x1="${e.a[0]}" y1="${e.a[1]}" x2="${e.b[0]}" y2="${e.b[1]}" stroke="#aa1e28" stroke-width="1.8" marker-end="url(#ma)"/>`;if(e.l)o+=lab(e.b[0]+(e.dx??8),e.b[1]+(e.dy??5),e.l,"start");return}
+    if(e.t==="circ"){o+=`<circle cx="${e.x}" cy="${e.y}" r="${e.r}" fill="${e.f||"#fff"}" stroke="#222" stroke-width="1.5"/>`;return}
+    if(e.t==="txt"){o+=lab(e.x,e.y,e.l,e.an||"middle");return}
+  });
+  return o+"</svg>";
+}
+const G0=9.81;
+
+const mat=rows=>`<span class="mat">${rows.map(r=>`<span>${r.map(v=>`<span>${typeof v==="number"?nf(v):v}</span>`).join("")}</span>`).join("")}</span>`;
+
+// ----- circuit toolkit (pixel coordinates)
+// R/C/L {a,b,l}: component on a straight wire from a to b; w {p}: wire; src {x,y,l}: voltage source (vertical, + on top);
+// gnd {x,y}; node {x,y}; oa {x,y}: op-amp with − input at (x−40,y−12), + input at (x−40,y+12), output at (x+40,y); sw {a,b,l}: open switch; txt {x,y,l,an}
+function ckt(items,W=520,H=220){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px">`;
+  const ST='stroke="#222" stroke-width="1.6" fill="none"';
+  const lab=(x,y,l,an="middle")=>`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" class="halo">${ml(l)}</text>`;
+  items.forEach(e=>{
+    if(e.t==="R"||e.t==="C"||e.t==="L"||e.t==="sw"){const [ax,ay]=e.a,[bx,by]=e.b,Ln=Math.hypot(bx-ax,by-ay),ang=Math.atan2(by-ay,bx-ax)*180/Math.PI,m=Ln/2;let g="";
+      if(e.t==="R"){const pts=[[0,0],[m-24,0]];for(let i=0;i<6;i++)pts.push([m-24+8*(i+0.5),i%2?7:-7]);pts.push([m+24,0],[Ln,0]);g=`<polyline points="${pts.map(q=>q.join(",")).join(" ")}" ${ST}/>`}
+      if(e.t==="C")g=`<polyline points="0,0 ${m-5},0" ${ST}/><line x1="${m-5}" y1="-12" x2="${m-5}" y2="12" stroke="#222" stroke-width="2.2"/><line x1="${m+5}" y1="-12" x2="${m+5}" y2="12" stroke="#222" stroke-width="2.2"/><polyline points="${m+5},0 ${Ln},0" ${ST}/>`;
+      if(e.t==="L"){let d=`M0,0 L${m-24},0`;for(let i=0;i<4;i++)d+=` a6,7 0 0 1 12,0`;d+=` L${Ln},0`;g=`<path d="${d}" ${ST}/>`}
+      if(e.t==="sw")g=`<polyline points="0,0 ${m-12},0" ${ST}/><circle cx="${m-12}" cy="0" r="2.5" fill="#222"/><line x1="${m-12}" y1="0" x2="${m+12}" y2="-12" stroke="#222" stroke-width="1.6"/><circle cx="${m+12}" cy="0" r="2.5" fill="#222"/><polyline points="${m+12},0 ${Ln},0" ${ST}/>`;
+      o+=`<g transform="translate(${ax},${ay}) rotate(${ang.toFixed(2)})">${g}</g>`;
+      if(e.l){const hor=Math.abs(bx-ax)>=Math.abs(by-ay),lp=e.lp||(hor?[(ax+bx)/2,(ay+by)/2-16]:[(ax+bx)/2+16,(ay+by)/2+5]);o+=lab(lp[0],lp[1],e.l,e.an||(hor?"middle":"start"))}return}
+    if(e.t==="w"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" ${ST}/>`;return}
+    if(e.t==="src"){o+=`<circle cx="${e.x}" cy="${e.y}" r="16" fill="#fff" stroke="#222" stroke-width="1.6"/><text x="${e.x}" y="${e.y-3}" text-anchor="middle" font-size="13">+</text><text x="${e.x}" y="${e.y+11}" text-anchor="middle" font-size="13">−</text>`;if(e.l)o+=lab(e.x-24,e.y+5,e.l,"end");return}
+    if(e.t==="gnd"){o+=`<line x1="${e.x-10}" y1="${e.y}" x2="${e.x+10}" y2="${e.y}" stroke="#222" stroke-width="1.6"/><line x1="${e.x-6}" y1="${e.y+4}" x2="${e.x+6}" y2="${e.y+4}" stroke="#222" stroke-width="1.6"/><line x1="${e.x-2}" y1="${e.y+8}" x2="${e.x+2}" y2="${e.y+8}" stroke="#222" stroke-width="1.6"/>`;return}
+    if(e.t==="node"){o+=`<circle cx="${e.x}" cy="${e.y}" r="3" fill="#222"/>`;if(e.l)o+=lab(e.x+(e.dx??0),e.y+(e.dy??-10),e.l);return}
+    if(e.t==="oa"){const x=e.x,y=e.y;o+=`<polygon points="${x-40},${y-30} ${x-40},${y+30} ${x+40},${y}" fill="#fff" stroke="#222" stroke-width="1.6"/><text x="${x-32}" y="${y-7}" font-size="14">−</text><text x="${x-32}" y="${y+18}" font-size="14">+</text>`;return}
+    if(e.t==="txt"){o+=lab(e.x,e.y,e.l,e.an||"middle");return}
+  });
+  return o+"</svg>";
+}
+
+// ----- templates
+const TEMPLATES={};
+const dB=x=>20*Math.log10(x);
+const atd=(y,x)=>Math.atan2(y,x)*180/PI;
+
+// 1. magnitude and phase of a transfer function at one frequency
+TEMPLATES["bode-point"]={
+  name:"Bode magnitude and phase at a given frequency",
+  generate(seed){const r=mulberry32(seed);
+    for(let i=0;i<5000;i++){
+      const p={K:pick(r,range(1,50,1)),z:pick(r,range(1,10,1)),p1:pick(r,range(1,20,1)),w:pick(r,[0.5,1,2,5,10,20])};
+      const M=p.K*Math.hypot(p.w,p.z)/(p.w*Math.hypot(p.w,p.p1)),ph=-90+atd(p.w,p.z)-atd(p.w,p.p1);
+      if(Math.abs(atd(p.w,p.z))<5) continue;
+      return {p,s:{M:dB(M),ph}};}},
+  statement:p=>`<p>For ${eq(`<i>G</i>(${S}) = ${frac(`${p.K}${fac(p.z)}`,`${S}${fac(p.p1)}`)}`)}, determine the magnitude in decibels and the phase angle of <i>G</i>(<i>j</i>ω) at ω = ${p.w} rad/s.</p>`,
+  solution:(p,s)=>`<h3>1. Magnitude</h3>
+  <p>${eq(`|<i>G</i>(<i>j</i>ω)| = ${frac(`${p.K}√(ω² + ${p.z*p.z})`,`ω√(ω² + ${p.p1*p.p1})`)}`)}, so ${eq(`20 log<sub>10</sub>|<i>G</i>| = ${sig(s.M)} dB`)}</p>
+  <h3>2. Phase</h3>
+  <p>Each factor in the numerator adds its angle and each factor in the denominator subtracts it: ${eq(`∠<i>G</i> = −90° + tan<sup>−1</sup>(ω/${p.z}) − tan<sup>−1</sup>(ω/${p.p1}) = ${sig(s.ph)}°`)}</p>
+  <p class="final">|<i>G</i>| = ${sig(s.M,3)} dB, ∠<i>G</i> = ${sig(s.ph,3)}°.</p>`,
+  fields:p=>[{id:"M",label:"Magnitude (with sign)",unit:"dB",signed:true,tolAbs:0.2},{id:"ph",label:"Phase (with sign)",unit:"°",signed:true,tolAbs:0.5}],
+  truth:s=>({M:s.M,ph:s.ph}),
+  note:"Magnitude is accepted within 0.2 dB and phase within 0.5°."
+};
+
+// 2. resonant peak of a second-order system
+TEMPLATES["resonant-peak"]={
+  name:"Resonant frequency and resonant peak of a second-order system",
+  generate(seed){const r=mulberry32(seed);
+    const p={z:pick(r,[0.25,0.3,0.35,0.4,0.5,0.6]),wn:pick(r,range(1,20,1))};
+    return {p,s:{wr:p.wn*Math.sqrt(1-2*p.z*p.z),Mr:1/(2*p.z*Math.sqrt(1-p.z*p.z)),Mn:1/(2*p.z)}};},
+  statement:p=>`<p>For ${eq(`<i>G</i>(${S}) = ${frac(p.wn*p.wn,poly([1,+(2*p.z*p.wn).toFixed(4),p.wn*p.wn]))}`)}, determine the resonant frequency ω<sub><i>r</i></sub>, the resonant peak <i>M<sub>r</sub></i> = |<i>G</i>(<i>j</i>ω<sub><i>r</i></sub>)|, and |<i>G</i>(<i>j</i>${wn_})|.</p>`,
+  solution:(p,s)=>`<h3>1. Resonant frequency</h3>
+  <p>${eq(`|<i>G</i>(<i>j</i>ω)|² = 1/[(1 − <i>u</i>²)² + (2${ze}<i>u</i>)²]`)}, with <i>u</i> = ω/${wn_}. The denominator is smallest at ${eq(`<i>u</i>² = 1 − 2${ze}²`)}, so ${eq(`ω<sub><i>r</i></sub> = ${wn_}√(1 − 2${ze}²) = ${sig(s.wr)} rad/s`)}</p>
+  <h3>2. Resonant peak</h3>
+  <p>${eq(`<i>M<sub>r</sub></i> = ${frac(1,`2${ze}√(1 − ${ze}²)`)} = ${sig(s.Mr)}`)}, and at ω = ${wn_}, ${eq(`|<i>G</i>| = 1/(2${ze}) = ${sig(s.Mn)}`)}</p>
+  <p class="final">ω<sub><i>r</i></sub> = ${sig(s.wr,3)} rad/s, <i>M<sub>r</sub></i> = ${sig(s.Mr,3)}, |<i>G</i>(<i>j</i>${wn_})| = ${sig(s.Mn,3)}.</p>`,
+  fields:p=>[{id:"wr",label:"Resonant frequency ω<sub><i>r</i></sub>",unit:"rad/s"},{id:"Mr",label:"Resonant peak <i>M<sub>r</sub></i>",unit:""},{id:"Mn",label:`|<i>G</i>(<i>j</i>${wn_})|`,unit:""}],
+  truth:s=>({wr:s.wr,Mr:s.Mr,Mn:s.Mn}),
+  note:""
+};
+
+// 3. gain margin
+TEMPLATES["gain-margin"]={
+  name:"Phase-crossover frequency and gain margin",
+  generate(seed){const r=mulberry32(seed);const [p1,p2]=two(r,1,10);const Kc=p1*p2*(p1+p2),K=+(Kc*pick(r,[0.1,0.2,0.3,0.5,0.7])).toPrecision(2);
+    return {p:{p1,p2,K},s:{w:Math.sqrt(p1*p2),GM:dB(Kc/K)}};},
+  statement:p=>`<p>A unity-feedback system has ${eq(`<i>G</i>(${S}) = ${frac(nf(p.K),`${S}${fac(p.p1)}${fac(p.p2)}`)}`)}. Determine the phase-crossover frequency and the gain margin in decibels.</p>`,
+  figure:p=>loopFig([{n:nf(p.K),d:`s(s + ${p.p1})(s + ${p.p2})`}]),
+  solution:(p,s)=>`<h3>1. Phase-crossover frequency</h3>
+  <p>${eq(`∠<i>G</i> = −90° − tan<sup>−1</sup>(ω/${p.p1}) − tan<sup>−1</sup>(ω/${p.p2}) = −180°`)} when the two arctangents sum to 90°, that is ω² = ${p.p1}·${p.p2}: ${eq(`ω<sub>pc</sub> = ${sig(s.w)} rad/s`)}</p>
+  <h3>2. Magnitude at the phase crossover</h3>
+  <p>${eq(`|<i>G</i>(<i>j</i>ω<sub>pc</sub>)| = ${frac(nf(p.K),`ω<sub>pc</sub>√(ω<sub>pc</sub>² + ${p.p1*p.p1})√(ω<sub>pc</sub>² + ${p.p2*p.p2})`)} = ${frac(nf(p.K),p.p1*p.p2*(p.p1+p.p2))}`)}</p>
+  <h3>3. Gain margin</h3>
+  <p>The gain can be multiplied by 1/|<i>G</i>(<i>j</i>ω<sub>pc</sub>)| before the system becomes unstable: ${eq(`GM = −20 log<sub>10</sub>|<i>G</i>(<i>j</i>ω<sub>pc</sub>)| = ${sig(s.GM)} dB`)}</p>
+  <p class="final">ω<sub>pc</sub> = ${sig(s.w,3)} rad/s, GM = ${sig(s.GM,3)} dB.</p>`,
+  fields:p=>[{id:"w",label:"Phase-crossover frequency",unit:"rad/s"},{id:"GM",label:"Gain margin (with sign)",unit:"dB",signed:true,tolAbs:0.2}],
+  truth:s=>({w:s.w,GM:s.GM}),
+  note:"The gain margin is accepted within 0.2 dB."
+};
+
+// 4. phase margin for a given gain
+TEMPLATES["phase-margin"]={
+  name:"Gain-crossover frequency and phase margin",
+  generate(seed){const r=mulberry32(seed);
+    for(let i=0;i<5000;i++){
+      const p={K:pick(r,range(1,100,1)),p:pick(r,range(1,10,1))};
+      const w=Math.sqrt((-p.p*p.p+Math.sqrt(p.p**4+4*p.K*p.K))/2);
+      if(Math.abs(Math.sqrt(p.K)-w)<0.05*w) continue;
+      return {p,s:{w,PM:90-atd(w,p.p)}};}},
+  statement:p=>`<p>A unity-feedback system has ${eq(`<i>G</i>(${S}) = ${frac(p.K,`${S}${fac(p.p)}`)}`)}. Determine the gain-crossover frequency and the phase margin.</p>`,
+  figure:p=>loopFig([{n:p.K,d:`s(s + ${p.p})`}]),
+  solution:(p,s)=>`<h3>1. Gain-crossover frequency</h3>
+  <p>${eq(`|<i>G</i>(<i>j</i>ω)| = ${frac(p.K,`ω√(ω² + ${p.p*p.p})`)} = 1 &nbsp;⇒&nbsp; ω⁴ + ${p.p*p.p}ω² − ${p.K*p.K} = 0`)}, so ${eq(`ω<sub>gc</sub>² = ${frac(`−${p.p*p.p} + √(${p.p**4} + 4·${p.K*p.K})`,2)}`)} and ${eq(`ω<sub>gc</sub> = ${sig(s.w)} rad/s`)}</p>
+  <h3>2. Phase margin</h3>
+  <p>${eq(`PM = 180° + ∠<i>G</i>(<i>j</i>ω<sub>gc</sub>) = 180° − 90° − tan<sup>−1</sup>(ω<sub>gc</sub>/${p.p})`)}</p>
+  <p class="final">ω<sub>gc</sub> = ${sig(s.w,3)} rad/s, PM = ${sig(s.PM,3)}°.</p>`,
+  fields:p=>[{id:"w",label:"Gain-crossover frequency",unit:"rad/s"},{id:"PM",label:"Phase margin",unit:"°",tolAbs:0.5}],
+  truth:s=>({w:s.w,PM:s.PM}),
+  note:"The phase margin is accepted within 0.5°."
+};
+
+// 5. gain for a specified phase margin
+TEMPLATES["gain-for-phase-margin"]={
+  name:"Gain for a specified phase margin",
+  generate(seed){const r=mulberry32(seed);
+    const p={p:pick(r,range(1,10,1)),PM:pick(r,[30,35,40,50,55,60,65])};
+    const w=p.p*Math.tan((90-p.PM)*PI/180);
+    return {p,s:{w,K:w*Math.hypot(w,p.p)}};},
+  statement:p=>`<p>A unity-feedback system has ${eq(`<i>G</i>(${S}) = ${frac("<i>K</i>",`${S}${fac(p.p)}`)}`)}. Determine the gain-crossover frequency and the gain <i>K</i> for which the phase margin is ${p.PM}°.</p>`,
+  figure:p=>loopFig([{n:"K",d:`s(s + ${p.p})`}]),
+  solution:(p,s)=>`<h3>1. Required phase at crossover</h3>
+  <p>A phase margin of ${p.PM}° means ∠<i>G</i>(<i>j</i>ω<sub>gc</sub>) = −180° + ${p.PM}° = ${p.PM-180}°: ${eq(`−90° − tan<sup>−1</sup>(ω<sub>gc</sub>/${p.p}) = ${p.PM-180}° &nbsp;⇒&nbsp; ω<sub>gc</sub> = ${p.p} tan ${90-p.PM}° = ${sig(s.w)} rad/s`)}</p>
+  <h3>2. Gain</h3>
+  <p>Unit magnitude at ω<sub>gc</sub>: ${eq(`<i>K</i> = ω<sub>gc</sub>√(ω<sub>gc</sub>² + ${p.p*p.p})`)}</p>
+  <p class="final">ω<sub>gc</sub> = ${sig(s.w,3)} rad/s, <i>K</i> = ${sig(s.K,3)}.</p>`,
+  fields:p=>[{id:"w",label:"Gain-crossover frequency",unit:"rad/s"},{id:"K",label:"Gain <i>K</i>",unit:""}],
+  truth:s=>({w:s.w,K:s.K}),
+  note:""
+};
+
+// 6. stability limit with a dead time
+TEMPLATES["dead-time-stability"]={
+  name:"Range of gain for stability of a process with dead time",
+  generate(seed){const r=mulberry32(seed);
+    const p={T:pick(r,[0.2,0.5,1,2]),tau:pick(r,[0.5,1,2,5,10])};
+    let a=1e-6,b=PI/p.T-1e-9;for(let i=0;i<200;i++){const m=(a+b)/2;if(m*p.T+Math.atan(m*p.tau)<PI)a=m;else b=m}
+    const w=(a+b)/2;
+    return {p,s:{w,K:Math.hypot(1,w*p.tau)}};},
+  statement:p=>`<p>A unity-feedback process control loop has ${eq(`<i>G</i>(${S}) = ${frac(`<i>K</i><i>e</i><sup>−${cf1(p.T)}${S}</sup>`,`${cf1(p.tau)}${S} + 1`)}`)} with <i>K</i> &gt; 0. Determine the phase-crossover frequency and the largest gain for which the closed-loop system is stable.</p>`,
+  figure:p=>loopFig([{l:"K"},{n:`exp(−${cf1(p.T)}s)`,d:`${cf1(p.tau)}s + 1`}]),
+  solution:(p,s)=>`<h3>1. Phase of the dead time</h3>
+  <p>${eq(`|<i>e</i><sup>−<i>j</i>ω<i>T</i></sup>| = 1`)} and ${eq(`∠<i>e</i><sup>−<i>j</i>ω<i>T</i></sup> = −ω<i>T</i>`)} rad: the dead time adds phase lag that grows without limit, but does not change the magnitude.</p>
+  <h3>2. Phase crossover</h3>
+  <p>${eq(`ω(${nf(p.T)}) + tan<sup>−1</sup>(${nf(p.tau)}ω) = π`)}, solved numerically: ω<sub>pc</sub> = ${sig(s.w)} rad/s.</p>
+  <h3>3. Gain limit</h3>
+  <p>${eq(`<i>K</i><sub>max</sub> = 1/|<i>G</i>(<i>j</i>ω<sub>pc</sub>)/<i>K</i>| = √(1 + (${nf(p.tau)}ω<sub>pc</sub>)²)`)}</p>
+  <p class="final">ω<sub>pc</sub> = ${sig(s.w,3)} rad/s, <i>K</i><sub>max</sub> = ${sig(s.K,3)}.</p>`,
+  fields:p=>[{id:"w",label:"Phase-crossover frequency",unit:"rad/s"},{id:"K",label:"Largest stable gain",unit:""}],
+  truth:s=>({w:s.w,K:s.K}),
+  note:""
+};
+
+// 7. lead network
+TEMPLATES["lead-compensator"]={
+  name:"Maximum phase lead of a lead compensator",
+  generate(seed){const r=mulberry32(seed);
+    const p={a:pick(r,[0.05,0.1,0.15,0.2,0.25,0.3,0.4]),T:pick(r,[0.05,0.1,0.2,0.5,1,2])};
+    return {p,s:{phm:Math.asin((1-p.a)/(1+p.a))*180/PI,wm:1/(p.T*Math.sqrt(p.a)),Mm:dB(1/Math.sqrt(p.a))}};},
+  statement:p=>`<p>A lead compensator is ${eq(`<i>G<sub>c</sub></i>(${S}) = ${frac(`${nf(p.T)}${S} + 1`,`${nf(p.a*p.T)}${S} + 1`)}`)}, of the form (<i>Ts</i> + 1)/(α<i>Ts</i> + 1) with α = ${nf(p.a)}. Determine the maximum phase lead, the frequency at which it occurs, and the magnitude in decibels at that frequency.</p>`,
+  solution:(p,s)=>`<h3>1. Frequency of maximum phase lead</h3>
+  <p>The phase ${eq(`tan<sup>−1</sup>(ω<i>T</i>) − tan<sup>−1</sup>(αω<i>T</i>)`)} is largest at the geometric mean of the corner frequencies 1/<i>T</i> and 1/(α<i>T</i>): ${eq(`ω<sub><i>m</i></sub> = ${frac(1,"<i>T</i>√α")} = ${sig(s.wm)} rad/s`)}</p>
+  <h3>2. Maximum phase lead</h3>
+  <p>${eq(`sin φ<sub><i>m</i></sub> = ${frac("1 − α","1 + α")}`)}, so φ<sub><i>m</i></sub> = ${sig(s.phm)}°.</p>
+  <h3>3. Magnitude at ω<sub><i>m</i></sub></h3>
+  <p class="final">φ<sub><i>m</i></sub> = ${sig(s.phm,3)}°, ω<sub><i>m</i></sub> = ${sig(s.wm,3)} rad/s, |<i>G<sub>c</sub></i>(<i>j</i>ω<sub><i>m</i></sub>)| = 20 log<sub>10</sub>(1/√α) = ${sig(s.Mm,3)} dB.</p>`,
+  fields:p=>[{id:"phm",label:"Maximum phase lead",unit:"°",tolAbs:0.5},{id:"wm",label:"Frequency ω<sub><i>m</i></sub>",unit:"rad/s"},{id:"Mm",label:"Magnitude at ω<sub><i>m</i></sub>",unit:"dB",tolAbs:0.2}],
+  truth:s=>({phm:s.phm,wm:s.wm,Mm:s.Mm}),
+  note:"Phase within 0.5° and magnitude within 0.2 dB are accepted."
+};
+
+
+// ===== planted errors
+const FLAWS={};
+
+FLAWS["bode-point"]={n:2,step:2,
+  why:"A factor (<i>s</i> + <i>z</i>) in the numerator contributes the positive angle tan<sup>−1</sup>(ω/<i>z</i>). Only the factors of the denominator subtract their angles.",
+  wrong:(p,s)=>({M:s.M,ph:-90-atd(p.w,p.z)-atd(p.w,p.p1)}),
+  html:(p,s,w)=>`<h3>1. Magnitude</h3><p>${eq(`20 log<sub>10</sub>|<i>G</i>| = ${sig(s.M)} dB`)}</p>
+  <h3>2. Phase</h3><p>Each first-order factor contributes a lag: ${eq(`∠<i>G</i> = −90° − tan<sup>−1</sup>(ω/${p.z}) − tan<sup>−1</sup>(ω/${p.p1}) = ${sig(w.ph)}°`)}</p>
+  <p class="final">|<i>G</i>| = ${sig(w.M,3)} dB, ∠<i>G</i> = ${sig(w.ph,3)}°.</p>`};
+
+FLAWS["resonant-peak"]={n:2,step:1,
+  why:"The magnitude is largest where the denominator (1 − <i>u</i>²)² + (2ζ<i>u</i>)² is smallest, at <i>u</i>² = 1 − 2ζ², not at <i>u</i> = 1. Resonance occurs below ω<sub><i>n</i></sub>, and the peak exceeds 1/(2ζ).",
+  wrong:(p,s)=>({wr:p.wn,Mr:s.Mn,Mn:s.Mn}),
+  html:(p,s,w)=>`<h3>1. Resonant frequency</h3><p>The response peaks when the forcing frequency equals the natural frequency: ω<sub><i>r</i></sub> = ${wn_} = ${p.wn} rad/s.</p>
+  <h3>2. Resonant peak</h3><p>${eq(`<i>M<sub>r</sub></i> = |<i>G</i>(<i>j</i>${wn_})| = 1/(2${ze}) = ${sig(s.Mn)}`)}</p>
+  <p class="final">ω<sub><i>r</i></sub> = ${sig(w.wr,3)} rad/s, <i>M<sub>r</sub></i> = ${sig(w.Mr,3)}, |<i>G</i>(<i>j</i>${wn_})| = ${sig(w.Mn,3)}.</p>`};
+
+FLAWS["gain-margin"]={n:3,step:3,
+  why:"The gain margin is the factor by which the gain can grow before |<i>G</i>| reaches 1 at the phase crossover, GM = 1/|<i>G</i>(<i>j</i>ω<sub>pc</sub>)|. In decibels it is −20 log<sub>10</sub>|<i>G</i>|, which is positive for a stable system.",
+  wrong:(p,s)=>({w:s.w,GM:-s.GM}),
+  html:(p,s,w)=>`<h3>1. Phase-crossover frequency</h3><p>${eq(`ω<sub>pc</sub> = ${sig(s.w)} rad/s`)}</p>
+  <h3>2. Magnitude at the phase crossover</h3><p>${eq(`|<i>G</i>(<i>j</i>ω<sub>pc</sub>)| = ${frac(nf(p.K),p.p1*p.p2*(p.p1+p.p2))}`)}</p>
+  <h3>3. Gain margin</h3><p>${eq(`GM = 20 log<sub>10</sub>|<i>G</i>(<i>j</i>ω<sub>pc</sub>)| = ${sig(w.GM)} dB`)}</p><p class="final">ω<sub>pc</sub> = ${sig(w.w,3)} rad/s, GM = ${sig(w.GM,3)} dB.</p>`};
+
+FLAWS["phase-margin"]={n:2,step:1,
+  why:"Setting <i>K</i>/ω² = 1 uses the high-frequency asymptote of |<i>G</i>|, which neglects the pole term. The crossover must satisfy the exact condition <i>K</i>/(ω√(ω² + <i>p</i>²)) = 1.",
+  wrong:(p,s)=>{const w=Math.sqrt(p.K);return {w,PM:90-atd(w,p.p)}},
+  html:(p,s,w)=>`<h3>1. Gain-crossover frequency</h3><p>Above the corner the magnitude is ${p.K}/ω², so ${eq(`ω<sub>gc</sub> = √${p.K} = ${sig(w.w)} rad/s`)}</p>
+  <h3>2. Phase margin</h3><p>${eq(`PM = 90° − tan<sup>−1</sup>(ω<sub>gc</sub>/${p.p})`)}</p><p class="final">ω<sub>gc</sub> = ${sig(w.w,3)} rad/s, PM = ${sig(w.PM,3)}°.</p>`};
+
+FLAWS["gain-for-phase-margin"]={n:2,step:1,
+  why:"The phase margin is measured from −180°: PM = 180° + ∠<i>G</i>(<i>j</i>ω<sub>gc</sub>). For PM = φ the open-loop phase at crossover is −180° + φ, which gives tan<sup>−1</sup>(ω<sub>gc</sub>/<i>p</i>) = 90° − φ.",
+  wrong:(p,s)=>{const w=p.p*Math.tan(p.PM*PI/180);return {w,K:w*Math.hypot(w,p.p)}},
+  html:(p,s,w)=>`<h3>1. Required phase at crossover</h3><p>The pole must contribute the margin: ${eq(`tan<sup>−1</sup>(ω<sub>gc</sub>/${p.p}) = ${p.PM}° &nbsp;⇒&nbsp; ω<sub>gc</sub> = ${p.p} tan ${p.PM}° = ${sig(w.w)} rad/s`)}</p>
+  <h3>2. Gain</h3><p class="final">ω<sub>gc</sub> = ${sig(w.w,3)} rad/s, <i>K</i> = ${sig(w.K,3)}.</p>`};
+
+FLAWS["dead-time-stability"]={n:3,step:1,
+  why:"The phase of <i>e</i><sup>−<i>j</i>ω<i>T</i></sup> is −ω<i>T</i> radians, which grows linearly with frequency. Writing it as −tan<sup>−1</sup>(ω<i>T</i>), as for a first-order lag, limits it to −90° and moves the phase crossover.",
+  wrong:(p,s)=>{const w=1/Math.sqrt(p.T*p.tau);return {w,K:Math.hypot(1,w*p.tau)*Math.hypot(1,w*p.T)}},
+  html:(p,s,w)=>`<h3>1. Phase of the dead time</h3><p>The dead time behaves as a lag with time constant ${nf(p.T)} s: ${eq(`∠<i>e</i><sup>−<i>j</i>ω<i>T</i></sup> = −tan<sup>−1</sup>(ω<i>T</i>)`)}</p>
+  <h3>2. Phase crossover</h3><p>${eq(`tan<sup>−1</sup>(${nf(p.T)}ω) + tan<sup>−1</sup>(${nf(p.tau)}ω) = 90°`)} gives ω<sub>pc</sub> = 1/√(${nf(p.T)}·${nf(p.tau)}) = ${sig(w.w)} rad/s.</p>
+  <h3>3. Gain limit</h3><p class="final">ω<sub>pc</sub> = ${sig(w.w,3)} rad/s, <i>K</i><sub>max</sub> = ${sig(w.K,3)}.</p>`};
+
+FLAWS["lead-compensator"]={n:3,step:1,
+  why:"On a logarithmic frequency axis the phase curve of the lead network is symmetric about the geometric mean √(ω<sub>1</sub>ω<sub>2</sub>) of the corner frequencies, ω<sub><i>m</i></sub> = 1/(<i>T</i>√α), not about their arithmetic mean.",
+  wrong:(p,s)=>{const wm=(1/p.T+1/(p.a*p.T))/2,ph=Math.atan(wm*p.T)-Math.atan(p.a*wm*p.T);return {phm:ph*180/PI,wm,Mm:dB(Math.hypot(1,wm*p.T)/Math.hypot(1,p.a*wm*p.T))}},
+  html:(p,s,w)=>`<h3>1. Frequency of maximum phase lead</h3><p>The maximum lies midway between the corners 1/<i>T</i> and 1/(α<i>T</i>): ${eq(`ω<sub><i>m</i></sub> = ½(1/<i>T</i> + 1/(α<i>T</i>)) = ${sig(w.wm)} rad/s`)}</p>
+  <h3>2. Maximum phase lead</h3><p>${eq(`φ<sub><i>m</i></sub> = tan<sup>−1</sup>(ω<sub><i>m</i></sub><i>T</i>) − tan<sup>−1</sup>(αω<sub><i>m</i></sub><i>T</i>) = ${sig(w.phm)}°`)}</p>
+  <h3>3. Magnitude at ω<sub><i>m</i></sub></h3><p class="final">φ<sub><i>m</i></sub> = ${sig(w.phm,3)}°, ω<sub><i>m</i></sub> = ${sig(w.wm,3)} rad/s, |<i>G<sub>c</sub></i>| = ${sig(w.Mm,3)} dB.</p>`};
+// ===== error report form (Google Form with prefilled fields)
+// Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
+const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLScjsI98ID72Fn3xgheP4VJIsApQnUPwZpik_x4HQVk6annBhQ/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){
+  const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
+  q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
+  return FORM.url+"?"+q.toString();
+}
+
+// ===== page
+let curKey=Object.keys(TEMPLATES)[0], cur=null, curFields=[], curTruth={}, curMode="practice";
+const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+
+function fillTypes(){
+  const keys=hunting()?Object.keys(FLAWS):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+  return curKey;
+}
+
+function setMode(mode,key,seed){
+  curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";
+  $("mError").className=mode==="error"?"":"ghost";
+  $("reportRow").firstElementChild.textContent=hunting()
+    ?"Found a mistake other than the planted one?"
+    :"Found a mistake in a problem or its solution?";
+  curKey=key||curKey; const k=fillTypes();
+  render(k,seed||parseInt($("seedIn").value,10)||1);
+}
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed); const {p,s}=cur;
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed+(hunting()?"-e":""))}catch(e){}
+  $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
+  $("statement").innerHTML=T.statement(p,s);
+  $("flawCard").style.display=F?"":"none";
+  $("flawed").innerHTML=F?F.html(p,s,F.wrong(p,s)):"";
+  curFields=T.fields(p,s); curTruth=T.truth(s);
+  if(F){const steps=[];for(let i=1;i<=F.n;i++)steps.push(String(i));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];
+    curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+"Answers within 2% are accepted. "+(T.note||"");
+  const sol=$("solution"); sol.style.display="none";
+  sol.innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
+}
+
+function check(){
+  const truth=curTruth;
+  const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
+  curFields.forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scaleOf(f.unit):0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+if(typeof document!=="undefined"){
+  const newSeed=()=>1+Math.floor(Math.random()*999999);
+  $("typeSel").onchange=e=>render(e.target.value,newSeed());
+  $("newBtn").onclick=()=>render(curKey,newSeed());
+  $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+  $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
+  if(FORM.url)$("reportRow").style.display="";
+  $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+  $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+    s.style.display=show?"block":"none";
+    e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+  (function(){
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice",Object.keys(TEMPLATES)[0],newSeed());
+  })();
+}
+if(typeof module!=="undefined")module.exports={TEMPLATES,FLAWS};
+
+</script>
+</body>
+</html>

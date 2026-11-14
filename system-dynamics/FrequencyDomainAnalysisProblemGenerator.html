@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frequency-Domain Analysis of Dynamic Systems Problem Generator</title>
+<style>
+  :root{
+    --ink:#1f2328; --muted:#5b6470; --line:#d9dde3; --bg:#fbfaf7; --card:#ffffff;
+    --load:#aa1e28; --accent:#1e5a32; --ok:#1e7a3c; --bad:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .mark{font-weight:600;min-width:7em}
+  .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  .answers input{width:8em}
+  .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .fr{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 .15em;line-height:1.25}
+  .fr>span{padding:0 .25em;white-space:nowrap}
+  .fr>span:first-child{border-bottom:1px solid currentColor}
+  .eq{line-height:1.9}
+  .mat{display:inline-table;vertical-align:middle;border-left:1.5px solid currentColor;border-right:1.5px solid currentColor;border-radius:5px;padding:0 .15em;margin:0 .2em}
+  .mat>span{display:table-row}
+  .mat>span>span{display:table-cell;padding:.05em .45em;text-align:center}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Frequency-Domain Analysis of Dynamic Systems Problem Generator</h1>
+</header>
+<main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar">
+    <label>Mode</label>
+    <button id="mPractice">Practice</button>
+    <button class="ghost" id="mError">Find the error</button>
+  </div>
+  <div class="card bar">
+    <label for="typeSel">Problem type</label><select id="typeSel"></select>
+  </div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+
+// ----- seeded random numbers
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+
+// ----- numeric helpers
+const nz=(r,a,b)=>pick(r,range(a,b,1).filter(v=>v!==0));
+const two=(r,a,b)=>{const x=pick(r,range(a,b,1));let y=x;while(y===x)y=pick(r,range(a,b,1));return x<y?[x,y]:[y,x]};
+const PI=Math.PI;
+const wdOf=(z,wn)=>wn*Math.sqrt(1-z*z);
+const MpOf=z=>100*Math.exp(-z*PI/Math.sqrt(1-z*z));
+const trOf=(z,wn)=>(PI-Math.acos(z))/wdOf(z,wn);
+// angle condition on the ray s = r(-z + j sqrt(1-z^2)) for G = K/(s(s+p1)(s+p2))
+function rlZeta(p1,p2,z){const c=Math.sqrt(1-z*z);
+  const phi=r=>{const x=-z*r,y=c*r;return Math.atan2(y,x)+Math.atan2(y,x+p1)+Math.atan2(y,x+p2)-PI};
+  let a=1e-9,b=1e3;for(let i=0;i<200;i++){const m=(a+b)/2;if(phi(m)<0)a=m;else b=m}
+  const r=(a+b)/2,sg=z*r,wd=c*r,K=Math.hypot(sg,wd)*Math.hypot(p1-sg,wd)*Math.hypot(p2-sg,wd);
+  return {sg,wd,K,s3:-(p1+p2)+2*sg}}
+
+// ----- formatting
+const sig=(x,n=4)=>{if(Math.abs(x)<1e-9)return "0";const d=Math.max(0,n-1-Math.floor(Math.log10(Math.abs(x))));return Number(x).toFixed(Math.min(d,8)).replace("-","−")};
+const nf=x=>Math.abs(x-Math.round(x))<1e-9?String(Math.round(x)).replace("-","−"):sig(x,4).replace(/(\.\d*?)0+$/,"$1").replace(/\.$/,"");
+const eq=s=>`<span class="eq">${s}</span>`;
+const S="<i>s</i>";
+const SUP={2:"²",3:"³",4:"⁴"};
+const mono=k=>k===0?"":k===1?S:S+SUP[k];
+function sum(terms){let o="";terms.forEach(([c,m])=>{if(Math.abs(c)<1e-12)return;const a=Math.abs(c);
+  const cf=(m&&Math.abs(a-1)<1e-12)?"":nf(a);o+=o?(c<0?" − ":" + "):(c<0?"−":"");o+=cf+m});return o||"0"}
+const poly=c=>sum(c.map((a,i)=>[a,mono(c.length-1-i)]));
+const fac=p=>p===0?S:`(${S} + ${nf(p)})`;
+const frac=(n,d)=>`<span class="fr"><span>${n}</span><span>${d}</span></span>`;
+const ze="ζ", wn_="ω<sub>n</sub>", wd_="ω<sub>d</sub>";
+const CR=`<i>C</i>(${S})/<i>R</i>(${S})`;
+
+// ----- block-diagram toolkit
+// blk: block at center (x,y) with label l or fraction n/d; sum: summing junction with signs {w,n,s};
+// w: wire polyline with arrowhead; dot: pickoff point; lab: free text. Single letters in labels are set in italics.
+const IT=v=>`<tspan font-style="italic">${v}</tspan>`;
+const ml=t=>String(t).replace(/-/g,"−").replace(/\b([GKH])([a-z]{1,2})\b|(?<![A-Za-z])([a-zA-Z])(?![A-Za-z0-9])/g,(m,a,b,c)=>c?IT(c):IT(a)+`<tspan font-size="11" baseline-shift="sub" font-style="italic">${b}</tspan>`);
+const tw=t=>String(t).length*7.6+20;
+function bd(items,W=560,H=200){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#222"/></marker></defs>`;
+  items.forEach(e=>{
+    if(e.t==="blk"){const w=e.w||Math.max(44,tw(e.l||""),tw(e.n||""),tw(e.d||"")),h=e.d?46:34;
+      o+=`<rect x="${e.x-w/2}" y="${e.y-h/2}" width="${w}" height="${h}" fill="#fff" stroke="#222" stroke-width="1.3"/>`;
+      if(e.d)o+=`<text x="${e.x}" y="${e.y-6}" text-anchor="middle">${ml(e.n)}</text><line x1="${e.x-w/2+8}" y1="${e.y}" x2="${e.x+w/2-8}" y2="${e.y}" stroke="#222"/><text x="${e.x}" y="${e.y+16}" text-anchor="middle">${ml(e.d)}</text>`;
+      else o+=`<text x="${e.x}" y="${e.y+5}" text-anchor="middle">${ml(e.l)}</text>`;return}
+    if(e.t==="sum"){o+=`<circle cx="${e.x}" cy="${e.y}" r="10" fill="#fff" stroke="#222" stroke-width="1.3"/>`;
+      const sg=e.s||{};if(sg.w)o+=`<text x="${e.x-20}" y="${e.y-6}" text-anchor="middle" font-size="14">${sg.w}</text>`;
+      if(sg.s)o+=`<text x="${e.x+14}" y="${e.y+24}" text-anchor="middle" font-size="14">${sg.s}</text>`;
+      if(sg.n)o+=`<text x="${e.x+14}" y="${e.y-14}" text-anchor="middle" font-size="14">${sg.n}</text>`;return}
+    if(e.t==="w"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" fill="none" stroke="#222" stroke-width="1.3"${e.a===false?"":' marker-end="url(#ah)"'}/>`;return}
+    if(e.t==="dot"){o+=`<circle cx="${e.x}" cy="${e.y}" r="3" fill="#222"/>`;return}
+    if(e.t==="lab"){o+=`<text x="${e.x}" y="${e.y}" text-anchor="${e.an||"middle"}">${ml(e.l)}</text>`;return}
+  });
+  return o+"</svg>";
+}
+// unity-feedback loop with a chain of blocks between the summing junction and the output
+function loopFig(blocks){
+  const y=70,items=[{t:"lab",x:22,y:y+5,l:"R(s)"},{t:"w",p:[[44,y],[80,y]]},{t:"sum",x:90,y,s:{w:"+",s:"−"}}];
+  let x=100;blocks.forEach(b=>{const w=Math.max(44,tw(b.l||""),tw(b.n||""),tw(b.d||""));items.push({t:"w",p:[[x,y],[x+30,y]]});items.push({t:"blk",x:x+30+w/2,y,w,...b});x+=30+w});
+  items.push({t:"w",p:[[x,y],[x+60,y]]},{t:"dot",x:x+30,y},{t:"lab",x:x+64,y:y+5,l:"C(s)",an:"start"},{t:"w",p:[[x+30,y],[x+30,y+70],[90,y+70],[90,y+10]]});
+  return bd(items,x+120,170);
+}
+
+const rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+const cs=d=>Math.cos(rad(d)), sn=d=>Math.sin(rad(d));
+const Tt="<i>t</i>";
+const ex=p=>`<i>e</i><sup>−${p===1?"":nf(p)}<i>t</i></sup>`;
+const wt=w=>`${w===1?"":nf(w)}${Tt}`;
+const cf1=c=>c===1?"":nf(c);
+// ----- figure toolkit (2D drawing of arrows, lines, points, text)
+const COL={k:"#222",r:"#aa1e28",b:"#2b5d8a",g:"#1e5a32",m:"#7d5014",x:"#888"};
+function draw(els,W=520,H=300){
+  const pts=[];els.forEach(e=>{[e.a,e.b,e.p].forEach(q=>q&&pts.push(q))});
+  const x0=Math.min(...pts.map(q=>q[0])),x1=Math.max(...pts.map(q=>q[0])),y0=Math.min(...pts.map(q=>q[1])),y1=Math.max(...pts.map(q=>q[1]));
+  const mx=80,my=40,s=Math.min((W-2*mx)/Math.max(x1-x0,1e-6),(H-2*my)/Math.max(y1-y0,1e-6));
+  const X=q=>mx+(q[0]-x0)*s+(W-2*mx-(x1-x0)*s)/2, Y=q=>H-my-(q[1]-y0)*s-(H-2*my-(y1-y0)*s)/2, f1=v=>v.toFixed(1);
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="16" style="max-height:${H}px"><defs>`;
+  for(const k in COL)o+=`<marker id="vx${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="${COL[k]}"/></marker>`;
+  o+="</defs>";
+  els.forEach(e=>{
+    const c=e.c||"k";
+    if(e.t==="txt"){o+=`<text x="${f1(X(e.p))}" y="${f1(Y(e.p)+5)}" text-anchor="${e.an||"middle"}" class="halo">${e.l}</text>`;return}
+    const ax=X(e.a),ay=Y(e.a),bx=X(e.b),by=Y(e.b),dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1;
+    const head=e.t==="ln"?"":` marker-end="url(#vx${c})"`;
+    o+=`<line x1="${f1(ax)}" y1="${f1(ay)}" x2="${f1(bx)}" y2="${f1(by)}" stroke="${COL[c]}" stroke-width="${e.w||(c==="r"||c==="b"||c==="g"?2.6:1.4)}" ${e.d?'stroke-dasharray="5 4"':""}${head}/>`;
+    if(e.l){const ux=dx/L,uy=dy/L,an=Math.abs(ux)<.3?"middle":ux>0?"start":"end";
+      o+=`<text x="${f1(bx+ux*12)}" y="${f1(by+uy*12+(uy>.5?14:uy<-.5?-2:5))}" text-anchor="${an}" fill="${COL[c]}" class="halo">${e.l}</text>`}
+  });
+  return o+"</svg>";
+}
+
+
+// ----- mechanical-schematic toolkit (pixel coordinates)
+// wall {x,y1,y2,side}, gnd {x1,x2,y}, spr {a,b,l}, dmp {a,b,l}, box {x,y,w,h,l}, ln {p,d}, arr {a,b,l}, circ {x,y,r,f}, txt {x,y,l,an}
+function mech(items,W=520,H=220){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px"><defs><marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 L3,5 z" fill="#aa1e28"/></marker></defs>`;
+  const ST='stroke="#222" stroke-width="1.5" fill="none"';
+  const lab=(x,y,l,an="middle")=>`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" class="halo">${ml(l)}</text>`;
+  items.forEach(e=>{
+    if(e.t==="wall"){const dx=e.side==="r"?1:-1;o+=`<line x1="${e.x}" y1="${e.y1}" x2="${e.x}" y2="${e.y2}" stroke="#222" stroke-width="2"/>`;
+      for(let y=e.y1;y<e.y2;y+=10)o+=`<line x1="${e.x}" y1="${y+10}" x2="${e.x+dx*8}" y2="${y}" stroke="#666"/>`;return}
+    if(e.t==="gnd"){o+=`<line x1="${e.x1}" y1="${e.y}" x2="${e.x2}" y2="${e.y}" stroke="#222" stroke-width="2"/>`;
+      for(let x=e.x1;x<e.x2;x+=10)o+=`<line x1="${x}" y1="${e.y+8}" x2="${x+10}" y2="${e.y}" stroke="#666"/>`;return}
+    if(e.t==="spr"||e.t==="dmp"){const [ax,ay]=e.a,[bx,by]=e.b,L=Math.hypot(bx-ax,by-ay),ang=Math.atan2(by-ay,bx-ax)*180/Math.PI;
+      let g="";
+      if(e.t==="spr"){const n=8,l0=L*0.18,step=(L-2*l0)/n;let pts=[[0,0],[l0,0]];for(let i=0;i<n;i++)pts.push([l0+step*(i+0.5),(i%2?8:-8)]);pts.push([L-l0,0],[L,0]);
+        g=`<polyline points="${pts.map(q=>q.map(v=>v.toFixed(1)).join(",")).join(" ")}" ${ST}/>`}
+      else{const m=L/2;g=`<polyline points="0,0 ${m-12},0" ${ST}/><polyline points="${m+14},-10 ${m-12},-10 ${m-12},10 ${m+14},10" ${ST}/><line x1="${m+4}" y1="-7" x2="${m+4}" y2="7" stroke="#222" stroke-width="2.5"/><line x1="${m+4}" y1="0" x2="${L}" y2="0" stroke="#222" stroke-width="1.5"/>`}
+      o+=`<g transform="translate(${ax},${ay}) rotate(${ang.toFixed(2)})">${g}</g>`;
+      if(e.l){const hor=Math.abs(bx-ax)>=Math.abs(by-ay),lp=e.lp||(hor?[(ax+bx)/2,(ay+by)/2-16]:[(ax+bx)/2+16,(ay+by)/2+5]);o+=lab(lp[0],lp[1],e.l,e.an||(hor?"middle":"start"))}
+      return}
+    if(e.t==="box"){o+=`<rect${e.rot?` transform="rotate(${e.rot} ${e.x} ${e.y})"`:""} x="${e.x-e.w/2}" y="${e.y-e.h/2}" width="${e.w}" height="${e.h}" fill="${e.f||"#eec878"}" stroke="${e.sc||"#7d5014"}" stroke-width="1.6"/>`;if(e.l)o+=lab(e.x,e.y+5,e.l);return}
+    if(e.t==="ln"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" stroke="#222" stroke-width="${e.w||1.5}" fill="none"${e.d?' stroke-dasharray="5 4"':""}/>`;return}
+    if(e.t==="arr"){o+=`<line x1="${e.a[0]}" y1="${e.a[1]}" x2="${e.b[0]}" y2="${e.b[1]}" stroke="#aa1e28" stroke-width="1.8" marker-end="url(#ma)"/>`;if(e.l)o+=lab(e.b[0]+(e.dx??8),e.b[1]+(e.dy??5),e.l,"start");return}
+    if(e.t==="circ"){o+=`<circle cx="${e.x}" cy="${e.y}" r="${e.r}" fill="${e.f||"#fff"}" stroke="#222" stroke-width="1.5"/>`;return}
+    if(e.t==="txt"){o+=lab(e.x,e.y,e.l,e.an||"middle");return}
+  });
+  return o+"</svg>";
+}
+const G0=9.81;
+
+const mat=rows=>`<span class="mat">${rows.map(r=>`<span>${r.map(v=>`<span>${typeof v==="number"?nf(v):v}</span>`).join("")}</span>`).join("")}</span>`;
+
+// ----- circuit toolkit (pixel coordinates)
+// R/C/L {a,b,l}: component on a straight wire from a to b; w {p}: wire; src {x,y,l}: voltage source (vertical, + on top);
+// gnd {x,y}; node {x,y}; oa {x,y}: op-amp with − input at (x−40,y−12), + input at (x−40,y+12), output at (x+40,y); sw {a,b,l}: open switch; txt {x,y,l,an}
+function ckt(items,W=520,H=220){
+  let o=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Georgia,serif" font-size="15" style="max-height:${H+40}px">`;
+  const ST='stroke="#222" stroke-width="1.6" fill="none"';
+  const lab=(x,y,l,an="middle")=>`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" class="halo">${ml(l)}</text>`;
+  items.forEach(e=>{
+    if(e.t==="R"||e.t==="C"||e.t==="L"||e.t==="sw"){const [ax,ay]=e.a,[bx,by]=e.b,Ln=Math.hypot(bx-ax,by-ay),ang=Math.atan2(by-ay,bx-ax)*180/Math.PI,m=Ln/2;let g="";
+      if(e.t==="R"){const pts=[[0,0],[m-24,0]];for(let i=0;i<6;i++)pts.push([m-24+8*(i+0.5),i%2?7:-7]);pts.push([m+24,0],[Ln,0]);g=`<polyline points="${pts.map(q=>q.join(",")).join(" ")}" ${ST}/>`}
+      if(e.t==="C")g=`<polyline points="0,0 ${m-5},0" ${ST}/><line x1="${m-5}" y1="-12" x2="${m-5}" y2="12" stroke="#222" stroke-width="2.2"/><line x1="${m+5}" y1="-12" x2="${m+5}" y2="12" stroke="#222" stroke-width="2.2"/><polyline points="${m+5},0 ${Ln},0" ${ST}/>`;
+      if(e.t==="L"){let d=`M0,0 L${m-24},0`;for(let i=0;i<4;i++)d+=` a6,7 0 0 1 12,0`;d+=` L${Ln},0`;g=`<path d="${d}" ${ST}/>`}
+      if(e.t==="sw")g=`<polyline points="0,0 ${m-12},0" ${ST}/><circle cx="${m-12}" cy="0" r="2.5" fill="#222"/><line x1="${m-12}" y1="0" x2="${m+12}" y2="-12" stroke="#222" stroke-width="1.6"/><circle cx="${m+12}" cy="0" r="2.5" fill="#222"/><polyline points="${m+12},0 ${Ln},0" ${ST}/>`;
+      o+=`<g transform="translate(${ax},${ay}) rotate(${ang.toFixed(2)})">${g}</g>`;
+      if(e.l){const hor=Math.abs(bx-ax)>=Math.abs(by-ay),lp=e.lp||(hor?[(ax+bx)/2,(ay+by)/2-16]:[(ax+bx)/2+16,(ay+by)/2+5]);o+=lab(lp[0],lp[1],e.l,e.an||(hor?"middle":"start"))}return}
+    if(e.t==="w"){o+=`<polyline points="${e.p.map(q=>q.join(",")).join(" ")}" ${ST}/>`;return}
+    if(e.t==="src"){o+=`<circle cx="${e.x}" cy="${e.y}" r="16" fill="#fff" stroke="#222" stroke-width="1.6"/><text x="${e.x}" y="${e.y-3}" text-anchor="middle" font-size="13">+</text><text x="${e.x}" y="${e.y+11}" text-anchor="middle" font-size="13">−</text>`;if(e.l)o+=lab(e.x-24,e.y+5,e.l,"end");return}
+    if(e.t==="gnd"){o+=`<line x1="${e.x-10}" y1="${e.y}" x2="${e.x+10}" y2="${e.y}" stroke="#222" stroke-width="1.6"/><line x1="${e.x-6}" y1="${e.y+4}" x2="${e.x+6}" y2="${e.y+4}" stroke="#222" stroke-width="1.6"/><line x1="${e.x-2}" y1="${e.y+8}" x2="${e.x+2}" y2="${e.y+8}" stroke="#222" stroke-width="1.6"/>`;return}
+    if(e.t==="node"){o+=`<circle cx="${e.x}" cy="${e.y}" r="3" fill="#222"/>`;if(e.l)o+=lab(e.x+(e.dx??0),e.y+(e.dy??-10),e.l);return}
+    if(e.t==="oa"){const x=e.x,y=e.y;o+=`<polygon points="${x-40},${y-30} ${x-40},${y+30} ${x+40},${y}" fill="#fff" stroke="#222" stroke-width="1.6"/><text x="${x-32}" y="${y-7}" font-size="14">−</text><text x="${x-32}" y="${y+18}" font-size="14">+</text>`;return}
+    if(e.t==="txt"){o+=lab(e.x,e.y,e.l,e.an||"middle");return}
+  });
+  return o+"</svg>";
+}
+
+// ----- templates
+const TEMPLATES={};
+const smdFig=(lab,withB)=>mech([{t:"gnd",x1:120,x2:300,y:190},{t:"spr",a:[withB?170:210,190],b:[withB?170:210,115],l:"k",lp:[withB?145:185,155],an:"end"},...(withB?[{t:"dmp",a:[250,190],b:[250,115],l:"b"}]:[]),{t:"box",x:210,y:92,w:150,h:46,l:"m"},{t:"arr",a:[210,30],b:[210,68],l:lab,dx:10,dy:-8},{t:"arr",a:[310,100],b:[310,62],l:"x"}],420,205);
+
+// 1. undamped forced vibration from rest
+TEMPLATES["undamped-forced"]={
+  name:"Undamped spring–mass system driven by a sinusoidal force",
+  generate(seed){const r=mulberry32(seed);
+    for(let i=0;i<5000;i++){
+      const p={m:pick(r,range(1,10,1)),k:pick(r,range(50,1000,50)),P:pick(r,range(1,20,1)),w:pick(r,range(1,20,1)),t1:pick(r,[0.1,0.2,0.3,0.5])};
+      const wn=Math.sqrt(p.k/p.m),rr=p.w/wn;if(rr<0.3||Math.abs(rr-1)<0.15||Math.abs(p.k-p.m*p.w*p.w)/p.k<0.05) continue;
+      const X=p.P/(p.k-p.m*p.w*p.w);
+      return {p,s:{wn,X,x1:X*(Math.sin(p.w*p.t1)-(p.w/wn)*Math.sin(wn*p.t1))}};}},
+  statement:p=>`<p>A mass <i>m</i> = ${p.m} kg on a spring <i>k</i> = ${p.k} N/m, initially at rest at equilibrium, is driven by <i>p</i>(<i>t</i>) = ${p.P} sin ${wt(p.w)} N. Determine the amplitude <i>X</i> (with sign) of the steady-state term <i>X</i> sin ${wt(p.w)}, and the displacement at <i>t</i> = ${nf(p.t1)} s, including the free-vibration term.</p>`,
+  figure:p=>smdFig("p(t)",false),
+  solution:(p,s)=>`<h3>1. Transfer function</h3>
+  <p>${eq(`<i>X</i>(${S})/<i>P</i>(${S}) = 1/(<i>m</i>${S}² + <i>k</i>)`)}, with ${wn_} = √(<i>k</i>/<i>m</i>) = ${sig(s.wn)} rad/s.</p>
+  <h3>2. Steady-state amplitude</h3>
+  <p>Setting ${S} = <i>j</i>ω: ${eq(`<i>X</i> = ${frac("<i>P</i>","<i>k</i> − <i>m</i>ω²")} = ${frac(p.P,`${p.k} − ${p.m}(${p.w})²`)} = ${sig(s.X)} m`)}. A negative value means the motion is 180° out of phase with the force.</p>
+  <h3>3. Complete response from rest</h3>
+  <p>${eq(`<i>x</i>(<i>t</i>) = <i>X</i>[sin ω<i>t</i> − (ω/${wn_}) sin ${wn_}<i>t</i>]`)}, which satisfies <i>x</i>(0) = ẋ(0) = 0.</p>
+  <p class="final"><i>X</i> = ${sig(s.X,3)} m, <i>x</i>(${nf(p.t1)}) = ${sig(s.x1,3)} m.</p>`,
+  fields:p=>[{id:"X",label:"Amplitude <i>X</i> (with sign)",unit:"m",signed:true},{id:"x1",label:`<i>x</i>(${nf(p.t1)}) (with sign)`,unit:"m",signed:true}],
+  truth:s=>({X:s.X,x1:s.x1}),
+  note:"Values carry their signs."
+};
+
+// 2. damped forced vibration above resonance
+TEMPLATES["damped-forced"]={
+  name:"Steady-state amplitude and phase of a damped forced vibration",
+  generate(seed){const r=mulberry32(seed);
+    const p={m:pick(r,range(1,10,1)),k:pick(r,range(100,2000,100)),z:pick(r,[0.05,0.1,0.2,0.3,0.5]),P:pick(r,range(5,50,5)),rr:pick(r,[1.2,1.5,2,2.5,3])};
+    const wn=Math.sqrt(p.k/p.m);p.w=+(p.rr*wn).toFixed(1);p.b=+(2*p.z*Math.sqrt(p.k*p.m)).toFixed(1);
+    const re=p.k-p.m*p.w*p.w,im=p.b*p.w;
+    return {p,s:{X:p.P/Math.hypot(re,im),ph:Math.atan2(im,re)*180/PI}};},
+  statement:p=>`<p>A mass <i>m</i> = ${p.m} kg is supported by a spring <i>k</i> = ${p.k} N/m and a damper <i>b</i> = ${nf(p.b)} N·s/m, and is driven by <i>p</i>(<i>t</i>) = ${p.P} sin ${nf(p.w)}<i>t</i> N. Determine the steady-state amplitude <i>X</i> and the phase lag φ of <i>x</i>(<i>t</i>) = <i>X</i> sin(ω<i>t</i> − φ), with 0° ≤ φ ≤ 180°.</p>`,
+  figure:p=>smdFig("p(t)",true),
+  solution:(p,s)=>`<h3>1. Sinusoidal transfer function</h3>
+  <p>${eq(`<i>G</i>(<i>j</i>ω) = ${frac(1,"<i>k</i> − <i>m</i>ω² + <i>jb</i>ω")}`)}, with <i>k</i> − <i>m</i>ω² = ${sig(p.k-p.m*p.w*p.w)} N/m and <i>b</i>ω = ${sig(p.b*p.w)} N/m.</p>
+  <h3>2. Amplitude</h3>
+  <p>${eq(`<i>X</i> = ${frac("<i>P</i>","√((<i>k</i> − <i>m</i>ω²)² + (<i>b</i>ω)²)")} = ${sig(s.X)} m`)}</p>
+  <h3>3. Phase</h3>
+  <p>The real part of the denominator is negative above resonance, so the angle lies in the second quadrant: ${eq(`φ = atan2(<i>b</i>ω, <i>k</i> − <i>m</i>ω²) = ${sig(s.ph)}°`)}</p>
+  <p class="final"><i>X</i> = ${sig(s.X,3)} m, φ = ${sig(s.ph,3)}°.</p>`,
+  fields:p=>[{id:"X",label:"Amplitude <i>X</i>",unit:"m"},{id:"ph",label:"Phase lag φ",unit:"°",tolAbs:0.5}],
+  truth:s=>({X:s.X,ph:s.ph}),
+  note:"The phase is accepted within 0.5°."
+};
+
+// 3. RC low-pass circuit with a sinusoidal input
+TEMPLATES["rc-sinusoidal"]={
+  name:"Steady-state sinusoidal output of an RC circuit",
+  generate(seed){const r=mulberry32(seed);
+    const p={R:pick(r,range(1,100,1)),C:pick(r,[0.1,0.22,0.47,1,2.2,4.7,10]),Ei:pick(r,range(1,10,1)),w:pick(r,[10,50,100,200,500,1000,2000])};
+    const wt_=p.w*p.R*1e3*p.C*1e-6;
+    if(wt_<0.4||wt_>8) return this.generate(seed+100003);
+    return {p,s:{wt:wt_,A:p.Ei/Math.sqrt(1+wt_*wt_),ph:-Math.atan(wt_)*180/PI}};},
+  statement:p=>`<p>In an RC circuit, the input <i>e<sub>i</sub></i> = ${p.Ei} sin ${p.w}<i>t</i> V drives a resistor <i>R</i> = ${p.R} kΩ in series with a capacitor <i>C</i> = ${nf(p.C)} μF, and the output <i>e<sub>o</sub></i> is the capacitor voltage. Determine the steady-state output amplitude and its phase angle relative to the input (negative for a lag).</p>`,
+  figure:p=>ckt([{t:"w",p:[[40,60],[90,60]]},{t:"R",a:[90,60],b:[250,60],l:"R"},{t:"w",p:[[250,60],[360,60]]},{t:"C",a:[300,60],b:[300,170],l:"C"},{t:"w",p:[[40,170],[360,170]]},{t:"node",x:40,y:60},{t:"node",x:40,y:170},{t:"node",x:360,y:60},{t:"node",x:360,y:170},{t:"node",x:300,y:60},{t:"node",x:300,y:170},{t:"txt",x:30,y:120,l:"eᵢ",an:"end"},{t:"txt",x:372,y:120,l:"eₒ",an:"start"}],420,195),
+  solution:(p,s)=>`<h3>1. Sinusoidal transfer function</h3>
+  <p>${eq(`<i>G</i>(<i>j</i>ω) = ${frac(1,"<i>jωRC</i> + 1")}`)}, with ω<i>RC</i> = ${p.w}(${p.R} × 10³)(${nf(p.C)} × 10⁻⁶) = ${sig(s.wt)}.</p>
+  <h3>2. Magnitude and phase</h3>
+  <p>${eq(`|<i>G</i>| = 1/√(1 + (ω<i>RC</i>)²) = ${sig(1/Math.sqrt(1+s.wt**2))}`)} ${eq(`∠<i>G</i> = −tan<sup>−1</sup>(ω<i>RC</i>) = ${sig(s.ph)}°`)}</p>
+  <p class="final">Amplitude = ${sig(s.A,3)} V, phase = ${sig(s.ph,3)}°.</p>`,
+  fields:p=>[{id:"A",label:"Output amplitude",unit:"V"},{id:"ph",label:"Phase angle (with sign)",unit:"°",signed:true,tolAbs:0.5}],
+  truth:s=>({A:s.A,ph:s.ph}),
+  note:"The phase is accepted within 0.5°."
+};
+
+// 4. rotating unbalance
+TEMPLATES["rotating-unbalance"]={
+  name:"Rotating unbalance: vibration amplitude and transmitted force",
+  generate(seed){const r=mulberry32(seed);
+    for(let i=0;i<5000;i++){
+      const p={M:pick(r,range(50,500,50)),m:pick(r,[0.1,0.2,0.5,1]),e:pick(r,[0.05,0.1,0.2,0.5]),f:pick(r,range(5,30,5)),k:pick(r,range(1,20,1))*1e5,z:pick(r,[0.05,0.1,0.2,0.3])};
+      const w=2*PI*p.f,wn=Math.sqrt(p.k/p.M);if(Math.abs(w/wn-1)<0.2) continue;
+      const b=2*p.z*Math.sqrt(p.k*p.M),X=p.m*p.e*w*w/Math.hypot(p.k-p.M*w*w,b*w),F=X*Math.hypot(p.k,b*w);
+      if(Math.abs(F-p.k*X)<0.04*F) continue;
+      return {p,s:{w,b,X:X*1000,F}};}},
+  statement:p=>`<p>A machine of total mass <i>M</i> = ${p.M} kg contains an unbalanced mass <i>m</i> = ${nf(p.m)} kg at radius ${nf(p.e)} m and runs at ${p.f} Hz. It is mounted on an isolator of stiffness <i>k</i> = ${nf(p.k/1e5)} × 10⁵ N/m with damping ratio ${ze} = ${p.z}, and moves only vertically. Determine the amplitude of the machine's vibration and the amplitude of the force transmitted to the foundation.</p>`,
+  solution:(p,s)=>`<h3>1. Excitation</h3>
+  <p>The unbalance produces a vertical force of amplitude ${eq(`<i>me</i>ω² = ${nf(p.m)}(${nf(p.e)})(${sig(s.w)})² = ${sig(p.m*p.e*s.w*s.w)} N`)}, with ω = 2π(${p.f}) rad/s.</p>
+  <h3>2. Amplitude</h3>
+  <p>With <i>b</i> = 2${ze}√(<i>kM</i>) = ${sig(s.b)} N·s/m, ${eq(`<i>X</i> = ${frac("<i>me</i>ω²","√((<i>k</i> − <i>M</i>ω²)² + (<i>b</i>ω)²)")} = ${sig(s.X)} mm`)}</p>
+  <h3>3. Transmitted force</h3>
+  <p>The spring and the damper both push on the foundation, 90° apart in phase: ${eq(`<i>F<sub>T</sub></i> = <i>X</i>√(<i>k</i>² + (<i>b</i>ω)²)`)}</p>
+  <p class="final"><i>X</i> = ${sig(s.X,3)} mm, <i>F<sub>T</sub></i> = ${sig(s.F,3)} N.</p>`,
+  fields:p=>[{id:"X",label:"Vibration amplitude",unit:"mm"},{id:"F",label:"Transmitted force amplitude",unit:"N"}],
+  truth:s=>({X:s.X,F:s.F}),
+  note:""
+};
+
+// 5. force transmissibility
+TEMPLATES["transmissibility"]={
+  name:"Force transmissibility of a vibration isolator",
+  generate(seed){const r=mulberry32(seed);
+    for(let i=0;i<5000;i++){
+      const p={m:pick(r,range(10,200,10)),k:pick(r,range(1,50,1))*1e3,z:pick(r,[0.05,0.1,0.2,0.3,0.5]),f:pick(r,range(2,30,1))};
+      const wn=Math.sqrt(p.k/p.m),rr=2*PI*p.f/wn;if(Math.abs(rr-1)<0.2) continue;
+      const D=Math.hypot(1-rr*rr,2*p.z*rr),TR=Math.hypot(1,2*p.z*rr)/D;
+      if(Math.abs(TR-1/D)<0.03*TR) continue;
+      return {p,s:{rr,TR}};}},
+  statement:p=>`<p>A machine of mass ${p.m} kg is mounted on an isolator of stiffness ${nf(p.k/1000)} kN/m with damping ratio ${ze} = ${p.z}. It is subjected to a sinusoidal force at ${p.f} Hz. Determine the frequency ratio <i>r</i> = ω/${wn_} and the force transmissibility, the ratio of the transmitted force amplitude to the applied force amplitude.</p>`,
+  solution:(p,s)=>`<h3>1. Frequency ratio</h3>
+  <p>${eq(`${wn_} = √(<i>k</i>/<i>m</i>) = ${sig(Math.sqrt(p.k/p.m))} rad/s`)}, ${eq(`<i>r</i> = 2π(${p.f})/${wn_} = ${sig(s.rr)}`)}</p>
+  <h3>2. Transmissibility</h3>
+  <p>The transmitted force is the sum of the spring and damper forces: ${eq(`TR = ${frac("√(1 + (2ζ<i>r</i>)²)","√((1 − <i>r</i>²)² + (2ζ<i>r</i>)²)")}`)}</p>
+  <p class="final"><i>r</i> = ${sig(s.rr,3)}, TR = ${sig(s.TR,3)}${s.rr>Math.SQRT2?" (isolation, since <i>r</i> &gt; √2)":" (amplification, since <i>r</i> &lt; √2)"}.</p>`,
+  fields:p=>[{id:"rr",label:"Frequency ratio <i>r</i>",unit:""},{id:"TR",label:"Transmissibility",unit:""}],
+  truth:s=>({rr:s.rr,TR:s.TR}),
+  note:""
+};
+
+// 6. dynamic vibration absorber
+TEMPLATES["vibration-absorber"]={
+  name:"Tuning a dynamic vibration absorber",
+  generate(seed){const r=mulberry32(seed);
+    for(let i=0;i<5000;i++){
+      const p={m:pick(r,range(20,200,10)),k:pick(r,range(1,50,1))*1e4,ma:pick(r,range(1,10,1)),P:pick(r,range(50,500,50)),q:pick(r,[0.85,0.9,0.95,1.05,1.1,1.15])};
+      const wn=Math.sqrt(p.k/p.m);p.w=+(p.q*wn).toFixed(1);
+      const ka=p.ma*p.w*p.w;
+      return {p,s:{wn,ka,Xa:p.P/ka*1000}};}},
+  statement:p=>`<p>A machine of mass <i>m</i> = ${p.m} kg on a spring <i>k</i> = ${nf(p.k/1e4)} × 10⁴ N/m is driven by <i>P</i> sin ω<i>t</i>, with <i>P</i> = ${p.P} N and ω = ${nf(p.w)} rad/s, close to the natural frequency of the machine alone. An undamped absorber of mass <i>m<sub>a</sub></i> = ${p.ma} kg is attached to the machine through a spring <i>k<sub>a</sub></i>. Determine the <i>k<sub>a</sub></i> that makes the steady-state motion of the machine zero, and the resulting absorber amplitude.</p>`,
+  figure:p=>mech([{t:"gnd",x1:120,x2:300,y:200},{t:"spr",a:[210,200],b:[210,140],l:"k",lp:[185,175],an:"end"},{t:"box",x:210,y:118,w:150,h:44,l:"m"},{t:"spr",a:[210,96],b:[210,56],l:"kₐ",lp:[226,80],an:"start"},{t:"box",x:210,y:40,w:60,h:30,l:"mₐ"},{t:"arr",a:[320,140],b:[320,100],l:"P sin ωt"}],440,215),
+  solution:(p,s)=>`<h3>1. Condition for zero machine motion</h3>
+  <p>The machine is stationary when the absorber spring exerts a force equal and opposite to <i>P</i> sin ω<i>t</i>. The absorber is then a spring–mass system driven at its own natural frequency: ${eq(`<i>k<sub>a</sub></i>/<i>m<sub>a</sub></i> = ω²`)}</p>
+  <h3>2. Absorber stiffness and amplitude</h3>
+  <p>${eq(`<i>k<sub>a</sub></i> = ${p.ma}(${nf(p.w)})² = ${sig(s.ka)} N/m`)}, and the absorber spring force <i>k<sub>a</sub>X<sub>a</sub></i> balances <i>P</i>, so ${eq(`|<i>X<sub>a</sub></i>| = <i>P</i>/<i>k<sub>a</sub></i>`)}.</p>
+  <p class="final"><i>k<sub>a</sub></i> = ${sig(s.ka,3)} N/m, |<i>X<sub>a</sub></i>| = ${sig(s.Xa,3)} mm.</p>`,
+  fields:p=>[{id:"ka",label:"Absorber stiffness <i>k<sub>a</sub></i>",unit:"N/m"},{id:"Xa",label:"Absorber amplitude",unit:"mm"}],
+  truth:s=>({ka:s.ka,Xa:s.Xa}),
+  note:""
+};
+
+// 7. two-degree-of-freedom natural frequencies
+TEMPLATES["two-dof-modes"]={
+  name:"Natural frequencies and mode shapes of a two-degree-of-freedom system",
+  generate(seed){const r=mulberry32(seed);
+    const p={m1:pick(r,range(1,10,1)),m2:pick(r,range(1,10,1)),k1:pick(r,range(10,200,10)),k2:pick(r,range(10,200,10)),k3:pick(r,range(10,200,10))};
+    const a=p.m1*p.m2,b=-(p.m1*(p.k2+p.k3)+p.m2*(p.k1+p.k2)),c=(p.k1+p.k2)*(p.k2+p.k3)-p.k2*p.k2,D=Math.sqrt(b*b-4*a*c);
+    const l1=(-b-D)/(2*a),l2=(-b+D)/(2*a);
+    const u=Math.sqrt((p.k1+p.k2)/p.m1),v=Math.sqrt((p.k2+p.k3)/p.m2);
+    if(Math.abs(Math.min(u,v)-Math.sqrt(l1))<0.04*Math.sqrt(l1)&&Math.abs(Math.max(u,v)-Math.sqrt(l2))<0.04*Math.sqrt(l2)) return this.generate(seed+100003);
+    return {p,s:{w1:Math.sqrt(l1),w2:Math.sqrt(l2),r1:(p.k1+p.k2-p.m1*l1)/p.k2}};},
+  statement:p=>`<p>Masses <i>m</i><sub>1</sub> = ${p.m1} kg and <i>m</i><sub>2</sub> = ${p.m2} kg slide without friction. Spring <i>k</i><sub>1</sub> = ${p.k1} N/m connects <i>m</i><sub>1</sub> to the left wall, <i>k</i><sub>2</sub> = ${p.k2} N/m connects the two masses, and <i>k</i><sub>3</sub> = ${p.k3} N/m connects <i>m</i><sub>2</sub> to the right wall. Determine the two natural frequencies and the amplitude ratio <i>X</i><sub>2</sub>/<i>X</i><sub>1</sub> of the first (lower) mode.</p>`,
+  figure:p=>mech([{t:"wall",x:30,y1:50,y2:150,side:"l"},{t:"spr",a:[30,100],b:[130,100],l:"k₁"},{t:"box",x:170,y:100,w:80,h:70,l:"m₁"},{t:"arr",a:[170,40],b:[220,40],l:"x₁"},
+    {t:"spr",a:[210,100],b:[320,100],l:"k₂"},{t:"box",x:360,y:100,w:80,h:70,l:"m₂"},{t:"arr",a:[360,40],b:[410,40],l:"x₂"},{t:"spr",a:[400,100],b:[490,100],l:"k₃"},{t:"wall",x:490,y1:50,y2:150,side:"r"},{t:"gnd",x1:120,x2:410,y:136}],520,170),
+  solution:(p,s)=>`<h3>1. Equations of motion</h3>
+  <p>${eq(`<i>m</i><sub>1</sub>ẍ<sub>1</sub> + (<i>k</i><sub>1</sub> + <i>k</i><sub>2</sub>)<i>x</i><sub>1</sub> − <i>k</i><sub>2</sub><i>x</i><sub>2</sub> = 0`)} ${eq(`<i>m</i><sub>2</sub>ẍ<sub>2</sub> + (<i>k</i><sub>2</sub> + <i>k</i><sub>3</sub>)<i>x</i><sub>2</sub> − <i>k</i><sub>2</sub><i>x</i><sub>1</sub> = 0`)}</p>
+  <h3>2. Frequency equation</h3>
+  <p>Substituting <i>x<sub>i</sub></i> = <i>X<sub>i</sub></i> sin ω<i>t</i> and setting the determinant to zero: ${eq(`(${p.k1+p.k2} − ${p.m1}ω²)(${p.k2+p.k3} − ${p.m2}ω²) − ${p.k2}² = 0`)}, a quadratic in ω².</p>
+  <h3>3. Mode shape</h3>
+  <p>From the first equation, ${eq(`<i>X</i><sub>2</sub>/<i>X</i><sub>1</sub> = (<i>k</i><sub>1</sub> + <i>k</i><sub>2</sub> − <i>m</i><sub>1</sub>ω<sub>1</sub>²)/<i>k</i><sub>2</sub>`)}.</p>
+  <p class="final">ω<sub>1</sub> = ${sig(s.w1,3)} rad/s, ω<sub>2</sub> = ${sig(s.w2,3)} rad/s, <i>X</i><sub>2</sub>/<i>X</i><sub>1</sub> = ${sig(s.r1,3)}.</p>`,
+  fields:p=>[{id:"w1",label:"ω<sub>1</sub>",unit:"rad/s"},{id:"w2",label:"ω<sub>2</sub>",unit:"rad/s"},{id:"r1",label:"Mode 1 ratio <i>X</i><sub>2</sub>/<i>X</i><sub>1</sub> (with sign)",unit:"",signed:true}],
+  truth:s=>({w1:s.w1,w2:s.w2,r1:s.r1}),
+  note:"The mode ratio carries its sign."
+};
+
+// 8. seismic instrument
+TEMPLATES["seismic-instrument"]={
+  name:"Seismic instrument: recorded relative motion of a vibrating base",
+  generate(seed){const r=mulberry32(seed);
+    for(let i=0;i<5000;i++){
+      const p={fn:pick(r,[1,2,5,10]),z:pick(r,[0.2,0.4,0.6,0.7]),q:pick(r,[0.5,2,3,5,10]),Y:pick(r,[0.5,1,2,5])};p.f=p.fn*p.q;
+      const rr=p.q,D=Math.hypot(1-rr*rr,2*p.z*rr),ratio=rr*rr/D;
+      if(Math.abs(ratio-Math.hypot(1,2*p.z*rr)/D)<0.03*ratio) continue;
+      return {p,s:{rr,ratio,Z:p.Y*ratio}};}},
+  statement:p=>`<p>A seismic instrument has a mass on a spring and damper inside a case attached to a vibrating base. Its natural frequency is ${p.fn} Hz and its damping ratio is ${p.z}. The base vibrates as <i>y</i> = <i>Y</i> sin ω<i>t</i> with <i>Y</i> = ${nf(p.Y)} mm at ${nf(p.f)} Hz. The instrument records the motion <i>z</i> = <i>x</i> − <i>y</i> of the mass relative to the case. Determine <i>Z</i>/<i>Y</i> and the recorded amplitude.</p>`,
+  solution:(p,s)=>`<h3>1. Relative-motion equation</h3>
+  <p>With <i>z</i> = <i>x</i> − <i>y</i>: ${eq(`<i>m</i>z̈ + <i>b</i>ż + <i>kz</i> = −<i>m</i>ÿ`)}, so ${eq(`${frac("<i>Z</i>","<i>Y</i>")} = ${frac("<i>r</i>²","√((1 − <i>r</i>²)² + (2ζ<i>r</i>)²)")}`)}</p>
+  <h3>2. Evaluate</h3>
+  <p>${eq(`<i>r</i> = ${nf(p.f)}/${p.fn} = ${nf(s.rr)}`)}</p>
+  <p class="final"><i>Z</i>/<i>Y</i> = ${sig(s.ratio,3)}, recorded amplitude = ${sig(s.Z,3)} mm.</p>`,
+  fields:p=>[{id:"ratio",label:"<i>Z</i>/<i>Y</i>",unit:""},{id:"Z",label:"Recorded amplitude",unit:"mm"}],
+  truth:s=>({ratio:s.ratio,Z:s.Z}),
+  note:""
+};
+
+
+// ===== planted errors
+const FLAWS={};
+
+FLAWS["undamped-forced"]={n:3,step:2,
+  why:"<i>P</i>/<i>k</i> is the static deflection. At frequency ω the inertia force <i>m</i>ω²<i>X</i> opposes the spring, so the dynamic stiffness is <i>k</i> − <i>m</i>ω².",
+  wrong:(p,s)=>{const X=p.P/p.k;return {X,x1:X*(Math.sin(p.w*p.t1)-(p.w/s.wn)*Math.sin(s.wn*p.t1))}},
+  html:(p,s,w)=>`<h3>1. Transfer function</h3><p>${wn_} = ${sig(s.wn)} rad/s.</p>
+  <h3>2. Steady-state amplitude</h3><p>The spring resists the applied force: ${eq(`<i>X</i> = <i>P</i>/<i>k</i> = ${sig(w.X)} m`)}</p>
+  <h3>3. Complete response from rest</h3><p class="final"><i>X</i> = ${sig(w.X,3)} m, <i>x</i>(${nf(p.t1)}) = ${sig(w.x1,3)} m.</p>`};
+
+FLAWS["damped-forced"]={n:3,step:3,
+  why:"Above resonance <i>k</i> − <i>m</i>ω² is negative, so the phase lies between 90° and 180°. A one-argument arctangent returns an angle in the wrong quadrant.",
+  wrong:(p,s)=>({X:s.X,ph:Math.atan((p.b*p.w)/(p.k-p.m*p.w*p.w))*180/PI}),
+  html:(p,s,w)=>`<h3>1. Sinusoidal transfer function</h3><p><i>k</i> − <i>m</i>ω² = ${sig(p.k-p.m*p.w*p.w)} N/m, <i>b</i>ω = ${sig(p.b*p.w)} N/m.</p>
+  <h3>2. Amplitude</h3><p>${eq(`<i>X</i> = ${sig(s.X)} m`)}</p>
+  <h3>3. Phase</h3><p>${eq(`φ = tan<sup>−1</sup>${frac("<i>b</i>ω","<i>k</i> − <i>m</i>ω²")} = ${sig(w.ph)}°`)}</p><p class="final"><i>X</i> = ${sig(w.X,3)} m, φ = ${sig(w.ph,3)}°.</p>`};
+
+FLAWS["rc-sinusoidal"]={n:2,step:2,
+  why:"The magnitude of the complex number 1 + <i>j</i>ω<i>RC</i> is √(1 + (ω<i>RC</i>)²). Its real and imaginary parts do not add arithmetically.",
+  wrong:(p,s)=>({A:p.Ei/(1+s.wt),ph:s.ph}),
+  html:(p,s,w)=>`<h3>1. Sinusoidal transfer function</h3><p>ω<i>RC</i> = ${sig(s.wt)}.</p>
+  <h3>2. Magnitude and phase</h3><p>${eq(`|<i>G</i>| = 1/(1 + ω<i>RC</i>) = ${sig(1/(1+s.wt))}`)} ${eq(`∠<i>G</i> = ${sig(s.ph)}°`)}</p><p class="final">Amplitude = ${sig(w.A,3)} V, phase = ${sig(w.ph,3)}°.</p>`};
+
+FLAWS["rotating-unbalance"]={n:3,step:3,
+  why:"The damper also transmits force to the foundation, <i>b</i>ẋ, which is 90° out of phase with the spring force <i>kx</i>. The transmitted amplitude is <i>X</i>√(<i>k</i>² + (<i>b</i>ω)²).",
+  wrong:(p,s)=>({X:s.X,F:p.k*s.X/1000}),
+  html:(p,s,w)=>`<h3>1. Excitation</h3><p><i>me</i>ω² = ${sig(p.m*p.e*s.w*s.w)} N.</p>
+  <h3>2. Amplitude</h3><p>${eq(`<i>X</i> = ${sig(s.X)} mm`)}</p>
+  <h3>3. Transmitted force</h3><p>The foundation is loaded through the isolator spring: ${eq(`<i>F<sub>T</sub></i> = <i>kX</i>`)}</p><p class="final"><i>X</i> = ${sig(w.X,3)} mm, <i>F<sub>T</sub></i> = ${sig(w.F,3)} N.</p>`};
+
+FLAWS["transmissibility"]={n:2,step:2,
+  why:"The force reaching the foundation is <i>kx</i> + <i>b</i>ẋ, not the spring force alone. This adds the factor √(1 + (2ζ<i>r</i>)²) in the numerator.",
+  wrong:(p,s)=>({rr:s.rr,TR:1/Math.hypot(1-s.rr*s.rr,2*p.z*s.rr)}),
+  html:(p,s,w)=>`<h3>1. Frequency ratio</h3><p><i>r</i> = ${sig(s.rr)}.</p>
+  <h3>2. Transmissibility</h3><p>The ratio of the transmitted force to the applied force equals the dynamic magnification factor: ${eq(`TR = 1/√((1 − <i>r</i>²)² + (2ζ<i>r</i>)²)`)}</p><p class="final"><i>r</i> = ${sig(w.rr,3)}, TR = ${sig(w.TR,3)}.</p>`};
+
+FLAWS["vibration-absorber"]={n:2,step:1,
+  why:"The machine stays still only when the absorber's own natural frequency equals the operating frequency ω. Tuning it to the machine's natural frequency √(<i>k</i>/<i>m</i>) works only when ω equals that frequency exactly.",
+  wrong:(p,s)=>{const ka=p.ma*p.k/p.m;return {ka,Xa:p.P/ka*1000}},
+  html:(p,s,w)=>`<h3>1. Condition for zero machine motion</h3><p>The absorber is tuned to the natural frequency of the machine: ${eq(`<i>k<sub>a</sub></i>/<i>m<sub>a</sub></i> = <i>k</i>/<i>m</i>`)}</p>
+  <h3>2. Absorber stiffness and amplitude</h3><p class="final"><i>k<sub>a</sub></i> = ${sig(w.ka,3)} N/m, |<i>X<sub>a</sub></i>| = ${sig(w.Xa,3)} mm.</p>`};
+
+FLAWS["two-dof-modes"]={n:3,step:2,
+  why:"The coupling spring <i>k</i><sub>2</sub> links the two equations, so the natural frequencies come from the determinant of the coupled system. Treating each mass separately, with the other held fixed, ignores the term −<i>k</i><sub>2</sub>².",
+  wrong:(p,s)=>{const a=Math.sqrt((p.k1+p.k2)/p.m1),b=Math.sqrt((p.k2+p.k3)/p.m2),w1=Math.min(a,b),w2=Math.max(a,b);return {w1,w2,r1:(p.k1+p.k2-p.m1*w1*w1)/p.k2}},
+  html:(p,s,w)=>`<h3>1. Equations of motion</h3><p>As in the correct solution.</p>
+  <h3>2. Frequency equation</h3><p>Each mass vibrates on the springs attached to it: ${eq(`ω = √((<i>k</i><sub>1</sub> + <i>k</i><sub>2</sub>)/<i>m</i><sub>1</sub>)`)} and ${eq(`ω = √((<i>k</i><sub>2</sub> + <i>k</i><sub>3</sub>)/<i>m</i><sub>2</sub>)`)}</p>
+  <h3>3. Mode shape</h3><p class="final">ω<sub>1</sub> = ${sig(w.w1,3)} rad/s, ω<sub>2</sub> = ${sig(w.w2,3)} rad/s, <i>X</i><sub>2</sub>/<i>X</i><sub>1</sub> = ${sig(w.r1,3)}.</p>`};
+
+FLAWS["seismic-instrument"]={n:2,step:1,
+  why:"The instrument records the relative motion <i>z</i> = <i>x</i> − <i>y</i>, which is driven by the inertia force −<i>m</i>ÿ. The ratio √(1 + (2ζ<i>r</i>)²)/√((1 − <i>r</i>²)² + (2ζ<i>r</i>)²) is the absolute-motion transmissibility <i>X</i>/<i>Y</i>.",
+  wrong:(p,s)=>{const ratio=Math.hypot(1,2*p.z*s.rr)/Math.hypot(1-s.rr*s.rr,2*p.z*s.rr);return {ratio,Z:p.Y*ratio}},
+  html:(p,s,w)=>`<h3>1. Relative-motion equation</h3><p>The mass follows the base through the spring and damper: ${eq(`<i>mẍ</i> + <i>b</i>(ẋ − ẏ) + <i>k</i>(<i>x</i> − <i>y</i>) = 0`)}, so ${eq(`${frac("<i>Z</i>","<i>Y</i>")} = ${frac("√(1 + (2ζ<i>r</i>)²)","√((1 − <i>r</i>²)² + (2ζ<i>r</i>)²)")}`)}</p>
+  <h3>2. Evaluate</h3><p class="final"><i>Z</i>/<i>Y</i> = ${sig(w.ratio,3)}, recorded amplitude = ${sig(w.Z,3)} mm.</p>`};
+// ===== error report form (Google Form with prefilled fields)
+// Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
+const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLScjsI98ID72Fn3xgheP4VJIsApQnUPwZpik_x4HQVk6annBhQ/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+function reportUrl(){
+  const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
+  q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
+  return FORM.url+"?"+q.toString();
+}
+
+// ===== page
+let curKey=Object.keys(TEMPLATES)[0], cur=null, curFields=[], curTruth={}, curMode="practice";
+const $=id=>document.getElementById(id);
+const hunting=()=>curMode==="error";
+
+function fillTypes(){
+  const keys=hunting()?Object.keys(FLAWS):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];
+  return curKey;
+}
+
+function setMode(mode,key,seed){
+  curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";
+  $("mError").className=mode==="error"?"":"ghost";
+  $("reportRow").firstElementChild.textContent=hunting()
+    ?"Found a mistake other than the planted one?"
+    :"Found a mistake in a problem or its solution?";
+  curKey=key||curKey; const k=fillTypes();
+  render(k,seed||parseInt($("seedIn").value,10)||1);
+}
+
+function render(key,seed){
+  curKey=key; const T=TEMPLATES[key], F=hunting()?FLAWS[key]:null;
+  cur=T.generate(seed); const {p,s}=cur;
+  $("typeSel").value=key; $("seedIn").value=seed;
+  try{history.replaceState(null,"","#"+key+"-"+seed+(hunting()?"-e":""))}catch(e){}
+  $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
+  $("statement").innerHTML=T.statement(p,s);
+  $("flawCard").style.display=F?"":"none";
+  $("flawed").innerHTML=F?F.html(p,s,F.wrong(p,s)):"";
+  curFields=T.fields(p,s); curTruth=T.truth(s);
+  if(F){const steps=[];for(let i=1;i<=F.n;i++)steps.push(String(i));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];
+    curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
+    ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
+    :`<input id="in-${f.id}" type="text" inputmode="decimal"> <span class="note">${f.unit}</span>`}</span><span class="mark" id="mk-${f.id}"></span>`).join("");
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+"Answers within 2% are accepted. "+(T.note||"");
+  const sol=$("solution"); sol.style.display="none";
+  sol.innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+T.solution(p,s);
+  $("solBtn").textContent=F?"Show the correct solution":"Show solution";
+}
+
+function check(){
+  const truth=curTruth;
+  const scaleOf=u=>Math.max(...curFields.filter(f=>f.unit===u&&typeof truth[f.id]==="number").map(f=>Math.abs(truth[f.id])));
+  curFields.forEach(f=>{
+    const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
+    if(raw===""){el.textContent="";el.className="mark";return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    let v=parseFloat(raw), t=truth[f.id];
+    if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
+    const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scaleOf(f.unit):0);
+    const ok=isFinite(v)&&Math.abs(v-t)<=tol;
+    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+  });
+}
+
+if(typeof document!=="undefined"){
+  const newSeed=()=>1+Math.floor(Math.random()*999999);
+  $("typeSel").onchange=e=>render(e.target.value,newSeed());
+  $("newBtn").onclick=()=>render(curKey,newSeed());
+  $("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+  $("checkBtn").onclick=check;
+  $("mPractice").onclick=()=>setMode("practice");
+  $("mError").onclick=()=>setMode("error");
+  if(FORM.url)$("reportRow").style.display="";
+  $("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+  $("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+    s.style.display=show?"block":"none";
+    e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+  (function(){
+    const m=/^#([a-z0-9-]+)-(\d+)(-e)?$/.exec(location.hash);
+    if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWS[m[1]])) setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+    else setMode("practice",Object.keys(TEMPLATES)[0],newSeed());
+  })();
+}
+if(typeof module!=="undefined")module.exports={TEMPLATES,FLAWS};
+
+</script>
+</body>
+</html>
