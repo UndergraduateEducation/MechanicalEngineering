@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thermodynamics: Problem Generator</title>
+<style>
+  :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#fff;--accent:#1e5a32;--part:#eec878;--partline:#7d5014}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 Georgia,"Times New Roman",serif}
+  header,main,footer{max-width:900px;margin:0 auto;padding:0 24px}
+  header{padding-top:42px;padding-bottom:6px;border-bottom:3px solid var(--part)}
+  h1{font-size:2rem;font-weight:600;margin:0 0 .3em}
+  .lede{color:var(--muted);margin:0 0 1.2em;max-width:46em}
+  .card{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--part);border-radius:10px;padding:18px 22px;margin:22px 0}
+  .card.soon{background:transparent;border-style:dashed;border-left-style:dashed}
+  .card.soon h2{color:var(--muted)}
+  .head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .num{font-family:system-ui,sans-serif;font-weight:700;color:var(--partline);font-size:1.1rem}
+  h2{font-size:1.3rem;font-weight:600;margin:0}
+  h2 a{color:var(--ink);text-decoration:none} h2 a:hover{color:var(--accent)}
+  .card p{margin:.5em 0}
+  .btn{display:inline-block;font-family:system-ui,sans-serif;font-size:.9rem;background:var(--accent);color:#fff;text-decoration:none;border-radius:7px;padding:7px 16px}
+  .btn:hover{filter:brightness(1.1)}
+  .how{font-size:.95rem;color:var(--muted)}
+  footer{padding:18px 24px 40px;color:var(--muted);font-family:system-ui,sans-serif;font-size:.8rem}
+</style>
+</head>
+<body>
+<header>
+  <h1>Thermodynamics: Problem Generator</h1>
+  <p class="lede">Practice problems for an undergraduate engineering thermodynamics course, generated on demand. Each problem is a fresh variant of a classic textbook exercise, with its own numbers, a figure, an answer checker, and a worked solution. The chapters follow the order of the standard text.</p>
+</header>
+<main>
+  <section class="how">
+    <h2 style="font-size:1.1rem">How to use</h2>
+    <p>Choose a chapter, pick a problem type, and press <b>New problem</b>. Enter your answers and press <b>Check answers</b>; numerical answers within 2% are accepted. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Property data for water, refrigerant R-134a, and common gases are computed in the page, so no tables are required.</p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">1</span><h2><a href="ConceptsAndDefinitionsProblemGenerator.html">Getting Started: Concepts and Definitions</a></h2></div>
+    <p>Weight and mass, pressure of gases under pistons, manometers and liquid columns, temperature scales, specific volume and density, deceleration forces, and polytropic pressure-volume relations.</p>
+    <p class="go"><a class="btn" href="ConceptsAndDefinitionsProblemGenerator.html">Open the concepts and definitions generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">2</span><h2><a href="EnergyAndFirstLawProblemGenerator.html">Energy and the First Law of Thermodynamics</a></h2></div>
+    <p>Kinetic and potential energy, work of expansion for polytropic and linear processes, spring-loaded pistons, electrical and shaft power, conduction, convection and radiation, closed system energy balances, and power and refrigeration cycles.</p>
+    <p class="go"><a class="btn" href="EnergyAndFirstLawProblemGenerator.html">Open the energy and first law generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">3</span><h2><a href="PropertiesProblemGenerator.html">Evaluating Properties</a></h2></div>
+    <p>Phase identification, steam and refrigerant tables, quality, liquid and vapor masses in a tank, constant-pressure and constant-volume processes of water, the ideal gas model, and specific heats.</p>
+    <p class="go"><a class="btn" href="PropertiesProblemGenerator.html">Open the properties generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">4</span><h2><a href="ControlVolumeEnergyProblemGenerator.html">Control Volume Analysis Using Energy</a></h2></div>
+    <p>Mass flow rate, steam turbines, nozzles and diffusers, compressors, heat exchangers, throttling valves, mixing chambers, pumps, and transient filling of tanks.</p>
+    <p class="go"><a class="btn" href="ControlVolumeEnergyProblemGenerator.html">Open the control volume energy generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">5</span><h2><a href="SecondLawProblemGenerator.html">The Second Law of Thermodynamics</a></h2></div>
+    <p>Thermal reservoirs, Kelvin-Planck and Clausius statements, maximum performance of power cycles, refrigerators and heat pumps, the Carnot cycle, and the check of claimed cycle performance.</p>
+    <p class="go"><a class="btn" href="SecondLawProblemGenerator.html">Open the second law generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">6</span><h2><a href="EntropyProblemGenerator.html">Using Entropy</a></h2></div>
+    <p>Entropy changes from tables and from the ideal gas model, entropy balances for closed systems and control volumes, isentropic processes, isentropic efficiencies of turbines, nozzles and compressors, and entropy production.</p>
+    <p class="go"><a class="btn" href="EntropyProblemGenerator.html">Open the entropy generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">7</span><h2><a href="ExergyProblemGenerator.html">Exergy Analysis</a></h2></div>
+    <p>Exergy of closed systems, exergy transfer by heat and work, flow exergy, exergy destruction, and exergetic efficiencies of turbines, compressors and heat exchangers.</p>
+    <p class="go"><a class="btn" href="ExergyProblemGenerator.html">Open the exergy generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">8</span><h2><a href="VaporPowerProblemGenerator.html">Vapor Power Systems</a></h2></div>
+    <p>The Rankine cycle with ideal and non-ideal components, superheat and reheat, open and closed feedwater heating, condenser cooling water, and steam generator heat input.</p>
+    <p class="go"><a class="btn" href="VaporPowerProblemGenerator.html">Open the vapor power generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">9</span><h2><a href="GasPowerProblemGenerator.html">Gas Power Systems</a></h2></div>
+    <p>Air-standard Otto, Diesel and dual cycles, the Brayton cycle with ideal and non-ideal components, regeneration, intercooling and reheat.</p>
+    <p class="go"><a class="btn" href="GasPowerProblemGenerator.html">Open the gas power generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">10</span><h2><a href="RefrigerationProblemGenerator.html">Refrigeration and Heat Pump Systems</a></h2></div>
+    <p>Vapor-compression refrigeration with R-134a, compressor efficiency, subcooling, superheating, heat pump heating, comparison with the Carnot cycle, and the gas refrigeration cycle.</p>
+    <p class="go"><a class="btn" href="RefrigerationProblemGenerator.html">Open the refrigeration and heat pump generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">11</span><h2><a href="ThermodynamicRelationsProblemGenerator.html">Thermodynamic Relations</a></h2></div>
+    <p>Equations of state, the van der Waals and Redlich-Kwong equations, Maxwell relations, the Clapeyron equation, Joule-Thomson coefficient, and specific heat relations.</p>
+    <p class="go"><a class="btn" href="ThermodynamicRelationsProblemGenerator.html">Open the thermodynamic relations generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">12</span><h2><a href="MixturesAndPsychrometricsProblemGenerator.html">Ideal Gas Mixtures and Psychrometrics</a></h2></div>
+    <p>Mixture composition, partial pressures, mixture properties, adiabatic mixing of gas streams, humidity ratio, dew point, dehumidification, evaporative cooling, and mixing of moist air streams.</p>
+    <p class="go"><a class="btn" href="MixturesAndPsychrometricsProblemGenerator.html">Open the mixtures and psychrometrics generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">13</span><h2><a href="CombustionProblemGenerator.html">Reacting Mixtures and Combustion</a></h2></div>
+    <p>Balancing combustion equations, air-fuel ratio, excess air, dry product analysis, dew point of products, heating values, energy balances for reactors, and adiabatic flame temperature.</p>
+    <p class="go"><a class="btn" href="CombustionProblemGenerator.html">Open the combustion generator</a></p>
+  </section>
+  <section class="card">
+    <div class="head"><span class="num">14</span><h2><a href="EquilibriumProblemGenerator.html">Chemical and Phase Equilibrium</a></h2></div>
+    <p>Equilibrium constants, equilibrium composition of dissociating gases, the effect of pressure and temperature, the van't Hoff equation, the Gibbs phase rule, Raoult's law and Henry's law.</p>
+    <p class="go"><a class="btn" href="EquilibriumProblemGenerator.html">Open the chemical and phase equilibrium generator</a></p>
+  </section>
+</main>
+<footer>The problems are for practice. Answers and solutions are computed in the page itself. SI units are used throughout.</footer>
+</body>
+</html>
