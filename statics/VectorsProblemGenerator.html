@@ -64,7 +64,7 @@
     <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
     <button class="ghost" id="loadBtn">Load seed</button>
   </div>
-  <div class="card"><div id="fig"></div></div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
   <div class="card">
     <div class="answers" id="answers"></div>
@@ -106,7 +106,7 @@ const it=v=>`<tspan font-style="italic">${v}</tspan>`;
 // ----- figure toolkit (2D drawing of arrows, lines, points, arcs, text)
 const COL={k:"#222",r:"#aa1e28",b:"#2b5d8a",g:"#1e5a32",m:"#7d5014",x:"#888"};
 function draw(els,W=520,H=330){
-  const pts=[];els.forEach(e=>{[e.a,e.b,e.p].forEach(q=>q&&pts.push(q));
+  const pts=[];els.forEach(e=>{[e.a,e.b,e.p].forEach(q=>q&&pts.push(q));(e.pts||[]).forEach(q=>pts.push(q));
     if(e.t==="arc"){pts.push([e.p[0]+e.r,e.p[1]+e.r],[e.p[0]-e.r,e.p[1]-e.r])}});
   const x0=Math.min(...pts.map(q=>q[0])),x1=Math.max(...pts.map(q=>q[0])),y0=Math.min(...pts.map(q=>q[1])),y1=Math.max(...pts.map(q=>q[1]));
   const mx=80,my=46,s=Math.min((W-2*mx)/Math.max(x1-x0,1e-6),(H-2*my)/Math.max(y1-y0,1e-6));
@@ -118,6 +118,7 @@ function draw(els,W=520,H=330){
     const c=e.c||"k";
     if(e.t==="pt"){const px=X(e.p),py=Y(e.p);o+=`<circle cx="${f1(px)}" cy="${f1(py)}" r="3.6" fill="${COL[c]}"/>`;
       if(e.l)o+=`<text x="${f1(px+(e.dx??8))}" y="${f1(py+(e.dy??-8))}" text-anchor="${e.an||"start"}" class="halo">${e.l}</text>`;return}
+    if(e.t==="poly"){o+=`<polygon points="${e.pts.map(q=>f1(X(q))+","+f1(Y(q))).join(" ")}" fill="${e.fill||"#eec878"}" stroke="#7d5014" stroke-width="1.6"/>`;return}
     if(e.t==="txt"){o+=`<text x="${f1(X(e.p))}" y="${f1(Y(e.p))}" text-anchor="${e.an||"middle"}" class="halo">${e.l}</text>`;return}
     if(e.t==="arc"){const n=[];for(let t=e.t0;t<=e.t1+1e-6;t+=2)n.push(f1(X([e.p[0]+e.r*cs(t),0]))+","+f1(Y([0,e.p[1]+e.r*sn(t)])));
       o+=`<polyline points="${n.join(" ")}" fill="none" stroke="#222" stroke-width="1.1"/>`;
@@ -136,6 +137,7 @@ const P3=q=>[q[1]-0.42*q[0],q[2]-0.3*q[0]];
 function axes3(pts){const e=Math.max(2,...pts.flat().map(Math.abs))+1.2;
   return [["x",[e,0,0]],["y",[0,e,0]],["z",[0,0,e]]].map(([n,v])=>({a:P3([0,0,0]),b:P3(v),l:`<tspan font-style="italic">${n}</tspan>`,c:"x",d:1,w:1.1,off:10}))}
 const lab3=(n,q,p,dx,dy)=>({t:"pt",p:P3(q),l:`<tspan font-style="italic">${n}</tspan>${p?`(${q.join(", ")})`:""}`,dx,dy});
+const sep=pts=>{let m=1e9;for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){const a=P3(pts[i]),b=P3(pts[j]);m=Math.min(m,Math.hypot(a[0]-b[0],a[1]-b[1]))}return m};
 const sk3=(pts,extra)=>draw([...axes3(pts),...extra],560,360);
 
 // ----- templates
@@ -152,11 +154,6 @@ TEMPLATES["resultant-2d"]={
       return {p,s:{Rx,Ry,R,th:deg(Math.atan2(Ry,Rx))}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>Two forces act on a ring. <i>F</i><sub>1</sub> = ${p.F1} ${FU(p)} acts ${ang(p.t1)} counterclockwise from the +<i>x</i> axis, and <i>F</i><sub>2</sub> = ${p.F2} ${FU(p)} acts ${ang(p.t2)} counterclockwise from the +<i>x</i> axis. Determine the magnitude <i>R</i> of the resultant force and the angle <i>θ</i> it makes with the +<i>x</i> axis, measured counterclockwise with &minus;180° &lt; <i>θ</i> &le; 180°.</p>`,
-  figure:p=>{const m=Math.max(p.F1,p.F2),a=p.F1/m,b=p.F2/m;
-    return draw([{a:[0,0],b:[1.25,0],l:it("x"),c:"x",d:1,w:1.1,off:8},{a:[0,0],b:[0,1.25],l:it("y"),c:"x",d:1,w:1.1,off:8},
-      {a:[0,0],b:[a*cs(p.t1),a*sn(p.t1)],c:"r",l:`${it("F")}<tspan baseline-shift="sub" font-size="12">1</tspan> = ${p.F1} ${FU(p)}`},
-      {a:[0,0],b:[b*cs(p.t2),b*sn(p.t2)],c:"r",l:`${it("F")}<tspan baseline-shift="sub" font-size="12">2</tspan> = ${p.F2} ${FU(p)}`},
-      {t:"arc",p:[0,0],r:.3,t0:Math.min(0,p.t1),t1:Math.max(0,p.t1),l:ang(p.t1)},{t:"arc",p:[0,0],r:.42,t0:Math.min(0,p.t2),t1:Math.max(0,p.t2),l:ang(p.t2)}])},
   solution:(p,s)=>`<h3>1. Components of each force</h3>
   <p>${eq(`F<sub>1x</sub> = ${p.F1} cos ${ang(p.t1)} = ${sig(p.F1*cs(p.t1))} ${FU(p)}`)} ${eq(`F<sub>1y</sub> = ${p.F1} sin ${ang(p.t1)} = ${sig(p.F1*sn(p.t1))} ${FU(p)}`)}</p>
   <p>${eq(`F<sub>2x</sub> = ${p.F2} cos ${ang(p.t2)} = ${sig(p.F2*cs(p.t2))} ${FU(p)}`)} ${eq(`F<sub>2y</sub> = ${p.F2} sin ${ang(p.t2)} = ${sig(p.F2*sn(p.t2))} ${FU(p)}`)}</p>
@@ -180,10 +177,6 @@ TEMPLATES["components-2d"]={
       return {p,s:{det,Fu:p.F*sn(p.b2-p.al)/det,Fv:p.F*sn(p.al-p.b1)/det}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>A force <i>F</i> = ${p.F} ${FU(p)} acts ${ang(p.al)} counterclockwise from the +<i>x</i> axis. Resolve <i>F</i> into two components, <i>F<sub>u</sub></i> along axis <i>u</i> at ${ang(p.b1)} from the +<i>x</i> axis and <i>F<sub>v</sub></i> along axis <i>v</i> at ${ang(p.b2)} from the +<i>x</i> axis. Report the signed magnitudes of <i>F<sub>u</sub></i> and <i>F<sub>v</sub></i>; a negative value means the component points opposite to the axis direction.</p>`,
-  figure:p=>draw([{a:[0,0],b:[1.3,0],l:it("x"),c:"x",d:1,w:1.1,off:8},{a:[0,0],b:[0,1.3],l:it("y"),c:"x",d:1,w:1.1,off:8},
-    {a:[0,0],b:[1.3*cs(p.b1),1.3*sn(p.b1)],l:it("u"),c:"b",w:1.8,d:1},{a:[0,0],b:[1.3*cs(p.b2),1.3*sn(p.b2)],l:it("v"),c:"g",w:1.8,d:1},
-    {a:[0,0],b:[cs(p.al),sn(p.al)],c:"r",l:`${it("F")} = ${p.F} ${FU(p)}`},
-    {t:"arc",p:[0,0],r:.3,t0:Math.min(0,p.al),t1:Math.max(0,p.al),l:ang(p.al)},{t:"arc",p:[0,0],r:.45,t0:Math.min(0,p.b1),t1:Math.max(0,p.b1),l:ang(p.b1)},{t:"arc",p:[0,0],r:.6,t0:Math.min(0,p.b2),t1:Math.max(0,p.b2),l:ang(p.b2)}]),
   solution:(p,s)=>`<h3>1. Set up the component equations</h3>
   <p>With unit vectors û = (cos ${ang(p.b1)}, sin ${ang(p.b1)}) and v̂ = (cos ${ang(p.b2)}, sin ${ang(p.b2)}), write <i>F</i> = <i>F<sub>u</sub></i>û + <i>F<sub>v</sub></i>v̂ in components:</p>
   <p>${eq(`F<sub>u</sub> cos ${ang(p.b1)} + F<sub>v</sub> cos ${ang(p.b2)} = ${sig(p.F*cs(p.al))}`)}</p>
@@ -208,10 +201,6 @@ TEMPLATES["force-from-points-2d"]={
       return {p,s:{dx,dy,d,Fx:p.F*dx/d,Fy:p.F*dy/d}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>A cable attached at ${P_("A",p.A,p)} pulls on a bracket with a tension of ${p.F} ${FU(p)}, directed toward point ${P_("B",p.B,p)}. Write the force as a Cartesian vector. Report its components <i>F<sub>x</sub></i> and <i>F<sub>y</sub></i> and the distance <i>d</i> between <i>A</i> and <i>B</i>.</p>`,
-  figure:p=>{const e=Math.max(...p.A.map(Math.abs),...p.B.map(Math.abs))+1,rt=p.B[0]>=p.A[0];
-    return draw([{a:[-e,0],b:[e,0],l:it("x"),c:"x",d:1,w:1.1,off:8},{a:[0,-e],b:[0,e],l:it("y"),c:"x",d:1,w:1.1,off:8},
-    {a:p.A,b:p.B,c:"m",t:"ln",w:3},{t:"pt",p:p.A,l:`${it("A")}(${p.A.join(", ")})`,dx:rt?-8:8,an:rt?"end":"start"},{t:"pt",p:p.B,l:`${it("B")}(${p.B.join(", ")})`,dx:rt?8:-8,an:rt?"start":"end"},
-    {a:p.A,b:p.B,c:"r",l:`${it("F")} = ${p.F} ${FU(p)}`,mid:1}])},
   solution:(p,s)=>`<h3>1. Position vector from A to B</h3>
   <p>${eq(`r<sub>AB</sub> = (${s.dx}, ${s.dy}) ${LU(p)}`)} ${eq(`d = √(${s.dx}² + ${s.dy}²) = ${sig(s.d,3)} ${LU(p)}`)}</p>
   <h3>2. Force vector</h3>
@@ -230,10 +219,6 @@ TEMPLATES["resultant-constraint"]={
     const F2=-p.F1*cs(p.t1)/cs(p.t2),Ry=p.F1*sn(p.t1)+F2*sn(p.t2);
     return {p,s:{F2,Ry,R:Math.abs(Ry)}};},
   statement:p=>`<p>A bolt is loaded by two forces. <i>F</i><sub>1</sub> = ${p.F1} ${FU(p)} acts ${ang(p.t1)} counterclockwise from the +<i>x</i> axis. <i>F</i><sub>2</sub> acts ${ang(p.t2)} counterclockwise from the +<i>x</i> axis, and its magnitude can be adjusted. Determine the magnitude of <i>F</i><sub>2</sub> for which the resultant of the two forces acts along the <i>y</i> axis, and the magnitude <i>R</i> of that resultant.</p>`,
-  figure:p=>draw([{a:[0,0],b:[1.3,0],l:it("x"),c:"x",d:1,w:1.1,off:8},{a:[0,0],b:[0,1.3],l:it("y"),c:"x",d:1,w:1.1,off:8},
-    {a:[0,0],b:[cs(p.t1),sn(p.t1)],c:"r",l:`${it("F")}<tspan baseline-shift="sub" font-size="12">1</tspan> = ${p.F1} ${FU(p)}`},
-    {a:[0,0],b:[.8*cs(p.t2),.8*sn(p.t2)],c:"r",l:`${it("F")}<tspan baseline-shift="sub" font-size="12">2</tspan>`},
-    {t:"arc",p:[0,0],r:.3,t0:0,t1:p.t1,l:ang(p.t1)},{t:"arc",p:[0,0],r:.45,t0:0,t1:p.t2,l:ang(p.t2)}]),
   solution:(p,s)=>`<h3>1. Condition on the x components</h3>
   <p>The resultant is along <i>y</i> when its <i>x</i> component is zero: ${eq(`F<sub>1</sub> cos ${ang(p.t1)} + F<sub>2</sub> cos ${ang(p.t2)} = 0`)}.</p>
   <p class="final">F<sub>2</sub> = &minus;F<sub>1</sub> cos ${ang(p.t1)} / cos ${ang(p.t2)} = ${sig(s.F2,3)} ${FU(p)}.</p>
@@ -256,9 +241,6 @@ TEMPLATES["direction-angles"]={
       return {p,s:{c2,cg,g:deg(Math.acos(cg)),Fx:p.F*cs(p.a),Fy:p.F*cs(p.b),Fz:p.F*cg}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>A force of magnitude ${p.F} ${FU(p)} has direction angles <i>α</i> = ${p.a}° from the +<i>x</i> axis and <i>β</i> = ${p.b}° from the +<i>y</i> axis. The direction angle <i>γ</i> from the +<i>z</i> axis is ${p.sg>0?"acute":"obtuse"}. Determine <i>γ</i> and the Cartesian components <i>F<sub>x</sub></i>, <i>F<sub>y</sub></i>, and <i>F<sub>z</sub></i>.</p>`,
-  figure:p=>{const c=[cs(p.a),cs(p.b),p.sg*Math.sqrt(Math.max(1-cs(p.a)**2-cs(p.b)**2,0))].map(x=>x*3.5);
-    return sk3([[3.5,3.5,3.5]],[{a:P3([0,0,0]),b:P3(c),c:"r",l:`${it("F")} = ${p.F} ${FU(p)}`},
-      {a:P3(c),b:P3([c[0],c[1],0]),c:"x",t:"ln",d:1,w:1},{a:P3([c[0],c[1],0]),b:P3([c[0],0,0]),c:"x",t:"ln",d:1,w:1},{a:P3([c[0],c[1],0]),b:P3([0,c[1],0]),c:"x",t:"ln",d:1,w:1}])},
   solution:(p,s)=>`<h3>1. Third direction angle</h3>
   <p>The direction cosines satisfy ${eq("cos²α + cos²β + cos²γ = 1")}, so ${eq(`cos²γ = 1 − ${sig(cs(p.a)**2)} − ${sig(cs(p.b)**2)} = ${sig(s.c2)}`)}.</p>
   <p>For an ${p.sg>0?"acute":"obtuse"} angle, cos γ = ${sig(s.cg)}.</p>
@@ -325,11 +307,10 @@ TEMPLATES["angle-between-members"]={
     for(let k=0;k<5000;k++){
       const p={us:r()<.5,A:rv(r,-5,5),B:rv(r,-5,5),C:rv(r,-5,5)};
       const u=sub(p.B,p.A),v=sub(p.C,p.A),c=dot(u,v)/(nrm(u)*nrm(v));
-      if(nrm(u)<=2||nrm(v)<=2||Math.abs(c)>=.97) continue;
+      if(nrm(u)<=2||nrm(v)<=2||Math.abs(c)>=.97||sep([p.A,p.B,p.C])<3) continue;
       return {p,s:{u,v,d:dot(u,v),c,th:deg(Math.acos(c))}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>Two straight members <i>AB</i> and <i>AC</i> of a space frame meet at joint ${P_("A",p.A,p)}. Their far ends are at ${P_("B",p.B,p)} and ${P_("C",p.C,p)}. Using the dot product, determine the angle <i>θ</i> between the members at <i>A</i>, with 0° &le; <i>θ</i> &le; 180°.</p>`,
-  figure:p=>sk3([p.A,p.B,p.C],[{a:P3(p.A),b:P3(p.B),c:"m",t:"ln",w:3},{a:P3(p.A),b:P3(p.C),c:"m",t:"ln",w:3},lab3("A",p.A,1,-10,16),lab3("B",p.B,1,8,-8),lab3("C",p.C,1,8,-8)]),
   solution:(p,s)=>`<h3>1. Member vectors</h3>
   <p>${eq(`r<sub>AB</sub> = ${fv(s.u)}`)} ${eq(`r<sub>AC</sub> = ${fv(s.v)}`)}</p>
   <h3>2. Dot product</h3>
@@ -353,8 +334,6 @@ TEMPLATES["force-components-along-line"]={
       return {p,s:{r:rr,d,lam,par,perp:Math.sqrt(Math.max(nrm(p.F)**2-par**2,0)),Fm:nrm(p.F)}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>A force <b>F</b> = ${fv(p.F,3)} ${FU(p)} acts at a point on a straight rod <i>AB</i>. Point <i>A</i> is at (${p.A.join(", ")}) ${LU(p)} and point <i>B</i> is at (${p.B.join(", ")}) ${LU(p)}. Determine the component of <b>F</b> parallel to the rod, with sign positive in the direction from <i>A</i> to <i>B</i>, and the magnitude of the component of <b>F</b> perpendicular to the rod.</p>`,
-  figure:p=>{const m=Math.max(...p.F.map(Math.abs)),tip=p.A.map((x,i)=>x+p.F[i]/m*2.5);
-    return sk3([p.A,p.B,tip],[{a:P3(p.A),b:P3(p.B),c:"m",t:"ln",w:3},lab3("A",p.A,1,-10,16),lab3("B",p.B,1,8,-8),{a:P3(p.A),b:P3(tip),c:"r",l:it("F"),off:6}])},
   solution:(p,s)=>`<h3>1. Unit vector along the rod</h3>
   <p>${eq(`r<sub>AB</sub> = ${fv(s.r)} ${LU(p)}`)} ${eq(`λ<sub>AB</sub> = r<sub>AB</sub>/${sig(s.d)} = ${fv(s.lam)}`)}</p>
   <h3>2. Parallel and perpendicular components</h3>
@@ -374,11 +353,10 @@ TEMPLATES["point-to-line"]={
     for(let k=0;k<5000;k++){
       const p={us:r()<.5,A:rv(r,-5,5),B:rv(r,-5,5),P:rv(r,-5,5)};
       const rr=sub(p.B,p.A),q=sub(p.P,p.A),d=nrm(crs(rr,q))/nrm(rr);
-      if(nrm(rr)<4||d<1.5) continue;
+      if(nrm(rr)<4||d<1.5||sep([p.A,p.B,p.P])<3) continue;
       return {p,s:{r:rr,q,d,par:dot(q,rr)/nrm(rr)}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>A straight conduit passes through ${P_("A",p.A,p)} and ${P_("B",p.B,p)}. A sensor is mounted at ${P_("P",p.P,p)}. Determine the shortest distance <i>d</i> from the sensor to the line <i>AB</i>.</p>`,
-  figure:p=>sk3([p.A,p.B,p.P],[{a:P3(p.A),b:P3(p.B),c:"m",t:"ln",w:3},{a:P3(p.A),b:P3(p.P),c:"x",t:"ln",d:1,w:1.2},lab3("A",p.A,1,-10,16),lab3("B",p.B,1,8,-8),lab3("P",p.P,1,8,-8)]),
   solution:(p,s)=>`<h3>1. Vectors from A</h3>
   <p>${eq(`r<sub>AB</sub> = ${fv(s.r)} ${LU(p)}`)} ${eq(`r<sub>AP</sub> = ${fv(s.q)} ${LU(p)}`)}</p>
   <h3>2. Component along the line, then the remainder</h3>
@@ -398,11 +376,10 @@ TEMPLATES["plate-normal-area"]={
     for(let k=0;k<5000;k++){
       const p={us:r()<.5,A:rv(r,-5,5),B:rv(r,-5,5),C:rv(r,-5,5)};
       const u=sub(p.B,p.A),v=sub(p.C,p.A),n=crs(u,v);
-      if(nrm(n)<4) continue;
+      if(nrm(n)<8||sep([p.A,p.B,p.C])<3.5) continue;
       return {p,s:{u,v,n,area:nrm(n)/2,nh:n.map(x=>x/nrm(n))}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>A triangular gusset plate has corners at ${P_("A",p.A,p)}, ${P_("B",p.B,p)}, and ${P_("C",p.C,p)}. Using the cross product, determine the area of the plate and the components <i>n<sub>x</sub></i>, <i>n<sub>y</sub></i>, <i>n<sub>z</sub></i> of the unit vector <b>n</b> normal to the plate, taking <b>n</b> in the direction of <b>r</b><sub><i>AB</i></sub> &times; <b>r</b><sub><i>AC</i></sub>.</p>`,
-  figure:p=>sk3([p.A,p.B,p.C],[{a:P3(p.A),b:P3(p.B),c:"m",t:"ln",w:3},{a:P3(p.B),b:P3(p.C),c:"m",t:"ln",w:3},{a:P3(p.C),b:P3(p.A),c:"m",t:"ln",w:3},lab3("A",p.A,1,-10,16),lab3("B",p.B,1,8,-8),lab3("C",p.C,1,8,-8)]),
   solution:(p,s)=>`<h3>1. Edge vectors and their cross product</h3>
   <p>${eq(`r<sub>AB</sub> = ${fv(s.u)}`)} ${eq(`r<sub>AC</sub> = ${fv(s.v)}`)}</p>
   <p>${eq(`r<sub>AB</sub> × r<sub>AC</sub> = ${fv(s.n)} ${LU(p)}²`)}, with magnitude ${sig(nrm(s.n))} ${LU(p)}².</p>
@@ -426,7 +403,6 @@ TEMPLATES["triple-product"]={
       return {p,s:{bc,T,V:Math.abs(T)}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>Three edge vectors of a skewed block, measured from one corner, are <b>a</b> = ${fv(p.a,3)} ${LU(p)}, <b>b</b> = ${fv(p.b,3)} ${LU(p)}, and <b>c</b> = ${fv(p.c,3)} ${LU(p)}. Evaluate the scalar triple product <b>a</b> &middot; (<b>b</b> &times; <b>c</b>) and determine the volume of the block. A negative triple product indicates a left-handed ordering of (<b>a</b>, <b>b</b>, <b>c</b>).</p>`,
-  figure:p=>sk3([p.a,p.b,p.c],[{a:P3([0,0,0]),b:P3(p.a),c:"r",l:it("a"),off:6},{a:P3([0,0,0]),b:P3(p.b),c:"b",l:it("b"),off:6},{a:P3([0,0,0]),b:P3(p.c),c:"g",l:it("c"),off:6}]),
   solution:(p,s)=>`<h3>1. Cross product of b and c</h3>
   <p>${eq(`b × c = ${fv(s.bc)} ${LU(p)}²`)}</p>
   <h3>2. Triple product and volume</h3>
@@ -456,7 +432,7 @@ function render(key,seed){
   cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
   $("typeSel").value=key; $("seedIn").value=seed;
   try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
-  $("fig").innerHTML=T.figure(p,s);
+  $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
   $("statement").innerHTML=T.statement(p,s);
   $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
