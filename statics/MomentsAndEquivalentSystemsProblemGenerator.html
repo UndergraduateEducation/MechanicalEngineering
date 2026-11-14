@@ -64,7 +64,7 @@
     <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
     <button class="ghost" id="loadBtn">Load seed</button>
   </div>
-  <div class="card"><div id="fig"></div></div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
   <div class="card">
     <div class="answers" id="answers"></div>
@@ -412,8 +412,6 @@ TEMPLATES["wrench-3d"]={
       return {p,s:{Fm,Cpar,Mp,x,y}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>A force-couple system at the origin <i>O</i> consists of the force <b>F</b> = ${fv(p.F)} ${FU(p)} and the couple moment <b>C</b> = ${fv(p.C)} ${MU(p)}. The system is equivalent to a wrench: a force and a parallel couple acting along one line. Determine the magnitude of the force, the moment of the wrench (positive when parallel to <b>F</b>), and the point (<i>x</i>, <i>y</i>, 0) where the axis of the wrench crosses the <i>xy</i> plane.</p>`,
-  figure:p=>{const Fm=nrm(p.F),Cm=nrm(p.C),f=p.F.map(v=>3*v/Fm),c=p.C.map(v=>3*v/Cm);
-    return sk3([f,c],[{a:P3([0,0,0]),b:P3(f),c:"r",l:it("F"),off:10},{a:P3([0,0,0]),b:P3(c),c:"b",l:it("C"),off:10},{t:"pt",p:P3([0,0,0]),l:it("O"),dx:8,dy:16,r:4.5}])},
   solution:(p,s)=>`<h3>1. Force magnitude</h3>
   <p>${eq(`F = |<b>F</b>| = ${sig(s.Fm)} ${FU(p)}`)}</p>
   <h3>2. Moment of the wrench</h3>
@@ -447,7 +445,7 @@ function render(key,seed){
   cur=T.generate(seed); const {p,s}=cur; curFields=T.fields(p,s);
   $("typeSel").value=key; $("seedIn").value=seed;
   try{history.replaceState(null,"","#"+key+"-"+seed)}catch(e){}
-  $("fig").innerHTML=T.figure(p,s);
+  $("figCard").style.display=T.figure?"":"none"; $("fig").innerHTML=T.figure?T.figure(p,s):"";
   $("statement").innerHTML=T.statement(p,s);
   $("answers").innerHTML=curFields.map(f=>`<label for="in-${f.id}">${f.label}</label><span>${f.choices
     ?`<select id="in-${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select>`
