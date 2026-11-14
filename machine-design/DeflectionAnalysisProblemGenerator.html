@@ -808,7 +808,7 @@ function srGenerate(seed){
 }
 function srStatement(p){
   return `<p>A steel split ring has a mean diameter of ${p.D} mm, a radial height <i>h</i> = ${p.h} mm, and an axial thickness <i>b</i> = ${p.b} mm. Two equal and opposite tangential forces <i>F</i>, applied at the split ends, open the split by δ = ${fmt(p.delta,2)} mm. Take <i>E</i> = 207 GPa and treat the ring as a thin curved beam.</p>
-  <p>Using Castigliano's theorem, find the force <i>F</i>, the maximum bending stress in the ring, and where it occurs.</p>`;
+  <p>Using Castigliano's theorem, find the force <i>F</i> and the maximum bending stress in the ring.</p>`;
 }
 function srFigure(p,s){
   const Rd=130, hd=Math.max(p.h/s.R*Rd,10), al={top:90,right:0,bottom:-90}[p.pos], g0=4, c=Math.PI/180, f1=v=>v.toFixed(1), it=v=>`<tspan font-style="italic">${v}</tspan>`;
@@ -1122,9 +1122,8 @@ const TEMPLATES={
   },
   "split-ring":{ name:"Split ring opened by tangential forces: Castigliano (SI)",
     generate:srGenerate, figure:srFigure, solution:srSolution, statement:srStatement,
-    fields:[{id:"F",label:"Force F",unit:"N"},{id:"sig",label:"Maximum bending stress",unit:"MPa"},
-      {id:"where",label:"Location of the maximum bending stress",unit:"",choices:["At the split","90° from the split","Opposite the split"]}],
-    truth:s=>({F:s.F,sig:s.sig,where:s.where}),
+    fields:[{id:"F",label:"Force F",unit:"N"},{id:"sig",label:"Maximum bending stress",unit:"MPa"}],
+    truth:s=>({F:s.F,sig:s.sig}),
     note:"Treat the ring as a thin curved beam and keep only the bending energy."
   },
   "partial-udl":{ name:"Simply supported beam, uniform load on part of the span (SI)",

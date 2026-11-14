@@ -396,7 +396,7 @@ const TEMPLATES={
     truth:s=>({kb:s.kb,Sf:s.Sf,b:s.b}), note:"Iterate: kb depends on b." },
   "combined-kf":{ name:"Combined bending, axial and torsion with K<sub>f</sub>: Goodman and yielding",
     generate:ckGenerate, figure:ckFigure, solution:ckSolution, statement:ckStatement,
-    get fields(){const u=cur&&cur.p.us?"kpsi":"MPa",f=[{id:"va",label:"σ′<sub>a</sub>",unit:u},{id:"vm",label:"σ′<sub>m</sub>",unit:u},{id:"nf",label:"Fatigue factor of safety (Goodman)",unit:""},{id:"ny",label:"Yield factor of safety",unit:""}];
+    get fields(){const u=cur&&cur.p.us?"kpsi":"MPa",f=[{id:"va",label:"σ′<sub>a</sub>",unit:u},{id:"vm",label:"σ′<sub>m</sub>",unit:u,signed:true},{id:"nf",label:"Fatigue factor of safety (Goodman)",unit:""},{id:"ny",label:"Yield factor of safety",unit:""}];
       if(cur&&cur.s.nf<1) f.push({id:"N",label:"Estimated life",unit:"cycles"}); return f},
     truth:s=>({va:s.va,vm:s.vm,nf:s.nf,ny:s.ny,N:s.N}), note:"If the fatigue factor of safety is below 1, also estimate the life." },
   "miner-manson":{ name:"Cumulative damage: Miner's rule and Manson's method",
