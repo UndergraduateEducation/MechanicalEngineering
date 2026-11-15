@@ -45,7 +45,7 @@
 <body>
 <header>
   <h1>Mechanics of Materials: Inelastic Action Problem Generator</h1>
-  <div class="sub">Elastoplastic torsion and bending, shape factors, residual stresses, and limit analysis of indeterminate bars and beams. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem.</div>
+  <div class="sub">Elastoplastic torsion and bending, shape factors, residual stresses, and limit analysis of indeterminate bars and beams. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem. <a href="index.html">All chapters</a></div>
 </header>
 <main>
   <div class="card howto">
@@ -60,7 +60,7 @@
     <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
     <button class="ghost" id="loadBtn">Load seed</button>
   </div>
-  <div class="card"><div id="fig"></div></div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
   <div class="card" id="flawCard" style="display:none">
     <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
@@ -317,7 +317,7 @@ const deg=r=>r*180/Math.PI;
 const tq=(v,us)=>sig(v*TU(us).tf,3), st=(v,us)=>sig(v*TU(us).sf,3), lb_=(v,us)=>sig(v/TU(us).lb,3);
 const GFILL={steel:"#dfe4ea",aluminum:"#eef1f4",bronze:"#ecd3a6",copper:"#e9b996",wood:"#f2d9b0"};
 // shaft segment as a cylinder seen from the side
-const CYL=(x1,x2,yc,r,f="#dfe4ea")=>`<path d="M${x1},${yc-r} L${x2},${yc-r} A${r*0.28},${r} 0 0 1 ${x2},${yc+r} L${x1},${yc+r}" fill="${f}" stroke="${C.steelln}" stroke-width="1.5"/>`+`<ellipse cx="${x1}" cy="${yc}" rx="${r*0.28}" ry="${r}" fill="${f}" stroke="${C.steelln}" stroke-width="1.5"/>`;
+const CYL=(x1,x2,yc,r,f="#dfe4ea")=>`<path d="M${x1},${yc-r} L${x2},${yc-r} L${x2},${yc+r} L${x1},${yc+r} A${r*0.28},${r} 0 0 1 ${x1},${yc-r} Z" fill="${f}" stroke="${C.steelln}" stroke-width="1.5"/>`+`<ellipse cx="${x2}" cy="${yc}" rx="${r*0.28}" ry="${r}" fill="${f}" stroke="${C.steelln}" stroke-width="1.5"/>`;
 // torque vector (right-hand rule): double-headed arrow along the axis
 function TV(x,y,dir,lab,c=C.load){const L=56,x2=x+dir*L;const hd=xx=>`<polygon points="${xx},${y} ${xx-dir*11},${y-5} ${xx-dir*11},${y+5}" fill="${c}"/>`;
   return LN(x,y,x2-dir*6,y,{c,w:2.2})+hd(x2)+hd(x2-dir*10)+TX(x+dir*L/2,y-10,lab,{s:13,c})}
@@ -384,7 +384,7 @@ function shGenerate(seed){
 function shFigure(p){
   const u=TU(p.us),x0=110,W=520,tot=p.L.reduce((a,b)=>a+b,0),md=Math.max(...p.d),yc=150;let x=x0,b="";const xs=[x0];p.L.forEach(l=>{x+=W*l/tot;xs.push(x)});
   b+=WALLV(xs[p.n]+4,yc-90,yc+90,false);
-  for(let i=p.n-1;i>=0;i--){const rr=22+38*p.d[i]/md;b+=CYL(xs[i],xs[i+1],yc,rr,GFILL[p.M[i]])+TX((xs[i]+xs[i+1])/2,yc+5,`${p.d[i]} ${u.L}`,{s:12})
+  for(let i=0;i<p.n;i++){const rr=22+38*p.d[i]/md;b+=CYL(xs[i],xs[i+1],yc,rr,GFILL[p.M[i]])+TX((xs[i]+xs[i+1])/2,yc+5,`${p.d[i]} ${u.L}`,{s:12})
     +DIMH(xs[i],xs[i+1],yc+90,`${lb_(p.L[i],p.us)} ${u.Lb}`)}
   p.T.forEach((t,i)=>{b+=TV(xs[i],yc-82-(i%2)*0,t>0?1:-1,`${tq(Math.abs(t),p.us)} ${u.T}`)+LN(xs[i],yc-76,xs[i],yc-60,{c:C.dim,w:1,d:"2 2"})+TX(xs[i],yc+70,NODES[i],{s:15,i:1})});
   b+=TX(xs[p.n]-10,yc+70,NODES[p.n],{s:15,i:1});
@@ -505,7 +505,7 @@ function iwGenerate(seed){
 }
 function iwFigure(p){
   const u=TU(p.us),x0=110,W=540,sc=W/(p.L[0]+p.L[1]),xB=x0+p.L[0]*sc,yc=150,md=Math.max(...p.d),rr=i=>22+38*p.d[i]/md;
-  let b=WALLV(x0,yc-90,yc+90,true)+WALLV(x0+W+6,yc-90,yc+90,false)+CYL(xB,x0+W,yc,rr(1),GFILL[p.M[1]])+CYL(x0,xB,yc,rr(0),GFILL[p.M[0]])
+  let b=WALLV(x0,yc-90,yc+90,true)+WALLV(x0+W+6,yc-90,yc+90,false)+CYL(x0,xB,yc,rr(0),GFILL[p.M[0]])+CYL(xB,x0+W,yc,rr(1),GFILL[p.M[1]])
    +TX((x0+xB)/2,yc+5,`${p.M[0]}, ${p.d[0]} ${u.L}`,{s:12})+TX((xB+x0+W)/2,yc+5,`${p.M[1]}, ${p.d[1]} ${u.L}`,{s:12})
    +TV(xB,yc-84,1,`T = ${tq(p.T,p.us)} ${u.T}`)+LN(xB,yc-78,xB,yc-62,{c:C.dim,w:1,d:"2 2"})
    +TX(x0+10,yc+76,"A",{s:15,i:1})+TX(xB,yc+76,"B",{s:15,i:1})+TX(x0+W-12,yc+76,"C",{s:15,i:1})
@@ -1726,7 +1726,7 @@ function render(key,seed){
   for(let i=0;i<60;i++){cur=T.generate(seed);if(!F)break;fr=flawRun(F,cur.p,cur.s,T);if(fr.vis)break;seed++}
   curKey=key;curSeed=seed;const {p,s}=cur;
   $("typeSel").value=key;$("seedIn").value=seed;try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
-  $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=tidy(T.statement(p,s));
+  {const fh=T.figure(p,s);$("fig").innerHTML=fh;$("figCard").style.display=fh?"":"none"}$("statement").innerHTML=tidy(T.statement(p,s));
   $("flawCard").style.display=F?"":"none";$("flawed").innerHTML=F?tidy(flawHtml(fr.o)):"";
   curFields=T.fields(p,s);curTruth=T.truth(p,s);
   if(F){const steps=fr.o.steps.map((_,i)=>String(i+1));
