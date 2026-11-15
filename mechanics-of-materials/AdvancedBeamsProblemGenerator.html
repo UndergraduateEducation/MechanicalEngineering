@@ -60,7 +60,7 @@
     <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
     <button class="ghost" id="loadBtn">Load seed</button>
   </div>
-  <div class="card"><div id="fig"></div></div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
   <div class="card" id="flawCard" style="display:none">
     <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
@@ -357,10 +357,7 @@ function m1Generate(seed){
   throw new Error("no valid problem");
 }
 const M1={name:"Thin-walled pressure vessel: wall stresses, thickness, change in diameter",generate:m1Generate,
-  figure:p=>{const u=p.us?"in.":"mm";let s="";if(p.sph)s=`<circle cx="300" cy="140" r="100" fill="#eef1f4" stroke="${C.steelln}" stroke-width="6"/>`;
-    else s=`<rect x="150" y="60" width="300" height="160" rx="80" fill="#eef1f4" stroke="${C.steelln}" stroke-width="6"/>`;
-    s+=TX(300,145,`p = ${p.p} ${UB(p.us)}`,{s:14,c:C.load})+TX(500,110,`mean radius r = ${p.r} ${u}`,{s:13,c:C.dim,a:"start"})+TX(500,132,`wall thickness t = ${dstr(p.t)} ${u}`,{s:13,c:C.dim,a:"start"})+TX(500,154,p.sph?"sphere":"cylinder, closed ends",{s:13,c:C.dim,a:"start"});
-    return SVG(760,280,s)},
+  figure:()=>"",
   statement:p=>{const u=p.us?"in.":"mm";return `<p>A thin-walled ${p.sph?"spherical":"cylindrical"} ${p.m.n} pressure vessel${p.sph?"":" with closed ends"} has mean radius ${p.r} ${u} and wall thickness ${dstr(p.t)} ${u}. It contains gas at internal pressure p = ${p.p} ${UB(p.us)}. Use E = ${p.m.E} ${DU(p.us).E} and ν = ${p.nu}.</p>
   <p>Find the ${p.sph?"membrane stress":"hoop and longitudinal stresses"}, the maximum in-plane shear stress, and the absolute maximum shear stress at the outer surface (where the radial stress is zero). Then find the change in ${p.sph?"":"mean "}diameter and the thickness needed for a working normal stress of ${fmt(p.sw)} ${UB(p.us)}.</p>`},
   solution:(p,s)=>{const u=p.us?"in.":"mm",S=UB(p.us);return p.sph?`<h3>1. Membrane stress</h3><p class="eq">σ = pr/(2t) = ${sig(s.sh,4)} ${S}</p><p>Every direction in the wall is principal with the same stress, so the in-plane shear is zero.</p>
@@ -540,16 +537,42 @@ function m8Generate(seed){
   throw new Error("no valid problem");
 }
 const M8={name:"Shaft with a crank arm: bending, torsion, and shear at the support",generate:m8Generate,
-  figure:p=>{const u=p.us?"in.":"mm";let s=HATCH(100,70,18,140)+CYL(118,470,140,26,"#dfe4ea")+`<polygon points="470,128 470,152 600,230 600,206" fill="#c9ced6" stroke="${C.steelln}" stroke-width="1.5"/>`
-     +AR(600,140,600,206)+TX(612,170,`F = ${p.F} ${p.us?"lb":"kN"}`,{s:13,c:C.load,a:"start"})+DIMH(118,470,190,`L = ${p.L} ${u}`)+TX(560,250,`arm length a = ${p.a} ${u} (horizontal, perpendicular to the shaft)`,{s:12,c:C.dim})
-     +CI(130,114,4,{f:C.load,c:C.load})+TX(140,100,"A (top)",{s:12,c:C.dim,a:"start"})+CI(130,140,4,{f:"#2a5d8f",c:"#2a5d8f"})+TX(140,148,"B (side, at the neutral axis)",{s:12,c:C.dim,a:"start"})+TX(300,165,`d = ${p.d} ${u}`,{s:12,c:C.dim});
-    return SVG(760,270,s)},
-  statement:p=>{const u=p.us?"in.":"mm",S=p.us?"psi":"MPa";return `<p>A solid circular shaft of diameter ${p.d} ${u} is built into the wall and carries a rigid horizontal arm of length a = ${p.a} ${u} at distance L = ${p.L} ${u} from the wall. A vertical force F = ${p.F} ${p.us?"lb":"kN"} acts at the end of the arm.</p>
-  <p>At the section next to the wall, find the principal stresses and the maximum in-plane shear stress at point A on top of the shaft, and the maximum in-plane shear stress at point B on the side (on the neutral axis), including transverse shear.</p>`},
+  figure:p=>{const u=p.us?"in.":"mm",c3=Math.cos(Math.PI/6),
+      X=[c3,0.5],Z=[-c3,0.5],Y=[0,-1],O=[560,125],
+      Ls=250,La=Math.max(100,Math.min(180,Ls*p.a/p.L)),r=Math.max(15,Math.min(24,Ls*p.d/p.L/2)),
+      P=(x,y,z)=>[O[0]+x*X[0]+y*Y[0]+z*Z[0],O[1]+x*X[1]+y*Y[1]+z*Z[1]],   // x: arm direction, y: up, z: shaft axis (toward the viewer)
+      pts=a=>a.map(q=>q.map(v=>v.toFixed(1)).join(",")).join(" "),
+      ring=(z,rr)=>{const o=[];for(let i=0;i<72;i++){const f=2*Math.PI*i/72;o.push(P(rr*Math.sin(f),rr*Math.cos(f),z))}return o},
+      hull=q=>{q=[...q].sort((a,b)=>a[0]-b[0]||a[1]-b[1]);const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]),lo=[],up=[];
+        for(const t of q){while(lo.length>1&&cr(lo[lo.length-2],lo[lo.length-1],t)<=0)lo.pop();lo.push(t)}
+        for(const t of q.slice().reverse()){while(up.length>1&&cr(up[up.length-2],up[up.length-1],t)<=0)up.pop();up.push(t)}return lo.slice(0,-1).concat(up.slice(0,-1))},
+      poly=(a,f,w=1.5)=>`<polygon points="${pts(a)}" fill="${f}" stroke="${C.steelln}" stroke-width="${w}" stroke-linejoin="round"/>`;
+    const W=2.4*r,H=2.2*r,wall=[P(-W,-H,0),P(W,-H,0),P(W,H,0),P(-W,H,0)];
+    let s=`<defs><clipPath id="wallclip"><polygon points="${pts(wall)}"/></clipPath></defs>`+poly(wall,"#efe8da");
+    let hl="";for(let i=-12;i<=12;i++){const q1=P(i*W/6-W,-H,0),q2=P(i*W/6+W,H,0);hl+=LN(...q1,...q2,{c:"#b9a98a",w:1})}
+    s+=`<g clip-path="url(#wallclip)">${hl}</g>`+poly(wall,"none");
+    s+=poly(hull([...ring(0,r),...ring(Ls,r)]),"#d5dce5")+poly(ring(Ls,r),"#f4f6f9",1.8);
+    // arm: box from the shaft end along +x, cross section 0.55r wide (along the shaft) and 0.55r high
+    const h=0.4*r,t1=Ls,t2=Ls+0.8*r,x0=0,x1=La;
+    s+=poly([P(x0,h,t1),P(x1,h,t1),P(x1,h,t2),P(x0,h,t2)],"#c9ced6")+poly([P(x0,h,t2),P(x1,h,t2),P(x1,-h,t2),P(x0,-h,t2)],"#b4bac4")+poly([P(x1,h,t1),P(x1,h,t2),P(x1,-h,t2),P(x1,-h,t1)],"#a9b0bb");
+    const tip=P(x1,h,Ls+0.4*r);s+=AR(tip[0],tip[1]-80,tip[0],tip[1]-3)+TX(tip[0]+10,tip[1]-55,`F = ${p.F} ${p.us?"lb":"kN"}`,{s:13,c:C.load,a:"start"});
+    // points A and B on the section at the wall
+    const zA=0.03*Ls,A=P(0,r,zA),B=P(r,0,zA);
+    s+=CI(...A,4,{f:C.load,c:C.load})+`<text x="${A[0]-9}" y="${A[1]-7}" font-size="14" font-weight="600" fill="${C.load}" text-anchor="end" stroke="#fff" stroke-width="4" paint-order="stroke">A</text>`+CI(...B,4,{f:"#2a5d8f",c:"#2a5d8f"})+`<text x="${B[0]-9}" y="${B[1]+17}" font-size="14" font-weight="600" fill="#2a5d8f" text-anchor="end" stroke="#fff" stroke-width="4" paint-order="stroke">B</text>`;
+    // dimensions: L along the shaft (offset to the left), a along the arm (offset upward), d at the end face
+    const dl=(p1,p2,lab,off,anc)=>{const q1=[p1[0]+off[0],p1[1]+off[1]],q2=[p2[0]+off[0],p2[1]+off[1]];
+      return LN(...p1,...q1,{c:C.dim,w:0.8})+LN(...p2,...q2,{c:C.dim,w:0.8})+LN(...q1,...q2,{c:C.dim,w:1})+TX((q1[0]+q2[0])/2+anc[0],(q1[1]+q2[1])/2+anc[1],lab,{s:12,c:C.dim,a:anc[2]})};
+    const sl=P(-r,0,0),el=P(-r,0,Ls);s+=dl(P(0,r,0),P(0,r,Ls),`L = ${p.L} ${u}`,[-14*c3,-22],[-10,-4,"end"]);
+    const a1=P(0,h,Ls+0.28*r),a2=P(x1,h,Ls+0.28*r);s+=dl(P(0,-h,t2),P(x1,-h,t2),`a = ${p.a} ${u}`,[0,30],[-12,22,"end"]);
+    const e=P(-r*0.7,-r*0.7,Ls),e2=[e[0]-40,e[1]+28];s+=LN(...e,...e2,{c:C.dim,w:0.8})+TX(e2[0]-4,e2[1]+4,`d = ${p.d} ${u}`,{s:12,c:C.dim,a:"end"});
+    s+=TX(380,392,"A: top of the shaft at the wall. B: side of the shaft at the wall, at the level of the axis, on the same side as the arm.",{s:11.5,c:C.dim});
+    return SVG(760,402,s)},
+  statement:p=>{const u=p.us?"in.":"mm",S=p.us?"psi":"MPa";return `<p>A solid circular shaft of diameter d = ${p.d} ${u} and length L = ${p.L} ${u} is built into a wall at one end and is horizontal. At its free end it carries a rigid arm that is also horizontal and perpendicular to the shaft. A vertical downward force F = ${p.F} ${p.us?"lb":"kN"} acts at the end of the arm, at the distance a = ${p.a} ${u} from the axis of the shaft. Neglect the weights of the shaft and the arm.</p>
+  <p>Consider the cross section of the shaft at the wall. Point A is at the top of that section. Point B is on the surface of the shaft at the level of the axis (on the neutral axis for bending), on the same side of the shaft as the arm. Find the principal stresses and the maximum in-plane shear stress at A, and the maximum in-plane shear stress at B, including the shear stress due to the transverse shear force.</p>`},
   solution:(p,s)=>{const S=p.us?"psi":"MPa",u=p.us?"in.":"mm";return `<h3>1. Internal forces at the wall</h3><p>Moving F to the shaft axis gives a vertical force V = F, a bending moment M = FL, and a torque T = Fa.</p>
   <h3>2. Point A (top)</h3><p>σ = Mc/I = ${sig(s.sb,4)} ${S} (tension), τ = Tc/J = ${sig(s.tt,4)} ${S}; transverse shear is zero at the top.</p>
   <p class="eq">σ<sub>1,2</sub> = ${sig(s.top.s1,4)}, ${sig(s.top.s2,4)} ${S}; τ<sub>max</sub> = ${sig(s.top.R,4)} ${S}</p>${SVG(760,290,stressElem(s.sb,0,s.tt,0,{cx:170,cy:140,unit:S})+mohr(s.sb,0,s.tt))}
-  <h3>3. Point B (side)</h3><p>σ = 0 on the neutral axis. Torsion and transverse shear act in the same direction at one side: τ = Tc/J + 4V/(3A) = ${sig(s.tt,4)} + ${sig(s.tv,4)} = ${sig(s.tt+s.tv,4)} ${S}, a state of pure shear.</p><p class="final">τ<sub>max</sub> at B = ${sig(s.side.R,4)} ${S}</p>`},
+  <h3>3. Point B (side)</h3><p>σ = 0 on the neutral axis. On the side of the arm, the torsional shear stress and the transverse shear stress act in the same direction: τ = Tc/J + 4V/(3A) = ${sig(s.tt,4)} + ${sig(s.tv,4)} = ${sig(s.tt+s.tv,4)} ${S}, a state of pure shear.</p><p class="final">τ<sub>max</sub> at B = ${sig(s.side.R,4)} ${S}</p>`},
   fields:p=>{const S=p.us?"psi":"MPa";return [{id:"s1",label:"σ₁ at A",unit:S,signed:true},{id:"s2",label:"σ₂ at A (signed)",unit:S,signed:true},{id:"tA",label:"Maximum in-plane shear at A",unit:S},{id:"tB",label:"Maximum in-plane shear at B",unit:S}]},
   truth:(p,s)=>({s1:s.top.s1,s2:s.top.s2,tA:s.top.R,tB:s.side.R}),note:"Answers within 2% are accepted."};
 
@@ -858,7 +881,7 @@ function render(key,seed){
   for(let i=0;i<60;i++){cur=T.generate(seed);if(!F)break;fr=flawRun(F,cur.p,cur.s,T);if(fr.vis)break;seed++}
   curKey=key;curSeed=seed;const {p,s}=cur;
   $("typeSel").value=key;$("seedIn").value=seed;try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
-  $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=tidy(T.statement(p,s));
+  {const fh=T.figure(p,s);$("fig").innerHTML=fh;$("figCard").style.display=fh?"":"none"}$("statement").innerHTML=tidy(T.statement(p,s));
   $("flawCard").style.display=F?"":"none";$("flawed").innerHTML=F?tidy(flawHtml(fr.o)):"";
   curFields=T.fields(p,s);curTruth=T.truth(p,s);
   if(F){const steps=fr.o.steps.map((_,i)=>String(i+1));

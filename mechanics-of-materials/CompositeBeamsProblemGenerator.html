@@ -60,7 +60,7 @@
     <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
     <button class="ghost" id="loadBtn">Load seed</button>
   </div>
-  <div class="card"><div id="fig"></div></div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
   <div class="card" id="flawCard" style="display:none">
     <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
@@ -1318,7 +1318,7 @@ function render(key,seed){
   for(let i=0;i<60;i++){cur=T.generate(seed);if(!F)break;fr=flawRun(F,cur.p,cur.s,T);if(fr.vis)break;seed++}
   curKey=key;curSeed=seed;const {p,s}=cur;
   $("typeSel").value=key;$("seedIn").value=seed;try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
-  $("fig").innerHTML=T.figure(p,s);$("statement").innerHTML=tidy(T.statement(p,s));
+  {const fh=T.figure(p,s);$("fig").innerHTML=fh;$("figCard").style.display=fh?"":"none"}$("statement").innerHTML=tidy(T.statement(p,s));
   $("flawCard").style.display=F?"":"none";$("flawed").innerHTML=F?tidy(flawHtml(fr.o)):"";
   curFields=T.fields(p,s);curTruth=T.truth(p,s);
   if(F){const steps=fr.o.steps.map((_,i)=>String(i+1));
