@@ -723,7 +723,7 @@ function check(){
       if(isFinite(v)&&f.abs!==undefined) ok=Math.abs(v-t)<=f.abs;
       else if(isFinite(v)) ok=f.signed?Math.abs(v-t)<=0.02*Math.abs(t)+1e-9:Math.abs(Math.abs(v)-Math.abs(t))<=0.02*Math.abs(t)+1e-9;
       if(isFinite(v)&&f.signed&&f.abs===undefined&&Math.abs(v)>0&&Math.sign(v)!==Math.sign(t)) ok=false}
-    el.textContent=raw===""?"":ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");
+    el.textContent=raw===""?"":ok?"Correct":"Incorrect";el.className="mark "+(ok?"ok":"bad");
   });
 }
 const newSeed=()=>1+Math.floor(Math.random()*999999);

@@ -510,12 +510,12 @@ function check(){
   curFields.forEach(f=>{
     const el=$("mk-"+f.id), raw=$("in-"+f.id).value.replace(/,/g,"").trim();
     if(raw===""){el.textContent="";el.className="mark";return}
-    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Not yet";el.className="mark "+(ok?"ok":"bad");return}
+    if(f.choices){const ok=raw===truth[f.id];el.textContent=ok?"Correct":"Incorrect";el.className="mark "+(ok?"ok":"bad");return}
     let v=parseFloat(raw), t=truth[f.id];
     if(!f.signed){v=Math.abs(v);t=Math.abs(t)}
     const tol=f.tolAbs!==undefined?f.tolAbs:0.02*Math.max(Math.abs(t),f.signed?0.05*scaleOf(f.unit):0);
     const ok=isFinite(v)&&Math.abs(v-t)<=tol;
-    el.textContent=ok?"Correct":"Not yet"; el.className="mark "+(ok?"ok":"bad");
+    el.textContent=ok?"Correct":"Incorrect"; el.className="mark "+(ok?"ok":"bad");
   });
 }
 
