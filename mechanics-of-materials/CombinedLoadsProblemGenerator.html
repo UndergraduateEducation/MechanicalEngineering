@@ -1885,10 +1885,10 @@ function flawRun(F,p,s,T){const o=F.run(p,s),tr=T.truth(p,s);
   return {o,vis}}
 function flawHtml(o){return o.steps.map(([t,h],i)=>`<h3>${i+1}. ${t}</h3>${h}`).join("")}
 // ----- error report (Google Form, prefilled)
-const FORM={url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+const FORM={course:"Mechanics of Materials",url:"https://docs.google.com/forms/d/e/1FAIpQLSftFp58658vLVmSxLj70vzpvd77jEl0j39v0z5pbZyFLiG3kQ/viewform",entry:{chapter:"entry.1462158031",type:"entry.1326981178",seed:"entry.1711704812",link:"entry.1990210382",course:"entry.187645410"}};
 function reportUrl(){const q=new URLSearchParams({usp:"pp_url"});
   q.set(FORM.entry.chapter,PAGE_CH);q.set(FORM.entry.type,TEMPLATES[curKey].name+(hunting()?" (find the error)":""));
-  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);return FORM.url+"?"+q.toString()}
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);q.set(FORM.entry.course,FORM.course);return FORM.url+"?"+q.toString()}
 function fillTypes(){const keys=hunting()?Object.keys(TEMPLATES).filter(k=>FLAWSET[k]):Object.keys(TEMPLATES);
   $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
   if(!keys.includes(curKey))curKey=keys[0];return curKey}

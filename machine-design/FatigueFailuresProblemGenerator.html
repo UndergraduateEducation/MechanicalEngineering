@@ -45,6 +45,7 @@
   .answers input{width:8em}
   .answers input.expr{width:19em;font-family:ui-monospace,Menlo,Consolas,monospace}
   .halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -79,6 +80,7 @@
       <button class="ghost" id="solBtn">Show solution</button>
       <span class="note" id="ansNote"></span>
     </div>
+    <div class="reportrow" id="reportRow" style="display:none"><span>Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
   </div>
   <div class="card" id="solution"></div>
 </main>
@@ -601,6 +603,20 @@ if(typeof document!=="undefined"&&$("typeSel")){
   })();
 }
 
+// ===== error report form (Google Form with prefilled fields)
+// Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
+const FORM={course:"Machine Design",chapter:"Machine Design: "+(typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):""),url:"https://docs.google.com/forms/d/e/1FAIpQLSftFp58658vLVmSxLj70vzpvd77jEl0j39v0z5pbZyFLiG3kQ/viewform",entry:{chapter:"entry.1462158031",type:"entry.1326981178",seed:"entry.1711704812",link:"entry.1990210382",course:"entry.187645410"}};
+function reportUrl(){
+  const q=new URLSearchParams({usp:"pp_url"});
+  const nm=(typeof TEMPLATES!=="undefined"&&typeof curKey!=="undefined"&&TEMPLATES[curKey])?TEMPLATES[curKey].name:FORM.chapter;
+  q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,nm+((typeof hunting==="function"&&hunting())?" (find the error)":""));
+  q.set(FORM.entry.seed,String(document.getElementById("seedIn").value||""));q.set(FORM.entry.link,location.href);
+  q.set(FORM.entry.course,FORM.course);return FORM.url+"?"+q.toString();
+}
+if(typeof document!=="undefined"&&document.getElementById("reportBtn")){
+  if(FORM.url)document.getElementById("reportRow").style.display="";
+  document.getElementById("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+}
 </script>
 </body>
 </html>

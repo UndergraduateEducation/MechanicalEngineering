@@ -473,12 +473,12 @@ FLAWS["belt-drive"]={n:3,step:2,
 
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
-const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"https://docs.google.com/forms/d/e/1FAIpQLSf_FWhEJn5RYPUEO6aIX3Ft6nnc7vTIAehqCzM5Oo3H9ZehdA/viewform",entry:{chapter:"entry.1539312333",type:"entry.35395048",seed:"entry.24003894",link:"entry.1325208827"}};
+const FORM={course:"Statics",chapter:"Statics: "+(typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):""),url:"https://docs.google.com/forms/d/e/1FAIpQLSftFp58658vLVmSxLj70vzpvd77jEl0j39v0z5pbZyFLiG3kQ/viewform",entry:{chapter:"entry.1462158031",type:"entry.1326981178",seed:"entry.1711704812",link:"entry.1990210382",course:"entry.187645410"}};
 function reportUrl(){
   const q=new URLSearchParams({usp:"pp_url"});
   q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
   q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);
-  return FORM.url+"?"+q.toString();
+  q.set(FORM.entry.course,FORM.course);return FORM.url+"?"+q.toString();
 }
 
 // ===== page

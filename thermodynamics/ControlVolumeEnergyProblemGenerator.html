@@ -465,12 +465,12 @@ const st=(n,o)=>({n,...o});
 const NOTE_PROP=`<p class="note">Property values are computed in the page from the standard formulations (water: IAPWS-IF97; R-134a: reference equation of state; gases: polynomial specific heats). They agree with the tables of a thermodynamics text to table precision.</p>`;
 
 // ===== error report form (leave FORM.url empty to hide the button)
-const FORM={chapter:typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):"",url:"",entry:{chapter:"",type:"",seed:"",link:""}};
+const FORM={course:"Thermodynamics",chapter:"Thermodynamics: "+(typeof document!=="undefined"?document.title.replace(/ Problem Generator$/,""):""),url:"https://docs.google.com/forms/d/e/1FAIpQLSftFp58658vLVmSxLj70vzpvd77jEl0j39v0z5pbZyFLiG3kQ/viewform",entry:{chapter:"entry.1462158031",type:"entry.1326981178",seed:"entry.1711704812",link:"entry.1990210382",course:"entry.187645410"}};
 function reportUrl(){
   const q=new URLSearchParams({usp:"pp_url"});
   q.set(FORM.entry.chapter,FORM.chapter);q.set(FORM.entry.type,TEMPLATES[curKey].name);
   q.set(FORM.entry.seed,String(cur?$("seedIn").value:""));q.set(FORM.entry.link,location.href);
-  return FORM.url+"?"+q.toString();
+  q.set(FORM.entry.course,FORM.course);return FORM.url+"?"+q.toString();
 }
 
 // ===== page
