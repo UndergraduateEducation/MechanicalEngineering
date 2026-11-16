@@ -325,12 +325,12 @@ TEMPLATES["pliers-machine"]={
   name:"Pliers: gripping force and pin force",
   generate(seed){const r=mulberry32(seed);
     for(let k=0;k<5000;k++){
-      const mode=pick(r,["grip","hand"]),p={us:r()<.5,mode,a:pick(r,range(100,200,10)),b:pick(r,range(20,60,5)),F:pick(r,range(20,150,5))};
+      const mode=pick(r,["grip","hand"]),us=r()<.5,p={us,mode,a:us?pick(r,range(4,8,.5)):pick(r,range(100,200,10)),b:us?pick(r,range(.75,2.25,.25)):pick(r,range(20,60,5)),F:pick(r,range(20,150,5))};
       const P=mode==="grip"?p.F:p.F*p.b/p.a,Q=mode==="grip"?p.F*p.a/p.b:p.F;
       return {p,s:{P,Q,R:P+Q}};}
     throw new Error("no valid problem");},
   statement:p=>`<p>A pair of pliers has two identical handles joined by a frictionless pin. The pin is ${p.a} ${SU(p)} from the point where the hand pushes on each handle and ${p.b} ${SU(p)} from the point where each jaw grips the object. ${p.mode==="grip"?`The hand pushes on each handle with a force <i>P</i> = ${p.F} ${FU(p)}. Determine the gripping force <i>Q</i> on the object and the force <i>R</i> that each handle exerts on the pin.`:`The object must be gripped with a force <i>Q</i> = ${p.F} ${FU(p)} at each jaw. Determine the force <i>P</i> that the hand must apply to each handle and the force <i>R</i> that each handle exerts on the pin.`} Neglect friction and the weights of the handles. All forces are perpendicular to the handles.</p>`,
-  figure:p=>{const a=p.a/p.b>4?4.2:p.a/p.b*1.0,b=1,e=[{a:[-b,0],b:[a,0],c:"m",t:"ln",w:7},{t:"pt",p:[0,0],l:it("pin"),dx:-8,dy:-12,r:5,an:"end"},
+  figure:p=>{const a=p.a/p.b>4?4.2:p.a/p.b*1.0,b=1,e=[{a:[-b,0],b:[a,0],c:"m",t:"ln",w:7},{t:"pt",p:[0,0],r:5},
       {a:[a,1.8],b:[a,.15],c:"r"},{t:"txt",p:[a,2.25],l:`${it("P")}${p.mode==="grip"?` = ${p.F} ${FU(p)}`:""}`},{a:[-b,1.8],b:[-b,.15],c:"r"},{t:"txt",p:[-b,2.25],l:`${it("Q")}${p.mode==="hand"?` = ${p.F} ${FU(p)}`:""}`},
       {a:[0,-1.8],b:[0,-.15],c:"b"},{t:"txt",p:[0,-2.3],l:it("R")},{t:"dim",a:[-b,-3.1],b:[0,-3.1],l:`${p.b} ${SU(p)}`,flip:1},{t:"dim",a:[0,-3.1],b:[a,-3.1],l:`${p.a} ${SU(p)}`,flip:1}];
     return draw(e,600,320)},

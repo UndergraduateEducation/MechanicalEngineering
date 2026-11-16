@@ -176,7 +176,7 @@ TEMPLATES["two-cables-weight"]={
   statement:p=>`<p>A weight <i>W</i> = ${p.W} ${FU(p)} hangs from ring <i>C</i>, which is supported by cables <i>CA</i> and <i>CB</i> attached to a horizontal ceiling. Cable <i>CA</i> makes an angle <i>α</i> = ${p.a}° with the horizontal and cable <i>CB</i> makes an angle <i>β</i> = ${p.b}° with the horizontal, as shown. Neglect the weights of the cables and the ring. Determine the tension in each cable.</p>`,
   figure:p=>{const H=3,A=[-H/Math.tan(rad(p.a)),H],B=[H/Math.tan(rad(p.b)),H];
     return draw([{t:"hatch",a:[A[0]-.6,H],b:[B[0]+.6,H],side:-1},{a:[0,0],b:A,c:"m",t:"ln",w:2.4},{a:[0,0],b:B,c:"m",t:"ln",w:2.4},
-      {a:[0,0],b:[-A[0]-.2,0],t:"ln",c:"x",d:1,w:1},{a:[0,0],b:[B[0]+.2,0],t:"ln",c:"x",d:1,w:1},
+      {a:[A[0]-.2,0],b:[B[0]+.2,0],t:"ln",c:"x",d:1,w:1},
       {t:"pt",p:A,l:it("A"),dx:-14,dy:-10},{t:"pt",p:B,l:it("B"),dx:6,dy:-10},{t:"pt",p:[0,0],l:it("C"),dx:8,dy:16,r:4.5},
       {t:"arc",p:[0,0],r:.55,t0:180-p.a,t1:180,l:ang(p.a)},{t:"arc",p:[0,0],r:.55,t0:0,t1:p.b,l:ang(p.b)},
       {a:[0,0],b:[0,-1.7],c:"r",l:Wl(p),off:10}])},
@@ -207,7 +207,7 @@ TEMPLATES["allowable-load"]={
   statement:p=>`<p>Ring <i>C</i> is supported by cables <i>CA</i> and <i>CB</i> attached to a horizontal ceiling, with <i>α</i> = ${p.a}° and <i>β</i> = ${p.b}° measured from the horizontal as shown. A weight <i>W</i> hangs from the ring. Cable <i>CA</i> can safely carry a tension of ${p.M1} ${FU(p)} and cable <i>CB</i> can safely carry ${p.M2} ${FU(p)}. Determine the largest weight <i>W</i> that can be hung, which cable reaches its limit first, and the tension in the other cable at that weight.</p>`,
   figure:p=>{const H=3,A=[-H/Math.tan(rad(p.a)),H],B=[H/Math.tan(rad(p.b)),H];
     return draw([{t:"hatch",a:[A[0]-.6,H],b:[B[0]+.6,H],side:-1},{a:[0,0],b:A,c:"m",t:"ln",w:2.4},{a:[0,0],b:B,c:"m",t:"ln",w:2.4},
-      {a:[0,0],b:[-A[0]-.2,0],t:"ln",c:"x",d:1,w:1},{a:[0,0],b:[B[0]+.2,0],t:"ln",c:"x",d:1,w:1},
+      {a:[A[0]-.2,0],b:[B[0]+.2,0],t:"ln",c:"x",d:1,w:1},
       {t:"pt",p:A,l:it("A"),dx:-14,dy:-10},{t:"pt",p:B,l:it("B"),dx:6,dy:-10},{t:"pt",p:[0,0],l:it("C"),dx:8,dy:16,r:4.5},
       {t:"arc",p:[0,0],r:.55,t0:180-p.a,t1:180,l:ang(p.a)},{t:"arc",p:[0,0],r:.55,t0:0,t1:p.b,l:ang(p.b)},
       {a:[0,0],b:[0,-1.7],c:"r",l:it("W"),off:10}])},

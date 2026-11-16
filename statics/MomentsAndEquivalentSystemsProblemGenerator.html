@@ -400,7 +400,8 @@ TEMPLATES["reduction-2d"]={
     throw new Error("no valid problem");},
   statement:p=>`<p>Three forces act on a plate. ${p.pts.map((q,i)=>`<i>F</i><sub>${i+1}</sub> = ${p.F[i]} ${FU(p)} acts at (${q[0]}, ${q[1]}) ${LU(p)} at ${p.th[i]}° counterclockwise from the positive <i>x</i> axis`).join("; ")}. Reduce the system to a force <b>R</b> at the origin <i>O</i> and a couple <i>M<sub>O</sub></i> (counterclockwise positive). Then find the point where the line of action of the single equivalent force crosses the <i>x</i> axis.</p>`,
   figure:p=>{const e=[{a:[-.8,0],b:[7.3,0],t:"ln",c:"x",d:1,w:1},{a:[0,-.8],b:[0,5.3],t:"ln",c:"x",d:1,w:1},{t:"pt",p:[0,0],l:it("O"),dx:-14,dy:16,r:4.5}];
-    p.pts.forEach((q,i)=>{e.push({t:"pt",p:q,r:4});e.push({a:q,b:[q[0]+1.6*cs(p.th[i]),q[1]+1.6*sn(p.th[i])],c:"r",l:`${it("F")}<tspan baseline-shift="sub" font-size="12">${i+1}</tspan>`,off:8})});
+    p.pts.forEach((q,i)=>{const c=cs(p.th[i]),sv=sn(p.th[i]);
+      e.push({t:"pt",p:q,r:4,l:`<tspan font-size="13">(${q[0]}, ${q[1]})</tspan>`,dx:-15*c,dy:15*sv+5,an:c>.3?"end":c<-.3?"start":"middle"});e.push({a:q,b:[q[0]+1.6*cs(p.th[i]),q[1]+1.6*sn(p.th[i])],c:"r",l:`${it("F")}<tspan baseline-shift="sub" font-size="12">${i+1}</tspan>`,off:8})});
     return draw(e,560,340)},
   solution:(p,s)=>`<h3>1. Resultant force</h3>
   <p>${eq(`R<sub>x</sub> = ΣF<sub>x</sub> = ${sig(s.Rx)} ${FU(p)}`)} ${eq(`R<sub>y</sub> = ΣF<sub>y</sub> = ${sig(s.Ry)} ${FU(p)}`)} ${eq(`R = ${sig(s.R)} ${FU(p)}`)}</p>

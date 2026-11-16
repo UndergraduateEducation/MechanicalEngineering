@@ -130,15 +130,25 @@ function sbGenerate(seed){
 }
 const sbSeg=i=>NODES[i]+NODES[i+1];
 function sbFmtF(p,v){return p.us?`${fmt(Math.abs(v))} lb`:`${fmt(Math.abs(v)/1000)} kN`}
+// axial load arrows: shorten when a neighbour is close, lift a label one row when it would overlap
+function axLoads(xs,F,lab,yc){
+  const n=F.length,d=F.map(f=>f>0?1:-1),Lr=[],out=[];let b="";
+  for(let i=0;i<n;i++){const j=i+d[i];
+    Lr.push(j<0||j>=n?58:Math.max(18,Math.min(58,(d[j]===-d[i]?Math.abs(xs[j]-xs[i])/2:Math.abs(xs[j]-xs[i]))-6)))}
+  const L=F.map((f,i)=>({i,cx:xs[i]+d[i]*Lr[i]/2,w:7.2*lab[i].length})).sort((a,b)=>a.cx-b.cx),rowEnd=[-1e9,-1e9],row=[];
+  L.forEach(o=>{const r=o.cx-o.w/2>rowEnd[0]+6?0:1;rowEnd[r]=o.cx+o.w/2;row[o.i]=r});
+  for(let i=0;i<n;i++){const X=xs[i];
+    b+=LN(X,84,X,yc-50,{c:C.dim,w:1,d:"3 3"})+AR(X,84,X+d[i]*Lr[i],84)+TX(X+d[i]*Lr[i]/2,row[i]?54:72,lab[i],{s:13,c:C.load})}
+  return b;
+}
 function sbFigure(p){
   const x0=90,W=580,tot=p.Ls.reduce((a,b)=>a+b,0),maxA=Math.max(...p.A),yc=165;let x=x0,b="";
   const xs=[x0];p.Ls.forEach(l=>{x+=W*l/tot;xs.push(x)});
   p.A.forEach((a,i)=>{const h=36+54*Math.sqrt(a/maxA);
     b+=RC(xs[i],yc-h/2,xs[i+1]-xs[i],h)+TX((xs[i]+xs[i+1])/2,yc+5,`${fmt(a,p.us?1:0)} ${p.us?"in.²":"mm²"}`,{s:13})
       +DIMH(xs[i],xs[i+1],262,`${fmt(p.Ls[i],1)} ${p.us?"ft":"m"}`)});
-  p.F.forEach((f,i)=>{const X=xs[i],d=f>0?1:-1;
-    b+=LN(X,84,X,yc-50,{c:C.dim,w:1,d:"3 3"})+AR(X,84,X+d*58,84)+TX(X+d*29,72,sbFmtF(p,f),{s:13,c:C.load})
-      +TX(X,yc+75,NODES[i],{s:15,i:1})});
+  b+=axLoads(xs,p.F,p.F.map(f=>sbFmtF(p,f)),yc);
+  p.F.forEach((f,i)=>{b+=TX(xs[i],yc+75,NODES[i],{s:15,i:1})});
   return SVG(760,290,b);
 }
 function sbStatement(p){
@@ -398,8 +408,8 @@ function cbFigure(p){
   p.A.forEach((a,i)=>{const h=36+54*Math.sqrt(a/maxA);
     b+=RC(xs[i],yc-h/2,xs[i+1]-xs[i],h,{f:fill[p.M[i]],c:C.steelln})+TX((xs[i]+xs[i+1])/2,yc-2,cap(MAT[p.M[i]].n),{s:13})
      +TX((xs[i]+xs[i+1])/2,yc+15,`${fmt(a,p.us?2:0)} ${u.A}`,{s:12,c:C.dim})+DIMH(xs[i],xs[i+1],262,`${dL(p.Ls[i],p.us)} ${u.Lb}`)});
-  p.F.forEach((f,i)=>{const X=xs[i],d=f>0?1:-1;
-    b+=LN(X,84,X,yc-50,{c:C.dim,w:1,d:"3 3"})+AR(X,84,X+d*58,84)+TX(X+d*29,72,`${fF(Math.abs(f),p.us)} ${u.F}`,{s:13,c:C.load})+TX(X,yc+75,NODES[i],{s:15,i:1})});
+  b+=axLoads(xs,p.F,p.F.map(f=>`${fF(Math.abs(f),p.us)} ${u.F}`),yc);
+  p.F.forEach((f,i)=>{b+=TX(xs[i],yc+75,NODES[i],{s:15,i:1})});
   return SVG(760,290,b);
 }
 function cbStatement(p){
