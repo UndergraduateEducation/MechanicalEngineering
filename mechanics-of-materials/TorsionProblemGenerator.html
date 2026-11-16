@@ -491,8 +491,13 @@ function pdFigure(p){
   [xa,xb].forEach(x=>{b+=RC(x-24,g-12,48,12,body)+`<path d="M${x-16},${g-12} L${x-16},${yc-8} A16,16 0 0 1 ${x+16},${yc-8} L${x+16},${g-12} Z" fill="#c9ced6" stroke="${C.steelln}" stroke-width="1.5"/>`
     +LN(x-16,yc+16,x+16,yc+16,{c:C.steelln,w:1})+TX(x,g+26,"bearing",{s:12,c:C.dim})});
   // sense of rotation, power, diameter
-  const xr=430;b+=`<path d="M${xr},${yc-22} A8,22 0 0 1 ${xr},${yc+22}" fill="none" stroke="${C.load}" stroke-width="2"/>`+`<polygon points="${xr},${yc+22} ${xr+9},${yc+15} ${xr+8},${yc+26}" fill="${C.load}"/>`
-   +TX(xr,yc-34,`${p.P} ${p.us?"hp":"kW"} at ${p.us?p.f+" rev/min":p.f+" Hz"}`,{s:14,c:C.load})
+  // rotation ring around the shaft: ellipse x=xr+rx sin(t), y=yc-ry cos(t), passing over the front of the shaft; arrowhead along the tangent at the end
+  const xr=430,rx=10,ry=25,P=t=>[xr+rx*Math.sin(t),yc-ry*Math.cos(t)],t1=212*Math.PI/180,pts=[];
+  for(let k=-40;k<=210;k+=5){const q=P(k*Math.PI/180);pts.push(q[0].toFixed(1)+","+q[1].toFixed(1))}
+  const [ex,ey]=P(t1),tx=rx*Math.cos(t1),ty=ry*Math.sin(t1),tl=Math.hypot(tx,ty),ux=tx/tl,uy=ty/tl;
+  b+=`<polyline points="${pts.join(" ")}" fill="none" stroke="${C.load}" stroke-width="2"/>`
+   +`<polygon points="${(ex+ux*4).toFixed(1)},${(ey+uy*4).toFixed(1)} ${(ex-ux*8-uy*5).toFixed(1)},${(ey-uy*8+ux*5).toFixed(1)} ${(ex-ux*8+uy*5).toFixed(1)},${(ey-uy*8-ux*5).toFixed(1)}" fill="${C.load}"/>`
+   +TX(xr,yc-38,`${p.P} ${p.us?"hp":"kW"} at ${p.us?p.f+" rev/min":p.f+" Hz"}`,{s:14,c:C.load})
    +LN(470,yc+12,490,yc+40,{c:C.dim,w:.8})+TX(500,yc+52,"d = ?",{s:13,a:"start"});
   b+=DIMH(xm,xp,40,`twist limited to ${p.th}° in ${lb_(p.L,p.us)} ${u.Lb}`,{up:1})+LN(xm,46,xm,yc-14,{c:C.dim,w:.8,d:"3 3"})+LN(xp,46,xp,yc-64,{c:C.dim,w:.8,d:"3 3"});
   return SVG(760,256,b);
