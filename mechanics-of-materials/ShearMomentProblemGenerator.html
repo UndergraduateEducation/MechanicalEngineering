@@ -77,7 +77,7 @@
   <div class="card" id="solution"></div>
 </main>
 <script>
-const PAGE_CH="Mechanics of Materials, Chapter 4: Shear and Moment";
+const PAGE_CH="Mechanics of Materials: Shear and Moment";
 // ===== common helpers: seeded random numbers, number formatting, SVG drawing
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -208,7 +208,7 @@ function tbFigure(p){
 }
 function tbStatement(p){
   const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Wu=p.us?"kips":"kN";
-  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. The cross-sectional areas are ${fmt(p.A[0],p.us?1:0)} ${u} (${iv("AB")}) and ${fmt(p.A[1],p.us?1:0)} ${u} (${iv("AC")}); the working stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
+  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. Bar ${iv("AB")} has area ${fmt(p.A[0],p.us?1:0)} ${u} and bar ${iv("AC")} has area ${fmt(p.A[1],p.us?1:0)} ${u}; the allowable stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
   <p>Express the bar forces as multiples of ${iv("W")}, then find the largest weight each bar can carry and the largest weight that can be hung safely.</p>`;
 }
 function tbSolution(p,s){
@@ -295,7 +295,7 @@ function trStatement(p,s){
   const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
   const nm=k=>trMemName(s.sol,k,p),ld=p.loads.map(([j,f])=>`${f} ${Fu} at ${iv(NODES[j])}`).join(", ");
   return `<p>The Warren truss shown has ${p.n} equal panels, each ${p.a} ${p.us?"ft":"m"} wide, and a height of ${p.h} ${p.us?"ft":"m"}. It is pinned at ${iv("A")} and supported by a roller at ${iv(NODES[p.n])}. Downward loads act at the joints: ${ld}. All members have the cross-sectional area ${fmt(p.A,p.us?1:0)} ${u}; member weights are neglected.</p>
-  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the working stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
+  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the allowable stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
 }
 function trSolution(p,s){
   const sol=s.sol,Fu=p.us?"kips":"kN",su=p.us?"ksi":"MPa";
@@ -316,7 +316,7 @@ const TR={name:"Warren truss: member stresses by joints or sections",
   truth:(p,s)=>({s0:s.sg[0],s1:s.sg[1],s2:s.sg[2],A:s.Areq,Ry:s.R[2]}),
   note:"Enter signed stresses; tension is positive."};
 
-// ===== Chapter 4 beam engine
+// ===== beam engine
 // beam: {L, sup:{kind:"ss",xa,xb}|{kind:"fixL"}|{kind:"fixR"}|{kind:"hinge",xh,xc}, P:[{x,F}] (F down +), C:[{x,C}] (clockwise +), W:[{a,b,w1,w2}] (down +)}
 const U4=us=>us?{F:"lb",L:"ft",w:"lb/ft",M:"lb·ft"}:{F:"kN",L:"m",w:"kN/m",M:"kN·m"};
 const GQ=[[-0.7745966692414834,5/9],[0,8/9],[0.7745966692414834,5/9]];
@@ -413,7 +413,7 @@ function bmReactText(bm){const u=U4(bm.us);let t=bm.R.map(r=>`R<sub>${ptName(bm,
   if(bm.K.length)t+=`, wall moment ${sig(Math.abs(bm.K[0].C),4)} ${u.M} (${bm.K[0].C<0?"counterclockwise":"clockwise"} on the beam)`;return t}
 const SIGNNOTE="Sign convention: V is the sum of the external forces to the left of the section, upward positive; M is positive when it bends the beam concave upward (sagging).";
 
-// ===== Chapter 4 problem types
+// ===== problem types
 const pos=(r,L,st,lo=st,hi=L-st)=>pick(r,range(Math.ceil(lo/st-1e-9)*st,hi,st));
 const Fv=(r,us,lo=1)=>pick(r,us?range(200,3000,100):range(5,60,5))*lo;
 const Wv=(r,us)=>pick(r,us?range(50,600,50):range(2,20,1));
@@ -421,7 +421,7 @@ const Cv=(r,us)=>pick(r,us?range(500,6000,250):range(5,60,5));
 const Lv=(r,us,set)=>pick(r,set||(us?[6,8,9,10,12,14,16]:[3,4,5,6,8,10]));
 const sameRes=(a,b)=>Math.abs(a-b)<=0.02*Math.abs(b)+1e-9;
 const bmSol=(bm,extra="")=>`<h3>1. Reactions</h3><p>From the equilibrium of the whole beam${bm.sup.kind==="hinge"?" and, first, of the part to the right of the hinge (zero moment at the hinge)":""}: ${bmReactText(bm)}.</p>
-  <h3>2. Shear force and bending moment diagrams</h3><p class="note">${SIGNNOTE} The slope of the V diagram is −w; the slope of the M diagram is V. Concentrated forces cause jumps in V; couples cause jumps in M.</p>${bmDiagram(bm,"V")}${bmDiagram(bm,"M")}${extra}`;
+  <h3>2. Shear force and bending moment diagrams</h3><p class="note">${SIGNNOTE} Along the beam dV/dx = −w and dM/dx = V. Concentrated forces cause jumps in V; couples cause jumps in M.</p>${bmDiagram(bm,"V")}${bmDiagram(bm,"M")}${extra}`;
 
 // ----- 1. simply supported beam with concentrated loads: V and M at a section
 function s1Generate(seed){
@@ -438,9 +438,9 @@ function s1Generate(seed){
 }
 const S1={name:"Simply supported beam with concentrated loads: V and M at a section",generate:s1Generate,
   figure:p=>bmDraw(p,{section:p.xs}),
-  statement:p=>{const u=U4(p.us);return `<p>The simply supported beam shown carries ${p.P.length} concentrated loads; neglect the weight of the beam.</p>
-  <p>Find the support reactions, the shear force and bending moment on the section ${fmtx(p.xs)} ${u.L} from the left end (dashed line), and the maximum bending moment and its location.</p><p class="note">${SIGNNOTE}</p>`},
-  solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Section at x = ${fmtx(p.xs)} ${u.L}</h3><p>From the free-body diagram of the part to the left of the section: V = ${sig(s.V,4)} ${u.F}, M = ${sig(s.M,4)} ${u.M}.</p>
+  statement:p=>{const u=U4(p.us);return `<p>The simply supported beam shown carries ${p.P.length} concentrated loads; the beam's own weight is negligible.</p>
+  <p>Find the support reactions, the shear force and bending moment on the section ${fmtx(p.xs)} ${u.L} from the left end (dashed line), and the largest bending moment with the position where it occurs.</p><p class="note">${SIGNNOTE}</p>`},
+  solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Section at x = ${fmtx(p.xs)} ${u.L}</h3><p>Equilibrium of the beam segment to the left of the cut gives V = ${sig(s.V,4)} ${u.F}, M = ${sig(s.M,4)} ${u.M}.</p>
   <h3>4. Maximum moment</h3><p>The shear changes sign at x = ${fmtx(p.Mpos.x)} ${u.L}, where <span class="final">M<sub>max</sub> = ${sig(p.Mpos.m,4)} ${u.M}</span>.</p>`)},
   fields:p=>{const u=U4(p.us);return [{id:"RA",label:"Reaction at the left support (up +)",unit:u.F,signed:true},{id:"RB",label:"Reaction at the right support (up +)",unit:u.F,signed:true},
     {id:"V",label:"Shear force at the section (signed)",unit:u.F,signed:true},{id:"M",label:"Bending moment at the section (signed)",unit:u.M,signed:true},
@@ -465,8 +465,8 @@ function s2Generate(seed){
 }
 const S2={name:"Overhanging beam with distributed and concentrated loads",generate:s2Generate,
   figure:p=>bmDraw(p),
-  statement:p=>`<p>The overhanging beam shown is supported by a pin at ${iv(ptName(p,p.sup.xa))} and a roller at ${iv(ptName(p,p.sup.xb))}. It carries the uniformly distributed load and the concentrated load shown; neglect the weight of the beam.</p>
-  <p>Draw the shear force and bending moment diagrams by the area method. Find the reactions, the maximum shear force magnitude, the maximum positive bending moment and its location, and the maximum negative bending moment.</p><p class="note">${SIGNNOTE}</p>`,
+  statement:p=>`<p>The overhanging beam shown rests on a pin at ${iv(ptName(p,p.sup.xa))} and a roller at ${iv(ptName(p,p.sup.xb))}. It carries the uniformly distributed load and the concentrated load shown; the beam's own weight is negligible.</p>
+  <p>Sketch the shear force and bending moment diagrams, building each one from the areas under the diagram above it. Find the reactions, the maximum shear force magnitude, the maximum positive bending moment and its location, and the maximum negative bending moment.</p><p class="note">${SIGNNOTE}</p>`,
   solution:p=>{const u=U4(p.us);return bmSol(p,`<h3>3. Extreme values</h3><p>|V|<sub>max</sub> = ${sig(p.Vmax,4)} ${u.F}. The largest positive moment occurs where V = 0, at x = ${fmtx(p.Mpos.x)} ${u.L}: M = ${sig(p.Mpos.m,4)} ${u.M}. The largest negative moment is ${sig(p.Mneg.m,4)} ${u.M} at x = ${fmtx(p.Mneg.x)} ${u.L}.</p>`)},
   fields:p=>{const u=U4(p.us);return [{id:"RA",label:`Reaction at ${ptName(p,p.sup.xa)} (up +)`,unit:u.F,signed:true},{id:"RB",label:`Reaction at ${ptName(p,p.sup.xb)} (up +)`,unit:u.F,signed:true},
     {id:"Vm",label:"Maximum |V|",unit:u.F},{id:"Mp",label:"Maximum positive M",unit:u.M},{id:"xp",label:"Location of the maximum positive M, from the left end",unit:u.L},{id:"Mn",label:"Maximum negative M (signed)",unit:u.M,signed:true}]},
@@ -492,7 +492,7 @@ function s3Generate(seed){
 }
 const S3={name:"Cantilever beam: wall reactions, V and M at a section",generate:s3Generate,
   figure:p=>bmDraw(p,{section:p.xs}),
-  statement:p=>{const u=U4(p.us);return `<p>The cantilever beam shown is built into the wall at its ${p.sup.kind==="fixR"?"right":"left"} end and carries the loads shown${p.C.length?", including a couple":""}; neglect the weight of the beam.</p>
+  statement:p=>{const u=U4(p.us);return `<p>The cantilever beam shown is fixed to the wall at its ${p.sup.kind==="fixR"?"right":"left"} end and carries the loads shown${p.C.length?", including a couple":""}; the beam's own weight is negligible.</p>
   <p>Find the vertical reaction at the wall, the bending moment in the beam at the wall, the shear force and bending moment on the section ${fmtx(p.xs)} ${u.L} from the left end, and the largest bending moment magnitude.</p><p class="note">${SIGNNOTE}</p>`},
   solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Values asked</h3><p>Bending moment at the wall: M = ${sig(s.Mw,4)} ${u.M}. At x = ${fmtx(p.xs)} ${u.L}: V = ${sig(s.V,4)} ${u.F}, M = ${sig(s.M,4)} ${u.M}. Largest |M| = <span class="final">${sig(s.Mabs,4)} ${u.M}</span>.</p>`)},
   fields:p=>{const u=U4(p.us);return [{id:"R",label:"Vertical reaction at the wall (up +)",unit:u.F,signed:true},{id:"Mw",label:"Bending moment at the wall (signed)",unit:u.M,signed:true},
@@ -514,7 +514,7 @@ function s4Generate(seed){
 }
 const S4={name:"Linearly varying load: zero-shear location and maximum moment",generate:s4Generate,
   figure:p=>bmDraw(p),
-  statement:p=>`<p>The simply supported beam shown carries a linearly varying distributed load${p.P.length?" and a concentrated load":""}; neglect the weight of the beam.</p>
+  statement:p=>`<p>The simply supported beam shown carries a linearly varying distributed load${p.P.length?" and a concentrated load":""}; the beam's own weight is negligible.</p>
   <p>Find the support reactions, the location where the shear force is zero, and the maximum bending moment.</p><p class="note">${SIGNNOTE}</p>`,
   solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Zero shear and maximum moment</h3><p>Within the loaded region the shear is a quadratic function of x; setting it to zero gives x = ${sig(s.xz,4)} ${u.L}. There, <span class="final">M<sub>max</sub> = ${sig(p.Mpos.m,4)} ${u.M}</span>.</p>`)},
   fields:p=>{const u=U4(p.us);return [{id:"RA",label:"Reaction at the left support",unit:u.F,signed:true},{id:"RB",label:"Reaction at the right support",unit:u.F,signed:true},
@@ -539,7 +539,7 @@ function s5Generate(seed){
 }
 const S5={name:"Beam with an applied couple: jump in the moment diagram",generate:s5Generate,
   figure:p=>bmDraw(p),
-  statement:p=>`<p>The beam shown is supported by a pin at ${iv(ptName(p,0))} and a roller at ${iv(ptName(p,p.sup.xb))}. It carries a couple at ${iv(ptName(p,p.C[0].x))} and the ${p.P.length?"concentrated":"distributed"} load shown; neglect the weight of the beam.</p>
+  statement:p=>`<p>The beam shown has a pin at ${iv(ptName(p,0))} and a roller at ${iv(ptName(p,p.sup.xb))}. It carries a couple at ${iv(ptName(p,p.C[0].x))} and the ${p.P.length?"concentrated":"distributed"} load shown; the beam's own weight is negligible.</p>
   <p>Find the reactions, the bending moment just to the left and just to the right of ${iv(ptName(p,p.C[0].x))}, and the largest bending moment magnitude.</p><p class="note">${SIGNNOTE}</p>`,
   solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Jump at the couple</h3><p>Just left: M = ${sig(s.Ml,4)} ${u.M}; just right: M = ${sig(s.Mr,4)} ${u.M}. The jump equals the couple, ${sig(s.Mr-s.Ml,4)} ${u.M} (a clockwise couple increases M).</p><p class="final">Largest |M| = ${sig(s.Ma,4)} ${u.M}</p>`)},
   fields:p=>{const u=U4(p.us),n=ptName(p,p.C[0].x);return [{id:"RA",label:`Reaction at ${ptName(p,0)} (up +)`,unit:u.F,signed:true},{id:"RB",label:`Reaction at ${ptName(p,p.sup.xb)} (up +)`,unit:u.F,signed:true},
@@ -569,7 +569,7 @@ function s6Figure(p){
 const S6={name:"Shear diagram given: find the loads and the bending moment",generate:s6Generate,
   figure:s6Figure,
   statement:p=>{const u=U4(p.us),Pn=ptName(p,p.P[0].x);return `<p>The shear force diagram shown belongs to a beam that rests on simple supports at its ends ${iv(ptName(p,0))} and ${iv(ptName(p,p.L))}. No couples act on the beam, and it carries only downward concentrated forces and uniformly distributed loads.</p>
-  <p>Find the reaction at ${iv(ptName(p,0))}, the concentrated force at ${iv(Pn)}, the intensity of the distributed load between ${iv(ptName(p,p.W[0].a))} and ${iv(ptName(p,p.W[0].b))}, and the maximum bending moment and its location.</p><p class="note">${SIGNNOTE}</p>`},
+  <p>Find the reaction at ${iv(ptName(p,0))}, the concentrated force at ${iv(Pn)}, the intensity of the distributed load between ${iv(ptName(p,p.W[0].a))} and ${iv(ptName(p,p.W[0].b))}, and the largest bending moment with the position where it occurs.</p><p class="note">${SIGNNOTE}</p>`},
   solution:p=>{const u=U4(p.us);return `<h3>1. Loads from the shear diagram</h3><p>A jump in V equals a concentrated force (upward for a jump up). The slope of V equals −w.</p>
   <p>Jump at ${ptName(p,0)}: R = ${sig(p.R[0].R,4)} ${u.F}. Drop at ${ptName(p,p.P[0].x)}: P = ${sig(p.P[0].F,4)} ${u.F}. Slope between ${ptName(p,p.W[0].a)} and ${ptName(p,p.W[0].b)}: w = ${sig(p.W[0].w1,4)} ${u.w}.</p>
   <h3>2. Moment diagram</h3><p>M = 0 at the simple supports, and the change in M between two points equals the area of the V diagram between them.</p>${bmDiagram(p,"M")}
@@ -594,7 +594,7 @@ function s7Generate(seed){
 }
 const S7={name:"Beam with an internal hinge: reactions and moment diagram",generate:s7Generate,
   figure:p=>bmDraw(p),
-  statement:p=>`<p>The beam shown is built into the wall at ${iv(ptName(p,0))}, has an internal hinge at ${iv(ptName(p,p.sup.xh))}, and rests on a roller at ${iv(ptName(p,p.sup.xc))}. It carries the loads shown; neglect the weight of the beam. The hinge transmits force but no moment.</p>
+  statement:p=>`<p>The beam shown is fixed to the wall at ${iv(ptName(p,0))}, has an internal hinge at ${iv(ptName(p,p.sup.xh))}, and rests on a roller at ${iv(ptName(p,p.sup.xc))}. It carries the loads shown; the beam's own weight is negligible. The hinge transmits force but no moment.</p>
   <p>Find the roller reaction, the vertical reaction at the wall, the bending moment at the wall, and the largest bending moment magnitude.</p><p class="note">${SIGNNOTE}</p>`,
   solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Values asked</h3><p>Moment at the wall: M = ${sig(s.Mw,4)} ${u.M}. The moment diagram passes through zero at the hinge. Largest |M| = <span class="final">${sig(s.Ma,4)} ${u.M}</span>.</p>`)},
   fields:p=>{const u=U4(p.us);return [{id:"Rc",label:`Roller reaction at ${ptName(p,p.sup.xc)} (up +)`,unit:u.F,signed:true},{id:"R0",label:"Vertical wall reaction (up +)",unit:u.F,signed:true},
@@ -608,7 +608,7 @@ const FLAWS={};
 const EQ=s=>`<p class="eq">${s}</p>`, PP=s=>`<p>${s}</p>`, FIN=s=>`<p class="final">${s}</p>`;
 const g4=v=>sig(v,4), g3=v=>sig(v,3);
 
-// ===== Chapter 4 planted errors
+// ===== planted errors
 const FU4=p=>U4(p.us).F, MU4=p=>U4(p.us).M, LU4=p=>U4(p.us).L;
 // shear and moment after changing the reactions by dR (at x) and the wall couple by dK
 function bmShift(bm,dR,dK=0){const e=1e-9*bm.L;
@@ -622,7 +622,7 @@ function bmShift(bm,dR,dK=0){const e=1e-9*bm.L;
 const Rtxt=(p,R)=>R.map(r=>`R<sub>${ptName(p,r.x)}</sub> = ${g4(r.R)} ${FU4(p)}`).join(", ");
 
 FLAWS["ss-point-loads"]={step:3,
-  why:"The maximum bending moment occurs where the shear force changes sign, which for concentrated loads is under one of the loads. It is at midspan only for symmetric loading.",
+  why:"The bending moment peaks where the shear force crosses zero, which for concentrated loads is under one of the loads. It is at midspan only for symmetric loading.",
   run:(p,s)=>{const x=p.L/2,M=p.M(x);
     return {v:{Mm:M,xm:x},steps:[
       ["Reactions",EQ(Rtxt(p,p.R))],

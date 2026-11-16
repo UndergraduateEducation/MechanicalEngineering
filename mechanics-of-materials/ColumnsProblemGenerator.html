@@ -77,7 +77,7 @@
   <div class="card" id="solution"></div>
 </main>
 <script>
-const PAGE_CH="Mechanics of Materials, Chapter 10: Columns";
+const PAGE_CH="Mechanics of Materials: Columns";
 // ===== common helpers: seeded random numbers, number formatting, SVG drawing
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -208,7 +208,7 @@ function tbFigure(p){
 }
 function tbStatement(p){
   const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Wu=p.us?"kips":"kN";
-  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. The cross-sectional areas are ${fmt(p.A[0],p.us?1:0)} ${u} (${iv("AB")}) and ${fmt(p.A[1],p.us?1:0)} ${u} (${iv("AC")}); the working stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
+  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. Bar ${iv("AB")} has area ${fmt(p.A[0],p.us?1:0)} ${u} and bar ${iv("AC")} has area ${fmt(p.A[1],p.us?1:0)} ${u}; the allowable stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
   <p>Express the bar forces as multiples of ${iv("W")}, then find the largest weight each bar can carry and the largest weight that can be hung safely.</p>`;
 }
 function tbSolution(p,s){
@@ -295,7 +295,7 @@ function trStatement(p,s){
   const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
   const nm=k=>trMemName(s.sol,k,p),ld=p.loads.map(([j,f])=>`${f} ${Fu} at ${iv(NODES[j])}`).join(", ");
   return `<p>The Warren truss shown has ${p.n} equal panels, each ${p.a} ${p.us?"ft":"m"} wide, and a height of ${p.h} ${p.us?"ft":"m"}. It is pinned at ${iv("A")} and supported by a roller at ${iv(NODES[p.n])}. Downward loads act at the joints: ${ld}. All members have the cross-sectional area ${fmt(p.A,p.us?1:0)} ${u}; member weights are neglected.</p>
-  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the working stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
+  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the allowable stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
 }
 function trSolution(p,s){
   const sol=s.sol,Fu=p.us?"kips":"kN",su=p.us?"ksi":"MPa";
@@ -316,7 +316,7 @@ const TR={name:"Warren truss: member stresses by joints or sections",
   truth:(p,s)=>({s0:s.sg[0],s1:s.sg[1],s2:s.sg[2],A:s.Areq,Ry:s.R[2]}),
   note:"Enter signed stresses; tension is positive."};
 
-// ===== Chapter 10: columns. Base units: SI N, mm, MPa; US kips, in., ksi.
+// ===== columns. Base units: SI N, mm, MPa; US kips, in., ksi.
 const KU=us=>us?{F:"kips",d:"in.",L:"ft",lb:12,S:"ksi",E:29000,Ed:"29 × 10⁶ psi",Ef:1}:{F:"kN",d:"mm",L:"m",lb:1000,S:"MPa",E:200000,Ed:"200 GPa",Ef:1000};
 const ENDS=[{k:"pp",n:"pinned at both ends",K:1},{k:"ff",n:"built in at both ends",K:0.5},{k:"fp",n:"built in at the base and pinned at the top",K:0.7},{k:"fr",n:"built in at the base and free at the top",K:2}];
 function colSec(r,us){
@@ -452,7 +452,7 @@ function k5Generate(seed){
   }
   throw new Error("no valid problem");
 }
-const K5={name:"Steel column design strength (AISC, Eqs. 10.8 and 10.9)",generate:k5Generate,
+const K5={name:"Steel column design strength (AISC)",generate:k5Generate,
   figure:p=>colDraw(p.end.k,`L = ${sig(p.L/KU(p.us).lb,3)} ${KU(p.us).L}`,p.sec,p.us),
   statement:p=>{const u=KU(p.us);return `<p>A steel column (σ<sub>yp</sub> = ${p.Fy} ${u.S}, E = ${u.Ed}) of length ${sig(p.L/u.lb,3)} ${u.L} is ${p.end.n}. It has ${secTxt(p.sec)}; assume the section is nonslender.</p>
   <p>Using the AISC specifications, find the slenderness ratio, the Euler critical stress, the nominal stress, and the design strength P<sub>des</sub> = φσ<sub>nom</sub>A with φ = 0.9.</p>`},
@@ -481,7 +481,7 @@ const K6={name:"Steel column: longest length for a required design strength",gen
   statement:p=>{const u=KU(p.us);return `<p>A steel column (σ<sub>yp</sub> = ${p.Fy} ${u.S}, E = ${u.Ed}) is ${p.end.n} and has ${secTxt(p.sec)}; assume the section is nonslender. The required design strength is ${sig(pF(p.Preq,p.us),3)} ${u.F}.</p>
   <p>Using the AISC specifications (φ = 0.9), find the required nominal stress, the corresponding slenderness ratio, and the largest allowable length of the column.</p>`},
   solution:(p,s)=>{const u=KU(p.us);return `<h3>1. Required nominal stress</h3><p>σ<sub>nom</sub> = P<sub>des</sub>/(0.9A) = ${sig(s.sn,4)} ${u.S}.</p>
-  <h3>2. Which formula applies</h3><p>At the limit L<sub>e</sub>/r = 4.71√(E/σ<sub>yp</sub>), σ<sub>cr</sub> = σ<sub>yp</sub>/2.25 and σ<sub>nom</sub> = 0.658<sup>2.25</sup>σ<sub>yp</sub> = ${sig(Math.pow(0.658,2.25)*p.Fy,4)} ${u.S}. ${s.branch==="inelastic"?"The required σ<sub>nom</sub> is larger, so the first of Eqs. (10.8) applies: σ<sub>yp</sub>/σ<sub>cr</sub> = ln(σ<sub>nom</sub>/σ<sub>yp</sub>)/ln 0.658.":"The required σ<sub>nom</sub> is smaller, so the second of Eqs. (10.8) applies: σ<sub>cr</sub> = σ<sub>nom</sub>/0.877."}</p>
+  <h3>2. Which formula applies</h3><p>At the limit L<sub>e</sub>/r = 4.71√(E/σ<sub>yp</sub>), σ<sub>cr</sub> = σ<sub>yp</sub>/2.25 and σ<sub>nom</sub> = 0.658<sup>2.25</sup>σ<sub>yp</sub> = ${sig(Math.pow(0.658,2.25)*p.Fy,4)} ${u.S}. ${s.branch==="inelastic"?"The required σ<sub>nom</sub> is larger, so the inelastic-buckling formula applies: σ<sub>yp</sub>/σ<sub>cr</sub> = ln(σ<sub>nom</sub>/σ<sub>yp</sub>)/ln 0.658.":"The required σ<sub>nom</sub> is smaller, so the elastic-buckling formula applies: σ<sub>cr</sub> = σ<sub>nom</sub>/0.877."}</p>
   <p>σ<sub>cr</sub> = ${sig(s.scr,4)} ${u.S}; L<sub>e</sub>/r = π√(E/σ<sub>cr</sub>) = ${sig(s.sl,4)}.</p>
   <h3>3. Length</h3><p>L<sub>e</sub> = (L<sub>e</sub>/r)·r = ${sig(s.Le/u.lb,4)} ${u.L}; with L<sub>e</sub> = ${p.end.K}L:</p><p class="final">L<sub>max</sub> = ${sig(s.L/u.lb,4)} ${u.L}</p>`},
   fields:p=>{const u=KU(p.us);return [{id:"sn",label:"Required nominal stress",unit:u.S},{id:"sl",label:"Slenderness ratio Le/r",unit:""},{id:"L",label:"Largest length",unit:u.L}]},
@@ -506,9 +506,9 @@ const K7={name:"Eccentrically loaded column: secant formula",generate:k7Generate
   statement:p=>{const u=KU(p.us);return `<p>A steel column (σ<sub>yp</sub> = ${p.Fy} ${u.S}, E = ${u.Ed}) of length ${sig(p.L/u.lb,3)} ${u.L} is ${p.end.n}. It has ${secTxt(p.sec)} and carries P = ${sig(pF(p.P,p.us),3)} ${u.F} applied with eccentricity e = ${p.e} ${u.d} in the plane of buckling.</p>
   <p>Using the secant formula, find the maximum compressive stress, the factor of safety against yielding (applied to the load), and the maximum lateral deflection.</p>`},
   solution:(p,s)=>{const u=KU(p.us),sec=p.sec;return `<h3>1. Section</h3><p>A = ${sig(sec.A,4)} ${u.d}², I = ${sig(sec.I,4)} ${u.d}⁴, r² = I/A = ${sig(sec.I/sec.A,4)} ${u.d}², c = ${sig(sec.c,4)} ${u.d}, L<sub>e</sub> = ${p.end.K}L = ${sig(s.Le/u.lb,4)} ${u.L}.</p>
-  <h3>2. Maximum stress (Eq. 10.11)</h3><p class="eq">σ<sub>max</sub> = (P/A)[1 + (ec/r²) sec((L<sub>e</sub>/2r)√(P/(EA)))] = ${sig(s.smax,4)} ${u.S}</p>
+  <h3>2. Maximum stress (secant formula)</h3><p class="eq">σ<sub>max</sub> = (P/A)[1 + (ec/r²) sec((L<sub>e</sub>/2r)√(P/(EA)))] = ${sig(s.smax,4)} ${u.S}</p>
   <h3>3. Factor of safety</h3><p>Because σ<sub>max</sub> is not proportional to P, the factor N is found by solving σ<sub>yp</sub> = σ<sub>max</sub>(NP) for N (here by bisection); N = σ<sub>yp</sub>/σ<sub>max</sub> = ${sig(p.Fy/s.smax,3)} would be incorrect.</p><p class="final">N = ${sig(s.N,4)}</p>
-  <h3>4. Lateral deflection (Eq. 10.10)</h3><p class="eq">v<sub>max</sub> = e[sec((L<sub>e</sub>/2)√(P/(EI))) − 1] = ${sig(s.v,4)} ${u.d}</p>`},
+  <h3>4. Lateral deflection</h3><p class="eq">v<sub>max</sub> = e[sec((L<sub>e</sub>/2)√(P/(EI))) − 1] = ${sig(s.v,4)} ${u.d}</p>`},
   fields:p=>{const u=KU(p.us);return [{id:"s",label:"Maximum compressive stress",unit:u.S},{id:"N",label:"Factor of safety against yielding",unit:""},{id:"v",label:"Maximum lateral deflection",unit:u.d}]},
   truth:(p,s)=>({s:s.smax,N:s.N,v:s.v}),note:"Answers within 2% are accepted."};
 
@@ -519,7 +519,7 @@ const FLAWS={};
 const EQ=s=>`<p class="eq">${s}</p>`, PP=s=>`<p>${s}</p>`, FIN=s=>`<p class="final">${s}</p>`;
 const g4=v=>sig(v,4), g3=v=>sig(v,3);
 
-// ===== Chapter 10 planted errors (base units: kips, in., ksi or N, mm, MPa)
+// ===== planted errors (base units: kips, in., ksi or N, mm, MPa)
 const fu10=p=>KU(p.us);
 
 FLAWS["euler"]={step:2,

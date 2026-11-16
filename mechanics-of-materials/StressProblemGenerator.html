@@ -77,7 +77,7 @@
   <div class="card" id="solution"></div>
 </main>
 <script>
-const PAGE_CH="Mechanics of Materials, Chapter 1: Stress";
+const PAGE_CH="Mechanics of Materials: Stress";
 // ===== common helpers: seeded random numbers, number formatting, SVG drawing
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -208,7 +208,7 @@ function tbFigure(p){
 }
 function tbStatement(p){
   const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Wu=p.us?"kips":"kN";
-  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. The cross-sectional areas are ${fmt(p.A[0],p.us?1:0)} ${u} (${iv("AB")}) and ${fmt(p.A[1],p.us?1:0)} ${u} (${iv("AC")}); the working stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
+  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. Bar ${iv("AB")} has area ${fmt(p.A[0],p.us?1:0)} ${u} and bar ${iv("AC")} has area ${fmt(p.A[1],p.us?1:0)} ${u}; the allowable stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
   <p>Express the bar forces as multiples of ${iv("W")}, then find the largest weight each bar can carry and the largest weight that can be hung safely.</p>`;
 }
 function tbSolution(p,s){
@@ -295,7 +295,7 @@ function trStatement(p,s){
   const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
   const nm=k=>trMemName(s.sol,k,p),ld=p.loads.map(([j,f])=>`${f} ${Fu} at ${iv(NODES[j])}`).join(", ");
   return `<p>The Warren truss shown has ${p.n} equal panels, each ${p.a} ${p.us?"ft":"m"} wide, and a height of ${p.h} ${p.us?"ft":"m"}. It is pinned at ${iv("A")} and supported by a roller at ${iv(NODES[p.n])}. Downward loads act at the joints: ${ld}. All members have the cross-sectional area ${fmt(p.A,p.us?1:0)} ${u}; member weights are neglected.</p>
-  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the working stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
+  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the allowable stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
 }
 function trSolution(p,s){
   const sol=s.sol,Fu=p.us?"kips":"kN",su=p.us?"ksi":"MPa";
@@ -348,7 +348,7 @@ function gjDesignGen(seed){
 const GJNAMES=["Wood (tension)","Glue (normal stress)","Glue (shear stress)"];
 function gjDesignStatement(p){
   const su=p.us?"psi":"MPa";
-  return `<p>Two pieces of wood, each with a ${p.b} × ${p.t} ${p.us?"in.":"mm"} cross section, are glued along a plane that makes an angle θ = ${p.th}° with the cross section, as shown. The working stresses are ${p.sw} ${su} for the wood in tension, ${p.sn} ${su} for the glue in normal stress, and ${p.tg} ${su} for the glue in shear.</p>
+  return `<p>Two pieces of wood, each with a ${p.b} × ${p.t} ${p.us?"in.":"mm"} cross section, are glued along a plane that makes an angle θ = ${p.th}° with the cross section, as shown. The allowable stresses are ${p.sw} ${su} for the wood in tension, ${p.sn} ${su} for the glue in normal stress, and ${p.tg} ${su} for the glue in shear.</p>
   <p>Find the largest axial force ${iv("P")} permitted by each of the three criteria, the largest safe force, and the criterion that governs.</p>`;
 }
 function gjDesignSolution(p,s){
@@ -384,7 +384,7 @@ function gjAnaGen(seed){
 }
 function gjAnaStatement(p){
   const su=p.us?"psi":"MPa",Fu=p.us?"lb":"kN";
-  return `<p>Two pieces of wood, each with a ${p.b} × ${p.t} ${p.us?"in.":"mm"} cross section, are glued along a plane that makes an angle θ = ${p.th}° with the cross section, as shown. The bar carries an axial force P = ${sig(p.P,2)} ${Fu}. The working stresses are ${p.sw} ${su} for the wood in tension, ${p.sn} ${su} for the glue in normal stress, and ${p.tg} ${su} for the glue in shear.</p>
+  return `<p>Two pieces of wood, each with a ${p.b} × ${p.t} ${p.us?"in.":"mm"} cross section, are glued along a plane that makes an angle θ = ${p.th}° with the cross section, as shown. The bar carries an axial force P = ${sig(p.P,2)} ${Fu}. The allowable stresses are ${p.sw} ${su} for the wood in tension, ${p.sn} ${su} for the glue in normal stress, and ${p.tg} ${su} for the glue in shear.</p>
   <p>Find the normal and shear stresses on the glued plane, the normal stress on a cross section, and the largest shear stress in the bar. Decide whether the bar is safe.</p>`;
 }
 function gjAnaSolution(p,s){
@@ -392,7 +392,7 @@ function gjAnaSolution(p,s){
   return `<h3>1. Stress on a cross section</h3><p>A = ${p.b} × ${p.t} = ${fmt(p.b*p.t,p.us?2:0)} ${p.us?"in.²":"mm²"}, so σ<sub>0</sub> = P/A = ${sig(s.sg)} ${su}.</p>
   <h3>2. Stresses on the glued plane</h3><p class="eq">σ = σ<sub>0</sub> cos²θ = ${sig(s.sn)} ${su}</p><br><p class="eq">τ = (σ<sub>0</sub>/2) sin 2θ = ${sig(s.ta)} ${su}</p>
   <h3>3. Largest shear stress</h3><p>It acts on planes at 45° to the cross section: τ<sub>max</sub> = σ<sub>0</sub>/2 = ${sig(s.tmax)} ${su}.</p>
-  <h3>4. Check</h3><p class="final">${s.safe?"Safe: all three stresses are within the working stresses.":"Not safe: at least one working stress is exceeded (wood "+(s.sg>p.sw?"tension, ":"")+(s.sn>p.sn?"glue normal, ":"")+(s.ta>p.tg?"glue shear":"")+")."}</p>`;
+  <h3>4. Check</h3><p class="final">${s.safe?"Safe: all three stresses are within the allowable stresses.":"Not safe: at least one allowable stress is exceeded (wood "+(s.sg>p.sw?"tension, ":"")+(s.sn>p.sn?"glue normal, ":"")+(s.ta>p.tg?"glue shear":"")+")."}</p>`;
 }
 const GJA={name:"Glued joint in an axially loaded bar: stresses on the joint",
   generate:gjAnaGen,figure:gjFigure,statement:gjAnaStatement,solution:gjAnaSolution,
@@ -431,7 +431,7 @@ function ljFigure(p){
 }
 function ljStatement(p){
   const su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN",u=p.us?"in.":"mm";
-  return `<p>Two plates, each ${dstr(p.w)} ${u} wide and ${dstr(p.t)} ${u} thick, are joined by a lap joint with ${p.n} rivets of diameter ${dstr(p.d)} ${u} arranged in one row across the width. The load is shared equally by the rivets, and friction between the plates is neglected. The working stresses are ${p.tw} ${su} for shear in the rivets, ${p.sb} ${su} for bearing between the plates and the rivets, and ${p.st} ${su} for tension in the plates, computed on the net section through the rivet holes.</p>
+  return `<p>Two plates, each ${dstr(p.w)} ${u} wide and ${dstr(p.t)} ${u} thick, are joined by a lap joint with ${p.n} rivets of diameter ${dstr(p.d)} ${u} arranged in one row across the width. The load is shared equally by the rivets, and friction between the plates is neglected. The allowable stresses are ${p.tw} ${su} for shear in the rivets, ${p.sb} ${su} for bearing between the plates and the rivets, and ${p.st} ${su} for tension in the plates, computed on the net section through the rivet holes.</p>
   <p>For an applied load P = ${sig(p.Pa,2)} ${Fu}, find the shear stress in a rivet, the bearing stress, and the average tensile stress on the net section of a plate. Then find the largest load permitted by each criterion, the largest safe load, and the governing criterion.</p>`;
 }
 function ljSolution(p,s){
@@ -486,7 +486,7 @@ function pcFigure(p){
 function pcStatement(p){
   const u=p.us?"in.":"mm",Fu=p.us?"lb":"kN",su=p.us?"psi":"MPa";
   return `<p>The uniform bar ${iv("AB")} of length ${p.L} ${p.us?"ft":"m"} and weight ${iv("W")} = ${p.W} ${Fu} carries a vertical force ${iv("F")} = ${p.F} ${Fu} at ${iv("A")}. It is held by a pin at ${iv("B")} and by a cable ${iv("CD")} attached ${p.c} ${p.us?"ft":"m"} from ${iv("B")} and to the wall ${p.h} ${p.us?"ft":"m"} above ${iv("B")}. The cable has a diameter of ${dstr(p.dc)} ${u}; the pin has a diameter of ${dstr(p.dp)} ${u} and is in ${p.dbl?"double":"single"} shear.</p>
-  <p>Find the cable force and the normal stress in the cable, the pin force at ${iv("B")}, and the shear stress in the pin. Then find the smallest cable diameter if the working stress is ${p.sw} ${su}.</p>`;
+  <p>Find the cable force and the normal stress in the cable, the pin force at ${iv("B")}, and the shear stress in the pin. Then find the smallest cable diameter if the allowable stress is ${p.sw} ${su}.</p>`;
 }
 function pcSolution(p,s){
   const Fu=p.us?"lb":"kN",su=p.us?"psi":"MPa",u=p.us?"in.":"mm",d=Math.hypot(p.c,p.h);
@@ -529,13 +529,13 @@ function puFigure(p){
 }
 function puStatement(p){
   const u=p.us?"in.":"mm",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
-  return `<p>A circular punch of diameter ${dstr(p.d)} ${u} forms a hole in a plate ${dstr(p.t)} ${u} thick. The shear strength of the plate material is ${p.tu} ${su}, and the working compressive stress of the punch is ${p.sw} ${su}.</p>
-  <p>Find the force required to punch the hole and the compressive stress in the punch. Then find (a) the greatest plate thickness in which a hole of this diameter can be punched, and (b) the smallest hole that can be punched in a plate of the given thickness.</p>`;
+  return `<p>A round punch, ${dstr(p.d)} ${u} in diameter, is driven through a plate ${dstr(p.t)} ${u} thick. The plate material fails in shear at ${p.tu} ${su}, and the compressive stress in the punch is limited to ${p.sw} ${su}.</p>
+  <p>Find the punching force and the resulting compressive stress in the punch. Then find (a) the thickest plate this punch can pierce, and (b) the smallest punch diameter that can pierce a plate of the given thickness.</p>`;
 }
 function puSolution(p,s){
   const u=p.us?"in.":"mm",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
   return `<h3>1. Punching force</h3><p>The shear area is the cylindrical surface πdt, so F = τ<sub>u</sub>πdt = ${sig(s.F)} ${Fu}.</p>
-  <h3>2. Punch stress</h3><p>σ = F/(πd²/4) = ${sig(s.sp)} ${su}, which is ${s.sp<p.sw?"below":"above"} the working stress.</p>
+  <h3>2. Punch stress</h3><p>σ = F/(πd²/4) = ${sig(s.sp)} ${su}, which is ${s.sp<p.sw?"below":"above"} the allowable stress.</p>
   <h3>3. Limits</h3><p>Setting σ equal to σ<sub>w</sub> gives σ<sub>w</sub>πd²/4 = τ<sub>u</sub>πdt, so</p>
   <p class="eq">t<sub>max</sub> = σ<sub>w</sub>d/(4τ<sub>u</sub>) = ${sig(s.tmax)} ${u}, d<sub>min</sub> = 4τ<sub>u</sub>t/σ<sub>w</sub> = ${sig(s.dmin)} ${u}</p>`;
 }
@@ -576,7 +576,7 @@ function clFigure(p){
 }
 function clStatement(p){
   const u=p.us?"in.":"mm",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
-  return `<p>A rod eye of thickness ${dstr(p.tr)} ${u} is connected to a clevis with two ears, each ${dstr(p.tc)} ${u} thick, by a pin of diameter ${dstr(p.d)} ${u}, as shown (section along the pin axis). The pin is in double shear, and each ear carries half of the load. The working stresses are ${p.tw} ${su} for shear in the pin and ${p.sb} ${su} for bearing between the pin and either plate.</p>
+  return `<p>A rod eye of thickness ${dstr(p.tr)} ${u} is connected to a clevis with two ears, each ${dstr(p.tc)} ${u} thick, by a pin of diameter ${dstr(p.d)} ${u}, as shown (section along the pin axis). The pin is in double shear, and each ear carries half of the load. The allowable stresses are ${p.tw} ${su} for shear in the pin and ${p.sb} ${su} for bearing between the pin and either plate.</p>
   <p>For a load P = ${sig(p.Pa,2)} ${Fu}, find the shear stress in the pin and the bearing stresses at the rod eye and at the ears. Then find the smallest pin diameter that is safe in shear for this load, the largest safe load for the given pin, and the governing criterion.</p>`;
 }
 function clSolution(p,s){
@@ -603,7 +603,7 @@ const FLAWS={};
 const EQ=s=>`<p class="eq">${s}</p>`, PP=s=>`<p>${s}</p>`, FIN=s=>`<p class="final">${s}</p>`;
 const g4=v=>sig(v,4), g3=v=>sig(v,3);
 
-// ===== Chapter 1 planted errors
+// ===== planted errors
 FLAWS["stepped-bar"]={step:1,
   why:"With tension positive, the axial force in a segment equals minus the sum of the external loads (positive to the right) to the left of the cut. A load pulling the left end to the left puts the segment in tension.",
   run:(p,s)=>{const N=s.N.map(v=>-v),sg=N.map((v,i)=>v/p.A[i]*(p.us?1:1)),su=p.us?"psi":"MPa",fu=p.us?"lb":"N";

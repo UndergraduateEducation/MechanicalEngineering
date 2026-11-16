@@ -77,7 +77,7 @@
   <div class="card" id="solution"></div>
 </main>
 <script>
-const PAGE_CH="Mechanics of Materials, Chapter 13: Inelastic Action";
+const PAGE_CH="Mechanics of Materials: Inelastic Action";
 // ===== common helpers: seeded random numbers, number formatting, SVG drawing
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -208,7 +208,7 @@ function tbFigure(p){
 }
 function tbStatement(p){
   const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Wu=p.us?"kips":"kN";
-  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. The cross-sectional areas are ${fmt(p.A[0],p.us?1:0)} ${u} (${iv("AB")}) and ${fmt(p.A[1],p.us?1:0)} ${u} (${iv("AC")}); the working stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
+  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. Bar ${iv("AB")} has area ${fmt(p.A[0],p.us?1:0)} ${u} and bar ${iv("AC")} has area ${fmt(p.A[1],p.us?1:0)} ${u}; the allowable stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
   <p>Express the bar forces as multiples of ${iv("W")}, then find the largest weight each bar can carry and the largest weight that can be hung safely.</p>`;
 }
 function tbSolution(p,s){
@@ -295,7 +295,7 @@ function trStatement(p,s){
   const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
   const nm=k=>trMemName(s.sol,k,p),ld=p.loads.map(([j,f])=>`${f} ${Fu} at ${iv(NODES[j])}`).join(", ");
   return `<p>The Warren truss shown has ${p.n} equal panels, each ${p.a} ${p.us?"ft":"m"} wide, and a height of ${p.h} ${p.us?"ft":"m"}. It is pinned at ${iv("A")} and supported by a roller at ${iv(NODES[p.n])}. Downward loads act at the joints: ${ld}. All members have the cross-sectional area ${fmt(p.A,p.us?1:0)} ${u}; member weights are neglected.</p>
-  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the working stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
+  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the allowable stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
 }
 function trSolution(p,s){
   const sol=s.sol,Fu=p.us?"kips":"kN",su=p.us?"ksi":"MPa";
@@ -316,7 +316,7 @@ const TR={name:"Warren truss: member stresses by joints or sections",
   truth:(p,s)=>({s0:s.sg[0],s1:s.sg[1],s2:s.sg[2],A:s.Areq,Ry:s.R[2]}),
   note:"Enter signed stresses; tension is positive."};
 
-// ===== Chapter 3 helpers. Base units: SI N, mm, MPa (torque N·mm); US lb, in., psi (torque lb·in.)
+// ===== helpers. Base units: SI N, mm, MPa (torque N·mm); US lb, in., psi (torque lb·in.)
 const TU=us=>us?{T:"lb·ft",tf:1/12,S:"ksi",sf:1/1000,L:"in.",Lb:"ft",lb:12,G:"× 10⁶ psi",Gf:1e-6}
                :{T:"N·m",tf:1/1000,S:"MPa",sf:1,L:"mm",Lb:"m",lb:1000,G:"GPa",Gf:1/1000};
 const GM={steel:[80000,12e6],aluminum:[28000,4e6],bronze:[35000,6e6],copper:[47000,6.8e6]};
@@ -359,7 +359,7 @@ function csFigure(p){
 }
 function csStatement(p){
   const u=TU(p.us);
-  return `<p>A ${p.hollow?"hollow":"solid"} ${p.m} shaft of length ${lb_(p.L,p.us)} ${u.Lb}${p.hollow?` with outer diameter ${p.d} ${u.L} and inner diameter ${p.di} ${u.L}`:` and diameter ${p.d} ${u.L}`} is built into the wall at one end and carries the torque T = ${tq(p.T,p.us)} ${u.T} at the free end. Use ${Gstr(p.m,p.us)}.</p>
+  return `<p>A ${p.hollow?"hollow":"solid"} ${p.m} shaft of length ${lb_(p.L,p.us)} ${u.Lb}${p.hollow?` with outer diameter ${p.d} ${u.L} and inner diameter ${p.di} ${u.L}`:` and diameter ${p.d} ${u.L}`} is fixed to a wall at one end and loaded by the torque T = ${tq(p.T,p.us)} ${u.T} at the other. Use ${Gstr(p.m,p.us)}.</p>
   <p>Find the polar moment of inertia, the maximum shear stress, the shear stress ${p.hollow?"at the inner surface":"at half the outer radius"}, and the angle of twist of the shaft.</p>`;
 }
 function csSolution(p,s){
@@ -404,8 +404,8 @@ function shFigure(p){
 function shStatement(p){
   const u=TU(p.us),mats=[...new Set(p.M)].map(m=>`${Gstr(m,p.us)} for ${m}`).join(", ");
   const Ts=p.T.map((t,i)=>`${tq(Math.abs(t),p.us)} ${u.T} at ${iv(NODES[i])}`).join(", ");
-  return `<p>The solid shaft ${NODES[0]}${NODES[p.n]} is built into the wall at ${iv(NODES[p.n])}. Its ${p.n} segments have the diameters and lengths shown${new Set(p.M).size>1?"; segment materials are "+p.M.map((m,i)=>`${sbSeg(i)} ${m}`).join(", "):", and all segments are "+p.M[0]}. The torques ${Ts} act in the senses shown by the torque vectors (right-hand rule). Use ${mats}.</p>
-  <p>Find the maximum shear stress in each segment, the segment with the largest stress, and the angle of rotation of end ${iv("A")}.</p>`;
+  return `<p>The solid shaft ${NODES[0]}${NODES[p.n]} is fixed to the wall at ${iv(NODES[p.n])}. Its ${p.n} segments have the diameters and lengths shown${new Set(p.M).size>1?"; segment materials are "+p.M.map((m,i)=>`${sbSeg(i)} ${m}`).join(", "):", and all segments are "+p.M[0]}. The torques ${Ts} act in the senses shown by the torque vectors (right-hand rule). Use ${mats}.</p>
+  <p>Find the largest shear stress in every segment, which segment is most highly stressed, and how far end ${iv("A")} rotates.</p>`;
 }
 function shSolution(p,s){
   const u=TU(p.us);let h=`<h3>1. Internal torques</h3><p>A free-body diagram of the part of the shaft to the left of a cut in each segment gives the internal torque as the sum of the applied torques on that part (vectors pointing right taken positive):</p><table><tr><th>Segment</th><th>T (${u.T})</th><th>d (${u.L})</th><th>τ<sub>max</sub> = 16|T|/(πd³) (${u.S})</th><th>θ = TL/(GJ) (rad)</th></tr>`;
@@ -448,7 +448,7 @@ function gpFigure(p){
 function gpStatement(p){
   const u=TU(p.us),ps=p.Pw.map((P,i)=>i===p.inp?null:`${P} ${p.us?"hp":"kW"} at ${iv(NODES[i])}`).filter(Boolean).join(", ");
   return `<p>Gears ${NODES.slice(0,p.n).split("").map(iv).join(", ")} are attached to a solid steel shaft of diameter ${p.d} ${u.L} that rotates at ${p.us?p.freq+" rev/min":p.freq+" Hz"}. Gear ${iv(NODES[p.inp])} receives ${Math.abs(p.Pw[p.inp])} ${p.us?"hp":"kW"} from a motor, and the power is taken off at the other gears: ${ps}. The spacing of the gears is shown. Use ${Gstr("steel",p.us)} and neglect friction in the bearings.</p>
-  <p>Find the maximum shear stress in the shaft and the angle of rotation of gear ${iv("A")} relative to gear ${iv(NODES[p.n-1])}. Then find the smallest diameter for a working shear stress of ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}.</p>`;
+  <p>Find the largest shear stress in the shaft and the rotation of gear ${iv("A")} with respect to gear ${iv(NODES[p.n-1])}. Then find the smallest diameter for a allowable shear stress of ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}.</p>`;
 }
 function gpSolution(p,s){
   const u=TU(p.us);let h=`<h3>1. Gear torques</h3><p>${p.us?"T (lb·in.) = 63 025 P(hp)/n(rev/min)":"T = P/(2πf)"}. ${p.Pw.map((P,i)=>`T<sub>${NODES[i]}</sub> = ${tq(Math.abs(s.Tg[i]),p.us)} ${u.T}`).join(", ")}; the input torque balances the outputs.</p>
@@ -483,7 +483,7 @@ function pdFigure(p){
 }
 function pdStatement(p){
   const u=TU(p.us);
-  return `<p>A solid ${p.m} shaft transmits ${p.P} ${p.us?"hp":"kW"} at ${p.us?p.f+" rev/min":p.f+" Hz"}. The shear stress must not exceed ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}, and the angle of twist must not exceed ${p.th}° in a length of ${lb_(p.L,p.us)} ${u.Lb}. Use ${Gstr(p.m,p.us)}.</p>
+  return `<p>A solid ${p.m} shaft transmits ${p.P} ${p.us?"hp":"kW"} at ${p.us?p.f+" rev/min":p.f+" Hz"}. The shear stress may be at most ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}, and any ${lb_(p.L,p.us)} ${u.Lb} of shaft may twist by no more than ${p.th}°. Use ${Gstr(p.m,p.us)}.</p>
   <p>Find the torque, the smallest diameter for each requirement, the smallest safe diameter, and the governing requirement.</p>`;
 }
 function pdSolution(p,s){
@@ -525,8 +525,8 @@ function iwFigure(p){
 }
 function iwStatement(p){
   const u=TU(p.us),mats=[...new Set(p.M)].map(m=>`${Gstr(m,p.us)} for ${m}`).join(" and ");
-  return `<p>The compound shaft ${iv("ABC")} is attached to rigid walls at ${iv("A")} and ${iv("C")}. Segment ${iv("AB")} is a solid ${p.M[0]} shaft of diameter ${p.d[0]} ${u.L}, and segment ${iv("BC")} is a solid ${p.M[1]} shaft of diameter ${p.d[1]} ${u.L}; lengths are shown. The torque T = ${tq(p.T,p.us)} ${u.T} is applied at the junction ${iv("B")}. Use ${mats}.</p>
-  <p>Find the reactive torques at ${iv("A")} and ${iv("C")}, the maximum shear stress in each segment, and the angle of rotation of ${iv("B")}.</p>`;
+  return `<p>Both ends of the compound shaft ${iv("ABC")}, at ${iv("A")} and ${iv("C")}, are held by rigid walls. Segment ${iv("AB")} is a solid ${p.M[0]} shaft of diameter ${p.d[0]} ${u.L}, and segment ${iv("BC")} is a solid ${p.M[1]} shaft of diameter ${p.d[1]} ${u.L}; lengths are shown. The torque T = ${tq(p.T,p.us)} ${u.T} is applied at the junction ${iv("B")}. Use ${mats}.</p>
+  <p>Find the wall torques at ${iv("A")} and ${iv("C")}, the largest shear stress in both segments, and how far ${iv("B")} rotates.</p>`;
 }
 function iwSolution(p,s){
   const u=TU(p.us);
@@ -567,7 +567,7 @@ function ctFigure(p){
 function ctStatement(p){
   const u=TU(p.us);
   return `<p>A composite shaft is made by bonding a ${p.pr[1]} tube of outer diameter ${p.d2} ${u.L} to a solid ${p.pr[0]} core of diameter ${p.d1} ${u.L}. The shaft is ${lb_(p.L,p.us)} ${u.Lb} long, is built in at one end, and carries the torque T = ${tq(p.T,p.us)} ${u.T} at the other end. Use ${Gstr(p.pr[0],p.us)} for ${p.pr[0]} and ${Gstr(p.pr[1],p.us)} for ${p.pr[1]}.</p>
-  <p>Find the maximum shear stress in the core and in the tube and the angle of twist. Then find the largest safe torque if the working shear stresses are ${p.us?fmt(p.w[0])+" psi":p.w[0]+" MPa"} for the core and ${p.us?fmt(p.w[1])+" psi":p.w[1]+" MPa"} for the tube.</p>`;
+  <p>Find the peak shear stress in the core, the peak shear stress in the tube, and the angle of twist. Then find the largest safe torque if the allowable shear stresses are ${p.us?fmt(p.w[0])+" psi":p.w[0]+" MPa"} for the core and ${p.us?fmt(p.w[1])+" psi":p.w[1]+" MPa"} for the tube.</p>`;
 }
 function ctSolution(p,s){
   const u=TU(p.us),f=TU(p.us).sf;
@@ -609,8 +609,8 @@ function twFigure(p){
 }
 function twStatement(p){
   const u=TU(p.us);
-  return `<p>A ${p.m} tube of length ${lb_(p.L,p.us)} ${u.Lb} has the thin-walled rectangular cross section shown: outer dimensions ${p.B} × ${p.H} ${u.L}, wall thickness ${dstr(p.t1)} ${u.L} in the top and bottom walls and ${dstr(p.t2)} ${u.L} in the side walls. It carries the torque T = ${tq(p.T,p.us)} ${u.T}. Use ${Gstr(p.m,p.us)} and neglect stress concentrations at the corners.</p>
-  <p>Find the area enclosed by the median line, the shear flow, the shear stress in the top and bottom walls and in the side walls, and the angle of twist. Then find the largest torque for a working shear stress of ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}.</p>`;
+  return `<p>A ${p.m} tube of length ${lb_(p.L,p.us)} ${u.Lb} has the thin-walled rectangular cross section shown: outer dimensions ${p.B} × ${p.H} ${u.L}, wall thickness ${dstr(p.t1)} ${u.L} in the top and bottom walls and ${dstr(p.t2)} ${u.L} in the side walls. It carries the torque T = ${tq(p.T,p.us)} ${u.T}. Use ${Gstr(p.m,p.us)}; ignore the local stress rise at the inside corners.</p>
+  <p>Find the area enclosed by the wall centerline, the shear flow, the shear stress in the top and bottom walls and in the side walls, and the angle of twist. Then find the largest torque for a allowable shear stress of ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}.</p>`;
 }
 function twSolution(p,s){
   const u=TU(p.us);
@@ -621,11 +621,11 @@ function twSolution(p,s){
 }
 const TW={name:"Thin-walled rectangular tube: shear flow, stresses, angle of twist",
   generate:twGenerate,figure:twFigure,statement:twStatement,solution:twSolution,
-  fields:p=>{const u=TU(p.us);return [{id:"A0",label:"Area enclosed by the median line",unit:u.L+"²"},{id:"q",label:"Shear flow",unit:p.us?"lb/in.":"N/mm"},
+  fields:p=>{const u=TU(p.us);return [{id:"A0",label:"Area enclosed by the wall centerline",unit:u.L+"²"},{id:"q",label:"Shear flow",unit:p.us?"lb/in.":"N/mm"},
     {id:"tau1",label:"Shear stress in top and bottom walls",unit:u.S},{id:"tau2",label:"Shear stress in side walls",unit:u.S},{id:"th",label:"Angle of twist",unit:"degrees"},{id:"Tw",label:"Largest torque",unit:u.T}]},
   truth:(p,s)=>({A0:s.A0,q:s.q,tau1:s.tau1*TU(p.us).sf,tau2:s.tau2*TU(p.us).sf,th:s.th,Tw:s.Tw*TU(p.us).tf}),note:"Answers within 2% are accepted."};
 
-// ===== 8. rectangular and circular segments in series (Table 3.1 coefficients)
+// ===== 8. rectangular and circular segments in series (coefficients C1, C2 given in the statement)
 const RT31=[[1.0,0.208,0.141],[1.2,0.219,0.166],[1.5,0.231,0.196],[2.0,0.246,0.229],[2.5,0.258,0.249],[3.0,0.267,0.263],[4.0,0.282,0.281],[5.0,0.291,0.291],[10.0,0.312,0.312]];
 function rsGenerate(seed){
   const r=mulberry32(seed);
@@ -652,7 +652,7 @@ function rsFigure(p){
 }
 function rsStatement(p){
   const u=TU(p.us),Gs=p.m==="wood"?(p.us?"G = 75 000 psi":"G = 0.5 GPa"):Gstr(p.m,p.us),ws=p.us?fmt(p.tw)+" psi":p.tw+" MPa";
-  return `<p>A ${p.m} bar built into a wall consists of two segments: a rectangular segment with cross section ${p.a} × ${p.b} ${u.L} and a circular segment of diameter ${p.d} ${u.L}, with the lengths shown. A torque T is applied at the free end. The working shear stress is ${ws}; use ${Gs}. For the rectangular section, τ<sub>max</sub> = T/(C₁ab²) and θ = TL/(C₂ab³G), with a ≥ b; for a/b = ${p.ab}, C₁ = ${p.C1} and C₂ = ${p.C2}.</p>
+  return `<p>A ${p.m} bar fixed to a wall is made of two segments: a rectangular segment with cross section ${p.a} × ${p.b} ${u.L} and a circular segment of diameter ${p.d} ${u.L}, with the lengths shown. The free end carries a torque T. The allowable shear stress is ${ws}; use ${Gs}. For the rectangular section, τ<sub>max</sub> = T/(C₁ab²) and θ = TL/(C₂ab³G), with a ≥ b; for a/b = ${p.ab}, C₁ = ${p.C1} and C₂ = ${p.C2}.</p>
   <p>Find the largest safe torque for each segment, the largest safe torque for the bar, the governing segment, and the angle of twist of the free end under that torque.</p>`;
 }
 function rsSolution(p,s){
@@ -661,7 +661,7 @@ function rsSolution(p,s){
   <p class="final">T<sub>max</sub> = ${tq(s.T,p.us)} ${u.T}, governed by the ${s.gov.toLowerCase()}.</p>
   <h3>2. Angle of twist</h3><p>Rectangular: θ = TL/(C₂ab³G) = ${sig(s.thr)}°. Circular: θ = TL/(GJ) = ${sig(s.thc)}°.</p><p class="final">θ = ${sig(s.th)}°</p>`;
 }
-const RS={name:"Rectangular and circular bar segments in series (Table 3.1)",
+const RS={name:"Rectangular and circular bar segments in series",
   generate:rsGenerate,figure:rsFigure,statement:rsStatement,solution:rsSolution,
   fields:p=>{const u=TU(p.us);return [{id:"Tr",label:"Largest torque, rectangular segment",unit:u.T},{id:"Tc",label:"Largest torque, circular segment",unit:u.T},{id:"T",label:"Largest safe torque",unit:u.T},
     {id:"gov",label:"Governing segment",unit:"",choices:["Rectangular segment","Circular segment"]},{id:"th",label:"Angle of twist of the free end",unit:"degrees"}]},
@@ -691,8 +691,8 @@ function gtFigure(p){
 }
 function gtStatement(p){
   const u=TU(p.us);
-  return `<p>The torque T = ${tq(p.T,p.us)} ${u.T} is applied at end ${iv("A")} of the solid steel shaft ${iv("AB")}, which turns freely in its bearings. Gear ${iv("B")} (radius ${p.rB} ${u.L}) meshes with gear ${iv("C")} (radius ${p.rC} ${u.L}) on the solid steel shaft ${iv("CD")}, which is built into the wall at ${iv("D")}. Shaft lengths and diameters are shown. Use ${Gstr("steel",p.us)}.</p>
-  <p>Find the maximum shear stress in each shaft and the angle of rotation of end ${iv("A")}.</p>`;
+  return `<p>The torque T = ${tq(p.T,p.us)} ${u.T} is applied at end ${iv("A")} of the solid steel shaft ${iv("AB")}, which turns freely in its bearings. Gear ${iv("B")} (radius ${p.rB} ${u.L}) meshes with gear ${iv("C")} (radius ${p.rC} ${u.L}) on the solid steel shaft ${iv("CD")}, which is fixed to the wall at ${iv("D")}. Shaft lengths and diameters are shown. Use ${Gstr("steel",p.us)}.</p>
+  <p>For each shaft find the largest shear stress; then find how far end ${iv("A")} rotates.</p>`;
 }
 function gtSolution(p,s){
   const u=TU(p.us);
@@ -731,8 +731,8 @@ function dtFigure(p){
 }
 function dtStatement(p){
   const u=TU(p.us),tu=p.us?"lb·in./in.":"N·m/m";
-  return `<p>A solid ${p.m} shaft of diameter ${p.d} ${u.L} and length L = ${lb_(p.L,p.us)} ${u.Lb} is built into the wall at ${iv("A")} and free at ${iv("B")}. It carries a distributed torque ${p.lin?`whose intensity increases linearly from zero at ${iv("A")} to t<sub>B</sub> = ${p.t0} ${tu} at ${iv("B")}`:`of uniform intensity t = ${p.t0} ${tu}`}. Use ${Gstr(p.m,p.us)}.</p>
-  <p>Find the reactive torque at the wall, the maximum shear stress in the shaft, and the angle of rotation of the free end.</p>`;
+  return `<p>A solid ${p.m} shaft of diameter ${p.d} ${u.L} and length L = ${lb_(p.L,p.us)} ${u.Lb} is fixed to the wall at ${iv("A")}; end ${iv("B")} is free. It carries a distributed torque ${p.lin?`whose intensity increases linearly from zero at ${iv("A")} to t<sub>B</sub> = ${p.t0} ${tu} at ${iv("B")}`:`of uniform intensity t = ${p.t0} ${tu}`}. Use ${Gstr(p.m,p.us)}.</p>
+  <p>Find the torque the wall exerts on the shaft, the largest shear stress, and the rotation of the free end.</p>`;
 }
 function dtSolution(p,s){
   const u=TU(p.us);
@@ -742,10 +742,10 @@ function dtSolution(p,s){
 }
 const DT={name:"Distributed torque on a cantilevered shaft",
   generate:dtGenerate,figure:dtFigure,statement:dtStatement,solution:dtSolution,
-  fields:p=>{const u=TU(p.us);return [{id:"T0",label:"Reactive torque at the wall",unit:u.T},{id:"tmax",label:"Maximum shear stress",unit:u.S},{id:"th",label:"Angle of rotation of B",unit:"degrees"}]},
+  fields:p=>{const u=TU(p.us);return [{id:"T0",label:"Wall reaction torque",unit:u.T},{id:"tmax",label:"Maximum shear stress",unit:u.S},{id:"th",label:"Angle of rotation of B",unit:"degrees"}]},
   truth:(p,s)=>({T0:s.T0*TU(p.us).tf,tmax:s.tmax*TU(p.us).sf,th:s.th}),note:"Answers within 2% are accepted."};
 
-// ===== Chapter 4 beam engine
+// ===== beam engine
 // beam: {L, sup:{kind:"ss",xa,xb}|{kind:"fixL"}|{kind:"fixR"}|{kind:"hinge",xh,xc}, P:[{x,F}] (F down +), C:[{x,C}] (clockwise +), W:[{a,b,w1,w2}] (down +)}
 const U4=us=>us?{F:"lb",L:"ft",w:"lb/ft",M:"lb·ft"}:{F:"kN",L:"m",w:"kN/m",M:"kN·m"};
 const GQ=[[-0.7745966692414834,5/9],[0,8/9],[0.7745966692414834,5/9]];
@@ -842,7 +842,7 @@ function bmReactText(bm){const u=U4(bm.us);let t=bm.R.map(r=>`R<sub>${ptName(bm,
   if(bm.K.length)t+=`, wall moment ${sig(Math.abs(bm.K[0].C),4)} ${u.M} (${bm.K[0].C<0?"counterclockwise":"clockwise"} on the beam)`;return t}
 const SIGNNOTE="Sign convention: V is the sum of the external forces to the left of the section, upward positive; M is positive when it bends the beam concave upward (sagging).";
 
-// ===== Chapter 4 problem types
+// ===== problem types
 const pos=(r,L,st,lo=st,hi=L-st)=>pick(r,range(Math.ceil(lo/st-1e-9)*st,hi,st));
 const Fv=(r,us,lo=1)=>pick(r,us?range(200,3000,100):range(5,60,5))*lo;
 const Wv=(r,us)=>pick(r,us?range(50,600,50):range(2,20,1));
@@ -850,7 +850,7 @@ const Cv=(r,us)=>pick(r,us?range(500,6000,250):range(5,60,5));
 const Lv=(r,us,set)=>pick(r,set||(us?[6,8,9,10,12,14,16]:[3,4,5,6,8,10]));
 const sameRes=(a,b)=>Math.abs(a-b)<=0.02*Math.abs(b)+1e-9;
 const bmSol=(bm,extra="")=>`<h3>1. Reactions</h3><p>From the equilibrium of the whole beam${bm.sup.kind==="hinge"?" and, first, of the part to the right of the hinge (zero moment at the hinge)":""}: ${bmReactText(bm)}.</p>
-  <h3>2. Shear force and bending moment diagrams</h3><p class="note">${SIGNNOTE} The slope of the V diagram is −w; the slope of the M diagram is V. Concentrated forces cause jumps in V; couples cause jumps in M.</p>${bmDiagram(bm,"V")}${bmDiagram(bm,"M")}${extra}`;
+  <h3>2. Shear force and bending moment diagrams</h3><p class="note">${SIGNNOTE} Along the beam dV/dx = −w and dM/dx = V. Concentrated forces cause jumps in V; couples cause jumps in M.</p>${bmDiagram(bm,"V")}${bmDiagram(bm,"M")}${extra}`;
 
 // ----- 1. simply supported beam with concentrated loads: V and M at a section
 function s1Generate(seed){
@@ -867,9 +867,9 @@ function s1Generate(seed){
 }
 const S1={name:"Simply supported beam with concentrated loads: V and M at a section",generate:s1Generate,
   figure:p=>bmDraw(p,{section:p.xs}),
-  statement:p=>{const u=U4(p.us);return `<p>The simply supported beam shown carries ${p.P.length} concentrated loads; neglect the weight of the beam.</p>
-  <p>Find the support reactions, the shear force and bending moment on the section ${fmtx(p.xs)} ${u.L} from the left end (dashed line), and the maximum bending moment and its location.</p><p class="note">${SIGNNOTE}</p>`},
-  solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Section at x = ${fmtx(p.xs)} ${u.L}</h3><p>From the free-body diagram of the part to the left of the section: V = ${sig(s.V,4)} ${u.F}, M = ${sig(s.M,4)} ${u.M}.</p>
+  statement:p=>{const u=U4(p.us);return `<p>The simply supported beam shown carries ${p.P.length} concentrated loads; the beam's own weight is negligible.</p>
+  <p>Find the support reactions, the shear force and bending moment on the section ${fmtx(p.xs)} ${u.L} from the left end (dashed line), and the largest bending moment with the position where it occurs.</p><p class="note">${SIGNNOTE}</p>`},
+  solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Section at x = ${fmtx(p.xs)} ${u.L}</h3><p>Equilibrium of the beam segment to the left of the cut gives V = ${sig(s.V,4)} ${u.F}, M = ${sig(s.M,4)} ${u.M}.</p>
   <h3>4. Maximum moment</h3><p>The shear changes sign at x = ${fmtx(p.Mpos.x)} ${u.L}, where <span class="final">M<sub>max</sub> = ${sig(p.Mpos.m,4)} ${u.M}</span>.</p>`)},
   fields:p=>{const u=U4(p.us);return [{id:"RA",label:"Reaction at the left support (up +)",unit:u.F,signed:true},{id:"RB",label:"Reaction at the right support (up +)",unit:u.F,signed:true},
     {id:"V",label:"Shear force at the section (signed)",unit:u.F,signed:true},{id:"M",label:"Bending moment at the section (signed)",unit:u.M,signed:true},
@@ -894,8 +894,8 @@ function s2Generate(seed){
 }
 const S2={name:"Overhanging beam with distributed and concentrated loads",generate:s2Generate,
   figure:p=>bmDraw(p),
-  statement:p=>`<p>The overhanging beam shown is supported by a pin at ${iv(ptName(p,p.sup.xa))} and a roller at ${iv(ptName(p,p.sup.xb))}. It carries the uniformly distributed load and the concentrated load shown; neglect the weight of the beam.</p>
-  <p>Draw the shear force and bending moment diagrams by the area method. Find the reactions, the maximum shear force magnitude, the maximum positive bending moment and its location, and the maximum negative bending moment.</p><p class="note">${SIGNNOTE}</p>`,
+  statement:p=>`<p>The overhanging beam shown rests on a pin at ${iv(ptName(p,p.sup.xa))} and a roller at ${iv(ptName(p,p.sup.xb))}. It carries the uniformly distributed load and the concentrated load shown; the beam's own weight is negligible.</p>
+  <p>Sketch the shear force and bending moment diagrams, building each one from the areas under the diagram above it. Find the reactions, the maximum shear force magnitude, the maximum positive bending moment and its location, and the maximum negative bending moment.</p><p class="note">${SIGNNOTE}</p>`,
   solution:p=>{const u=U4(p.us);return bmSol(p,`<h3>3. Extreme values</h3><p>|V|<sub>max</sub> = ${sig(p.Vmax,4)} ${u.F}. The largest positive moment occurs where V = 0, at x = ${fmtx(p.Mpos.x)} ${u.L}: M = ${sig(p.Mpos.m,4)} ${u.M}. The largest negative moment is ${sig(p.Mneg.m,4)} ${u.M} at x = ${fmtx(p.Mneg.x)} ${u.L}.</p>`)},
   fields:p=>{const u=U4(p.us);return [{id:"RA",label:`Reaction at ${ptName(p,p.sup.xa)} (up +)`,unit:u.F,signed:true},{id:"RB",label:`Reaction at ${ptName(p,p.sup.xb)} (up +)`,unit:u.F,signed:true},
     {id:"Vm",label:"Maximum |V|",unit:u.F},{id:"Mp",label:"Maximum positive M",unit:u.M},{id:"xp",label:"Location of the maximum positive M, from the left end",unit:u.L},{id:"Mn",label:"Maximum negative M (signed)",unit:u.M,signed:true}]},
@@ -921,7 +921,7 @@ function s3Generate(seed){
 }
 const S3={name:"Cantilever beam: wall reactions, V and M at a section",generate:s3Generate,
   figure:p=>bmDraw(p,{section:p.xs}),
-  statement:p=>{const u=U4(p.us);return `<p>The cantilever beam shown is built into the wall at its ${p.sup.kind==="fixR"?"right":"left"} end and carries the loads shown${p.C.length?", including a couple":""}; neglect the weight of the beam.</p>
+  statement:p=>{const u=U4(p.us);return `<p>The cantilever beam shown is fixed to the wall at its ${p.sup.kind==="fixR"?"right":"left"} end and carries the loads shown${p.C.length?", including a couple":""}; the beam's own weight is negligible.</p>
   <p>Find the vertical reaction at the wall, the bending moment in the beam at the wall, the shear force and bending moment on the section ${fmtx(p.xs)} ${u.L} from the left end, and the largest bending moment magnitude.</p><p class="note">${SIGNNOTE}</p>`},
   solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Values asked</h3><p>Bending moment at the wall: M = ${sig(s.Mw,4)} ${u.M}. At x = ${fmtx(p.xs)} ${u.L}: V = ${sig(s.V,4)} ${u.F}, M = ${sig(s.M,4)} ${u.M}. Largest |M| = <span class="final">${sig(s.Mabs,4)} ${u.M}</span>.</p>`)},
   fields:p=>{const u=U4(p.us);return [{id:"R",label:"Vertical reaction at the wall (up +)",unit:u.F,signed:true},{id:"Mw",label:"Bending moment at the wall (signed)",unit:u.M,signed:true},
@@ -943,7 +943,7 @@ function s4Generate(seed){
 }
 const S4={name:"Linearly varying load: zero-shear location and maximum moment",generate:s4Generate,
   figure:p=>bmDraw(p),
-  statement:p=>`<p>The simply supported beam shown carries a linearly varying distributed load${p.P.length?" and a concentrated load":""}; neglect the weight of the beam.</p>
+  statement:p=>`<p>The simply supported beam shown carries a linearly varying distributed load${p.P.length?" and a concentrated load":""}; the beam's own weight is negligible.</p>
   <p>Find the support reactions, the location where the shear force is zero, and the maximum bending moment.</p><p class="note">${SIGNNOTE}</p>`,
   solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Zero shear and maximum moment</h3><p>Within the loaded region the shear is a quadratic function of x; setting it to zero gives x = ${sig(s.xz,4)} ${u.L}. There, <span class="final">M<sub>max</sub> = ${sig(p.Mpos.m,4)} ${u.M}</span>.</p>`)},
   fields:p=>{const u=U4(p.us);return [{id:"RA",label:"Reaction at the left support",unit:u.F,signed:true},{id:"RB",label:"Reaction at the right support",unit:u.F,signed:true},
@@ -968,7 +968,7 @@ function s5Generate(seed){
 }
 const S5={name:"Beam with an applied couple: jump in the moment diagram",generate:s5Generate,
   figure:p=>bmDraw(p),
-  statement:p=>`<p>The beam shown is supported by a pin at ${iv(ptName(p,0))} and a roller at ${iv(ptName(p,p.sup.xb))}. It carries a couple at ${iv(ptName(p,p.C[0].x))} and the ${p.P.length?"concentrated":"distributed"} load shown; neglect the weight of the beam.</p>
+  statement:p=>`<p>The beam shown has a pin at ${iv(ptName(p,0))} and a roller at ${iv(ptName(p,p.sup.xb))}. It carries a couple at ${iv(ptName(p,p.C[0].x))} and the ${p.P.length?"concentrated":"distributed"} load shown; the beam's own weight is negligible.</p>
   <p>Find the reactions, the bending moment just to the left and just to the right of ${iv(ptName(p,p.C[0].x))}, and the largest bending moment magnitude.</p><p class="note">${SIGNNOTE}</p>`,
   solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Jump at the couple</h3><p>Just left: M = ${sig(s.Ml,4)} ${u.M}; just right: M = ${sig(s.Mr,4)} ${u.M}. The jump equals the couple, ${sig(s.Mr-s.Ml,4)} ${u.M} (a clockwise couple increases M).</p><p class="final">Largest |M| = ${sig(s.Ma,4)} ${u.M}</p>`)},
   fields:p=>{const u=U4(p.us),n=ptName(p,p.C[0].x);return [{id:"RA",label:`Reaction at ${ptName(p,0)} (up +)`,unit:u.F,signed:true},{id:"RB",label:`Reaction at ${ptName(p,p.sup.xb)} (up +)`,unit:u.F,signed:true},
@@ -998,7 +998,7 @@ function s6Figure(p){
 const S6={name:"Shear diagram given: find the loads and the bending moment",generate:s6Generate,
   figure:s6Figure,
   statement:p=>{const u=U4(p.us),Pn=ptName(p,p.P[0].x);return `<p>The shear force diagram shown belongs to a beam that rests on simple supports at its ends ${iv(ptName(p,0))} and ${iv(ptName(p,p.L))}. No couples act on the beam, and it carries only downward concentrated forces and uniformly distributed loads.</p>
-  <p>Find the reaction at ${iv(ptName(p,0))}, the concentrated force at ${iv(Pn)}, the intensity of the distributed load between ${iv(ptName(p,p.W[0].a))} and ${iv(ptName(p,p.W[0].b))}, and the maximum bending moment and its location.</p><p class="note">${SIGNNOTE}</p>`},
+  <p>Find the reaction at ${iv(ptName(p,0))}, the concentrated force at ${iv(Pn)}, the intensity of the distributed load between ${iv(ptName(p,p.W[0].a))} and ${iv(ptName(p,p.W[0].b))}, and the largest bending moment with the position where it occurs.</p><p class="note">${SIGNNOTE}</p>`},
   solution:p=>{const u=U4(p.us);return `<h3>1. Loads from the shear diagram</h3><p>A jump in V equals a concentrated force (upward for a jump up). The slope of V equals −w.</p>
   <p>Jump at ${ptName(p,0)}: R = ${sig(p.R[0].R,4)} ${u.F}. Drop at ${ptName(p,p.P[0].x)}: P = ${sig(p.P[0].F,4)} ${u.F}. Slope between ${ptName(p,p.W[0].a)} and ${ptName(p,p.W[0].b)}: w = ${sig(p.W[0].w1,4)} ${u.w}.</p>
   <h3>2. Moment diagram</h3><p>M = 0 at the simple supports, and the change in M between two points equals the area of the V diagram between them.</p>${bmDiagram(p,"M")}
@@ -1023,14 +1023,14 @@ function s7Generate(seed){
 }
 const S7={name:"Beam with an internal hinge: reactions and moment diagram",generate:s7Generate,
   figure:p=>bmDraw(p),
-  statement:p=>`<p>The beam shown is built into the wall at ${iv(ptName(p,0))}, has an internal hinge at ${iv(ptName(p,p.sup.xh))}, and rests on a roller at ${iv(ptName(p,p.sup.xc))}. It carries the loads shown; neglect the weight of the beam. The hinge transmits force but no moment.</p>
+  statement:p=>`<p>The beam shown is fixed to the wall at ${iv(ptName(p,0))}, has an internal hinge at ${iv(ptName(p,p.sup.xh))}, and rests on a roller at ${iv(ptName(p,p.sup.xc))}. It carries the loads shown; the beam's own weight is negligible. The hinge transmits force but no moment.</p>
   <p>Find the roller reaction, the vertical reaction at the wall, the bending moment at the wall, and the largest bending moment magnitude.</p><p class="note">${SIGNNOTE}</p>`,
   solution:(p,s)=>{const u=U4(p.us);return bmSol(p,`<h3>3. Values asked</h3><p>Moment at the wall: M = ${sig(s.Mw,4)} ${u.M}. The moment diagram passes through zero at the hinge. Largest |M| = <span class="final">${sig(s.Ma,4)} ${u.M}</span>.</p>`)},
   fields:p=>{const u=U4(p.us);return [{id:"Rc",label:`Roller reaction at ${ptName(p,p.sup.xc)} (up +)`,unit:u.F,signed:true},{id:"R0",label:"Vertical wall reaction (up +)",unit:u.F,signed:true},
     {id:"Mw",label:"Bending moment at the wall (signed)",unit:u.M,signed:true},{id:"Ma",label:"Largest |M|",unit:u.M}]},
   truth:(p,s)=>({Rc:p.R[0].R,R0:p.R[1].R,Mw:s.Mw,Ma:s.Ma}),note:"Answers within 2% are accepted."};
 
-// ===== Chapter 5: stresses in beams. Section dims mm or in.; stresses MPa or psi.
+// ===== stresses in beams. Section dims mm or in.; stresses MPa or psi.
 const SU=us=>us?{d:"in.",S:"psi",Mf:12,Vf:1}:{d:"mm",S:"MPa",Mf:1e6,Vf:1000};   // M(lb·ft)->lb·in, M(kN·m)->N·mm; V(lb)->lb, V(kN)->N
 function secProps(rects){                     // rects {x0,b,y0,y1} measured from the bottom
   let A=0,Ay=0;rects.forEach(r=>{const a=r.b*(r.y1-r.y0);A+=a;Ay+=a*(r.y0+r.y1)/2});
@@ -1055,7 +1055,7 @@ function secI(bf,tf,tw,hw){return [R_(-bf/2,bf,0,tf),R_(-tw/2,tw,tf,tf+hw),R_(-b
 function secBox(B,Hh,tf,tw){return [R_(-B/2,B,0,tf),R_(-B/2,tw,tf,Hh-tf),R_(B/2-tw,tw,tf,Hh-tf),R_(-B/2,B,Hh-tf,Hh)]}
 const sgn=v=>v>=0?"tension":"compression";
 const bmWith=(bm,sec)=>bmDraw(bm)+sec;
-// simple loaded beams for this chapter (reuse the Chapter 4 engine)
+// simple loaded beams for this chapter (reuse the shear-and-moment beam engine)
 function loadBeam(r,us,kind){
   const st=us?1:0.5;
   for(let k=0;k<5000;k++){
@@ -1113,8 +1113,8 @@ function f2Generate(seed){
 }
 const F2={name:"T-section beam: maximum tensile and compressive bending stresses",generate:f2Generate,
   figure:p=>{const su=SU(p.us);return bmDraw(p.bm)+secDraw(p.rects,[`flange ${p.bf} × ${p.tf} ${su.d}`,`web ${p.tw} × ${p.hw} ${su.d}`,`flange at the ${p.top?"top":"bottom"}`],{title:"Cross section",Hl:`${p.tf+p.hw} ${su.d}`})},
-  statement:p=>{const u=U4(p.us),su=SU(p.us);return `<p>The overhanging beam shown has the T-shaped cross section shown, with the flange at the ${p.top?"top":"bottom"}; neglect the weight of the beam.</p>
-  <p>Find the distance from the bottom of the section to the neutral axis, the moment of inertia about the neutral axis, and the values and locations (distance from the left end) of the maximum tensile and maximum compressive bending stresses.</p>`},
+  statement:p=>{const u=U4(p.us),su=SU(p.us);return `<p>The overhanging beam shown has a T section (dimensions in the figure) with its flange on the ${p.top?"top":"bottom"}; the beam's own weight is negligible.</p>
+  <p>Locate the neutral axis by its height above the bottom of the section, find the moment of inertia about it, and the values and locations (distance from the left end) of the maximum tensile and maximum compressive bending stresses.</p>`},
   solution:(p,s)=>{const u=U4(p.us),su=SU(p.us),sp=s.sp,bm=p.bm;return `<h3>1. Section properties</h3><p>ȳ = ΣAy/ΣA = ${sig(sp.yb,4)} ${su.d} from the bottom; I = Σ(I₀ + Ad²) = ${sig(sp.I,4)} ${su.d}⁴. Distances to the extreme fibers: c<sub>top</sub> = ${sig(sp.ct,4)}, c<sub>bot</sub> = ${sig(sp.cb,4)} ${su.d}.</p>
   <h3>2. Moment diagram</h3>${bmDiagram(bm,"M")}<p>Largest positive M = ${sig(bm.Mpos.m,4)} ${u.M} at x = ${fmtx(bm.Mpos.x)} ${u.L}; largest negative M = ${sig(bm.Mneg.m,4)} ${u.M} at x = ${fmtx(bm.Mneg.x)} ${u.L}.</p>
   <h3>3. Candidates</h3><p>Positive M puts the bottom in tension; negative M puts the top in tension. Both sections must be checked because the section is not symmetric.</p>
@@ -1142,7 +1142,7 @@ function f3Generate(seed){
 }
 const F3={name:"Stepped cantilever: where the bending stress is largest",generate:f3Generate,
   figure:p=>{const su=SU(p.us);return bmDraw(p.bm,{section:p.xb,steps:[[0,p.xb,26],[p.xb,p.bm.L,26*p.h2/p.h1]]})+SVG(760,30,TX(380,20,`Segment next to the wall: ${p.b} × ${p.h1} ${su.d}; outer segment (beyond the dashed line): ${p.b} × ${p.h2} ${su.d} (width × depth)`,{s:13,c:C.dim}))},
-  statement:p=>{const u=U4(p.us),su=SU(p.us);return `<p>The cantilever beam shown consists of two segments with rectangular cross sections of width ${p.b} ${su.d}. The segment between the wall and the step at x = ${fmtx(p.xb)} ${u.L} is ${p.h1} ${su.d} deep; the outer segment is ${p.h2} ${su.d} deep. Neglect the weight of the beam.</p>
+  statement:p=>{const u=U4(p.us),su=SU(p.us);return `<p>The cantilever beam shown is made of two rectangular segments, both of width ${p.b} ${su.d}. The segment between the wall and the step at x = ${fmtx(p.xb)} ${u.L} is ${p.h1} ${su.d} deep; the outer segment is ${p.h2} ${su.d} deep. The beam's own weight is negligible.</p>
   <p>Find the maximum bending stress at the wall, the maximum bending stress just beyond the step, and where the largest bending stress in the beam occurs.</p>`},
   solution:(p,s)=>{const u=U4(p.us),su=SU(p.us);return `<h3>1. Moment diagram</h3>${bmDiagram(p.bm,"M")}<p>|M| at the wall = ${sig(s.M0,4)} ${u.M}; |M| at the step = ${sig(s.M1,4)} ${u.M}.</p>
   <h3>2. Stresses</h3><p>For a rectangle, σ = Mc/I = 6M/(bh²).</p><p>At the wall: σ = ${sig(s.s0,4)} ${su.S}. Just beyond the step (smaller depth): σ = ${sig(s.s1,4)} ${su.S}.</p>
@@ -1163,15 +1163,15 @@ function f4Generate(seed){
   }
   throw new Error("no valid problem");
 }
-const F4={name:"Glued planks: maximum shear stress in the glue and in the wood",generate:f4Generate,
+const F4={name:"Glued planks: peak shear stress in the joints and in the wood",generate:f4Generate,
   figure:p=>{const su=SU(p.us);return bmDraw(p.bm)+secDraw(p.rects,[`${p.n} planks, each ${p.b} × ${p.t} ${su.d}`,"glued along the dashed lines"],{title:"Cross section",lines:p.rects.slice(1).map(r=>r.y0),fill:"#f2d9b0"})},
-  statement:p=>{const su=SU(p.us);return `<p>The simply supported wood beam shown is made by gluing together ${p.n} planks, each ${p.b} ${su.d} wide and ${p.t} ${su.d} thick, stacked as shown. Neglect the weight of the beam.</p>
-  <p>Find the maximum shear force, the maximum shear stress in the glue, and the maximum shear stress in the wood.</p>`},
+  statement:p=>{const su=SU(p.us);return `<p>The simply supported wood beam shown is made by gluing together ${p.n} planks, each ${p.b} ${su.d} wide and ${p.t} ${su.d} thick, stacked as shown. The beam's own weight is negligible.</p>
+  <p>Find the largest shear force, the peak shear stress on the glued joints, and the peak shear stress in the wood.</p>`},
   solution:(p,s)=>{const u=U4(p.us),su=SU(p.us),sp=s.sp;return `<h3>1. Maximum shear force</h3>${bmDiagram(p.bm,"V")}<p>|V|<sub>max</sub> = ${sig(p.bm.Vmax,4)} ${u.F}.</p>
   <h3>2. Section</h3><p>I = b(${p.n}t)³/12 = ${sig(sp.I,4)} ${su.d}⁴; the neutral axis is at mid-depth.</p>
   <h3>3. Shear stresses, τ = VQ/(Ib)</h3><p>Glue lines: ${s.glue.map(y=>`y = ${sig(y,3)} ${su.d}: Q = ${sig(sp.Q(y),4)} ${su.d}³`).join("; ")}. The largest glue stress is τ = ${sig(s.tg,4)} ${su.S}.</p>
   <p>Neutral axis: Q = ${sig(sp.Q(sp.yb),4)} ${su.d}³, <span class="final">τ<sub>max</sub> = ${sig(s.tm,4)} ${su.S}</span> (${p.n%2===0?"here the neutral axis is a glue line":"in the wood"}).</p>`},
-  fields:p=>{const u=U4(p.us),su=SU(p.us);return [{id:"V",label:"Maximum shear force",unit:u.F},{id:"tg",label:"Maximum shear stress in the glue",unit:su.S},{id:"tm",label:"Maximum shear stress in the wood",unit:su.S}]},
+  fields:p=>{const u=U4(p.us),su=SU(p.us);return [{id:"V",label:"Maximum shear force",unit:u.F},{id:"tg",label:"Peak shear stress on the glued joints",unit:su.S},{id:"tm",label:"Peak shear stress in the wood",unit:su.S}]},
   truth:(p,s)=>({V:p.bm.Vmax,tg:s.tg,tm:s.tm}),note:"Answers within 2% are accepted."};
 
 // ----- 5. shear stress distribution in an I or T section
@@ -1191,7 +1191,7 @@ function f5Generate(seed){
 const F5={name:"Shear stress distribution in an I- or T-section",generate:f5Generate,
   figure:p=>{const su=SU(p.us);return secDraw(p.rects,[`flange${p.isI?"s":""} ${p.bf} × ${p.tf} ${su.d}`,`web ${p.tw} × ${p.hw} ${su.d}`,`V = ${fmt(p.V)} ${p.us?"lb":"kN"} (vertical)`],{title:p.isI?"I-section":"T-section, flange at the top",Hl:`${p.isI?2*p.tf+p.hw:p.tf+p.hw} ${su.d}`})},
   statement:p=>{const su=SU(p.us);return `<p>A beam with the ${p.isI?"symmetric I":"T"}-shaped cross section shown (${p.isI?"two flanges":"flange"} ${p.bf} × ${p.tf} ${su.d}, web ${p.tw} ${su.d} thick and ${p.hw} ${su.d} high) carries a vertical shear force V = ${fmt(p.V)} ${p.us?"lb":"kN"} at a certain section.</p>
-  <p>Find the moment of inertia about the neutral axis, the shear stress in the web where it meets the ${p.isI?"top ":""}flange, the maximum shear stress, and the percentage of the shear force carried by the web.</p>`},
+  <p>Find the moment of inertia about the neutral axis, the shear stress in the web where it meets the ${p.isI?"top ":""}flange, the maximum shear stress, and the share of the shear force (in percent) resisted by the web.</p>`},
   solution:(p,s)=>{const su=SU(p.us),sp=s.sp,yj=p.isI?p.tf+p.hw:p.hw;return `<h3>1. Section properties</h3><p>ȳ = ${sig(sp.yb,4)} ${su.d} from the bottom, I = ${sig(sp.I,4)} ${su.d}⁴.</p>
   <h3>2. Web at the flange junction</h3><p>Q of the flange about the neutral axis: Q = ${sig(sp.Q(yj),4)} ${su.d}³. τ = VQ/(It<sub>w</sub>) = ${sig(s.tj,4)} ${su.S}.</p>
   <h3>3. Neutral axis</h3><p>Q = ${sig(sp.Q(sp.yb),4)} ${su.d}³, <span class="final">τ<sub>max</sub> = ${sig(s.tna,4)} ${su.S}</span>.</p>
@@ -1221,7 +1221,7 @@ const F6={name:"Allowable load from bending and shear (box or I section)",genera
     let fig=bmDraw(p.bm).replace(/>(\d+) (lb|kN)</g,(m0,n)=>`>${n==="1"?"":n}P<`);
     const lab=p.box?[`box: ${r0[0].b} × ${r0[3].y1} ${su.d} outside`,`top and bottom ${r0[0].y1-r0[0].y0} ${su.d} thick`,`sides ${r0[1].b} ${su.d} thick`]:[`flanges ${r0[0].b} × ${r0[0].y1} ${su.d}`,`web ${r0[1].b} × ${r0[1].y1-r0[1].y0} ${su.d}`];
     return fig+secDraw(r0,lab,{title:"Cross section",Hl:`${r0[r0.length-1].y1} ${su.d}`})},
-  statement:p=>{const su=SU(p.us);return `<p>The simply supported ${p.steel?"steel":"wood"} beam shown, with the ${p.box?"box":"I"}-shaped cross section shown, carries the concentrated loads ${p.ca===1?"":p.ca}P and ${p.cb===1?"":p.cb}P. The working stresses are σ<sub>w</sub> = ${fmt(p.sw)} ${su.S} in bending and τ<sub>w</sub> = ${p.tw} ${su.S} in shear. Neglect the weight of the beam.</p>
+  statement:p=>{const su=SU(p.us);return `<p>The simply supported ${p.steel?"steel":"wood"} beam shown, with the ${p.box?"box":"I"}-shaped cross section shown, carries the concentrated loads ${p.ca===1?"":p.ca}P and ${p.cb===1?"":p.cb}P. The allowable stresses are σ<sub>w</sub> = ${fmt(p.sw)} ${su.S} in bending and τ<sub>w</sub> = ${p.tw} ${su.S} in shear. The beam's own weight is negligible.</p>
   <p>Find the moment of inertia of the section, the largest P allowed by bending, the largest P allowed by shear, the maximum allowable P, and the governing criterion.</p>`},
   solution:(p,s)=>{const u=U4(p.us),su=SU(p.us),sp=s.sp;return `<h3>1. Shear and moment in terms of P</h3><p>Solving the beam with P = 1: |V|<sub>max</sub> = ${sig(p.bm.Vmax,4)}P, |M|<sub>max</sub> = ${sig(Mabs(p.bm),4)}P (P in ${u.F}, lengths in ${u.L}).</p>${bmDiagram(p.bm,"M")}
   <h3>2. Section</h3><p>I = ${sig(sp.I,4)} ${su.d}⁴, c = ${sig(Math.max(sp.ct,sp.cb),4)} ${su.d}, Q at the neutral axis = ${sig(sp.Q(sp.yb),4)} ${su.d}³, width at the neutral axis t = ${sig(sp.t(sp.yb),4)} ${su.d}.</p>
@@ -1246,8 +1246,8 @@ function f7Generate(seed){
 }
 const F7={name:"Design of a rectangular timber beam for bending and shear",generate:f7Generate,
   figure:p=>bmDraw(p.bm),
-  statement:p=>{const su=SU(p.us);return `<p>A timber beam of rectangular cross section, ${p.b} ${su.d} wide, is to carry the loads shown on simple supports. The working stresses are ${fmt(p.sw)} ${su.S} in bending and ${p.tw} ${su.S} in shear. Neglect the weight of the beam.</p>
-  <p>Find the maximum bending moment and shear force, the smallest depth h that satisfies each working stress, the required depth, and the governing criterion.</p>`},
+  statement:p=>{const su=SU(p.us);return `<p>A timber beam of rectangular cross section, ${p.b} ${su.d} wide, is to carry the loads shown on simple supports. The allowable stresses are ${fmt(p.sw)} ${su.S} in bending and ${p.tw} ${su.S} in shear. The beam's own weight is negligible.</p>
+  <p>Find the maximum bending moment and shear force, the smallest depth h that satisfies each allowable stress, the required depth, and the governing criterion.</p>`},
   solution:(p,s)=>{const u=U4(p.us),su=SU(p.us);return `<h3>1. Maximum V and M</h3>${bmDiagram(p.bm,"V")}${bmDiagram(p.bm,"M")}<p>|V|<sub>max</sub> = ${sig(p.bm.Vmax,4)} ${u.F}, M<sub>max</sub> = ${sig(Mabs(p.bm),4)} ${u.M}.</p>
   <h3>2. Depth for bending</h3><p class="eq">σ<sub>w</sub> = 6M/(bh²) ⇒ h = √(6M/(bσ<sub>w</sub>)) = ${sig(s.hb,4)} ${su.d}</p>
   <h3>3. Depth for shear</h3><p class="eq">τ<sub>max</sub> = 1.5V/(bh) ⇒ h = 1.5V/(bτ<sub>w</sub>) = ${sig(s.hs,4)} ${su.d}</p>
@@ -1281,7 +1281,7 @@ const F8={name:"Built-up beam: spacing of nails from the shear flow",generate:f8
   fields:p=>{const su=SU(p.us);return [{id:"I",label:"Moment of inertia",unit:su.d+"⁴"},{id:"Q",label:"First moment Q",unit:su.d+"³"},{id:"q",label:"Shear flow",unit:p.us?"lb/in.":"N/mm"},{id:"s",label:"Largest nail spacing",unit:su.d}]},
   truth:(p,s)=>({I:s.sp.I,Q:s.Q,q:s.q,s:s.s}),note:"Answers within 2% are accepted."};
 
-// ===== Chapter 6 deflection engine: exact integration of v'' = M/(EI) for piecewise-polynomial M
+// ===== deflection engine: exact integration of v'' = M/(EI) for piecewise-polynomial M
 // bm from bmSolve (kN, m or lb, ft); EI(x) in kN·m² or lb·ft²; bc: {kind:"ss",xa,xb,da,db} | {kind:"fixL"} | {kind:"fixR"}
 function deflSolve(bm,EIf,bc,extra=[]){
   const L=bm.L,brk=new Set([...bm.ev,...extra,...(bm.EIbrk||[])]),xs=[];const b=[...brk].filter(x=>x>=0&&x<=L).sort((a,c)=>a-c);
@@ -1318,7 +1318,7 @@ function deflPlot(bm,sol,o={}){
   return SVG(760,2*H+40,s);
 }
 
-// ===== Chapter 6 problem types. Loads in kN or lb, lengths in m or ft.
+// ===== problem types. Loads in kN or lb, lengths in m or ft.
 const MATS6=us=>[{n:"steel",E:us?29:200},{n:"aluminum",E:us?10:70},{n:"wood",E:us?1.6:12}];
 function secRect6(r,us,wood){return wood?{b:pick(r,us?[2,3,4,6]:[50,75,100,150]),h:pick(r,us?[6,8,10,12]:[150,200,250,300])}:null}
 function makeEI(r,us,mat){        // rectangle for wood; given I for metals
@@ -1347,7 +1347,7 @@ function d1Generate(seed){
 }
 const D1={name:"Simply supported beam: maximum deflection and slope",generate:d1Generate,
   figure:p=>bmDraw(p.bm,{section:p.xq}),
-  statement:p=>{const U=U4(p.bm.us);return `<p>The simply supported ${p.mat.n} beam shown has ${secStr(p.sec,p.bm.us)}. Use E = ${p.mat.E} ${DU(p.bm.us).E} and neglect the weight of the beam.</p>
+  statement:p=>{const U=U4(p.bm.us);return `<p>The simply supported ${p.mat.n} beam shown has ${secStr(p.sec,p.bm.us)}. Use E = ${p.mat.E} ${DU(p.bm.us).E}; the beam's own weight is negligible.</p>
   <p>Find the slope at the left support, the deflection at x = ${fmtx(p.xq)} ${U.L} (dashed line), and the maximum deflection and its location.</p><p class="note">Deflections are positive upward; slopes are positive counterclockwise.</p>`},
   solution:(p,s)=>{const u=DU(p.bm.us),U=U4(p.bm.us);return solHead(p.bm,p.sec,p.mat,s.EI)+deflPlot(p.bm,s.sol,{marks:[p.xq,s.sol.dn.x]})+
   `<h3>4. Results</h3><p>Slope at A: θ<sub>A</sub> = ${radDeg(s.thA)}. At x = ${fmtx(p.xq)} ${U.L}: v = ${sig(s.vq*u.dv,4)} ${u.d}.</p><p class="final">Maximum deflection ${sig(s.sol.dn.v*u.dv,4)} ${u.d} at x = ${sig(s.sol.dn.x,4)} ${U.L}, where the slope is zero.</p>`},
@@ -1372,7 +1372,7 @@ function d2Generate(seed){
 }
 const D2={name:"Cantilever beam (uniform or stepped I): deflection and slope at the free end",generate:d2Generate,
   figure:p=>bmDraw(p.bm,p.step?{section:p.xb,steps:[[0,p.xb,18],[p.xb,p.bm.L,12]]}:{}),
-  statement:p=>{const U=U4(p.bm.us),u=DU(p.bm.us);return `<p>The ${p.mat.n} cantilever beam shown is built into the wall at ${iv("A")}. ${p.step?`Segment between the wall and x = ${fmtx(p.xb)} ${U.L} has moment of inertia 2I₀; the rest of the beam has I₀, with`:"Its moment of inertia is"} I₀ = ${Ist(p.I0,p.bm.us)}. Use E = ${p.mat.E} ${u.E}; neglect the weight of the beam.</p>
+  statement:p=>{const U=U4(p.bm.us),u=DU(p.bm.us);return `<p>The ${p.mat.n} cantilever beam shown is fixed to the wall at ${iv("A")}. ${p.step?`Segment between the wall and x = ${fmtx(p.xb)} ${U.L} has moment of inertia 2I₀; the rest of the beam has I₀, with`:"Its moment of inertia is"} I₀ = ${Ist(p.I0,p.bm.us)}. Use E = ${p.mat.E} ${u.E}; the beam's own weight is negligible.</p>
   <p>Find the deflection and the slope at the free end.</p><p class="note">Deflections are positive upward; slopes are positive counterclockwise.</p>`},
   solution:(p,s)=>{const u=DU(p.bm.us);return `<h3>1. Moment diagram</h3>${bmDiagram(p.bm,"M")}<h3>2. Integration</h3><p>EI₀ = ${sig(s.EI0,4)} ${u.EIu}. ${p.step?"Integrate v″ = M/(EI) segment by segment; the stiffer segment uses 2EI₀, and v and v′ are continuous at the step. ":""}At the wall v = 0 and v′ = 0, so the integration constants are zero (or the moment-area method gives the free-end values directly as the first and second moments of the M/EI diagram about the free end).</p>${deflPlot(p.bm,s.sol,{marks:[p.bm.L]})}
   <p class="final">v = ${sig(s.vL*u.dv,4)} ${u.d}, θ = ${radDeg(s.tL)} at the free end.</p>`},
@@ -1416,7 +1416,7 @@ function d4Generate(seed){
 }
 const D4={name:"Partial or linearly varying load: midspan and maximum deflection",generate:d4Generate,
   figure:p=>bmDraw(p.bm),
-  statement:p=>`<p>The simply supported ${p.mat.n} beam shown carries ${p.lin?"a linearly varying":"a uniformly distributed load over part of its length"} load and has ${secStr(p.sec,p.bm.us)}. Use E = ${p.mat.E} ${DU(p.bm.us).E}; neglect the weight of the beam.</p>
+  statement:p=>`<p>The simply supported ${p.mat.n} beam shown carries ${p.lin?"a linearly varying load":"a uniform load on part of its span"} and has ${secStr(p.sec,p.bm.us)}. Use E = ${p.mat.E} ${DU(p.bm.us).E}; the beam's own weight is negligible.</p>
   <p>Find the midspan deflection, and the maximum deflection and its location.</p><p class="note">Deflections are positive upward.</p>`,
   solution:(p,s)=>{const u=DU(p.bm.us),U=U4(p.bm.us);return solHead(p.bm,p.sec,p.mat,s.EI)+deflPlot(p.bm,s.sol,{marks:[p.bm.L/2,s.sol.dn.x]})+
   `<h3>4. Results</h3><p>Midspan: v = ${sig(s.vc*u.dv,4)} ${u.d}. The maximum deflection is where v′ = 0, which is not at midspan because the load is not symmetric.</p><p class="final">v<sub>max</sub> = ${sig(s.sol.dn.v*u.dv,4)} ${u.d} at x = ${sig(s.sol.dn.x,4)} ${U.L}</p>`},
@@ -1440,7 +1440,7 @@ function d5Generate(seed){
 }
 const D5={name:"Design for stiffness: required moment of inertia and depth",generate:d5Generate,
   figure:p=>bmDraw(p.bm),
-  statement:p=>{const u=DU(p.bm.us);return `<p>The ${p.cant?"cantilever":"simply supported"} ${p.wood?"wood":"steel"} beam shown (E = ${p.E} ${u.E}) must not deflect more than L/${p.ratio} under the loads shown. Neglect the weight of the beam.</p>
+  statement:p=>{const u=DU(p.bm.us);return `<p>The ${p.cant?"cantilever":"simply supported"} ${p.wood?"wood":"steel"} beam shown (E = ${p.E} ${u.E}) must not deflect more than L/${p.ratio} under the loads shown. The beam's own weight is negligible.</p>
   <p>Find the allowable deflection, the smallest moment of inertia that satisfies the limit, and the smallest depth h of a rectangular section ${p.b} ${p.bm.us?"in.":"mm"} wide.</p>`},
   solution:(p,s)=>{const u=DU(p.bm.us);return `<h3>1. Deflection for unit EI</h3><p>Deflection is inversely proportional to I. With I = 1 ${u.I}, the largest deflection would be ${sig(s.v1,4)} ${u.d}.</p>${deflPlot(p.bm,s.sol)}
   <h3>2. Allowable deflection</h3><p>δ<sub>allow</sub> = L/${p.ratio} = ${sig(s.vall,4)} ${u.d}.</p>
@@ -1497,7 +1497,7 @@ const D7={name:"Superposition: tip force that removes the midspan deflection",ge
   fields:p=>{const u=DU(p.bm.us),U=U4(p.bm.us);return [{id:"P",label:"Force P",unit:U.F},{id:"vt",label:"Deflection at the free end (signed)",unit:u.d,signed:true}]},
   truth:(p,s)=>({P:s.P,vt:s.vt*DU(p.bm.us).dv}),note:"Answers within 2% are accepted; upward deflection is positive."};
 
-// ===== Chapter 7: statically indeterminate beams by superposition of redundants
+// ===== statically indeterminate beams by superposition of redundants
 // base: {us,L,sup (primary, determinate),P,C,W}; red: [{x,kind:"F"|"C",target,flex}] ; EI constant
 function indSolve(base,red,EI){
   const bc=base.sup.kind==="ss"?{kind:"ss",xa:base.sup.xa,xb:base.sup.xb}:{kind:base.sup.kind};
@@ -1518,7 +1518,7 @@ function indSolve(base,red,EI){
 function indDisp(base,bm,sups){return {us:base.us,L:base.L,sup:{kind:"none"},P:base.P,C:base.C,W:base.W,ev:bm.ev,sups}}
 const indDraw=(base,bm,sups,o={})=>bmDraw(indDisp(base,bm,sups),Object.assign({sups},o));
 
-// ===== Chapter 13: inelastic action. Base units: SI N, mm, MPa; US kips, in., ksi.
+// ===== inelastic action. Base units: SI N, mm, MPa; US kips, in., ksi.
 const IU=us=>us?{F:"kips",d:"in.",S:"ksi",T:"kip·in.",M:"kip·in.",Mf:1,Ff:1,L:"ft",lb:12}:{F:"kN",d:"mm",S:"MPa",T:"kN·m",M:"kN·m",Mf:1e6,Ff:1000,L:"m",lb:1000};
 
 // ----- 1. elastoplastic torsion of a solid or hollow shaft
@@ -1539,8 +1539,8 @@ const P1={name:"Elastoplastic torsion: yield and limit torques, elastic core, re
   figure:p=>{const u=IU(p.us),k=110/p.d,cx=200,cy=150;let s=CI(cx,cy,p.d*k/2,{f:"#f3d6d8",c:C.steelln})+CI(cx,cy,p.d*k/2*(p.hollow?(1+p.b2/p.d)/2:0.55),{f:"#dfe4ea",c:C.steelln,w:1})+(p.hollow?CI(cx,cy,p.b2*k/2,{f:"#fff",c:C.steelln}):"")
      +TX(cx,cy+p.d*k/2+22,p.hollow?`outer d = ${p.d} ${u.d}, inner d = ${sig(p.b2,3)} ${u.d}`:`d = ${p.d} ${u.d}`,{s:12,c:C.dim})+TX(cx,cy-p.d*k/2-12,"plastic zone (shaded) and elastic core",{s:12,c:C.dim})
      +HATCH(380,90,16,120)+CYL(396,640,150,30,"#dfe4ea")+TV(676,150,1,`T = ${sig(p.T,3)} ${u.T}`)+TX(520,205,`L = ${sig(p.L/u.lb,3)} ${u.L}`,{s:12,c:C.dim});return SVG(760,300,s)},
-  statement:p=>{const u=IU(p.us);return `<p>A ${p.hollow?"hollow":"solid"} circular shaft (${p.hollow?`outer diameter ${p.d} ${u.d}, inner diameter ${sig(p.b2,3)} ${u.d}`:`diameter ${p.d} ${u.d}`}, length ${sig(p.L/u.lb,3)} ${u.L}) is made of an elastic-perfectly plastic material with τ<sub>yp</sub> = ${p.tau} ${u.S} and G = ${p.us?"11.5 × 10⁶ psi":"80 GPa"}.</p>
-  <p>Find the yield torque and the limit torque. For the applied torque T = ${sig(p.T,3)} ${u.T}, find the radius of the elastic core and the angle of twist. Then find the residual shear stress at the outer surface after T is removed.</p>`},
+  statement:p=>{const u=IU(p.us);return `<p>A ${p.hollow?"hollow":"solid"} circular shaft (${p.hollow?`outer diameter ${p.d} ${u.d}, inner diameter ${sig(p.b2,3)} ${u.d}`:`diameter ${p.d} ${u.d}`}, length ${sig(p.L/u.lb,3)} ${u.L}) is made of an elastoplastic material with τ<sub>yp</sub> = ${p.tau} ${u.S} and G = ${p.us?"11.5 × 10⁶ psi":"80 GPa"}.</p>
+  <p>Find the torque at which yielding begins and the limit (fully plastic) torque. For the applied torque T = ${sig(p.T,3)} ${u.T}, find the radius of the elastic core and the angle of twist. Then find the residual shear stress at the outer surface after T is removed.</p>`},
   solution:(p,s)=>{const u=IU(p.us),c=p.d/2,b=p.b2/2;return `<h3>1. Yield and limit torques</h3><p>T<sub>yp</sub> = τ<sub>yp</sub>J/c = ${sig(s.Typ/u.Mf,4)} ${u.T}. When the whole section is plastic, T<sub>L</sub> = (2π/3)τ<sub>yp</sub>(c³ − b³) = ${sig(s.TL/u.Mf,4)} ${u.T}</p>
   <h3>2. Elastic core</h3><p>With an elastic core of radius ρ, the stress is τ<sub>yp</sub>ρ'/ρ inside the core and τ<sub>yp</sub> outside it:</p><p class="eq">T = (2π/3)τ<sub>yp</sub>(c³ − ρ³) + (π τ<sub>yp</sub>/(2ρ))(ρ⁴ − b⁴)</p>
   <p>Solving for ρ: <span class="final">ρ = ${sig(s.rho,4)} ${u.d}</span>. The core boundary is at the yield strain, so θ = τ<sub>yp</sub>L/(Gρ) = ${sig(s.th,4)}°.</p>
@@ -1569,10 +1569,10 @@ function p2Generate(seed){
 }
 const P2={name:"Plastic bending: yield moment, limit moment, shape factor",generate:p2Generate,
   figure:p=>secDraw(p.rects,[p.txt.split(": ")[0],p.txt.split(": ")[1]||"",`σ_yp = ${p.sy} ${IU(p.us).S}`].filter(Boolean).map(t=>t.replace("σ_yp","σyp")),{title:"Cross section",Hl:`${p.rects[p.rects.length-1].y1} ${IU(p.us).d}`}),
-  statement:p=>{const u=IU(p.us);return `<p>A beam has the ${p.txt} shown, made of an elastic-perfectly plastic material with σ<sub>yp</sub> = ${p.sy} ${u.S}. Bending is about the horizontal axis.</p>
+  statement:p=>{const u=IU(p.us);return `<p>A beam has the ${p.txt} shown, made of an elastoplastic material with σ<sub>yp</sub> = ${p.sy} ${u.S}. Bending is about the horizontal axis.</p>
   <p>Find the elastic neutral axis and the yield moment M<sub>yp</sub>, the plastic neutral axis and the limit moment M<sub>L</sub>, and the ratio M<sub>L</sub>/M<sub>yp</sub>.</p>`},
   solution:(p,s)=>{const u=IU(p.us),sp=s.sp;return `<h3>1. Yield moment</h3><p>Elastic neutral axis (centroid): ȳ = ${sig(sp.yb,4)} ${u.d} from the bottom; I = ${sig(sp.I,4)} ${u.d}⁴; c = ${sig(Math.max(sp.ct,sp.cb),4)} ${u.d}</p><p class="eq">M<sub>yp</sub> = σ<sub>yp</sub>I/c = ${sig(s.Myp/u.Mf,4)} ${u.M}</p>
-  <h3>2. Limit moment</h3><p>The plastic neutral axis divides the area into equal halves: y<sub>p</sub> = ${sig(s.yp,4)} ${u.d} from the bottom. With Q<sub>T</sub> + Q<sub>C</sub> the sum of the first moments of the two halves about that axis = ${sig(s.Z,4)} ${u.d}³ (Eq. 13.6):</p><p class="eq">M<sub>L</sub> = σ<sub>yp</sub>(Q<sub>T</sub> + Q<sub>C</sub>) = ${sig(s.ML/u.Mf,4)} ${u.M}</p>
+  <h3>2. Limit moment</h3><p>The plastic neutral axis divides the area into equal halves: y<sub>p</sub> = ${sig(s.yp,4)} ${u.d} from the bottom. With Q<sub>T</sub> + Q<sub>C</sub> the sum of the first moments of the two halves about that axis = ${sig(s.Z,4)} ${u.d}³:</p><p class="eq">M<sub>L</sub> = σ<sub>yp</sub>(Q<sub>T</sub> + Q<sub>C</sub>) = ${sig(s.ML/u.Mf,4)} ${u.M}</p>
   <h3>3. Shape factor</h3><p class="final">M<sub>L</sub>/M<sub>yp</sub> = ${sig(s.ML/s.Myp,4)}</p>`},
   fields:p=>{const u=IU(p.us);return [{id:"yb",label:"Elastic neutral axis above the bottom",unit:u.d},{id:"Myp",label:"Yield moment",unit:u.M},{id:"yp",label:"Plastic neutral axis above the bottom",unit:u.d},{id:"ML",label:"Limit moment",unit:u.M},{id:"r",label:"ML / Myp",unit:""}]},
   truth:(p,s)=>({yb:s.sp.yb,Myp:s.Myp/IU(p.us).Mf,yp:s.yp,ML:s.ML/IU(p.us).Mf,r:s.ML/s.Myp}),note:"Answers within 2% are accepted."};
@@ -1593,7 +1593,7 @@ const P3={name:"Elastoplastic rectangular beam: elastic core, curvature, residua
     const xs=420,X=v=>xs+v*90;s+=LN(xs,y0-10,xs,y0+H+10,{c:C.dim,w:1})+`<polygon points="${xs},${y0} ${X(-1)},${y0} ${X(-1)},${y0+H*0.25} ${X(1)},${y0+H*0.75} ${X(1)},${y0+H} ${xs},${y0+H}" fill="#f3d6d8" stroke="${C.load}" stroke-width="1.5"/>`
      +TX(X(1)+8,y0+H-4,"σyp",{s:12,c:C.load,a:"start"})+TX(X(-1)-8,y0+14,"−σyp",{s:12,c:C.load,a:"end"})+TX(xs,y0+H+40,"stress distribution (elastic core in the middle)",{s:12,c:C.dim});
     return SVG(760,y0+H+60,s)},
-  statement:p=>{const u=IU(p.us);return `<p>A beam with a rectangular cross section ${p.b} ${u.d} wide and ${p.h} ${u.d} deep is made of an elastic-perfectly plastic material with σ<sub>yp</sub> = ${p.sy} ${u.S} and E = ${p.us?"29 × 10⁶ psi":"200 GPa"}. It is bent by a positive moment M = ${sig(p.M,3)} ${u.M}</p>
+  statement:p=>{const u=IU(p.us);return `<p>A rectangular beam, ${p.b} ${u.d} wide by ${p.h} ${u.d} deep, is made of an elastoplastic material with σ<sub>yp</sub> = ${p.sy} ${u.S} and E = ${p.us?"29 × 10⁶ psi":"200 GPa"}. It is bent by a positive moment M = ${sig(p.M,3)} ${u.M}</p>
   <p>Find M<sub>yp</sub> and M<sub>L</sub>, the depth 2e of the elastic core, the radius of curvature, and the residual stress at the top fiber after M is removed (tension positive).</p>`},
   solution:(p,s)=>{const u=IU(p.us);return `<h3>1. Yield and limit moments</h3><p>M<sub>yp</sub> = σ<sub>yp</sub>bh²/6 = ${sig(s.Myp/u.Mf,4)} ${u.M}; M<sub>L</sub> = σ<sub>yp</sub>bh²/4 = ${sig(s.ML/u.Mf,4)} ${u.M}</p>
   <h3>2. Elastic core</h3><p>With the core extending a distance e on each side of the neutral axis:</p><p class="eq">M = σ<sub>yp</sub>b(h²/4 − e²/3) ⇒ e = ${sig(s.e,4)} ${u.d}, core depth 2e = ${sig(2*s.e,4)} ${u.d}</p>
@@ -1619,7 +1619,7 @@ const P4={name:"Three rods on a rigid bar: yield load, limit load, residual stre
   figure:p=>{const u=IU(p.us),Lmx=Math.max(p.Lo,p.Lm),k=160/Lmx,yb=230,xs=[220,380,540];let s="";
     xs.forEach((x,i)=>{const L=(i===1?p.Lm:p.Lo)*k;s+=HATCH(x-30,yb-L-16,60,16)+LN(x,yb-L,x,yb,{c:(i===1?p.mid:p.outer).n==="steel"?C.steelln:"#a0703a",w:6})+TX(x+10,yb-L/2,`${i===1?p.mid.n:p.outer.n}`,{s:12,c:C.dim,a:"start"})+TX(x+10,yb-L/2+15,`A = ${i===1?p.Am:p.Ao} ${p.us?"in.²":"mm²"}`,{s:12,c:C.dim,a:"start"})+TX(x+10,yb-L/2+30,`L = ${i===1?p.Lm:p.Lo} ${u.d}`,{s:12,c:C.dim,a:"start"})});
     s+=RC(170,yb,420,20,{f:"#c9ced6",c:C.steelln})+AR(380,yb+20,380,yb+80)+TX(392,yb+64,"P",{s:14,i:1,c:C.load,a:"start"});return SVG(760,yb+100,s)},
-  statement:p=>{const u=IU(p.us);return `<p>Three equally spaced vertical rods are attached to a rigid horizontal bar that carries the load P at its middle. The outer rods are ${p.outer.n} (E = ${fmt(p.outer.E)} ${u.S}, σ<sub>yp</sub> = ${p.outer.sy} ${u.S}); the middle rod is ${p.mid.n} (E = ${fmt(p.mid.E)} ${u.S}, σ<sub>yp</sub> = ${p.mid.sy} ${u.S}). Areas and lengths are shown; the materials are elastic-perfectly plastic. Neglect the weight of the bar.</p>
+  statement:p=>{const u=IU(p.us);return `<p>Three equally spaced vertical rods are attached to a rigid horizontal bar that carries the load P at its middle. The outer rods are ${p.outer.n} (E = ${fmt(p.outer.E)} ${u.S}, σ<sub>yp</sub> = ${p.outer.sy} ${u.S}); the middle rod is ${p.mid.n} (E = ${fmt(p.mid.E)} ${u.S}, σ<sub>yp</sub> = ${p.mid.sy} ${u.S}). Areas and lengths are shown; both materials are elastoplastic. Neglect the weight of the bar.</p>
   <p>Find the load at which yielding first occurs, the limit load P<sub>L</sub>, and the residual stresses in the outer and middle rods after P is raised to P<sub>L</sub> and removed (tension positive).</p>`},
   solution:(p,s)=>{const u=IU(p.us),F=u.F;return `<h3>1. Elastic response</h3><p>The rigid bar imposes equal elongations, so each rod carries force in proportion to k = EA/L: k<sub>outer</sub> = ${sig(s.ko/u.Ff,4)}, k<sub>middle</sub> = ${sig(s.km/u.Ff,4)} ${F}/${u.d}</p>
   <p>First yield: the rod that reaches σ<sub>yp</sub>A first, at <span class="final">P<sub>yp</sub> = ${sig(s.Py/u.Ff,4)} ${F}</span>.</p>
@@ -1649,10 +1649,10 @@ const P5={name:"Limit analysis of indeterminate beams: limit load and yield load
   figure:p=>{const disp={...p.base,P:p.udl?[]:[{x:p.a,F:1}],W:p.udl?[{a:0,b:p.L,w1:1,w2:1}]:[]};const bm=bmSolve({...disp,P:[...disp.P],W:[...disp.W],C:[]});
     let f=indDraw(disp,bm,p.kind==="ff"?[{t:"wallL"},{t:"wallR"}]:[{t:"wallL"},{t:"roller",x:p.L}]);f=f.replace(/>1 (lb|kN|kips)</,">P<").replace(/>1 (lb\/ft|kN\/m|kips\/ft)</,">w<");
     return f+SVG(760,30,TX(380,18,`rectangular section ${p.b} × ${p.h} ${p.us?"in.":"mm"} (width × depth), σyp = ${p.sy} ${p.us?"ksi":"MPa"}`,{s:12,c:C.dim}))},
-  statement:p=>{const u=IU(p.us),Lw=p.udl?(p.us?"kips/ft":"kN/m"):u.F;return `<p>The ${p.kind==="ff"?"beam with built-in ends":"propped cantilever (built in at the left end, roller at the right)"} shown has span ${p.L} ${u.L} and carries ${p.udl?"a uniformly distributed load w over its full length":`a concentrated load P at ${fmtx(p.a)} ${u.L} from the left end`}. The cross section is a ${p.b} × ${p.h} ${u.d} rectangle of elastic-perfectly plastic material with σ<sub>yp</sub> = ${p.sy} ${u.S}</p>
+  statement:p=>{const u=IU(p.us),Lw=p.udl?(p.us?"kips/ft":"kN/m"):u.F;return `<p>The ${p.kind==="ff"?"beam with built-in ends":"propped cantilever (built in at the left end, roller at the right)"} shown has span ${p.L} ${u.L} and carries ${p.udl?"a uniform load w along the whole span":`a concentrated load P at ${fmtx(p.a)} ${u.L} from the left end`}. The cross section is a ${p.b} × ${p.h} ${u.d} rectangle of elastoplastic material with σ<sub>yp</sub> = ${p.sy} ${u.S}</p>
   <p>Find the yield moment and the limit moment of the section, the load at which yielding first occurs, the limit load (collapse load), and their ratio.</p>`},
   solution:(p,s)=>{const u=IU(p.us),Lw=p.udl?(p.us?"kips/ft":"kN/m"):u.F,X=p.udl?"w":"P";return `<h3>1. Section</h3><p>M<sub>yp</sub> = σ<sub>yp</sub>bh²/6 = ${sig(s.Myp/u.Mf,4)} ${u.M}; M<sub>L</sub> = σ<sub>yp</sub>bh²/4 = ${sig(s.ML/u.Mf,4)} ${u.M}</p>
-  <h3>2. First yield (elastic analysis)</h3><p>From the statically indeterminate solution (Chapter 7), the largest elastic moment is |M|<sub>max</sub> = ${sig(s.Mu/(p.udl?p.L*p.L:p.L),4)}${X}L${p.udl?"²":""}. Setting it equal to M<sub>yp</sub>: <span class="final">${X}<sub>yp</sub> = ${sig(s.Py,4)} ${Lw}</span>.</p>${bmDiagram(s.o.bm,"M").replace(/M \((kN·m|lb·ft)\)/,"M per unit load")}
+  <h3>2. First yield (elastic analysis)</h3><p>From the statically indeterminate elastic solution, the largest elastic moment is |M|<sub>max</sub> = ${sig(s.Mu/(p.udl?p.L*p.L:p.L),4)}${X}L${p.udl?"²":""}. Setting it equal to M<sub>yp</sub>: <span class="final">${X}<sub>yp</sub> = ${sig(s.Py,4)} ${Lw}</span>.</p>${bmDiagram(s.o.bm,"M").replace(/M \((kN·m|lb·ft)\)/,"M per unit load")}
   <h3>3. Collapse mechanism</h3><p>${p.kind==="ff"?(p.udl?"Hinges form at both ends and at midspan: 2M<sub>L</sub> = wL²/8, so w<sub>L</sub> = 16M<sub>L</sub>/L².":"Hinges form at both ends and under the load (virtual work): P<sub>L</sub> = 2M<sub>L</sub>L/(ab).")
     :(p.udl?"Hinges form at the wall and in the span where the shear is zero, at (√2 − 1)L = 0.414L from the roller. Equilibrium of the mechanism gives w<sub>L</sub> = 2(3 + 2√2)M<sub>L</sub>/L² = 11.66M<sub>L</sub>/L² (that is, M<sub>L</sub> = 0.0858w<sub>L</sub>L²).":"Hinges form at the wall and under the load (virtual work): P<sub>L</sub> = M<sub>L</sub>(L + a)/[a(L − a)].")}</p>
   <p class="final">${X}<sub>L</sub> = ${sig(s.PL,4)} ${Lw}; ${X}<sub>L</sub>/${X}<sub>yp</sub> = ${sig(s.ratio,4)}</p><p>The ratio exceeds the shape factor 1.5 because, after the first hinge forms, moment redistributes to other sections.</p>`},
@@ -1666,7 +1666,7 @@ const FLAWS={};
 const EQ=s=>`<p class="eq">${s}</p>`, PP=s=>`<p>${s}</p>`, FIN=s=>`<p class="final">${s}</p>`;
 const g4=v=>sig(v,4), g3=v=>sig(v,3);
 
-// ===== Chapter 13 planted errors
+// ===== planted errors
 FLAWS["plastic-torsion"]={step:4,
   why:"Removing the applied torque T is an elastic unloading by T itself, so the residual surface stress is τ<sub>yp</sub> − Tc/J. The limit torque is not the torque that was applied.",
   run:(p,s)=>{const u=IU(p.us),tr=p.tau-s.TL*(p.d/2)/s.J;

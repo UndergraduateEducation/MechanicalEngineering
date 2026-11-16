@@ -77,7 +77,7 @@
   <div class="card" id="solution"></div>
 </main>
 <script>
-const PAGE_CH="Mechanics of Materials, Chapter 12: Special Topics";
+const PAGE_CH="Mechanics of Materials: Special Topics";
 // ===== common helpers: seeded random numbers, number formatting, SVG drawing
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -208,7 +208,7 @@ function tbFigure(p){
 }
 function tbStatement(p){
   const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Wu=p.us?"kips":"kN";
-  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. The cross-sectional areas are ${fmt(p.A[0],p.us?1:0)} ${u} (${iv("AB")}) and ${fmt(p.A[1],p.us?1:0)} ${u} (${iv("AC")}); the working stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
+  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. Bar ${iv("AB")} has area ${fmt(p.A[0],p.us?1:0)} ${u} and bar ${iv("AC")} has area ${fmt(p.A[1],p.us?1:0)} ${u}; the allowable stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
   <p>Express the bar forces as multiples of ${iv("W")}, then find the largest weight each bar can carry and the largest weight that can be hung safely.</p>`;
 }
 function tbSolution(p,s){
@@ -295,7 +295,7 @@ function trStatement(p,s){
   const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
   const nm=k=>trMemName(s.sol,k,p),ld=p.loads.map(([j,f])=>`${f} ${Fu} at ${iv(NODES[j])}`).join(", ");
   return `<p>The Warren truss shown has ${p.n} equal panels, each ${p.a} ${p.us?"ft":"m"} wide, and a height of ${p.h} ${p.us?"ft":"m"}. It is pinned at ${iv("A")} and supported by a roller at ${iv(NODES[p.n])}. Downward loads act at the joints: ${ld}. All members have the cross-sectional area ${fmt(p.A,p.us?1:0)} ${u}; member weights are neglected.</p>
-  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the working stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
+  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the allowable stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
 }
 function trSolution(p,s){
   const sol=s.sol,Fu=p.us?"kips":"kN",su=p.us?"ksi":"MPa";
@@ -316,7 +316,7 @@ const TR={name:"Warren truss: member stresses by joints or sections",
   truth:(p,s)=>({s0:s.sg[0],s1:s.sg[1],s2:s.sg[2],A:s.Areq,Ry:s.R[2]}),
   note:"Enter signed stresses; tension is positive."};
 
-// ===== Chapter 3 helpers. Base units: SI N, mm, MPa (torque N·mm); US lb, in., psi (torque lb·in.)
+// ===== helpers. Base units: SI N, mm, MPa (torque N·mm); US lb, in., psi (torque lb·in.)
 const TU=us=>us?{T:"lb·ft",tf:1/12,S:"ksi",sf:1/1000,L:"in.",Lb:"ft",lb:12,G:"× 10⁶ psi",Gf:1e-6}
                :{T:"N·m",tf:1/1000,S:"MPa",sf:1,L:"mm",Lb:"m",lb:1000,G:"GPa",Gf:1/1000};
 const GM={steel:[80000,12e6],aluminum:[28000,4e6],bronze:[35000,6e6],copper:[47000,6.8e6]};
@@ -359,7 +359,7 @@ function csFigure(p){
 }
 function csStatement(p){
   const u=TU(p.us);
-  return `<p>A ${p.hollow?"hollow":"solid"} ${p.m} shaft of length ${lb_(p.L,p.us)} ${u.Lb}${p.hollow?` with outer diameter ${p.d} ${u.L} and inner diameter ${p.di} ${u.L}`:` and diameter ${p.d} ${u.L}`} is built into the wall at one end and carries the torque T = ${tq(p.T,p.us)} ${u.T} at the free end. Use ${Gstr(p.m,p.us)}.</p>
+  return `<p>A ${p.hollow?"hollow":"solid"} ${p.m} shaft of length ${lb_(p.L,p.us)} ${u.Lb}${p.hollow?` with outer diameter ${p.d} ${u.L} and inner diameter ${p.di} ${u.L}`:` and diameter ${p.d} ${u.L}`} is fixed to a wall at one end and loaded by the torque T = ${tq(p.T,p.us)} ${u.T} at the other. Use ${Gstr(p.m,p.us)}.</p>
   <p>Find the polar moment of inertia, the maximum shear stress, the shear stress ${p.hollow?"at the inner surface":"at half the outer radius"}, and the angle of twist of the shaft.</p>`;
 }
 function csSolution(p,s){
@@ -404,8 +404,8 @@ function shFigure(p){
 function shStatement(p){
   const u=TU(p.us),mats=[...new Set(p.M)].map(m=>`${Gstr(m,p.us)} for ${m}`).join(", ");
   const Ts=p.T.map((t,i)=>`${tq(Math.abs(t),p.us)} ${u.T} at ${iv(NODES[i])}`).join(", ");
-  return `<p>The solid shaft ${NODES[0]}${NODES[p.n]} is built into the wall at ${iv(NODES[p.n])}. Its ${p.n} segments have the diameters and lengths shown${new Set(p.M).size>1?"; segment materials are "+p.M.map((m,i)=>`${sbSeg(i)} ${m}`).join(", "):", and all segments are "+p.M[0]}. The torques ${Ts} act in the senses shown by the torque vectors (right-hand rule). Use ${mats}.</p>
-  <p>Find the maximum shear stress in each segment, the segment with the largest stress, and the angle of rotation of end ${iv("A")}.</p>`;
+  return `<p>The solid shaft ${NODES[0]}${NODES[p.n]} is fixed to the wall at ${iv(NODES[p.n])}. Its ${p.n} segments have the diameters and lengths shown${new Set(p.M).size>1?"; segment materials are "+p.M.map((m,i)=>`${sbSeg(i)} ${m}`).join(", "):", and all segments are "+p.M[0]}. The torques ${Ts} act in the senses shown by the torque vectors (right-hand rule). Use ${mats}.</p>
+  <p>Find the largest shear stress in every segment, which segment is most highly stressed, and how far end ${iv("A")} rotates.</p>`;
 }
 function shSolution(p,s){
   const u=TU(p.us);let h=`<h3>1. Internal torques</h3><p>A free-body diagram of the part of the shaft to the left of a cut in each segment gives the internal torque as the sum of the applied torques on that part (vectors pointing right taken positive):</p><table><tr><th>Segment</th><th>T (${u.T})</th><th>d (${u.L})</th><th>τ<sub>max</sub> = 16|T|/(πd³) (${u.S})</th><th>θ = TL/(GJ) (rad)</th></tr>`;
@@ -448,7 +448,7 @@ function gpFigure(p){
 function gpStatement(p){
   const u=TU(p.us),ps=p.Pw.map((P,i)=>i===p.inp?null:`${P} ${p.us?"hp":"kW"} at ${iv(NODES[i])}`).filter(Boolean).join(", ");
   return `<p>Gears ${NODES.slice(0,p.n).split("").map(iv).join(", ")} are attached to a solid steel shaft of diameter ${p.d} ${u.L} that rotates at ${p.us?p.freq+" rev/min":p.freq+" Hz"}. Gear ${iv(NODES[p.inp])} receives ${Math.abs(p.Pw[p.inp])} ${p.us?"hp":"kW"} from a motor, and the power is taken off at the other gears: ${ps}. The spacing of the gears is shown. Use ${Gstr("steel",p.us)} and neglect friction in the bearings.</p>
-  <p>Find the maximum shear stress in the shaft and the angle of rotation of gear ${iv("A")} relative to gear ${iv(NODES[p.n-1])}. Then find the smallest diameter for a working shear stress of ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}.</p>`;
+  <p>Find the largest shear stress in the shaft and the rotation of gear ${iv("A")} with respect to gear ${iv(NODES[p.n-1])}. Then find the smallest diameter for a allowable shear stress of ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}.</p>`;
 }
 function gpSolution(p,s){
   const u=TU(p.us);let h=`<h3>1. Gear torques</h3><p>${p.us?"T (lb·in.) = 63 025 P(hp)/n(rev/min)":"T = P/(2πf)"}. ${p.Pw.map((P,i)=>`T<sub>${NODES[i]}</sub> = ${tq(Math.abs(s.Tg[i]),p.us)} ${u.T}`).join(", ")}; the input torque balances the outputs.</p>
@@ -483,7 +483,7 @@ function pdFigure(p){
 }
 function pdStatement(p){
   const u=TU(p.us);
-  return `<p>A solid ${p.m} shaft transmits ${p.P} ${p.us?"hp":"kW"} at ${p.us?p.f+" rev/min":p.f+" Hz"}. The shear stress must not exceed ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}, and the angle of twist must not exceed ${p.th}° in a length of ${lb_(p.L,p.us)} ${u.Lb}. Use ${Gstr(p.m,p.us)}.</p>
+  return `<p>A solid ${p.m} shaft transmits ${p.P} ${p.us?"hp":"kW"} at ${p.us?p.f+" rev/min":p.f+" Hz"}. The shear stress may be at most ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}, and any ${lb_(p.L,p.us)} ${u.Lb} of shaft may twist by no more than ${p.th}°. Use ${Gstr(p.m,p.us)}.</p>
   <p>Find the torque, the smallest diameter for each requirement, the smallest safe diameter, and the governing requirement.</p>`;
 }
 function pdSolution(p,s){
@@ -525,8 +525,8 @@ function iwFigure(p){
 }
 function iwStatement(p){
   const u=TU(p.us),mats=[...new Set(p.M)].map(m=>`${Gstr(m,p.us)} for ${m}`).join(" and ");
-  return `<p>The compound shaft ${iv("ABC")} is attached to rigid walls at ${iv("A")} and ${iv("C")}. Segment ${iv("AB")} is a solid ${p.M[0]} shaft of diameter ${p.d[0]} ${u.L}, and segment ${iv("BC")} is a solid ${p.M[1]} shaft of diameter ${p.d[1]} ${u.L}; lengths are shown. The torque T = ${tq(p.T,p.us)} ${u.T} is applied at the junction ${iv("B")}. Use ${mats}.</p>
-  <p>Find the reactive torques at ${iv("A")} and ${iv("C")}, the maximum shear stress in each segment, and the angle of rotation of ${iv("B")}.</p>`;
+  return `<p>Both ends of the compound shaft ${iv("ABC")}, at ${iv("A")} and ${iv("C")}, are held by rigid walls. Segment ${iv("AB")} is a solid ${p.M[0]} shaft of diameter ${p.d[0]} ${u.L}, and segment ${iv("BC")} is a solid ${p.M[1]} shaft of diameter ${p.d[1]} ${u.L}; lengths are shown. The torque T = ${tq(p.T,p.us)} ${u.T} is applied at the junction ${iv("B")}. Use ${mats}.</p>
+  <p>Find the wall torques at ${iv("A")} and ${iv("C")}, the largest shear stress in both segments, and how far ${iv("B")} rotates.</p>`;
 }
 function iwSolution(p,s){
   const u=TU(p.us);
@@ -567,7 +567,7 @@ function ctFigure(p){
 function ctStatement(p){
   const u=TU(p.us);
   return `<p>A composite shaft is made by bonding a ${p.pr[1]} tube of outer diameter ${p.d2} ${u.L} to a solid ${p.pr[0]} core of diameter ${p.d1} ${u.L}. The shaft is ${lb_(p.L,p.us)} ${u.Lb} long, is built in at one end, and carries the torque T = ${tq(p.T,p.us)} ${u.T} at the other end. Use ${Gstr(p.pr[0],p.us)} for ${p.pr[0]} and ${Gstr(p.pr[1],p.us)} for ${p.pr[1]}.</p>
-  <p>Find the maximum shear stress in the core and in the tube and the angle of twist. Then find the largest safe torque if the working shear stresses are ${p.us?fmt(p.w[0])+" psi":p.w[0]+" MPa"} for the core and ${p.us?fmt(p.w[1])+" psi":p.w[1]+" MPa"} for the tube.</p>`;
+  <p>Find the peak shear stress in the core, the peak shear stress in the tube, and the angle of twist. Then find the largest safe torque if the allowable shear stresses are ${p.us?fmt(p.w[0])+" psi":p.w[0]+" MPa"} for the core and ${p.us?fmt(p.w[1])+" psi":p.w[1]+" MPa"} for the tube.</p>`;
 }
 function ctSolution(p,s){
   const u=TU(p.us),f=TU(p.us).sf;
@@ -609,8 +609,8 @@ function twFigure(p){
 }
 function twStatement(p){
   const u=TU(p.us);
-  return `<p>A ${p.m} tube of length ${lb_(p.L,p.us)} ${u.Lb} has the thin-walled rectangular cross section shown: outer dimensions ${p.B} × ${p.H} ${u.L}, wall thickness ${dstr(p.t1)} ${u.L} in the top and bottom walls and ${dstr(p.t2)} ${u.L} in the side walls. It carries the torque T = ${tq(p.T,p.us)} ${u.T}. Use ${Gstr(p.m,p.us)} and neglect stress concentrations at the corners.</p>
-  <p>Find the area enclosed by the median line, the shear flow, the shear stress in the top and bottom walls and in the side walls, and the angle of twist. Then find the largest torque for a working shear stress of ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}.</p>`;
+  return `<p>A ${p.m} tube of length ${lb_(p.L,p.us)} ${u.Lb} has the thin-walled rectangular cross section shown: outer dimensions ${p.B} × ${p.H} ${u.L}, wall thickness ${dstr(p.t1)} ${u.L} in the top and bottom walls and ${dstr(p.t2)} ${u.L} in the side walls. It carries the torque T = ${tq(p.T,p.us)} ${u.T}. Use ${Gstr(p.m,p.us)}; ignore the local stress rise at the inside corners.</p>
+  <p>Find the area enclosed by the wall centerline, the shear flow, the shear stress in the top and bottom walls and in the side walls, and the angle of twist. Then find the largest torque for a allowable shear stress of ${p.us?fmt(p.tw)+" psi":p.tw+" MPa"}.</p>`;
 }
 function twSolution(p,s){
   const u=TU(p.us);
@@ -621,11 +621,11 @@ function twSolution(p,s){
 }
 const TW={name:"Thin-walled rectangular tube: shear flow, stresses, angle of twist",
   generate:twGenerate,figure:twFigure,statement:twStatement,solution:twSolution,
-  fields:p=>{const u=TU(p.us);return [{id:"A0",label:"Area enclosed by the median line",unit:u.L+"²"},{id:"q",label:"Shear flow",unit:p.us?"lb/in.":"N/mm"},
+  fields:p=>{const u=TU(p.us);return [{id:"A0",label:"Area enclosed by the wall centerline",unit:u.L+"²"},{id:"q",label:"Shear flow",unit:p.us?"lb/in.":"N/mm"},
     {id:"tau1",label:"Shear stress in top and bottom walls",unit:u.S},{id:"tau2",label:"Shear stress in side walls",unit:u.S},{id:"th",label:"Angle of twist",unit:"degrees"},{id:"Tw",label:"Largest torque",unit:u.T}]},
   truth:(p,s)=>({A0:s.A0,q:s.q,tau1:s.tau1*TU(p.us).sf,tau2:s.tau2*TU(p.us).sf,th:s.th,Tw:s.Tw*TU(p.us).tf}),note:"Answers within 2% are accepted."};
 
-// ===== 8. rectangular and circular segments in series (Table 3.1 coefficients)
+// ===== 8. rectangular and circular segments in series (coefficients C1, C2 given in the statement)
 const RT31=[[1.0,0.208,0.141],[1.2,0.219,0.166],[1.5,0.231,0.196],[2.0,0.246,0.229],[2.5,0.258,0.249],[3.0,0.267,0.263],[4.0,0.282,0.281],[5.0,0.291,0.291],[10.0,0.312,0.312]];
 function rsGenerate(seed){
   const r=mulberry32(seed);
@@ -652,7 +652,7 @@ function rsFigure(p){
 }
 function rsStatement(p){
   const u=TU(p.us),Gs=p.m==="wood"?(p.us?"G = 75 000 psi":"G = 0.5 GPa"):Gstr(p.m,p.us),ws=p.us?fmt(p.tw)+" psi":p.tw+" MPa";
-  return `<p>A ${p.m} bar built into a wall consists of two segments: a rectangular segment with cross section ${p.a} × ${p.b} ${u.L} and a circular segment of diameter ${p.d} ${u.L}, with the lengths shown. A torque T is applied at the free end. The working shear stress is ${ws}; use ${Gs}. For the rectangular section, τ<sub>max</sub> = T/(C₁ab²) and θ = TL/(C₂ab³G), with a ≥ b; for a/b = ${p.ab}, C₁ = ${p.C1} and C₂ = ${p.C2}.</p>
+  return `<p>A ${p.m} bar fixed to a wall is made of two segments: a rectangular segment with cross section ${p.a} × ${p.b} ${u.L} and a circular segment of diameter ${p.d} ${u.L}, with the lengths shown. The free end carries a torque T. The allowable shear stress is ${ws}; use ${Gs}. For the rectangular section, τ<sub>max</sub> = T/(C₁ab²) and θ = TL/(C₂ab³G), with a ≥ b; for a/b = ${p.ab}, C₁ = ${p.C1} and C₂ = ${p.C2}.</p>
   <p>Find the largest safe torque for each segment, the largest safe torque for the bar, the governing segment, and the angle of twist of the free end under that torque.</p>`;
 }
 function rsSolution(p,s){
@@ -661,7 +661,7 @@ function rsSolution(p,s){
   <p class="final">T<sub>max</sub> = ${tq(s.T,p.us)} ${u.T}, governed by the ${s.gov.toLowerCase()}.</p>
   <h3>2. Angle of twist</h3><p>Rectangular: θ = TL/(C₂ab³G) = ${sig(s.thr)}°. Circular: θ = TL/(GJ) = ${sig(s.thc)}°.</p><p class="final">θ = ${sig(s.th)}°</p>`;
 }
-const RS={name:"Rectangular and circular bar segments in series (Table 3.1)",
+const RS={name:"Rectangular and circular bar segments in series",
   generate:rsGenerate,figure:rsFigure,statement:rsStatement,solution:rsSolution,
   fields:p=>{const u=TU(p.us);return [{id:"Tr",label:"Largest torque, rectangular segment",unit:u.T},{id:"Tc",label:"Largest torque, circular segment",unit:u.T},{id:"T",label:"Largest safe torque",unit:u.T},
     {id:"gov",label:"Governing segment",unit:"",choices:["Rectangular segment","Circular segment"]},{id:"th",label:"Angle of twist of the free end",unit:"degrees"}]},
@@ -691,8 +691,8 @@ function gtFigure(p){
 }
 function gtStatement(p){
   const u=TU(p.us);
-  return `<p>The torque T = ${tq(p.T,p.us)} ${u.T} is applied at end ${iv("A")} of the solid steel shaft ${iv("AB")}, which turns freely in its bearings. Gear ${iv("B")} (radius ${p.rB} ${u.L}) meshes with gear ${iv("C")} (radius ${p.rC} ${u.L}) on the solid steel shaft ${iv("CD")}, which is built into the wall at ${iv("D")}. Shaft lengths and diameters are shown. Use ${Gstr("steel",p.us)}.</p>
-  <p>Find the maximum shear stress in each shaft and the angle of rotation of end ${iv("A")}.</p>`;
+  return `<p>The torque T = ${tq(p.T,p.us)} ${u.T} is applied at end ${iv("A")} of the solid steel shaft ${iv("AB")}, which turns freely in its bearings. Gear ${iv("B")} (radius ${p.rB} ${u.L}) meshes with gear ${iv("C")} (radius ${p.rC} ${u.L}) on the solid steel shaft ${iv("CD")}, which is fixed to the wall at ${iv("D")}. Shaft lengths and diameters are shown. Use ${Gstr("steel",p.us)}.</p>
+  <p>For each shaft find the largest shear stress; then find how far end ${iv("A")} rotates.</p>`;
 }
 function gtSolution(p,s){
   const u=TU(p.us);
@@ -731,8 +731,8 @@ function dtFigure(p){
 }
 function dtStatement(p){
   const u=TU(p.us),tu=p.us?"lb·in./in.":"N·m/m";
-  return `<p>A solid ${p.m} shaft of diameter ${p.d} ${u.L} and length L = ${lb_(p.L,p.us)} ${u.Lb} is built into the wall at ${iv("A")} and free at ${iv("B")}. It carries a distributed torque ${p.lin?`whose intensity increases linearly from zero at ${iv("A")} to t<sub>B</sub> = ${p.t0} ${tu} at ${iv("B")}`:`of uniform intensity t = ${p.t0} ${tu}`}. Use ${Gstr(p.m,p.us)}.</p>
-  <p>Find the reactive torque at the wall, the maximum shear stress in the shaft, and the angle of rotation of the free end.</p>`;
+  return `<p>A solid ${p.m} shaft of diameter ${p.d} ${u.L} and length L = ${lb_(p.L,p.us)} ${u.Lb} is fixed to the wall at ${iv("A")}; end ${iv("B")} is free. It carries a distributed torque ${p.lin?`whose intensity increases linearly from zero at ${iv("A")} to t<sub>B</sub> = ${p.t0} ${tu} at ${iv("B")}`:`of uniform intensity t = ${p.t0} ${tu}`}. Use ${Gstr(p.m,p.us)}.</p>
+  <p>Find the torque the wall exerts on the shaft, the largest shear stress, and the rotation of the free end.</p>`;
 }
 function dtSolution(p,s){
   const u=TU(p.us);
@@ -742,10 +742,10 @@ function dtSolution(p,s){
 }
 const DT={name:"Distributed torque on a cantilevered shaft",
   generate:dtGenerate,figure:dtFigure,statement:dtStatement,solution:dtSolution,
-  fields:p=>{const u=TU(p.us);return [{id:"T0",label:"Reactive torque at the wall",unit:u.T},{id:"tmax",label:"Maximum shear stress",unit:u.S},{id:"th",label:"Angle of rotation of B",unit:"degrees"}]},
+  fields:p=>{const u=TU(p.us);return [{id:"T0",label:"Wall reaction torque",unit:u.T},{id:"tmax",label:"Maximum shear stress",unit:u.S},{id:"th",label:"Angle of rotation of B",unit:"degrees"}]},
   truth:(p,s)=>({T0:s.T0*TU(p.us).tf,tmax:s.tmax*TU(p.us).sf,th:s.th}),note:"Answers within 2% are accepted."};
 
-// ===== Chapter 8: combined loads, stress and strain transformation. Stresses MPa (SI) or psi/ksi (US).
+// ===== combined loads, stress and strain transformation. Stresses MPa (SI) or psi/ksi (US).
 const D2R=Math.PI/180;
 function trans(sx,sy,txy,th){const c=Math.cos(2*th),s=Math.sin(2*th),a=(sx+sy)/2,b=(sx-sy)/2;return {sx:a+b*c+txy*s,sy:a-b*c-txy*s,txy:-b*s+txy*c}}
 function princ(sx,sy,txy){const a=(sx+sy)/2,R=Math.hypot((sx-sy)/2,txy),s1=a+R,s2=a-R;let tp=0.5*Math.atan2(2*txy,sx-sy);   // angle of sigma1 from x, in (-90,90]
@@ -798,7 +798,7 @@ function m1Generate(seed){
 const M1={name:"Thin-walled pressure vessel: wall stresses, thickness, change in diameter",generate:m1Generate,
   figure:()=>"",
   statement:p=>{const u=p.us?"in.":"mm";return `<p>A thin-walled ${p.sph?"spherical":"cylindrical"} ${p.m.n} pressure vessel${p.sph?"":" with closed ends"} has mean radius ${p.r} ${u} and wall thickness ${dstr(p.t)} ${u}. It contains gas at internal pressure p = ${p.p} ${UB(p.us)}. Use E = ${p.m.E} ${DU(p.us).E} and ν = ${p.nu}.</p>
-  <p>Find the ${p.sph?"membrane stress":"hoop and longitudinal stresses"}, the maximum in-plane shear stress, and the absolute maximum shear stress at the outer surface (where the radial stress is zero). Then find the change in ${p.sph?"":"mean "}diameter and the thickness needed for a working normal stress of ${fmt(p.sw)} ${UB(p.us)}.</p>`},
+  <p>Find the ${p.sph?"membrane stress":"hoop and longitudinal stresses"}, the maximum in-plane shear stress, and the absolute maximum shear stress at the outer surface (where the radial stress is zero). Then find the change in ${p.sph?"":"mean "}diameter and the thickness needed for a allowable normal stress of ${fmt(p.sw)} ${UB(p.us)}.</p>`},
   solution:(p,s)=>{const u=p.us?"in.":"mm",S=UB(p.us);return p.sph?`<h3>1. Membrane stress</h3><p class="eq">σ = pr/(2t) = ${sig(s.sh,4)} ${S}</p><p>Every direction in the wall is principal with the same stress, so the in-plane shear is zero.</p>
   <h3>2. Absolute maximum shear</h3><p>With σ₃ = 0 at the outer surface, τ<sub>abs</sub> = σ/2 = ${sig(s.tabs,4)} ${S}.</p><h3>3. Change in diameter</h3><p class="eq">ε = (σ − νσ)/E = ${sig(s.dd/(2*p.r)*1e6,4)} × 10⁻⁶, Δd = ε(2r) = ${sig(s.dd,4)} ${u}</p><h3>4. Required thickness</h3><p class="final">t = pr/(2σ<sub>w</sub>) = ${sig(s.treq,4)} ${u}</p>`
   :`<h3>1. Wall stresses</h3><p class="eq">σ<sub>h</sub> = pr/t = ${sig(s.sh,4)} ${S}, σ<sub>l</sub> = pr/(2t) = ${sig(s.sl,4)} ${S}</p>
@@ -828,7 +828,7 @@ const M2={name:"Helical weld seam in a cylindrical vessel: stresses on the seam"
      +TX(620,90,`r = ${p.r} ${p.us?"in.":"mm"}`,{s:13,c:C.dim,a:"start"})+TX(620,112,`t = ${dstr(p.t)} ${p.us?"in.":"mm"}`,{s:13,c:C.dim,a:"start"});
     return SVG(760,260,s)},
   statement:p=>{const S=UB(p.us);return `<p>A cylindrical pressure vessel with closed ends (mean radius ${p.r} ${p.us?"in.":"mm"}, wall thickness ${dstr(p.t)} ${p.us?"in.":"mm"}) is fabricated by welding a plate strip along a helical seam that makes the angle β = ${p.be}° with the longitudinal axis. The internal pressure is p = ${p.p} ${S}.</p>
-  <p>Find the normal and shear stresses on the weld seam. Then find the largest pressure if the working stresses are ${fmt(p.sw)} ${S} for the plate, ${fmt(p.wn)} ${S} for normal stress on the weld, and ${fmt(p.wt)} ${S} for shear stress on the weld.</p>`},
+  <p>Find the stress components normal and tangent to the weld seam. Then find the largest pressure if the allowable stresses are ${fmt(p.sw)} ${S} for the plate, ${fmt(p.wn)} ${S} for normal stress on the weld, and ${fmt(p.wt)} ${S} for shear stress on the weld.</p>`},
   solution:(p,s)=>{const S=UB(p.us);return `<h3>1. Wall stresses</h3><p>Taking x along the axis and y around the circumference: σ<sub>x</sub> = pr/(2t) = ${sig(s.sl,4)} ${S}, σ<sub>y</sub> = pr/t = ${sig(s.sh,4)} ${S}, τ<sub>xy</sub> = 0.</p>
   <h3>2. Stresses on the seam</h3><p>The normal to the seam makes θ = β + 90° = ${p.be+90}° with the x axis:</p><p class="eq">σ<sub>n</sub> = σ<sub>x</sub>cos²θ + σ<sub>y</sub>sin²θ = ${sig(s.sn,4)} ${S}, |τ| = |(σ<sub>y</sub> − σ<sub>x</sub>) sin θ cos θ| = ${sig(s.ts,4)} ${S}</p>
   <h3>3. Largest pressure</h3><p>All stresses are proportional to p. Plate: ${sig(s.pm[0],4)}; weld normal: ${sig(s.pm[1],4)}; weld shear: ${sig(s.pm[2],4)} ${S}.</p><p class="final">p<sub>max</sub> = ${sig(s.pmin,4)} ${S}, governed by ${s.gov.toLowerCase()}.</p>`},
@@ -859,7 +859,7 @@ const M3={name:"Eccentrically loaded column: corner stresses and safe load",gene
      +TX(560,60,`e<tspan baseline-shift="sub" font-size="10">x</tspan> = ${p.ex} ${u}`,{s:13,c:C.dim,a:"start"})+TX(560,82,`e<tspan baseline-shift="sub" font-size="10">y</tspan> = ${p.ey} ${u}`,{s:13,c:C.dim,a:"start"})+TX(560,104,"(top view of the column)",{s:12,c:C.dim,a:"start"});
     return SVG(760,y0+H+60,s)},
   statement:p=>{const u=p.us?"in.":"mm",S=p.us?"psi":"MPa";return `<p>A short column with a rectangular cross section b × d = ${p.b} × ${p.d} ${u} carries a compressive force P = ${p.P} ${p.us?"kips":"kN"} applied parallel to its axis at the point shown, e<sub>x</sub> = ${p.ex} ${u} and e<sub>y</sub> = ${p.ey} ${u} from the centroid. Neglect the weight of the column.</p>
-  <p>Find the normal stress at each corner A, B, C, and D (tension positive). Then find the largest force P (same point of application) if the working stresses are ${fmt(p.sc)} ${S} in compression and ${p.stw} ${S} in tension.</p>`},
+  <p>Find the normal stress at each corner A, B, C, and D (tension positive). Then find the largest force P (same point of application) if the allowable stresses are ${fmt(p.sc)} ${S} in compression and ${p.stw} ${S} in tension.</p>`},
   solution:(p,s)=>{const S=p.us?"psi":"MPa";return `<h3>1. Superposition</h3><p>The eccentric force is equivalent to a centric force P plus couples M<sub>x</sub> = Pe<sub>y</sub> and M<sub>y</sub> = Pe<sub>x</sub>:</p><p class="eq">σ = −P/A − Pe<sub>x</sub>x/I<sub>y</sub> − Pe<sub>y</sub>y/I<sub>x</sub></p><p>with A = bd, I<sub>y</sub> = db³/12, I<sub>x</sub> = bd³/12; the corner coordinates are (±b/2, ±d/2).</p>
   <h3>2. Corner stresses</h3><table><tr><th>Corner</th><th>σ (${S})</th></tr>${["A","B","C","D"].map((n,i)=>`<tr><td>${n}</td><td>${sig(s.sg[i],4)}</td></tr>`).join("")}</table>
   <h3>3. Largest force</h3><p>Stresses are proportional to P. Compression limit: P = ${sig(s.Pc,4)}; tension limit: ${isFinite(s.Pt)?"P = "+sig(s.Pt,4):"no tension develops"} ${p.us?"kips":"kN"}.</p><p class="final">P<sub>max</sub> = ${sig(s.Pm,4)} ${p.us?"kips":"kN"} (${s.gov.toLowerCase()} governs)</p>`},
@@ -886,7 +886,7 @@ const M4={name:"Offset member (C-clamp frame): combined axial and bending stress
      +LN(80,150,170,150,{c:C.green,w:2,d:"6 3"})+TX(80,140,"section a-a",{s:12,c:C.green,a:"start"})+DIMH(120,330,276,`e = ${p.e} ${u} from the inner (flange) face to the load line`)
     ;return SVG(760,300,s)+secDraw(p.rects,[`flange ${p.bf} × ${p.tf} ${u} (inner face, toward P)`,`web ${p.tw} × ${p.hw} ${u}`],{title:"Section a-a (flange at the bottom faces P)"})},
   statement:p=>{const u=p.us?"in.":"mm",S=p.us?"psi":"MPa",F=p.us?"lb":"N";return `<p>The frame of the clamp shown has the T-shaped section a-a, with the flange on the inner side facing the clamped work. The line of action of the clamping force lies ${p.e} ${u} from the inner face of the flange.</p>
-  <p>For a clamping force P = ${fmt(p.Pa)} ${F}, find the normal stresses at the inner and outer edges of section a-a. Then find the largest clamping force if the working stresses are ${fmt(p.stw)} ${S} in tension and ${fmt(p.sc)} ${S} in compression.</p>`},
+  <p>For a clamping force P = ${fmt(p.Pa)} ${F}, find the normal stresses at the inner and outer edges of section a-a. Then find the largest clamping force if the allowable stresses are ${fmt(p.stw)} ${S} in tension and ${fmt(p.sc)} ${S} in compression.</p>`},
   solution:(p,s)=>{const u=p.us?"in.":"mm",S=p.us?"psi":"MPa",F=p.us?"lb":"N",sp=s.sp;return `<h3>1. Section properties</h3><p>A = ${sig(sp.A,4)} ${u}², centroid ${sig(sp.yb,4)} ${u} from the inner face, I = ${sig(sp.I,4)} ${u}⁴.</p>
   <h3>2. Internal forces on a-a</h3><p>Axial tension P and bending moment M = P(e + ȳ) = P × ${sig(s.ed,4)} ${u}, which puts the inner edge in tension.</p>
   <h3>3. Stresses</h3><p class="eq">σ<sub>inner</sub> = P/A + Mȳ/I = ${sig(s.si,4)} ${S}, σ<sub>outer</sub> = P/A − Mc<sub>outer</sub>/I = ${sig(s.so,4)} ${S}</p>
@@ -907,8 +907,8 @@ function m5Generate(seed){
 }
 const M5={name:"Plane stress: stresses on a rotated element",generate:m5Generate,
   figure:p=>SVG(760,290,stressElem(p.sx,p.sy,p.txy,0,{cx:250,cy:140,unit:UK(p.us)})+TX(470,120,`Rotate the element by θ = ${p.th}°`,{s:14,c:C.ink,a:"start"})+TX(470,142,"(positive counterclockwise)",{s:12,c:C.dim,a:"start"})),
-  statement:p=>{const S=UK(p.us);return `<p>The state of plane stress at a point is σ<sub>x</sub> = ${p.sx}, σ<sub>y</sub> = ${p.sy}, τ<sub>xy</sub> = ${p.txy} ${S}, as shown on the element.</p>
-  <p>Find σ<sub>x′</sub>, σ<sub>y′</sub>, and τ<sub>x′y′</sub> on an element rotated by θ = ${p.th}° (counterclockwise positive).</p><p class="note">Sign convention: positive stresses act in the positive coordinate directions on positive faces.</p>`},
+  statement:p=>{const S=UK(p.us);return `<p>At a point in plane stress, σ<sub>x</sub> = ${p.sx}, σ<sub>y</sub> = ${p.sy}, τ<sub>xy</sub> = ${p.txy} ${S}, as shown on the element.</p>
+  <p>Find σ<sub>x′</sub>, σ<sub>y′</sub>, and τ<sub>x′y′</sub> on an element rotated by θ = ${p.th}° (counterclockwise positive).</p><p class="note">Sign convention: a stress is positive when it points in a positive coordinate direction on a face whose outward normal is also positive.</p>`},
   solution:(p,s)=>{const S=UK(p.us);return `<h3>1. Transformation equations</h3><p class="eq">σ<sub>x′</sub> = (σ<sub>x</sub>+σ<sub>y</sub>)/2 + (σ<sub>x</sub>−σ<sub>y</sub>)/2 cos 2θ + τ<sub>xy</sub> sin 2θ = ${sig(s.sx,4)} ${S}</p><br>
   <p class="eq">τ<sub>x′y′</sub> = −(σ<sub>x</sub>−σ<sub>y</sub>)/2 sin 2θ + τ<sub>xy</sub> cos 2θ = ${sig(s.txy,4)} ${S}</p><br><p class="eq">σ<sub>y′</sub> = σ<sub>x</sub> + σ<sub>y</sub> − σ<sub>x′</sub> = ${sig(s.sy,4)} ${S}</p>
   <h3>2. Rotated element and Mohr's circle</h3><p>On Mohr's circle (τ plotted positive downward), the point for the x′ face is reached from point x by rotating 2θ = ${2*p.th}° in the same sense as θ.</p>${SVG(760,290,stressElem(p.sx,p.sy,p.txy,p.th*D2R,{cx:170,cy:140,unit:UK(p.us)})+mohr(p.sx,p.sy,p.txy))}`},
@@ -927,7 +927,7 @@ function m6Generate(seed){
 }
 const M6={name:"Principal stresses and maximum shear stress (Mohr's circle)",generate:m6Generate,
   figure:p=>SVG(760,290,stressElem(p.sx,p.sy,p.txy,0,{cx:300,cy:140,unit:UK(p.us)})),
-  statement:p=>{const S=UK(p.us);return `<p>The state of plane stress at a point is σ<sub>x</sub> = ${p.sx}, σ<sub>y</sub> = ${p.sy}, τ<sub>xy</sub> = ${p.txy} ${S}, as shown.</p>
+  statement:p=>{const S=UK(p.us);return `<p>At a point in plane stress, σ<sub>x</sub> = ${p.sx}, σ<sub>y</sub> = ${p.sy}, τ<sub>xy</sub> = ${p.txy} ${S}, as shown.</p>
   <p>Find the principal stresses σ₁ ≥ σ₂, the angle θ<sub>p</sub> from the x axis to the direction of σ₁ (counterclockwise positive, between −90° and 90°), the maximum in-plane shear stress, and the absolute maximum shear stress (σ₃ = 0 normal to the plane).</p>`},
   solution:(p,s)=>{const S=UK(p.us);return `<h3>1. Center and radius of Mohr's circle</h3><p class="eq">σ<sub>avg</sub> = (σ<sub>x</sub>+σ<sub>y</sub>)/2 = ${sig(s.a,4)}, R = √[((σ<sub>x</sub>−σ<sub>y</sub>)/2)² + τ<sub>xy</sub>²] = ${sig(s.R,4)} ${S}</p>
   <h3>2. Principal stresses and directions</h3><p>σ₁ = σ<sub>avg</sub> + R = ${sig(s.s1,4)}, σ₂ = σ<sub>avg</sub> − R = ${sig(s.s2,4)} ${S}. From tan 2θ<sub>p</sub> = 2τ<sub>xy</sub>/(σ<sub>x</sub>−σ<sub>y</sub>), choosing the root that gives σ₁ (check by substituting into the transformation equation): θ<sub>p</sub> = ${sig(s.tp/D2R,4)}°.</p>
@@ -956,8 +956,8 @@ const M7={name:"Shaft with axial force and torque: principal stresses and safe t
   figure:p=>{let s=HATCH(120,80,18,120)+CYL(138,560,140,40,"#dfe4ea")+(p.P>0?AR(590,140,660,140):AR(660,140,590,140))+TX(625,128,`${Math.abs(p.P)} ${p.us?"kips":"kN"}`,{s:13,c:C.load})
      +TV(575,95,1,`T = ${fmt(p.T)} ${p.us?"lb·ft":"N·m"}`)+TX(350,215,`d = ${p.d} ${p.us?"in.":"mm"}`,{s:13,c:C.dim})+CI(350,100,4,{f:C.load,c:C.load})+TX(360,96,"point on the surface",{s:12,c:C.dim,a:"start"});
     return SVG(760,240,s)},
-  statement:p=>{const S=p.us?"psi":"MPa";return `<p>A solid shaft of diameter ${p.d} ${p.us?"in.":"mm"} carries an axial ${p.P>0?"tensile":"compressive"} force of ${Math.abs(p.P)} ${p.us?"kips":"kN"} and a torque T = ${fmt(p.T)} ${p.us?"lb·ft":"N·m"}.</p>
-  <p>For a point on the surface, find the principal stresses and the maximum in-plane shear stress. Then, keeping the axial force, find the largest torque if the working stresses are ${fmt(p.tw)} ${S} in shear and ${fmt(p.sw)} ${S} in tension or compression.</p>`},
+  statement:p=>{const S=p.us?"psi":"MPa";return `<p>A solid shaft of diameter ${p.d} ${p.us?"in.":"mm"} is loaded by a torque T = ${fmt(p.T)} ${p.us?"lb·ft":"N·m"} together with an axial ${p.P>0?"tensile":"compressive"} force of ${Math.abs(p.P)} ${p.us?"kips":"kN"}.</p>
+  <p>For a point on the surface, find the principal stresses and the maximum in-plane shear stress. Then, keeping the axial force, find the largest torque if the allowable stresses are ${fmt(p.tw)} ${S} in shear and ${fmt(p.sw)} ${S} in tension or compression.</p>`},
   solution:(p,s)=>{const S=p.us?"psi":"MPa",Tu=p.us?"lb·ft":"N·m";return `<h3>1. Stresses at the surface</h3><p>σ<sub>x</sub> = P/A = ${sig(s.sx,4)} ${S}; τ<sub>xy</sub> = 16T/(πd³) = ${sig(s.tau,4)} ${S}; σ<sub>y</sub> = 0.</p>
   <h3>2. Principal stresses</h3><p class="eq">σ<sub>1,2</sub> = σ<sub>x</sub>/2 ± √[(σ<sub>x</sub>/2)² + τ²] = ${sig(s.s1,4)}, ${sig(s.s2,4)} ${S}; τ<sub>max</sub> = ${sig(s.R,4)} ${S}</p>${SVG(760,290,stressElem(s.sx,0,s.tau,0,{cx:170,cy:140,unit:S})+mohr(s.sx,0,s.tau))}
   <h3>3. Largest torque</h3><p>The radius R = √[(σ<sub>x</sub>/2)² + τ²] must satisfy R ≤ τ<sub>w</sub> and |σ<sub>x</sub>|/2 + R ≤ σ<sub>w</sub>; the smaller bound gives R = ${sig(Math.min(p.tw,p.sw-Math.abs(s.sx)/2),4)} ${S}, so τ = ${sig(Math.sqrt(Math.min(p.tw,p.sw-Math.abs(s.sx)/2)**2-(s.sx/2)**2),4)} ${S}.</p><p class="final">T<sub>max</sub> = ${sig(s.Tm,4)} ${Tu} (${s.gov.toLowerCase()} governs)</p>`},
@@ -1006,8 +1006,8 @@ const M8={name:"Shaft with a crank arm: bending, torsion, and shear at the suppo
     const e=P(-r*0.7,-r*0.7,Ls),e2=[e[0]-40,e[1]+28];s+=LN(...e,...e2,{c:C.dim,w:0.8})+TX(e2[0]-4,e2[1]+4,`d = ${p.d} ${u}`,{s:12,c:C.dim,a:"end"});
     s+=TX(380,392,"A: top of the shaft at the wall. B: side of the shaft at the wall, at the level of the axis, on the same side as the arm.",{s:11.5,c:C.dim});
     return SVG(760,402,s)},
-  statement:p=>{const u=p.us?"in.":"mm",S=p.us?"psi":"MPa";return `<p>A solid circular shaft of diameter d = ${p.d} ${u} and length L = ${p.L} ${u} is built into a wall at one end and is horizontal. At its free end it carries a rigid arm that is also horizontal and perpendicular to the shaft. A vertical downward force F = ${p.F} ${p.us?"lb":"kN"} acts at the end of the arm, at the distance a = ${p.a} ${u} from the axis of the shaft. Neglect the weights of the shaft and the arm.</p>
-  <p>Consider the cross section of the shaft at the wall. Point A is at the top of that section. Point B is on the surface of the shaft at the level of the axis (on the neutral axis for bending), on the same side of the shaft as the arm. Find the principal stresses and the maximum in-plane shear stress at A, and the maximum in-plane shear stress at B, including the shear stress due to the transverse shear force.</p>`},
+  statement:p=>{const u=p.us?"in.":"mm",S=p.us?"psi":"MPa";return `<p>A solid circular shaft of diameter d = ${p.d} ${u} and length L = ${p.L} ${u} is built into a wall at one end and is horizontal. At its free end it carries a rigid arm that is also horizontal and perpendicular to the shaft. A vertical downward force F = ${p.F} ${p.us?"lb":"kN"} acts at the end of the arm, at the distance a = ${p.a} ${u} from the axis of the shaft. The shaft and arm are weightless.</p>
+  <p>Consider the cross section of the shaft at the wall. Point A is at the top of that section. Point B is on the surface of the shaft at the level of the axis (on the neutral axis for bending), on the same side of the shaft as the arm. Find the principal stresses and the maximum in-plane shear stress at A, and the maximum in-plane shear stress at B, counting the shear stress produced by the transverse shear.</p>`},
   solution:(p,s)=>{const S=p.us?"psi":"MPa",u=p.us?"in.":"mm";return `<h3>1. Internal forces at the wall</h3><p>Moving F to the shaft axis gives a vertical force V = F, a bending moment M = FL, and a torque T = Fa.</p>
   <h3>2. Point A (top)</h3><p>σ = Mc/I = ${sig(s.sb,4)} ${S} (tension), τ = Tc/J = ${sig(s.tt,4)} ${S}; transverse shear is zero at the top.</p>
   <p class="eq">σ<sub>1,2</sub> = ${sig(s.top.s1,4)}, ${sig(s.top.s2,4)} ${S}; τ<sub>max</sub> = ${sig(s.top.R,4)} ${S}</p>${SVG(760,290,stressElem(s.sb,0,s.tt,0,{cx:170,cy:140,unit:S})+mohr(s.sb,0,s.tt))}
@@ -1048,7 +1048,7 @@ const M9={name:"Strain rosette: principal strains and principal stresses",genera
     angF("tp","θp, from x to ε₁"),{id:"gm",label:"Maximum in-plane shear strain",unit:"× 10⁻⁶"},{id:"s1",label:"σ₁ (signed)",unit:S,signed:true},{id:"s2",label:"σ₂ (signed)",unit:S,signed:true}]},
   truth:(p,s)=>({ey:s.eyr,g:s.gr,e1:s.e1,e2:s.e2,tp:s.tp/D2R,gm:s.gmax,s1:s.s1,s2:s.s2}),note:"Answers within 2% are accepted; angles within 1°."};
 
-// ===== Chapter 12: energy methods, impact, theories of failure, stress concentration
+// ===== energy methods, impact, theories of failure, stress concentration
 // base units: SI N, mm, MPa; US kips, in., ksi (except where noted)
 const EU=us=>us?{F:"kips",d:"in.",L:"ft",lb:12,S:"ksi",E:29000,Ed:"29 × 10⁶ psi",Ff:1}:{F:"kN",d:"mm",L:"m",lb:1000,S:"MPa",E:200000,Ed:"200 GPa",Ff:1000};
 
@@ -1083,7 +1083,7 @@ const E1={name:"Two-bar truss: joint displacement by Castigliano's theorem",gene
     ;return SVG(760,Ay+100,s)},
   statement:p=>{const u=EU(p.us);return `<p>Bars AB and AC of the steel truss shown are pinned to supports B and C at height ${sig(p.h/u.lb,3)} ${u.L} above joint A, and make angles of ${p.a1}° and ${p.a2}° with the horizontal. A vertical load W = ${p.W} ${u.F} acts at A. Use E = ${u.Ed}.</p>
   <p>Using Castigliano's theorem, find the forces in the bars and the horizontal and vertical displacements of A (right and up positive).</p>`},
-  solution:(p,s)=>{const u=EU(p.us),f=x=>sig(x/u.Ff,4);return `<h3>1. Bar forces with a dummy load</h3><p>Add a horizontal dummy load Q at A. Joint equilibrium gives each bar force as P = (force due to W) + (∂P/∂Q)Q. With Q = 0:</p>
+  solution:(p,s)=>{const u=EU(p.us),f=x=>sig(x/u.Ff,4);return `<h3>1. Bar forces with a dummy load</h3><p>Place a dummy load Q at A, acting horizontally. Joint equilibrium gives each bar force as P = (force due to W) + (∂P/∂Q)Q. With Q = 0:</p>
   <table><tr><th>Bar</th><th>L (${u.d})</th><th>A</th><th>P (${u.F})</th><th>∂P/∂Q</th><th>∂P/∂(vertical dummy)</th></tr>${[0,1].map(i=>`<tr><td>${i?"AC":"AB"}</td><td>${sig(p.Ls[i],4)}</td><td>${p.As[i]}</td><td>${f(s.N[i])}</td><td>${sig(s.nx[i],4)}</td><td>${sig(s.ny[i],4)}</td></tr>`).join("")}</table>
   <h3>2. Castigliano's theorem</h3><p class="eq">δ = ∂U/∂Q = Σ P(∂P/∂Q)L/(EA)</p><p class="final">δ<sub>x</sub> = ${sig(s.dx,4)} ${u.d}, δ<sub>y</sub> = ${sig(s.dy,4)} ${u.d}</p>`},
   fields:p=>{const u=EU(p.us);return [{id:"N1",label:"Force in AB (tension +)",unit:u.F,signed:true},{id:"N2",label:"Force in AC (tension +)",unit:u.F,signed:true},{id:"dx",label:"Horizontal displacement of A",unit:u.d,signed:true},{id:"dy",label:"Vertical displacement of A",unit:u.d,signed:true}]},
@@ -1132,7 +1132,7 @@ const E3={name:"Quarter-circle bar: deflection from bending and torsion (Castigl
      +TX(cx+Rp+10,cy-8,"A",{s:14,i:1,a:"start"})+TX(cx-10,cy-Rp*0.45-38,"B (built in)",{s:13,i:1})+LN(cx,cy,cx+Rp,cy,{c:C.dim,w:1,d:"4 3"})+LN(cx,cy,cx,cy-Rp*0.45,{c:C.dim,w:1,d:"4 3"})
      +TX(cx+Rp/2,cy+18,`R = ${p.R} ${u.d}`,{s:12,c:C.dim})+TX(520,60,"Bar lies in a horizontal plane;",{s:12,c:C.dim,a:"start"})+TX(520,78,"P is vertical (perpendicular to it).",{s:12,c:C.dim,a:"start"})+TX(520,100,`diameter ${p.d} ${u.d}`,{s:12,c:C.dim,a:"start"});
     return SVG(760,330,s)},
-  statement:p=>{const u=EU(p.us);return `<p>A steel rod of diameter ${p.d} ${u.d} is bent into a quarter-circular arc of radius R = ${p.R} ${u.d} lying in a horizontal plane. It is built in at B and carries a vertical force P = ${p.P} ${p.us?"lb":"N"} at its free end A. Use E = ${p.us?"29 × 10⁶ psi":"200 GPa"} and G = ${p.us?"11.5 × 10⁶ psi":"77 GPa"}.</p>
+  statement:p=>{const u=EU(p.us);return `<p>A steel rod of diameter ${p.d} ${u.d} is formed into a quarter circle of radius R = ${p.R} ${u.d} in a horizontal plane. End B is fixed, and a vertical force P = ${p.P} ${p.us?"lb":"N"} acts at the free end A. Use E = ${p.us?"29 × 10⁶ psi":"200 GPa"} and G = ${p.us?"11.5 × 10⁶ psi":"77 GPa"}.</p>
   <p>Using Castigliano's theorem, find the vertical deflection of A, and the parts of it due to bending and due to torsion.</p>`},
   solution:(p,s)=>{const u=EU(p.us);return `<h3>1. Internal moments</h3><p>At the section located by the angle θ measured at the center from A, the bar carries a bending moment M = PR sin θ and a torque T = PR(1 − cos θ).</p>
   <h3>2. Castigliano's theorem</h3><p class="eq">δ<sub>A</sub> = ∫ (M/EI)(∂M/∂P) R dθ + ∫ (T/GJ)(∂T/∂P) R dθ, 0 ≤ θ ≤ π/2</p>
@@ -1166,10 +1166,10 @@ const E4={name:"Portal frame: deflection at the roller and the redundant reactio
     s+=TX(X(0)-14,Y(0)+4,"A",{s:14,i:1,a:"end"})+TX(X(0)-14,Y(p.h)+20,"B",{s:14,i:1,a:"end"})+TX(X(p.L)+14,Y(p.h)+20,"C",{s:14,i:1,a:"start"})+TX(X(p.L)+14,Y(0)+4,"D",{s:14,i:1,a:"start"})
      +DIMH(X(0),X(p.L),Y(0)+48,`${sig(p.L/u.lb,3)} ${u.L}`)+DIMV(X(p.L)+70,Y(p.h),Y(0),`${sig(p.h/u.lb,3)} ${u.L}`);
     return SVG(760,Y(0)+70,s)},
-  statement:p=>{const u=EU(p.us);return `<p>The rigid frame ABCD shown is supported by a pin at A and a roller at D. It carries a uniformly distributed load w = ${p.w} ${p.us?"kips/ft":"kN/m"} on BC${p.F?` and a horizontal force of ${p.F} ${u.F} at B`:""}. EI is constant, with E = ${u.Ed} and I = ${p.us?p.I+" in.⁴":sig(p.I/1e6,3)+" × 10⁶ mm⁴"}; consider bending deformation only.</p>
+  statement:p=>{const u=EU(p.us);return `<p>The rigid frame ABCD shown has a pin support at A and a roller support at D. It carries a uniformly distributed load w = ${p.w} ${p.us?"kips/ft":"kN/m"} on BC${p.F?` and a horizontal force of ${p.F} ${u.F} at B`:""}. EI is constant, with E = ${u.Ed} and I = ${p.us?p.I+" in.⁴":sig(p.I/1e6,3)+" × 10⁶ mm⁴"}; consider bending deformation only.</p>
   <p>Find (1) the horizontal deflection of D (positive to the right), and (2) the horizontal reaction at D if the roller is replaced by a pin.</p>`},
   solution:(p,s)=>{const u=EU(p.us);return `<h3>1. Reactions</h3><p>Moments about A give the vertical reaction at D: D<sub>y</sub> = ${sig(s.Dy/u.Ff,4)} ${u.F}.</p>
-  <h3>2. Dummy load</h3><p>Apply a horizontal dummy load Q at D (to the right). Its bending moment is m = 1·y on the columns (y measured up from the base line) and m = h on the beam, where y is the height of the section.</p>
+  <h3>2. Dummy load</h3><p>Introduce a dummy load Q at D, horizontal and pointing right. Its bending moment is m = 1·y on the columns (y measured up from the base line) and m = h on the beam, where y is the height of the section.</p>
   <h3>3. Castigliano's theorem</h3><p class="eq">δ<sub>D</sub> = (1/EI) Σ ∫ M m ds</p><p>CD carries no moment under the actual loads. On BC, M = D<sub>y</sub>(L − x) − w(L − x)²/2 and m = h; on AB, M = Fy and m = y (y measured up from A):</p><p class="eq">EIδ<sub>D</sub> = hwL³/12 + Fh²L/2 + Fh³/3</p><p class="final">δ<sub>D</sub> = ${sig(s.d,4)} ${u.d}</p>
   <h3>4. Pinned at D</h3><p>The horizontal reaction H must cancel the deflection: δ<sub>D</sub> + H f = 0, with flexibility f = (1/EI)Σ∫m² ds = (2h³/3 + h²L)/EI = ${sig(s.f*u.Ff,4)} ${u.d}/${u.F}.</p><p class="final">H = ${sig(s.H/u.Ff,4)} ${u.F} (positive to the right)</p>`},
   fields:p=>{const u=EU(p.us);return [{id:"d",label:"Horizontal deflection of D (signed, right +)",unit:u.d,signed:true},{id:"H",label:"Horizontal reaction at D if pinned (signed, right +)",unit:u.F,signed:true}]},
@@ -1194,7 +1194,7 @@ const E5={name:"Impact: mass dropped onto a simply supported beam",generate:e5Ge
   statement:p=>{const u=p.us?"in.":"mm";return `<p>A ${p.us?p.Wt+"-lb":p.Wt+"-kg"} block is dropped from a height h = ${p.drop} ${u} onto the midspan of a simply supported steel beam of span ${p.L} ${p.us?"ft":"m"} with a rectangular cross section ${p.b} ${u} wide and ${p.hh} ${u} deep. Use E = ${p.us?"29 × 10⁶ psi":"200 GPa"}. The block stays in contact with the beam; neglect the mass of the beam.</p>
   <p>Find the static midspan deflection under the weight, the impact factor, the maximum dynamic load and deflection, and the maximum dynamic bending stress.</p>`},
   solution:(p,s)=>{const u=p.us?"in.":"mm",S=p.us?"psi":"MPa",F=p.us?"lb":"N";return `<h3>1. Static deflection</h3><p>I = bh³/12 = ${sig(s.I,4)} ${u}⁴; δ<sub>st</sub> = WL³/(48EI) = ${sig(s.dst,4)} ${u}${p.us?"":" (W = mg)"}.</p>
-  <h3>2. Impact factor (Eq. 12.12b)</h3><p class="eq">n = 1 + √(1 + 2h/δ<sub>st</sub>) = ${sig(s.n,4)}</p>
+  <h3>2. Impact factor</h3><p class="eq">n = 1 + √(1 + 2h/δ<sub>st</sub>) = ${sig(s.n,4)}</p>
   <h3>3. Dynamic response</h3><p>P<sub>max</sub> = nW = ${sig(s.Pm,4)} ${F}; δ<sub>max</sub> = nδ<sub>st</sub> = ${sig(s.dmax,4)} ${u}.</p><p class="final">σ<sub>max</sub> = (P<sub>max</sub>L/4)(h/2)/I = ${sig(s.sm,4)} ${S}</p>`},
   fields:p=>{const u=p.us?"in.":"mm",S=p.us?"psi":"MPa";return [{id:"dst",label:"Static deflection",unit:u},{id:"n",label:"Impact factor",unit:""},{id:"dm",label:"Maximum dynamic deflection",unit:u},{id:"sm",label:"Maximum dynamic bending stress",unit:S}]},
   truth:(p,s)=>({dst:s.dst,n:s.n,dm:s.dmax,sm:s.sm}),note:"Answers within 2% are accepted."};
@@ -1251,8 +1251,8 @@ function e7Generate(seed){
 const E7={name:"Shaft under bending and torsion: maximum shear stress and distortion energy theories",generate:e7Generate,
   figure:p=>{let s=HATCH(120,80,18,120)+CYL(138,560,140,40,"#dfe4ea");const Mu=p.us?"kip·ft":"kN·m";
     s+=TX(600,120,p.unk==="T"?`M = ${p.known} ${Mu}`:"M = ?",{s:13,c:C.load,a:"start"})+TX(600,160,p.unk==="M"?`T = ${p.known} ${Mu}`:"T = ?",{s:13,c:C.load,a:"start"})+TX(350,215,`d = ${p.d} ${p.us?"in.":"mm"}`,{s:13,c:C.dim});return SVG(760,240,s)},
-  statement:p=>{const Mu=p.us?"kip·ft":"kN·m",S=p.us?"ksi":"MPa";return `<p>A solid circular ${p.us?"steel":"steel"} shaft of diameter ${p.d} ${p.us?"in.":"mm"} carries ${p.unk==="T"?`a bending moment M = ${p.known} ${Mu} and a torque T`:`a torque T = ${p.known} ${Mu} and a bending moment M`}. The yield strength is ${p.Sy} ${S}${p.N>1?`, and a factor of safety of ${p.N} against yielding is required`:""}.</p>
-  <p>Find the largest ${p.unk==="T"?"torque T":"bending moment M"} by (1) the maximum shear stress theory and (2) the maximum distortion energy theory.</p>`},
+  statement:p=>{const Mu=p.us?"kip·ft":"kN·m",S=p.us?"ksi":"MPa";return `<p>A solid circular ${p.us?"steel":"steel"} shaft of diameter ${p.d} ${p.us?"in.":"mm"} is subjected to ${p.unk==="T"?`a bending moment M = ${p.known} ${Mu} combined with an unknown torque T`:`a torque T = ${p.known} ${Mu} combined with an unknown bending moment M`}. The yield strength is ${p.Sy} ${S}${p.N>1?`, and a factor of safety of ${p.N} against yielding is required`:""}.</p>
+  <p>Find the largest ${p.unk==="T"?"torque T":"bending moment M"} using (1) the Tresca (maximum shear stress) criterion and (2) the von Mises (distortion energy) criterion.</p>`},
   solution:(p,s)=>{const Mu=p.us?"kip·ft":"kN·m",S=p.us?"ksi":"MPa";return `<h3>1. Stresses at the surface</h3><p>σ = 32M/(πd³) and τ = 16T/(πd³); the principal stresses are σ/2 ± √((σ/2)² + τ²), and σ₃ = 0 normal to the surface. Allowable stress σ<sub>yp</sub>/N = ${sig(p.Sy/p.N,4)} ${S}.</p>
   <p>${p.unk==="T"?`From M: σ = ${sig(s.s,4)} ${S}.`:`From T: τ = ${sig(s.tau,4)} ${S}.`}</p>
   <h3>2. Maximum shear stress theory</h3><p>The principal stresses have opposite signs, so σ₁ − σ₂ = 2√((σ/2)² + τ²) ≤ σ<sub>yp</sub>/N.</p><p class="final">${p.unk==="T"?"T":"M"} = ${sig(s.x1,4)} ${Mu}</p>
@@ -1279,10 +1279,10 @@ function e8Generate(seed){
 }
 const E8={name:"Theories of failure: factors of safety (ductile) or Mohr's criterion (brittle)",generate:e8Generate,
   figure:p=>SVG(760,290,stressElem(p.sx,p.sy,p.txy,0,{cx:300,cy:140,unit:p.us?"ksi":"MPa"})),
-  statement:p=>{const S=p.us?"ksi":"MPa";return p.brittle?`<p>A brittle material has ultimate strengths of ${p.sut} ${S} in tension and ${p.suc} ${S} in compression. The plane state of stress at a point is σ<sub>x</sub> = ${p.sx}, σ<sub>y</sub> = ${p.sy}, τ<sub>xy</sub> = ${p.txy} ${S}, as shown.</p>
+  statement:p=>{const S=p.us?"ksi":"MPa";return p.brittle?`<p>A brittle material has ultimate strengths of ${p.sut} ${S} in tension and ${p.suc} ${S} in compression. The plane stress components at the critical point are σ<sub>x</sub> = ${p.sx}, σ<sub>y</sub> = ${p.sy}, τ<sub>xy</sub> = ${p.txy} ${S}, as shown.</p>
   <p>Find the principal stresses. Using Mohr's failure criterion (straight lines tangent to the uniaxial tension and compression circles), decide whether the material fails, and find the factor of safety.</p>`
   :`<p>A ductile material with yield strength ${p.Sy} ${S} is in the plane state of stress σ<sub>x</sub> = ${p.sx}, σ<sub>y</sub> = ${p.sy}, τ<sub>xy</sub> = ${p.txy} ${S}, as shown (σ₃ = 0).</p>
-  <p>Find the principal stresses and the factor of safety against yielding by the maximum shear stress theory and by the maximum distortion energy theory.</p>`},
+  <p>Find the principal stresses and the factor of safety against yielding from the Tresca criterion and from the von Mises criterion.</p>`},
   solution:(p,s)=>{const S=p.us?"ksi":"MPa";const head=`<h3>1. Principal stresses</h3><p>σ₁ = ${sig(s.s1,4)}, σ₂ = ${sig(s.s2,4)} ${S}, σ₃ = 0.</p>`;
     return p.brittle?head+`<h3>2. Mohr's criterion</h3><p>${s.s1>=0&&s.s2>=0?"Both principal stresses are tensile: failure when σ₁ = σ<sub>ut</sub>.":s.s1<=0&&s.s2<=0?"Both are compressive: failure when |σ₂| = σ<sub>uc</sub>.":"σ₁ is tensile and σ₂ compressive; the tangent line between the two circles gives σ₁/σ<sub>ut</sub> − σ₂/σ<sub>uc</sub> = 1."}</p>
     <p>Failure index = ${sig(s.f,4)}.</p><p class="final">${s.fail==="Yes"?"The index exceeds 1: the material fails.":"The index is below 1: no failure."} Factor of safety N = ${sig(s.N,4)}.</p>`
@@ -1310,7 +1310,7 @@ const E9={name:"Stress concentration at a central hole in a bar",generate:e9Gene
      +TX(cx,cy+H/2+24,`width D = ${p.D} ${u}; hole radius r = ${fx(p.rad)} ${u}; thickness b = ${dstr(p.b)} ${u}`,{s:12,c:C.dim})+(p.ecc?TX(cx,cy-H/2-12,`load line ${p.e} ${u} above the centerline (eccentricity e)`,{s:12,c:C.dim}):"")+TX(100,cy-p.e*k-10,"P",{s:14,i:1,c:C.load,a:"start"});
     return SVG(760,cy+H/2+40,s)},
   statement:p=>{const u=p.us?"in.":"mm",S=p.us?"ksi":"MPa";return `<p>A flat bar of width D = ${p.D} ${u} and thickness b = ${dstr(p.b)} ${u} has a central hole of radius r = ${fx(p.rad)} ${u}. It carries a longitudinal tensile load P${p.ecc?` applied with eccentricity e = ${p.e} ${u} in the plane of the bar`:" through the centroid"}. For tension, use k<sub>t</sub> = 3.00 − 3.13(2r/D) + 3.66(2r/D)² − 1.53(2r/D)³ (net-section nominal stress)${p.ecc?"; for in-plane bending, k<sub>b</sub> = 2.0":""}.</p>
-  <p>Find the stress concentration factor in tension, the nominal stress per unit load on the net section, and the largest P for which the maximum stress at the edge of the hole does not exceed ${p.sw} ${S}.</p>`},
+  <p>Find the stress concentration factor in tension, the nominal stress per unit load on the net section, and the largest P that keeps the peak stress at the hole boundary at or below ${p.sw} ${S}.</p>`},
   solution:(p,s)=>{const u=p.us?"in.":"mm",S=p.us?"ksi":"MPa",F=p.us?"kips":"kN",f=p.us?1:1000;return `<h3>1. Factors and net section</h3><p>2r/D = ${p.ratio}: k<sub>t</sub> = ${sig(s.kt,4)}. Net area A = b(D − 2r) = ${sig(s.A,4)} ${u}²${p.ecc?`; I of the net section = bD³/12 − b(2r)³/12 = ${sig(s.I,4)} ${u}⁴`:""}.</p>
   <h3>2. Maximum stress at the hole</h3><p class="eq">σ<sub>max</sub> = k<sub>t</sub>P/A${p.ecc?" + k<sub>b</sub>(Pe)r/I":""} = ${sig(s.perP*f,4)}P (${S}, P in ${F})</p>
   <h3>3. Largest load</h3><p class="final">P = ${p.sw}/${sig(s.perP*f,4)} = ${sig(s.P/f,4)} ${F}</p>`},
@@ -1324,7 +1324,7 @@ const FLAWS={};
 const EQ=s=>`<p class="eq">${s}</p>`, PP=s=>`<p>${s}</p>`, FIN=s=>`<p class="final">${s}</p>`;
 const g4=v=>sig(v,4), g3=v=>sig(v,3);
 
-// ===== Chapter 12 planted errors
+// ===== planted errors
 FLAWS["two-bar-truss"]={step:3,
   why:"A displacement can be found with Castigliano's theorem even where no load acts: apply a dummy horizontal force Q at A, differentiate the strain energy with respect to Q, and then set Q = 0. The joint moves sideways because the bars stretch by different amounts.",
   run:(p,s)=>{const u=EU(p.us);

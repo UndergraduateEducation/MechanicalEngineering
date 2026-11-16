@@ -296,7 +296,7 @@ const dTsW=(pts,iso,Tmax=500)=>domeTs(W,{Tdome:350,crit:[4.412,373.95],iso:iso.f
 const dTsR=(pts,iso,Tmax=100)=>domeTs(RF,{Tlo:-48,Tdome:94,iso,Tmax,pts:pts.map(q=>({p:[q.s,q.T],l:q.l,dx:q.dx,dy:q.dy}))});
 
 const TEMPLATES={};
-// ===== Chapter 2: Energy and the First Law
+// ===== Energy and the First Law
 const SIGMA=5.67e-8;
 const arcPts=(x0,z0,x1,z1,n=30)=>Array.from({length:n+1},(_,i)=>{const t=i/n;return [x0+(x1-x0)*t,z0+(z1-z0)*(1-Math.cos(Math.PI*t))/2*0+ (z1-z0)*(1-Math.cos(Math.PI*t))/2]});
 

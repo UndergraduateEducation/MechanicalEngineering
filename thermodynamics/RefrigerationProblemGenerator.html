@@ -296,7 +296,7 @@ const dTsW=(pts,iso,Tmax=500)=>domeTs(W,{Tdome:350,crit:[4.412,373.95],iso:iso.f
 const dTsR=(pts,iso,Tmax=100)=>domeTs(RF,{Tlo:-48,Tdome:94,iso,Tmax,pts:pts.map(q=>({p:[q.s,q.T],l:q.l,dx:q.dx,dy:q.dy}))});
 
 const TEMPLATES={};
-// ===== Chapter 10: Refrigeration and Heat Pump Systems
+// ===== Refrigeration and Heat Pump Systems
 const lnr=Math.log, Rr=.287;
 function vcr(p){ // p: Te, Tc, etac, dsub, dsh (K)
   const pe=RF.satT(p.Te).p,pc=RF.satT(p.Tc).p,S1=p.dsh?RF.sh(pe,p.Te+p.dsh):RF.satV(p.Te),S2s=RF.atP(pc,"s",S1.s),ec=p.etac||1,h2=S1.h+(S2s.h-S1.h)/ec,S2=RF.atP(pc,"h",h2),

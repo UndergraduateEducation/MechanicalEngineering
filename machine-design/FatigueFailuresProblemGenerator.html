@@ -146,8 +146,8 @@ function snGenerate(seed){const r=mulberry32(seed);
     if(p.mode==="life"){p.sa=Math.round((Se+(f*Sut-Se)*(0.1+0.8*r()))/(us?1:10))*(us?1:10)} else {p.N=pick(r,[2e3,5e3,1e4,2e4,5e4,8e4,1e5,1.5e5,2e5,4e5,6e5])}
     const s=snSolve(p); if(s.N<1.5e3||s.N>8e5) continue; return {p,s}}}
 function snStatement(p,s){const u=faU(p.us);
-  return `<p>A steel rotating-beam test specimen has an ultimate strength of ${fmt(p.Sut)} ${u}. Use <i>S</i>′<sub>e</sub> = 0.5<i>S<sub>ut</sub></i> (capped at ${p.us?"100 kpsi":"700 MPa"}), the fatigue strength fraction <i>f</i> = ${fmt(s.f,2)} at 10³ cycles, and the S-N line <i>S<sub>f</sub></i> = <i>aN<sup>b</sup></i> between 10³ and 10⁶ cycles.</p>
-  <p>Find <i>a</i> and <i>b</i>, then ${p.mode==="life"?`estimate the life of the specimen at a completely reversed stress amplitude of ${fmt(p.sa)} ${u}.`:`estimate the fatigue strength corresponding to a life of ${fmt(p.N)} cycles of stress reversal.`}</p>`}
+  return `<p>A steel specimen for the rotating-beam test has S<sub>ut</sub> = ${fmt(p.Sut)} ${u}. Use <i>S</i>′<sub>e</sub> = 0.5<i>S<sub>ut</sub></i> (capped at ${p.us?"100 kpsi":"700 MPa"}), the fatigue strength fraction <i>f</i> = ${fmt(s.f,2)} at 10³ cycles, and the S-N line <i>S<sub>f</sub></i> = <i>aN<sup>b</sup></i> between 10³ and 10⁶ cycles.</p>
+  <p>Find <i>a</i> and <i>b</i>, then ${p.mode==="life"?`find how many cycles the specimen survives under a fully reversed stress of ±${fmt(p.sa)} ${u}.`:`find the fully reversed stress amplitude the specimen can sustain for ${fmt(p.N)} cycles.`}</p>`}
 function snFigure(p,s){return faSNplot(p.Sut,s.Se,s.f,null)}
 function snSolution(p,s){const u=faU(p.us);
   return `<h3>1. Endurance limit and S-N constants</h3><p><span class="eq">S′<sub>e</sub> = ${fmt(s.Se,1)} ${u}</span>&nbsp; <span class="eq">a = (fS<sub>ut</sub>)²/S<sub>e</sub> = (${fmt(s.f,2)} × ${fmt(p.Sut)})²/${fmt(s.Se,1)} = ${fmt(s.a,1)} ${u}</span>&nbsp; <span class="eq">b = −(1/3)log(fS<sub>ut</sub>/S<sub>e</sub>) = ${fmt(s.b,5)}</span></p>
@@ -197,7 +197,7 @@ function fcGenerate(seed){const r=mulberry32(seed);
 function fcStatement(p,s){const u=faU(p.us),it=[];
   if(p.sa)it.push(`an alternating bending stress of ${fmt(p.sa)} ${u}`);if(p.sm)it.push(`a steady bending stress of ${fmt(p.sm)} ${u}`);if(p.ta)it.push(`an alternating torsional stress of ${fmt(p.ta)} ${u}`);if(p.tm)it.push(`a steady torsional stress of ${fmt(p.tm)} ${u}`);
   return `<p>A steel bar has the minimum properties <i>S<sub>e</sub></i> = ${fmt(p.Se)} ${u}, <i>S<sub>y</sub></i> = ${fmt(p.Sy)} ${u} and <i>S<sub>ut</sub></i> = ${fmt(p.Sut)} ${u} (the endurance limit is fully corrected). At the critical point it carries ${it.slice(0,-1).join(", ")}${it.length>1?" and ":""}${it[it.length-1]}; the alternating components are in phase.</p>
-  <p>Find the von Mises alternating and mean stresses, the fatigue factors of safety by the modified Goodman, Gerber and ASME-elliptic criteria, and the factor of safety against yielding on the first cycle.</p>`}
+  <p>Find the von Mises alternating and mean stresses, the factor of safety against fatigue from each of the modified Goodman, Gerber and ASME-elliptic criteria, and the first-cycle factor of safety against yielding.</p>`}
 function fcFigure(p,s){
   const W=440,H=200,X=t=>40+t*W/(4*Math.PI),sc=Math.max(p.sa+p.sm,p.ta+p.tm)||1,Y=v=>130-90*v/sc,pts=(a,m)=>{const o=[];for(let t=0;t<=4*Math.PI+1e-9;t+=Math.PI/24)o.push(gF(X(t))+","+gF(Y(m+a*Math.sin(t))));return o.join(" ")};
   let g=gL(40,Y(0),W+60,Y(0),`stroke="#222" stroke-width="1.2" marker-end="url(#g-ax)"`)+gL(40,175,40,20,`stroke="#222" stroke-width="1.2" marker-end="url(#g-ax)"`)+gT(W+62,Y(0)+18,gI("t"),`font-size="15"`);
@@ -225,7 +225,7 @@ function naGenerate(seed){const r=mulberry32(seed);
     const s=naSolve(p); if(s.nf<1.05||s.nf>4||s.ny<1) continue; return {p,s}}}
 function naStatement(p,s){const F=p.us?"kip":"kN",L=p.us?"in":"mm";
   return `<p>A rectangular bar of ${s.m[0]} steel, ${fmt(p.w,2)} ${L} wide and ${fmt(p.t,p.us?3:0)} ${L} thick, has a ${fmt(p.dh,p.us?3:0)} ${L} diameter hole drilled through its center. It is loaded in push-pull by an axial force that fluctuates between ${fmt(p.Fmin,1)} and ${fmt(p.Fmax,1)} ${F} (tension positive), distributed uniformly across the width; ignore column action. The machined surface factor applies, k<sub>b</sub> = 1 and k<sub>c</sub> = 0.85 for axial loading, and S′<sub>e</sub> = 0.5S<sub>ut</sub>.</p>
-  <p>For the hole, K<sub>t</sub> = ${fmt(p.Kt,2)} on the net section and the notch sensitivity is q = ${fmt(p.q,2)}. Find K<sub>f</sub>, the endurance limit, the alternating and mean stresses, the fatigue factor of safety for infinite life (modified Goodman; for a compressive mean stress use n = S<sub>e</sub>/σ<sub>a</sub>), and the factor of safety against yielding.</p>
+  <p>For the hole, K<sub>t</sub> = ${fmt(p.Kt,2)} on the net section and the notch sensitivity is q = ${fmt(p.q,2)}. Find K<sub>f</sub>, the endurance limit, the alternating and mean stresses, the factor of safety against fatigue for unlimited life (modified Goodman; for a compressive mean stress use n = S<sub>e</sub>/σ<sub>a</sub>), and the factor of safety against yielding.</p>
   ${gMatTable(NA_MAT.map(m=>[m[0],p.us?m[3]:m[1],p.us?m[4]:m[2]]),p.us,["S<sub>ut</sub>","S<sub>y</sub>"])}`}
 function naFigure(p,s){const W=360,H=Math.max(70,Math.min(200,W*p.w/(p.w*3.2))),k=H/p.w,dh=p.dh*k;
   let g=`<rect x="80" y="${gF(110-H/2)}" width="${W}" height="${gF(H)}" ${G_PART}/><circle cx="${80+W/2}" cy="110" r="${gF(dh/2)}" fill="#fff" stroke="#7d5014" stroke-width="1.6"/>`+gL(50,110,W+110,110,G_CL);
@@ -252,7 +252,7 @@ function slGenerate(seed){const r=mulberry32(seed);
     if(us){p.L=pick(r,range(6,36,2));p.F=pick(r,range(0.1,3,0.1))}else{p.L=pick(r,range(0.15,1,0.05));p.F=pick(r,range(0.5,15,0.5))}
     const s=slSolve(p); if(us?(s.b<0.25||s.b>3):(s.b<6||s.b>75)) continue; return {p,s}}}
 function slStatement(p,s){const u=faU(p.us);
-  return `<p>A solid square rod of ${s.m[0]} steel is cantilevered at one end. It is ${fmt(p.L,p.us?0:2)} ${p.us?"in":"m"} long and supports a completely reversing transverse load of ±${fmt(p.F,1)} ${p.us?"kip":"kN"} at the free end. It must carry this load for ${fmt(p.N)} cycles with a design factor of ${fmt(p.n,2)}. Neglect stress concentration at the support.</p>
+  return `<p>A cantilever of solid square ${s.m[0]} steel bar, ${fmt(p.L,p.us?0:2)} ${p.us?"in":"m"} long, has a transverse tip force that alternates between +${fmt(p.F,1)} and −${fmt(p.F,1)} ${p.us?"kip":"kN"}. The bar must survive ${fmt(p.N)} such cycles with a design factor of ${fmt(p.n,2)}. Take the stress concentration at the fixed end as negligible.</p>
   <p>Use the hot-rolled surface factor, k<sub>b</sub> with the equivalent diameter d<sub>e</sub> = 0.808b of a square section, f = ${fmt(s.f,2)}, and the S-N line between 10³ and 10⁶ cycles. Find the side b of the square, the size factor k<sub>b</sub> and the fatigue strength at the required life.</p>
   ${gMatTable(SL_MAT.map(m=>[m[0],p.us?m[3]:m[1]]),p.us,["S<sub>ut</sub>"])}`}
 function slFigure(p,s){let g=`<rect x="40" y="40" width="22" height="160" fill="url(#g-hatch)" stroke="#28405a" stroke-width="1.5"/><rect x="62" y="100" width="380" height="40" ${G_PART}/>`+gL(40,120,470,120,G_CL);
@@ -280,9 +280,9 @@ function ckGenerate(seed){const r=mulberry32(seed);
     const s=ckSolve(p); if(p.finite?(s.nf>0.95||s.N<2e3||s.N>8e5):(s.nf<1.05||s.nf>3)) continue; if(s.ny<0.9) continue; return {p,s}}}
 function ckStatement(p,s){const u=faU(p.us),D={rev:"completely reversed",rep:"repeated (from zero)",fluc:"fluctuating",const:"constant",none:""};
   const line=(nm,ty,a,m)=>ty==="none"?`<li>${nm}: none</li>`:`<li>${nm}: ${D[ty]}, ${ty==="const"?`${fmt(m)} ${u}`:`varying from ${fmt(m-a)} to ${fmt(m+a)} ${u}`}</li>`;
-  return `<p>A part is loaded with a combination of bending, axial and torsional loads that produce these nominal stresses at a notch:</p><ul>${line("Bending",p.types[0],p.ba,p.bm)}${line("Axial",p.types[1],p.aa,p.am)}${line("Torsion",p.types[2],p.ta,p.tm)}</ul>
+  return `<p>At a notch in a part, bending, axial and torsional loading together produce the following nominal stresses:</p><ul>${line("Bending",p.types[0],p.ba,p.bm)}${line("Axial",p.types[1],p.aa,p.am)}${line("Torsion",p.types[2],p.ta,p.tm)}</ul>
   <p>The varying stresses are in phase. The fatigue stress-concentration factors are K<sub>f,bending</sub> = ${p.Kb}, K<sub>f,axial</sub> = ${p.Ka} and K<sub>fs,torsion</sub> = ${p.Kt}. The material has S<sub>y</sub> = ${fmt(p.Sy)} ${u} and S<sub>ut</sub> = ${fmt(p.Su)} ${u}, and the fully adjusted endurance limit (for bending) is S<sub>e</sub> = ${fmt(p.Se)} ${u}. Apply the axial alternating stress with a 1/0.85 load factor.</p>
-  <p>Find the von Mises alternating and mean stresses, the fatigue factor of safety for infinite life by the modified Goodman criterion, and the yield factor of safety by the conservative check n<sub>y</sub> = S<sub>y</sub>/(σ′<sub>a</sub> + σ′<sub>m</sub>). If the life is not infinite, estimate the number of cycles with f = ${fmt(s.f,2)}.</p>`}
+  <p>Find the von Mises alternating and mean stresses, the factor of safety against fatigue for unlimited life from the modified Goodman criterion, and the yield factor of safety by the conservative check n<sub>y</sub> = S<sub>y</sub>/(σ′<sub>a</sub> + σ′<sub>m</sub>). When the factor of safety falls below 1, estimate the finite life using f = ${fmt(s.f,2)}.</p>`}
 function ckFigure(p,s){const W=420,X=t=>40+t*W/(4*Math.PI),all=[[p.ba,p.bm],[p.aa,p.am],[p.ta,p.tm]],sc=Math.max(...all.map(([a,m])=>Math.abs(a)+Math.abs(m)))||1,Y=v=>120-85*v/sc;
   const pts=(a,m)=>{const o=[];for(let t=0;t<=4*Math.PI+1e-9;t+=Math.PI/24)o.push(gF(X(t))+","+gF(Y(m+a*Math.sin(t))));return o.join(" ")};
   let g=gL(40,Y(0),W+60,Y(0),`stroke="#222" stroke-width="1.2" marker-end="url(#g-ax)"`)+gL(40,215,40,25,`stroke="#222" stroke-width="1.2" marker-end="url(#g-ax)"`);
@@ -310,8 +310,8 @@ function mmGenerate(seed){const r=mulberry32(seed);
     const s0=mmSolve({...p,n1:0,n2:0}); p.n1=Math.round(s0.N1*(0.1+0.4*r())/100)*100||100; p.n2=Math.round(s0.N2*(0.1+0.35*r())/100)*100||100;
     const s=mmSolve(p); if(!(s.miner>0.05*s.N3)||!(s.R2>1e3)||!(s.manson>0)||!isFinite(s.manson)) continue; return {p,s}}}
 function mmStatement(p,s){const u=faU(p.us);
-  return `<p>A machine part will be cycled at ±${fmt(p.s1)} ${u} for ${fmt(p.n1)} cycles. Then the loading changes to ±${fmt(p.s2)} ${u} for ${fmt(p.n2)} cycles. Finally the loading changes to ±${fmt(p.s3)} ${u}. For the part, S<sub>ut</sub> = ${fmt(p.Sut)} ${u}, f = ${fmt(p.f,2)}, and the fully corrected endurance limit is S<sub>e</sub> = ${fmt(p.Se)} ${u}.</p>
-  <p>Find the S-N lives at the three stress levels, and estimate how many cycles of operation can be expected at the last level (a) by Miner's rule and (b) by Manson's method.</p>`}
+  return `<p>A machine part sees three blocks of fully reversed stress in sequence: ${fmt(p.n1)} cycles at ±${fmt(p.s1)} ${u}, then ${fmt(p.n2)} cycles at ±${fmt(p.s2)} ${u}, then ±${fmt(p.s3)} ${u} until failure. The part has S<sub>ut</sub> = ${fmt(p.Sut)} ${u}, f = ${fmt(p.f,2)} and a fully modified endurance limit S<sub>e</sub> = ${fmt(p.Se)} ${u}.</p>
+  <p>Find the S-N life at each stress level, then the number of cycles the part should last in the third block (a) by Miner's rule and (b) by Manson's method.</p>`}
 function mmFigure(p,s){return faSNplot(p.Sut,p.Se,p.f,null)}
 function mmSolution(p,s){const u=faU(p.us);
   return `<h3>1. S-N line</h3><p><span class="eq">a = (fS<sub>ut</sub>)²/S<sub>e</sub> = ${fmt(s.a,1)} ${u}</span>&nbsp; <span class="eq">b = −(1/3)log(fS<sub>ut</sub>/S<sub>e</sub>) = ${fmt(s.b,5)}</span>&nbsp; <span class="eq">N = (σ/a)<sup>1/b</sup></span></p>

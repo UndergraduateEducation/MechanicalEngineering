@@ -296,7 +296,7 @@ const dTsW=(pts,iso,Tmax=500)=>domeTs(W,{Tdome:350,crit:[4.412,373.95],iso:iso.f
 const dTsR=(pts,iso,Tmax=100)=>domeTs(RF,{Tlo:-48,Tdome:94,iso,Tmax,pts:pts.map(q=>({p:[q.s,q.T],l:q.l,dx:q.dx,dy:q.dy}))});
 
 const TEMPLATES={};
-// ===== Chapter 11: Thermodynamic Relations
+// ===== Thermodynamic Relations
 const lnr=Math.log, Ru=8.314;
 const FL={ // Tc (K), pc (kPa), M
   CO2:{Tc:304.2,pc:7390,M:44.01,n:"CO<sub>2</sub>"},N2:{Tc:126.2,pc:3390,M:28.01,n:"N<sub>2</sub>"},CH4:{Tc:190.4,pc:4600,M:16.04,n:"CH<sub>4</sub>"},

@@ -201,7 +201,7 @@ function dlStatement(p,s){
   const u=p.us?"kpsi":"MPa", parts=[];
   if(p.sx) parts.push(`σ<sub><i>x</i></sub> = ${fmt(p.sx)} ${u}`); if(p.sy) parts.push(`σ<sub><i>y</i></sub> = ${fmt(p.sy)} ${u}`); if(p.t) parts.push(`τ<sub><i>xy</i></sub> = ${fmt(p.t)} ${u}`);
   return `<p>A steel part has a yield strength <i>S<sub>y</sub></i> = ${fmt(p.Sy)} ${u}. At the critical point the state of plane stress is ${parts.join(", ")}${parts.length<3?" (the components not listed are zero)":""}, as shown on the stress element.</p>
-  <p>Using the distortion-energy theory, (a) find the principal stresses σ<sub><i>A</i></sub> ≥ σ<sub><i>B</i></sub>, the von Mises stress and the factor of safety; (b) plot the failure locus and the load line in the σ<sub><i>A</i></sub>–σ<sub><i>B</i></sub> plane, state where the load line lies, and estimate the factor of safety by graphical measurement.</p>`;
+  <p>Using the distortion-energy theory, (a) find the principal stresses σ<sub><i>A</i></sub> ≥ σ<sub><i>B</i></sub>, the von Mises stress and the factor of safety; (b) draw the yield envelope and the load line in the σ<sub><i>A</i></sub>–σ<sub><i>B</i></sub> plane, say which region the load line crosses, and read the factor of safety from the plot.</p>`;
 }
 function dlPlot(p,s){
   const Sy=p.Sy, K=140/Sy, f1=v=>v.toFixed(1), P=(a,b)=>[a*K,-b*K], it=v=>`<tspan font-style="italic">${v}</tspan>`;
@@ -528,8 +528,8 @@ function sysGenerate(seed){
 }
 function sysStatement(p,s){
   const F=p.us?"lbf":"N", u=p.us?"in":"mm", su=p.us?"kpsi":"MPa";
-  return `<p>The shaft shown runs in bearings at <i>A</i> and <i>D</i>, which act as simple supports, and carries pulleys at <i>B</i> and <i>C</i>. The forces on the pulleys are the belt tensions: at <i>B</i> (${fmt(p.dB)} ${u} diameter) ${fmt(p.B1)} and ${fmt(p.B2)} ${F}, pulling ${SY_DIRTEXT[p.dirB]}; at <i>C</i> (${fmt(p.dC)} ${u} diameter) ${fmt(p.C1)} and ${fmt(p.C2)} ${F}, pulling ${SY_DIRTEXT[p.dirC]}. The spans are <i>AB</i> = ${fmt(p.a)}, <i>BC</i> = ${fmt(p.b)} and <i>CD</i> = ${fmt(p.c)} ${u}.</p>
-  <p>The shaft is ${s.m[0]} steel (S<sub>y</sub> = ${fmt(p.us?s.m[2]:s.m[1])} ${su}). With a design factor of ${fmt(p.n,1)}, find the bearing reactions, the resultant bending moments at <i>B</i> and <i>C</i>, the critical section, and the minimum shaft diameter to avoid yielding by the conservative maximum-shear-stress theory and by the distortion-energy theory.</p>`;
+  return `<p>The shaft shown is simply supported by bearings at <i>A</i> and <i>D</i>. Belt pulleys are keyed to it at <i>B</i> and <i>C</i>, and each pulley is loaded by its two belt tensions: at <i>B</i> (${fmt(p.dB)} ${u} diameter) ${fmt(p.B1)} and ${fmt(p.B2)} ${F}, pulling ${SY_DIRTEXT[p.dirB]}; at <i>C</i> (${fmt(p.dC)} ${u} diameter) ${fmt(p.C1)} and ${fmt(p.C2)} ${F}, pulling ${SY_DIRTEXT[p.dirC]}. The spans are <i>AB</i> = ${fmt(p.a)}, <i>BC</i> = ${fmt(p.b)} and <i>CD</i> = ${fmt(p.c)} ${u}.</p>
+  <p>The shaft is ${s.m[0]} steel (S<sub>y</sub> = ${fmt(p.us?s.m[2]:s.m[1])} ${su}). With a design factor of ${fmt(p.n,1)}, find the bearing reactions, the resultant bending moments at <i>B</i> and <i>C</i>, the critical section, and the smallest shaft diameter that avoids yielding; size it once with the maximum-shear-stress theory and once with the distortion-energy theory.</p>`;
 }
 function sysSolution(p,s){
   const F=p.us?"lbf":"N", M=p.us?"lbf·in":"N·m", mc=v=>p.us?fmt(v,0):fmt(v/1000,1), u=p.us?"in":"mm", d=p.us?3:1;
@@ -786,7 +786,7 @@ function cvGenerate(seed){
 }
 function cvStatement(p,s){
   const u=p.us?"in":"mm", pu=p.us?"psi":"MPa";
-  return `<p>A light pressure vessel is made of ${s.m[0]} tubing with suitable end closures. The tube is ${fmt(p.D,2)} ${u} OD with a ${fmt(p.t,p.us?3:1)} ${u} wall, and the pressure-relief valve is set at ${fmt(p.p,p.us?0:2)} ${pu}. Use the thin-wall stresses σ<sub><i>t</i></sub> = <i>p</i>(<i>d<sub>i</sub></i> + <i>t</i>)/(2<i>t</i>) and σ<sub><i>l</i></sub> = <i>pd<sub>i</sub></i>/(4<i>t</i>), and neglect the radial stress.</p>
+  return `<p>A thin-walled ${s.m[0]} tube, closed at both ends, serves as a small pressure vessel. The tube is ${fmt(p.D,2)} ${u} OD with a ${fmt(p.t,p.us?3:1)} ${u} wall, and the pressure-relief valve is set at ${fmt(p.p,p.us?0:2)} ${pu}. Use the thin-wall stresses σ<sub><i>t</i></sub> = <i>p</i>(<i>d<sub>i</sub></i> + <i>t</i>)/(2<i>t</i>) and σ<sub><i>l</i></sub> = <i>pd<sub>i</sub></i>/(4<i>t</i>), and neglect the radial stress.</p>
   <p>Find the tangential and longitudinal stresses, the von Mises stress and the factor of safety by the distortion-energy theory.</p>
   ${gMatTable(CV_MAT.map(m=>[m[0],p.us?m[2]:m[1]]),p.us,["S<sub>y</sub>"])}`;
 }
@@ -830,7 +830,7 @@ function rrStatement(p,s){
   const y=s.m[4]==="y";
   return `<p>A ring of ${s.m[0]} has a ${fmt(p.ID)} mm inside diameter and a ${fmt(p.OD)} mm outside diameter, and rotates about its axis. Treat it as a thin rotating disk in plane stress, with</p>
   <p><span class="eq">σ<sub>t</sub> = ρω²(3 + ν)/8 · [r<sub>i</sub>² + r<sub>o</sub>² + r<sub>i</sub>²r<sub>o</sub>²/r² − (1 + 3ν)r²/(3 + ν)]</span>&nbsp; <span class="eq">σ<sub>r</sub> = ρω²(3 + ν)/8 · [r<sub>i</sub>² + r<sub>o</sub>² − r<sub>i</sub>²r<sub>o</sub>²/r² − r²]</span></p>
-  <p>Take ρ = ${fmt(s.rho)} kg/m³, ν = ${fmt(s.nu,3)} and ${y?`S<sub>y</sub>`:`S<sub>ut</sub>`} = ${fmt(s.m[1])} MPa. ${y?"Using the distortion-energy theory, find the speed in rev/min that would cause the ring to yield.":"Using the modified-Mohr theory, find the speed in rev/min that would cause the ring to fracture."} At that speed, find the largest radial stress and the radius at which it occurs.</p>`;
+  <p>Take ρ = ${fmt(s.rho)} kg/m³, ν = ${fmt(s.nu,3)} and ${y?`S<sub>y</sub>`:`S<sub>ut</sub>`} = ${fmt(s.m[1])} MPa. ${y?"Find the rotational speed, in rev/min, at which the ring first yields according to the distortion-energy theory.":"Find the rotational speed, in rev/min, at which the ring fractures according to the modified-Mohr theory."} At that speed, find the largest radial stress and the radius at which it occurs.</p>`;
 }
 function rrFigure(p,s){
   const Ro=120, Ri=Ro*p.ID/p.OD, pt=q=>gF(q[0])+","+gF(q[1]);
@@ -853,7 +853,7 @@ function rrSolution(p,s){
   <p class="final">σ<sub>r,max</sub> = ${fmt(s.srm,1)} MPa at r = ${fmt(s.rm,1)} mm</p>`;
 }
 
-// ===== shrink fit of two steel cylinders: pressure and von Mises stresses at the fit surface
+// ===== shrink fit of two steel cylinders
 function sfSolve(p){
   const E=207e3, R=p.R, ri=p.ri, ro=p.ro, d=p.delta/2;             // radial interference
   const pr=E*d/R*((ro*ro-R*R)*(R*R-ri*ri))/(2*R*R*(ro*ro-ri*ri));
@@ -874,7 +874,7 @@ function sfGenerate(seed){
 }
 function sfStatement(p,s){
   return `<p>${p.solid?`A solid steel shaft of nominal diameter ${fmt(2*p.R)} mm`:`A steel tube, ${fmt(2*p.ri,1)} mm ID by ${fmt(2*p.R)} mm nominal OD,`} is shrink-fitted into a steel collar of ${fmt(2*p.ro,1)} mm OD. The diametral interference is ${fmt(p.delta,3)} mm. Take <i>E</i> = 207 GPa for both members, plane stress (no axial stress), and <i>S<sub>y</sub></i> = ${p.Sy} MPa for both.</p>
-  <p>Find the shrink-fit pressure, the von Mises stress at the fit surface in the outer member and in the inner member, and the smaller of the two factors of safety by the distortion-energy theory.</p>`;
+  <p>Find the contact pressure produced by the shrink fit, the von Mises stress on the contact surface for the outer member and for the inner member, and the smaller of the two factors of safety by the distortion-energy theory.</p>`;
 }
 function sfFigure(p,s){
   const Ro=120, K=Ro/p.ro, R=p.R*K, ri=p.ri*K;
@@ -1015,7 +1015,7 @@ const TEMPLATES={
     truth:s=>({rpm:s.rpm,srm:s.srm,rm:s.rm}),
     note:"Plane-stress rotating-disk equations as given."
   },
-  "shrink-fit":{ name:"Shrink fit: pressure and von Mises stresses at the fit (SI)",
+  "shrink-fit":{ name:"Shrink fit: interface pressure and von Mises stresses (SI)",
     generate:sfGenerate, figure:sfFigure, solution:sfSolution, statement:sfStatement,
     fields:[{id:"p",label:"Shrink-fit pressure",unit:"MPa"},{id:"vo",label:"von Mises stress, outer member at the fit",unit:"MPa"},
       {id:"vi",label:"von Mises stress, inner member at the fit",unit:"MPa"},{id:"n",label:"Smaller factor of safety (DE)",unit:""}],
@@ -1041,7 +1041,7 @@ FLAWS["de-mss"]={variants:[{step:3,
   bad:(p,s)=>{const d13=s.A-s.B;return {...s,d13,nMSS:p.Sy/d13,o:[s.A,s.B,0].sort((u,v)=>v-u)}},
   body:(p,sb)=>{const u=p.us?"kpsi":"MPa",d=p.us?2:1;return `<p>The maximum shear stress acts in the plane of the two principal stresses, so σ<sub>1</sub> − σ<sub>3</sub> = σ<sub>A</sub> − σ<sub>B</sub> = ${fmt(sb.d13,d)} ${u}.</p><p>${eqs(`n = S<sub>y</sub>/(σ<sub>A</sub> − σ<sub>B</sub>) = ${fmt(p.Sy)}/${fmt(sb.d13,d)}`)}</p><p class="final">n<sub>MSS</sub> = ${fmt(sb.nMSS,2)}</p>`}},
  {step:3,
-  why:"The maximum-shear-stress theory predicts yield when τ<sub>max</sub> = (σ<sub>1</sub> − σ<sub>3</sub>)/2 reaches the shear yield strength S<sub>y</sub>/2, so n = S<sub>y</sub>/(σ<sub>1</sub> − σ<sub>3</sub>).",
+  why:"By the maximum-shear-stress theory, yielding starts when τ<sub>max</sub> = (σ<sub>1</sub> − σ<sub>3</sub>)/2 reaches the shear yield strength S<sub>y</sub>/2, so n = S<sub>y</sub>/(σ<sub>1</sub> − σ<sub>3</sub>).",
   bad:(p,s)=>({...s,nMSS:2*p.Sy/s.d13}),
   body:(p,sb)=>{const u=p.us?"kpsi":"MPa",d=p.us?2:1;return `<p>Order all three principal stresses, including σ<sub>z</sub> = 0: σ<sub>1</sub> = ${fmt(sb.o[0],d)}, σ<sub>2</sub> = ${fmt(sb.o[1],d)}, σ<sub>3</sub> = ${fmt(sb.o[2],d)} ${u}. The largest shear stress is τ<sub>max</sub> = (σ<sub>1</sub> − σ<sub>3</sub>)/2 = ${fmt(sb.d13/2,d)} ${u}, and it is compared with the yield strength:</p><p>${eqs(`n = S<sub>y</sub>/τ<sub>max</sub> = ${fmt(p.Sy)}/${fmt(sb.d13/2,d)}`)}</p><p class="final">n<sub>MSS</sub> = ${fmt(sb.nMSS,2)}</p>`}}]};
 
@@ -1063,11 +1063,16 @@ FLAWS["tube-pressure"]={step:1,
   body:(p,sb)=>{const u=p.us?"in":"mm",P=p.side==="in"?"p<sub>i</sub>":"p<sub>o</sub>";return `<p>With r<sub>i</sub> = ${fmt(p.ID/2,3)} ${u} and r<sub>o</sub> = ${fmt(p.OD/2,3)} ${u}, the tangential stress follows from the Lamé equation, ${eqs(`σ<sub>t</sub> = (p<sub>i</sub>r<sub>i</sub>² − p<sub>o</sub>r<sub>o</sub>²)/(r<sub>o</sub>² − r<sub>i</sub>²) + r<sub>i</sub>²r<sub>o</sub>²(p<sub>i</sub> − p<sub>o</sub>)/[r²(r<sub>o</sub>² − r<sub>i</sub>²)]`)}. The radial stress is zero at both free surfaces of the wall.</p>
   <p>${p.ends==="closed"?`Closed ends: ${eqs(`σ<sub>l</sub> = (p<sub>i</sub>r<sub>i</sub>² − p<sub>o</sub>r<sub>o</sub>²)/(r<sub>o</sub>² − r<sub>i</sub>²)`)}.`:"Open ends: σ<sub>l</sub> = 0."} Here ${p.side==="in"?"p<sub>o</sub> = 0":"p<sub>i</sub> = 0"}; all stresses per unit ${P}.</p>`}};
 
-FLAWS["pulley-shaft"]={step:1,
+// the belt-torque error is invisible when bending dominates; the MSS-constant error always shows
+FLAWS["pulley-shaft"]={variants:[{step:1,
   why:"The torque delivered by a belt is the difference of the two strand tensions times the pulley radius; the sum of the tensions loads the shaft in bending.",
   bad:(p,s)=>{const T=(p.B1+p.B2)*p.dB/2,M=s.M,Sy=s.Sy;
     return {...s,T,TC:(p.C1+p.C2)*p.dC/2,dMSS:(32*p.n/(Math.PI*Sy)*Math.hypot(M,T))**(1/3),dDE:(32*p.n/(Math.PI*Sy)*Math.sqrt(M*M+0.75*T*T))**(1/3)}},
-  body:(p,sb)=>{const M=p.us?"lbf·in":"N·m",mc=v=>p.us?fmt(v,0):fmt(v/1000,1);return `<p>Both strands pull on the rim at the pulley radius: ${eqs(`T = (${fmt(p.B1)} + ${fmt(p.B2)})(${fmt(p.dB/2,1)}) = ${mc(sb.T)} ${M}`)}; at <i>C</i>, (${fmt(p.C1)} + ${fmt(p.C2)})(${fmt(p.dC/2,1)}) = ${mc(sb.TC)} ${M}. The torque acts on segment <i>BC</i>.</p>`}};
+  body:(p,sb)=>{const M=p.us?"lbf·in":"N·m",mc=v=>p.us?fmt(v,0):fmt(v/1000,1);return `<p>Both strands pull on the rim at the pulley radius: ${eqs(`T = (${fmt(p.B1)} + ${fmt(p.B2)})(${fmt(p.dB/2,1)}) = ${mc(sb.T)} ${M}`)}; at <i>C</i>, (${fmt(p.C1)} + ${fmt(p.C2)})(${fmt(p.dC/2,1)}) = ${mc(sb.TC)} ${M}. The torque acts on segment <i>BC</i>.</p>`}},
+{step:3,
+  why:"The maximum-shear-stress theory sets τ<sub>max</sub> equal to the shear yield strength S<sub>y</sub>/2, so n = S<sub>y</sub>/(2τ<sub>max</sub>) and the constant is 32; using n = S<sub>y</sub>/τ<sub>max</sub> halves the stress and undersizes the shaft.",
+  bad:(p,s)=>({...s,dMSS:(16*p.n/(Math.PI*s.Sy)*Math.hypot(s.M,s.T))**(1/3)}),
+  body:(p,sb)=>{const u=p.us?"in":"mm",d=p.us?3:1;return `<p>At the surface, σ = 32M/(πd³) and τ = 16T/(πd³), so τ<sub>max</sub> = 16√(M² + T²)/(πd³). Maximum shear stress, with n = S<sub>y</sub>/τ<sub>max</sub>: ${eqs(`d = [16n√(M² + T²)/(πS<sub>y</sub>)]<sup>1/3</sup>`)}. Distortion energy, with n = S<sub>y</sub>/σ′: ${eqs(`d = [32n√(M² + ¾T²)/(πS<sub>y</sub>)]<sup>1/3</sup>`)}.</p><p class="final">d<sub>MSS</sub> = ${fmt(sb.dMSS,d)} ${u}; d<sub>DE</sub> = ${fmt(sb.dDE,d)} ${u}.</p>`}}]};
 
 FLAWS["ductile-cm"]={step:2,
   when:(p,s)=>s.reg!==0,

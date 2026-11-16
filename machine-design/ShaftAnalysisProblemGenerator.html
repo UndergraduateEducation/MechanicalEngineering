@@ -198,7 +198,7 @@ function csSolve2(p){const E=207e9,rho=7850,d=p.d/1000,L=p.L/1000,I=Math.PI*d**4
   return {w,N,dNew:p.d*p.k,Nmodel:N/p.s}}
 function cvGenerate2(seed){const r=mulberry32(seed),p={d:pick(r,range(10,80,5)),L:pick(r,range(300,2000,50)),k:pick(r,[1.5,2,2.5,3]),s:pick(r,[0.25,0.5,2,3])};return {p,s:csSolve2(p)}}
 function cvStatement2(p,s){return `<p>A uniform solid steel shaft, ${fmt(p.d)} mm in diameter, is ${fmt(p.L)} mm long between bearings that act as simple supports. Take E = 207 GPa and ρ = 7850 kg/m³, and neglect the masses of any attached parts.</p>
-  <p>(a) Find the lowest critical speed in rev/min. (b) To raise the critical speed by a factor of ${p.k}, keeping the length, what diameter is needed? (c) A ${p.s<1?`${p.s===0.5?"half":"quarter"}-size`:`${p.s}-times-size`} geometrically similar model of the original shaft has what critical speed?</p>`}
+  <p>(a) Find the lowest critical speed in rev/min. (b) To raise the critical speed by a factor of ${p.k}, keeping the length, what diameter is needed? (c) What critical speed would a geometrically similar ${p.s<1?`${p.s===0.5?"half":"quarter"}-scale`:`${p.s}-times-scale`} copy of the original shaft have?</p>`}
 function cvFigure2(p,s){let g=`<rect x="60" y="94" width="400" height="22" ${G_PART}/>`+gL(30,105,490,105,G_CL);
   for(const x of [60,460]) g+=`<path d="M${x},118 l-14,24 l28,0 z" fill="#b9c8d8" stroke="#28405a" stroke-width="1.5"/>`;
   g+=`<path d="M60,105 Q260,165 460,105" fill="none" stroke="#aa1e28" stroke-width="1.6" stroke-dasharray="6 4"/>`+gT(260,170,"first mode shape",`text-anchor="middle" fill="#aa1e28" font-size="15"`);
@@ -219,7 +219,7 @@ function rlGenerate(seed){const r=mulberry32(seed);
     p.a1=Math.round(p.L*(0.15+0.3*r())/5)*5;p.a2=Math.round(p.L*(0.55+0.3*r())/5)*5; if(p.a2-p.a1<0.15*p.L) continue;
     return {p,s:rlSolve(p)}}}
 function rlStatement(p,s){return `<p>A uniform solid steel shaft, ${fmt(p.d)} mm in diameter, runs in bearings ${fmt(p.L)} mm apart (simple supports). It carries a ${fmt(p.m1)} kg gear ${fmt(p.a1)} mm from the left bearing and a ${fmt(p.m2)} kg gear ${fmt(p.a2)} mm from the left bearing. Take E = 207 GPa, ρ = 7850 kg/m³ and g = 9.81 m/s².</p>
-  <p>Estimate (a) the first critical speed due to the gears alone by Rayleigh's method, (b) the first critical speed of the shaft alone, and (c) the critical speed of the combination by Dunkerley's equation. Give speeds in rev/min.</p>`}
+  <p>Estimate (a) the lowest critical speed from the two gear masses alone, using Rayleigh's method, (b) the lowest critical speed of the bare shaft, and (c) the critical speed of shaft and gears together by Dunkerley's equation. Give speeds in rev/min.</p>`}
 function rlFigure(p,s){const X=x=>60+400*x/p.L;let g=`<rect x="60" y="100" width="400" height="16" ${G_PART}/>`+gL(30,108,490,108,G_CL);
   for(const x of [60,460]) g+=`<path d="M${x},118 l-14,24 l28,0 z" fill="#b9c8d8" stroke="#28405a" stroke-width="1.5"/>`;
   const gear=(x,m)=>{const h=30+Math.min(50,m*1.4);return `<rect x="${gF(X(x)-8)}" y="${gF(108-h/2)}" width="16" height="${gF(h)}" fill="#c9a865" stroke="#7d5014" stroke-width="1.5"/>`};
@@ -292,7 +292,7 @@ function pfGenerate(seed){const r=mulberry32(seed);
     p.do=Math.round(p.d*(1.5+0.8*r())/5)*5;p.l=Math.round(p.d*(1+0.8*r())/5)*5;p.imin=pick(r,range(10,60,2));p.imax=p.imin+pick(r,range(15,50,1));
     const s=pfSolve(p); if(Math.min(s.nh,s.ns)<1.1) continue; return {p,s}}}
 function pfStatement(p,s){return `<p>A steel gear hub, ${fmt(p.do)} mm OD and ${fmt(p.l)} mm long, is press-fitted onto a solid steel shaft of ${fmt(p.d)} mm nominal diameter. With the tolerances specified, the diametral interference ranges from ${p.imin} to ${p.imax} μm. Take E = 207 GPa for both, plane stress, S<sub>y</sub> = ${p.Syh} MPa for the hub and ${p.Sys} MPa for the shaft, and a coefficient of friction of ${p.f}.</p>
-  <p>Find the minimum and maximum interface pressures, the worst-case static factors of safety against yielding at assembly for the hub and the shaft (distortion energy), and the largest torque the joint can be expected to transmit without slipping.</p>`}
+  <p>Find the smallest and largest contact pressures between hub and shaft, the lowest static factor of safety against yielding at assembly for each part (distortion energy), and the torque the joint can carry without slipping in the loosest fit.</p>`}
 function pfFigure(p,s){const R=110,ri=R*p.d/p.do;let g=`<circle cx="0" cy="0" r="${R}" fill="#eec878" stroke="#7d5014" stroke-width="1.8"/><circle cx="0" cy="0" r="${gF(ri)}" fill="#b9c8d8" stroke="#28405a" stroke-width="1.6"/>`+gL(-R-18,0,R+18,0,G_CL)+gL(0,-R-18,0,R+18,G_CL);
   g+=gL(-R,8,-R,R+40,G_EXT)+gL(R,8,R,R+40,G_EXT)+gL(-R,R+32,R,R+32,G_DIM)+gT(0,R+26,`${fmt(p.do)} OD`,`text-anchor="middle" class="halo"`);
   g+=gL(0,0,ri*0.707,-ri*0.707,`stroke="#222" stroke-width="0.9" marker-end="url(#g-dm)"`)+gT(ri*0.707+8,-ri*0.707-6,`${fmt(p.d)} shaft`,`class="halo"`);

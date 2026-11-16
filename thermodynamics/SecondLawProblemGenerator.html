@@ -296,7 +296,7 @@ const dTsW=(pts,iso,Tmax=500)=>domeTs(W,{Tdome:350,crit:[4.412,373.95],iso:iso.f
 const dTsR=(pts,iso,Tmax=100)=>domeTs(RF,{Tlo:-48,Tdome:94,iso,Tmax,pts:pts.map(q=>({p:[q.s,q.T],l:q.l,dx:q.dx,dy:q.dy}))});
 
 const TEMPLATES={};
-// ===== Chapter 5: The Second Law of Thermodynamics
+// ===== The Second Law of Thermodynamics
 function hetFig(kind,th,tc,qh,qc,w){const up=kind!=="engine";const e=[{t:"rect",a:[-1.8,1.8],b:[1.8,2.6],l:th,fill:"#f4d6d6"},{t:"rect",a:[-1.8,-2.6],b:[1.8,-1.8],l:tc,fill:"#d6e4f4"},{t:"cir",p:[0,0],r:34,l:kind==="engine"?"engine":kind==="refrig"?"refrig.":"heat pump"}];
   if(up){e.push({a:[0,-1.8],b:[0,-.55],c:"r"},{a:[0,.55],b:[0,1.8],c:"r"},{t:"txt",p:[.2,-1.2],l:qc,an:"start"},{t:"txt",p:[.2,1.2],l:qh,an:"start"},{a:[-3,0],b:[-.55,0],c:"b"},{t:"txt",p:[-1.9,.35],l:w})}
   else{e.push({a:[0,1.8],b:[0,.55],c:"r"},{a:[0,-.55],b:[0,-1.8],c:"r"},{t:"txt",p:[.2,1.2],l:qh,an:"start"},{t:"txt",p:[.2,-1.2],l:qc,an:"start"},{a:[.55,0],b:[3,0],c:"b"},{t:"txt",p:[1.9,.35],l:w})}

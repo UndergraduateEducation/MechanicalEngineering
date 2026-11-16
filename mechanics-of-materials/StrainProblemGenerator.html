@@ -77,7 +77,7 @@
   <div class="card" id="solution"></div>
 </main>
 <script>
-const PAGE_CH="Mechanics of Materials, Chapter 2: Strain";
+const PAGE_CH="Mechanics of Materials: Strain";
 // ===== common helpers: seeded random numbers, number formatting, SVG drawing
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -208,7 +208,7 @@ function tbFigure(p){
 }
 function tbStatement(p){
   const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Wu=p.us?"kips":"kN";
-  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. The cross-sectional areas are ${fmt(p.A[0],p.us?1:0)} ${u} (${iv("AB")}) and ${fmt(p.A[1],p.us?1:0)} ${u} (${iv("AC")}); the working stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
+  return `<p>A weight ${iv("W")} hangs from pin ${iv("A")}, which is held by two bars. Bar ${iv("AB")} makes an angle α = ${p.al}° with the horizontal and bar ${iv("AC")} makes an angle β = ${p.be}°. The bars are pinned to the supports at ${iv("B")} and ${iv("C")}; their weight is negligible. Bar ${iv("AB")} has area ${fmt(p.A[0],p.us?1:0)} ${u} and bar ${iv("AC")} has area ${fmt(p.A[1],p.us?1:0)} ${u}; the allowable stresses are ${p.sw[0]} ${su} (${iv("AB")}) and ${p.sw[1]} ${su} (${iv("AC")}).</p>
   <p>Express the bar forces as multiples of ${iv("W")}, then find the largest weight each bar can carry and the largest weight that can be hung safely.</p>`;
 }
 function tbSolution(p,s){
@@ -295,7 +295,7 @@ function trStatement(p,s){
   const u=p.us?"in.²":"mm²",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN";
   const nm=k=>trMemName(s.sol,k,p),ld=p.loads.map(([j,f])=>`${f} ${Fu} at ${iv(NODES[j])}`).join(", ");
   return `<p>The Warren truss shown has ${p.n} equal panels, each ${p.a} ${p.us?"ft":"m"} wide, and a height of ${p.h} ${p.us?"ft":"m"}. It is pinned at ${iv("A")} and supported by a roller at ${iv(NODES[p.n])}. Downward loads act at the joints: ${ld}. All members have the cross-sectional area ${fmt(p.A,p.us?1:0)} ${u}; member weights are neglected.</p>
-  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the working stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
+  <p>Find the stresses in members ${iv(nm(p.ask[0]))}, ${iv(nm(p.ask[1]))}, and ${iv(nm(p.ask[2]))} (highlighted), with tension positive. Then find the smallest cross-sectional area of member ${iv(nm(p.ask[0]))} if the allowable stresses are ${p.sw[0]} ${su} in tension and ${p.sw[1]} ${su} in compression. Also find the vertical reaction at the roller.</p>`;
 }
 function trSolution(p,s){
   const sol=s.sol,Fu=p.us?"kips":"kN",su=p.us?"ksi":"MPa";
@@ -316,7 +316,7 @@ const TR={name:"Warren truss: member stresses by joints or sections",
   truth:(p,s)=>({s0:s.sg[0],s1:s.sg[1],s2:s.sg[2],A:s.Areq,Ry:s.R[2]}),
   note:"Enter signed stresses; tension is positive."};
 
-// ===== Chapter 2 helpers: units and materials
+// ===== helpers: units and materials
 // base units: SI N, mm, MPa; US kips, in., ksi
 const UU=us=>us?{f:1,F:"kips",lb:12,Lb:"ft",L:"in.",A:"in.²",S:"ksi",E:"×10⁶ psi",dT:"°F"}
                 :{f:1/1000,F:"kN",lb:1000,Lb:"m",L:"mm",A:"mm²",S:"MPa",E:"GPa",dT:"°C"};
@@ -459,8 +459,8 @@ function rbFigure(p){
 }
 function rbStatement(p){
   const u=UU(p.us);
-  return `<p>The rigid bar shown is supported by a pin at ${iv("A")} and by the vertical ${MAT[p.m].n} rod at ${iv("B")}, of cross-sectional area ${fmt(p.A,p.us?2:0)} ${u.A} and length ${dL(p.Lr,p.us)} ${u.Lb}. The bar is horizontal before the load P = ${fF(p.P,p.us)} ${u.F} is applied at ${iv("D")}. Use E = ${Estr(p.m,p.us)}; neglect the weight of the bar.</p>
-  <p>Find the force and stress in the rod, its elongation, and the vertical displacement of ${iv("D")}. Then find the largest load P if the working stress for the rod is ${p.sw} ${u.S} and the displacement of ${iv("D")} must not exceed ${p.da} ${u.L}.</p>`;
+  return `<p>The rigid bar shown is pinned at ${iv("A")} and held up by the vertical ${MAT[p.m].n} rod at ${iv("B")}, of cross-sectional area ${fmt(p.A,p.us?2:0)} ${u.A} and length ${dL(p.Lr,p.us)} ${u.Lb}. With no load on it the bar is level; the load P = ${fF(p.P,p.us)} ${u.F} then acts at ${iv("D")}. Use E = ${Estr(p.m,p.us)}; neglect the weight of the bar.</p>
+  <p>Find the rod force, the rod stress, how much the rod stretches, and how far ${iv("D")} moves down. Then find the largest load P if the allowable stress for the rod is ${p.sw} ${u.S} and the displacement of ${iv("D")} must not exceed ${p.da} ${u.L}.</p>`;
 }
 function rbSolution(p,s){
   const u=UU(p.us);
@@ -569,7 +569,7 @@ function cfFigure(p){
 }
 function cfStatement(p){
   const u=cfU(p);
-  if(p.hole) return `<p>A rubber rod of diameter ${p.d} ${u.L} and length ${p.L} ${u.L} is placed in a hole with rigid, lubricated walls; there is no clearance between the rod and the wall. A compressive load P = ${sig(p.P*u.f,3)} ${u.F} is applied through a rigid plate. Use E = ${p.E} ${u.S} and ν = ${p.nu} for rubber.</p>
+  if(p.hole) return `<p>A rubber rod of diameter ${p.d} ${u.L} and length ${p.L} ${u.L} fits snugly inside a rigid, frictionless cylindrical cavity, so its sides cannot move outward. A compressive load P = ${sig(p.P*u.f,3)} ${u.F} is applied through a rigid plate. Use E = ${p.E} ${u.S} and ν = ${p.nu} for rubber.</p>
   <p>Find the pressure between the rod and the wall, the change in length of the rod, and the change in length the rod would have without the wall.</p>`;
   return `<p>A ${MAT[p.m].n} block of width a = ${p.a} ${u.L}, depth b = ${p.b} ${u.L}, and height L = ${p.L} ${u.L} fits without clearance in a slot with rigid, lubricated walls that prevent expansion in the x direction only; the faces normal to z are free. A compressive load P = ${sig(p.P*u.f,3)} ${u.F} is applied to the top through a rigid plate. Use E = ${Estr(p.m,p.us)} and ν = ${MAT[p.m].nu}.</p>
   <p>Find the stress σ<sub>x</sub> exerted by the walls, the change in the height L, and the change in the depth b.</p>`;
@@ -612,7 +612,7 @@ function smFigure(p){
 }
 function smStatement(p){
   const u=smU(p);
-  return `<p>Two rubber pads, each ${p.t} ${u.L} thick, are bonded to three steel plates to form the shear mount shown. Each pad has a bonded area of ${p.a} × ${p.b} ${u.L}. The outer plates are fixed, and the load P = ${sig(p.P*u.f,3)} ${u.F} is applied to the middle plate. Use E = ${p.E} ${u.S} and ν = ${p.nu} for rubber, and consider the deformation of the rubber only.</p>
+  return `<p>The shear mount shown is a stack of three steel plates with a ${p.t} ${u.L} rubber layer glued between each neighboring pair. Each rubber layer measures ${p.a} × ${p.b} ${u.L} in plan. The outer plates are fixed, and the load P = ${sig(p.P*u.f,3)} ${u.F} is applied to the middle plate. Use E = ${p.E} ${u.S} and ν = ${p.nu} for rubber, and consider the deformation of the rubber only.</p>
   <p>Find the shear modulus of the rubber, the shear stress and shear strain in each pad, and the displacement of the middle plate.</p>`;
 }
 function smSolution(p,s){
@@ -654,15 +654,15 @@ function rcFigure(p){
 }
 function rcStatement(p){
   const u=UU(p.us);
-  return `<p>A concrete post with a square cross section ${p.b} × ${p.b} ${u.L} and length ${dL(p.L,p.us)} ${u.Lb} is reinforced axially with four symmetrically placed steel bars, each of cross-sectional area ${p.As} ${u.A}. It carries the axial compressive load P = ${fF(p.P,p.us)} ${u.F} through a rigid cap. The moduli of elasticity are ${fmt(p.Es/1000)} ${u.E} for steel and ${fmt(p.Ec/1000,1)} ${u.E} for concrete.</p>
-  <p>Find the compressive stresses in the steel and in the concrete and the shortening of the post. Then find the largest safe load if the working stresses are ${p.sst} ${u.S} for steel and ${p.sco} ${u.S} for concrete.</p>`;
+  return `<p>A square concrete post, ${p.b} × ${p.b} ${u.L} in section and ${dL(p.L,p.us)} ${u.Lb} long, contains four longitudinal steel bars placed symmetrically; each bar has an area of ${p.As} ${u.A}. It carries the axial compressive load P = ${fF(p.P,p.us)} ${u.F} through a rigid cap. The moduli of elasticity are ${fmt(p.Es/1000)} ${u.E} for steel and ${fmt(p.Ec/1000,1)} ${u.E} for concrete.</p>
+  <p>Find the compressive stress carried by the steel bars and by the concrete, and how much the post shortens. Then find the largest safe load if the allowable stresses are ${p.sst} ${u.S} for steel and ${p.sco} ${u.S} for concrete.</p>`;
 }
 function rcSolution(p,s){
   const u=UU(p.us);
   return `<h3>1. Equilibrium and compatibility</h3><p>Equilibrium: σ<sub>st</sub>A<sub>st</sub> + σ<sub>co</sub>A<sub>co</sub> = P, with A<sub>st</sub> = ${sig(s.Ast,4)} ${u.A} and A<sub>co</sub> = ${p.b}² − A<sub>st</sub> = ${sig(s.Aco,4)} ${u.A}.</p>
   <p>Compatibility: both materials shorten equally, so σ<sub>st</sub>/E<sub>st</sub> = σ<sub>co</sub>/E<sub>co</sub>, or σ<sub>st</sub> = nσ<sub>co</sub> with n = E<sub>st</sub>/E<sub>co</sub> = ${sig(s.n,4)}.</p>
   <h3>2. Stresses and shortening</h3><p class="eq">σ<sub>co</sub> = P/(A<sub>co</sub> + nA<sub>st</sub>) = ${sig(s.sco)} ${u.S}, σ<sub>st</sub> = ${sig(s.sst)} ${u.S}</p><p>δ = σ<sub>co</sub>L/E<sub>co</sub> = ${sig(s.d)} ${u.L}.</p>
-  <h3>3. Safe load</h3><p>The stresses must satisfy σ<sub>st</sub> = nσ<sub>co</sub>, so the working stresses cannot both be reached. Steel limit: P = (σ<sub>st,w</sub>/n)(A<sub>co</sub> + nA<sub>st</sub>) = ${fF(s.Pst,p.us)} ${u.F}. Concrete limit: P = σ<sub>co,w</sub>(A<sub>co</sub> + nA<sub>st</sub>) = ${fF(s.Pco,p.us)} ${u.F}.</p>
+  <h3>3. Safe load</h3><p>The stresses must satisfy σ<sub>st</sub> = nσ<sub>co</sub>, so the allowable stresses cannot both be reached. Steel limit: P = (σ<sub>st,w</sub>/n)(A<sub>co</sub> + nA<sub>st</sub>) = ${fF(s.Pst,p.us)} ${u.F}. Concrete limit: P = σ<sub>co,w</sub>(A<sub>co</sub> + nA<sub>st</sub>) = ${fF(s.Pco,p.us)} ${u.F}.</p>
   <p class="final">P<sub>max</sub> = ${fF(s.Pm,p.us)} ${u.F}, governed by the ${s.gov.toLowerCase()}.</p>`;
 }
 const RCP={name:"Reinforced concrete post: stresses and safe load (indeterminate)",
@@ -700,7 +700,7 @@ function rtFigure(p){
 function rtStatement(p){
   const u=UU(p.us);
   return `<p>A ${MAT[p.pr[0]].n} rod is placed inside a ${MAT[p.pr[1]].n} tube; both rest on a rigid base. The tube has length L = ${p.L} ${u.L}, and the rod is longer than the tube by Δ = ${p.gap} ${u.L}. The load P = ${fF(p.P,p.us)} ${u.F} is applied to a rigid bearing plate on top of the rod. The cross-sectional areas are ${p.Ar} ${u.A} for the rod and ${p.At} ${u.A} for the tube. Use E = ${Estr(p.pr[0],p.us)} for ${MAT[p.pr[0]].n} and ${Estr(p.pr[1],p.us)} for ${MAT[p.pr[1]].n}; take the rod length as L in the deformation formulas.</p>
-  <p>Find the load at which the plate first touches the tube, the compressive stresses in the rod and the tube under P, and the largest safe load if the working stresses are ${p.sar} ${u.S} for the rod and ${p.sat} ${u.S} for the tube.</p>`;
+  <p>Find the load at which the plate first touches the tube, the compressive stresses in the rod and the tube under P, and the largest safe load if the allowable stresses are ${p.sar} ${u.S} for the rod and ${p.sat} ${u.S} for the tube.</p>`;
 }
 function rtSolution(p,s){
   const u=UU(p.us);
@@ -708,7 +708,7 @@ function rtSolution(p,s){
   <h3>2. Equilibrium and compatibility</h3><p>P<sub>r</sub> + P<sub>t</sub> = P and δ<sub>r</sub> = δ<sub>t</sub> + Δ, with δ = P L/(EA). Let k = EA/L: k<sub>r</sub> = ${sig(s.kr*UU(p.us).f)} and k<sub>t</sub> = ${sig(s.kt*UU(p.us).f)} ${u.F}/${u.L}.</p>
   <p class="eq">δ<sub>t</sub> = (P − k<sub>r</sub>Δ)/(k<sub>r</sub> + k<sub>t</sub>) = ${sig(s.dt)} ${u.L}</p>
   <p>σ<sub>r</sub> = k<sub>r</sub>(δ<sub>t</sub> + Δ)/A<sub>r</sub> = ${sig(s.sr)} ${u.S}; σ<sub>t</sub> = k<sub>t</sub>δ<sub>t</sub>/A<sub>t</sub> = ${sig(s.st)} ${u.S}.</p>
-  <h3>3. Safe load</h3><p>Rod at its working stress: P = ${fF(s.Pa,p.us)} ${u.F}. Tube at its working stress: P<sub>t</sub> = σ<sub>w</sub>A<sub>t</sub>, δ<sub>t</sub> = P<sub>t</sub>/k<sub>t</sub>, P = P<sub>t</sub> + k<sub>r</sub>(δ<sub>t</sub> + Δ) = ${fF(s.Pb,p.us)} ${u.F}.</p>
+  <h3>3. Safe load</h3><p>Rod at its allowable stress: P = ${fF(s.Pa,p.us)} ${u.F}. Tube at its allowable stress: P<sub>t</sub> = σ<sub>w</sub>A<sub>t</sub>, δ<sub>t</sub> = P<sub>t</sub>/k<sub>t</sub>, P = P<sub>t</sub> + k<sub>r</sub>(δ<sub>t</sub> + Δ) = ${fF(s.Pb,p.us)} ${u.F}.</p>
   <p class="final">P<sub>max</sub> = ${fF(s.Pm,p.us)} ${u.F}, governed by the ${s.gov.toLowerCase()}.</p>`;
 }
 const RT={name:"Rod inside a tube with an initial gap (indeterminate)",
@@ -788,8 +788,8 @@ function r2Figure(p){
 }
 function r2Statement(p){
   const u=UU(p.us),mats=[...new Set(p.M)].map(m=>`${Estr(m,p.us)} for ${MAT[m].n}`).join(" and ");
-  return `<p>The rigid bar shown, of negligible weight, is supported by a pin at ${iv("A")} and by two vertical rods attached at ${iv("B")} and ${iv("C")}. The bar is horizontal and the rods are stress-free before the load P = ${fF(p.P,p.us)} ${u.F} is applied at ${iv("D")}. Distances from ${iv("A")}, rod materials, areas, and lengths are shown. Use E = ${mats}.</p>
-  <p>Find the stress in each rod and the vertical displacement of ${iv("D")}. Then find the largest load P if the working stresses are ${p.sw[0]} ${u.S} for the rod at ${iv("B")} and ${p.sw[1]} ${u.S} for the rod at ${iv("C")}.</p>`;
+  return `<p>The weightless rigid bar shown is pinned at ${iv("A")} and hangs from two vertical rods connected at ${iv("B")} and ${iv("C")}. With no load applied, the bar is level and neither rod is stressed; the load P = ${fF(p.P,p.us)} ${u.F} then acts at ${iv("D")}. Distances from ${iv("A")}, rod materials, areas, and lengths are shown. Use E = ${mats}.</p>
+  <p>Find the normal stress in both rods and how far ${iv("D")} moves down. Then find the largest load P if the allowable stresses are ${p.sw[0]} ${u.S} for the rod at ${iv("B")} and ${p.sw[1]} ${u.S} for the rod at ${iv("C")}.</p>`;
 }
 function r2Solution(p,s){
   const u=UU(p.us),f=UU(p.us).f;
@@ -911,8 +911,8 @@ function b3Figure(p){
 }
 function b3Statement(p){
   const u=UU(p.us),mt=m=>`${MAT[m].n}: E = ${Estr(m,p.us)}, α = ${astr(m,p.us)}`;
-  return `<p>A homogeneous rigid block of weight W = ${fF(p.W,p.us)} ${u.F} is supported by three symmetrically placed vertical rods: two ${MAT[p.m1].n} rods of length ${dL(p.L1,p.us)} ${u.Lb} and a central ${MAT[p.m2].n} rod of length ${dL(p.L2,p.us)} ${u.Lb}. The lower ends of the rods were at the same level before the block was attached. Areas are shown. Use ${mt(p.m1)}; ${mt(p.m2)}.</p>
-  <p>After the block is attached, the temperature of all rods rises by ${p.dT} ${u.dT}. Find the stress in each rod. Then find the temperature rise at which the entire weight is carried by the ${MAT[p.m1].n} rods.</p>`;
+  return `<p>A rigid block of uniform density, weighing W = ${fF(p.W,p.us)} ${u.F}, hangs from three vertical rods arranged symmetrically: an outer pair of ${MAT[p.m1].n} rods, each ${dL(p.L1,p.us)} ${u.Lb} long, and a middle ${MAT[p.m2].n} rod ${dL(p.L2,p.us)} ${u.Lb} long. Before the block was hung, the bottom ends of all three rods lined up. Areas are shown. Use ${mt(p.m1)}; ${mt(p.m2)}.</p>
+  <p>Once the block is in place, all three rods are heated by ${p.dT} ${u.dT}. Find the stress in each rod. Then find the temperature increase at which the ${MAT[p.m1].n} rods alone support the whole block.</p>`;
 }
 function b3Solution(p,s){
   const u=UU(p.us);
@@ -937,7 +937,7 @@ const FLAWS={};
 const EQ=s=>`<p class="eq">${s}</p>`, PP=s=>`<p>${s}</p>`, FIN=s=>`<p class="final">${s}</p>`;
 const g4=v=>sig(v,4), g3=v=>sig(v,3);
 
-// ===== Chapter 2 planted errors
+// ===== planted errors
 const FK2=(p,v)=>`${g4(v*UU(p.us).f)} ${UU(p.us).F}`;
 
 FLAWS["tension-test"]={step:3,
@@ -996,7 +996,7 @@ FLAWS["rc-post"]={step:1,
       ["Load sharing",PP("Both materials carry the load together, so the stress is uniform over the section:")+EQ(`σ = P/(A<sub>co</sub> + A<sub>st</sub>) = ${g4(sg)} ${u.S}`)],
       ["Stresses",EQ(`σ<sub>st</sub> = σ<sub>co</sub> = ${g4(sg)} ${u.S}`)],
       ["Shortening",EQ(`δ = σL/E<sub>co</sub> = ${g4(sg*p.L/p.Ec)} ${u.L}`)],
-      ["Safe load",FIN(`P = (smaller working stress)(A) = ${FK2(p,Pm)}`)]]}}};
+      ["Safe load",FIN(`P = (smaller allowable stress)(A) = ${FK2(p,Pm)}`)]]}}};
 
 FLAWS["rod-in-tube"]={step:2,
   why:"Only the rod carries load until the gap closes. The part of P beyond P₁ is then shared in proportion to the stiffnesses, and the rod also keeps the force P₁ it carried while closing the gap.",

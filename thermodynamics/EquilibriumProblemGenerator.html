@@ -296,7 +296,7 @@ const dTsW=(pts,iso,Tmax=500)=>domeTs(W,{Tdome:350,crit:[4.412,373.95],iso:iso.f
 const dTsR=(pts,iso,Tmax=100)=>domeTs(RF,{Tlo:-48,Tdome:94,iso,Tmax,pts:pts.map(q=>({p:[q.s,q.T],l:q.l,dx:q.dx,dy:q.dy}))});
 
 const TEMPLATES={};
-// ===== Chapter 14: Chemical and Phase Equilibrium
+// ===== Chemical and Phase Equilibrium
 const lnr=Math.log, Ru=8.314;
 const gT=(g,T)=>Hn(g,T)-T*Sn(g,T); // kJ/kmol, absolute
 const RX={

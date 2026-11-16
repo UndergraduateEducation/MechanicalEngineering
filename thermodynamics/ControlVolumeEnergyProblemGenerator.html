@@ -296,7 +296,7 @@ const dTsW=(pts,iso,Tmax=500)=>domeTs(W,{Tdome:350,crit:[4.412,373.95],iso:iso.f
 const dTsR=(pts,iso,Tmax=100)=>domeTs(RF,{Tlo:-48,Tdome:94,iso,Tmax,pts:pts.map(q=>({p:[q.s,q.T],l:q.l,dx:q.dx,dy:q.dy}))});
 
 const TEMPLATES={};
-// ===== Chapter 4: Control Volume Analysis Using Energy
+// ===== Control Volume Analysis Using Energy
 const KE=(V)=>V*V/2000;   // kJ/kg from m/s
 const inl=(x,y,l)=>pipe([[x-1.6,y],[x,y]],l,{an:"end",dx:-4,dy:-10,c:"k"});
 

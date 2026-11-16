@@ -129,7 +129,7 @@ const SY_MAT=[["AISI 1018 CD",440,370,64,54],["AISI 1020 CD",470,390,68,57],["AI
 const SY_KEY={Kt:2.14,Kts:3.0,rd:0.02};
 const SY_FK=[["rA","dA","d1","Bearing shoulder A",false],["r1","d1","dc","Gear 1 shoulder",true],["r2","d2","dc","Gear 2 shoulder",true],["rB","dB","d2","Bearing shoulder B",false]];
 const syRbMax=p=>p.us?0.04:1;
-// shoulder fillet Kt (bending) and Kts (torsion), Peterson curve fits as given by Roark; h = (D - d)/2
+// shoulder fillet Kt (bending) and Kts (torsion), published curve fits to the stepped-shaft charts; h = (D - d)/2
 function syKt(D,d,r,tor){const h=(D-d)/2,x=h/r,q=Math.sqrt(x),t=2*h/D;let C;
   if(tor)C=[0.905+0.783*q-0.075*x,-0.437-1.969*q+0.553*x,1.557+1.073*q-0.578*x,-1.061+0.171*q+0.086*x];
   else if(x<=2)C=[0.947+1.206*q-0.131*x,0.022-3.405*q+0.915*x,0.869+1.777*q-0.555*x,-0.810+0.422*q-0.260*x];
@@ -256,11 +256,11 @@ function syStatement(p){const u=p.us?"in":"mm", su=faU(p.us), dfx=v=>fmt(v,p.us?
   <p>The axial layout is fixed. Both gears have a face width of ${dfx(p.w)} ${u} and are centered at <i>x</i><sub>1</sub> and <i>x</i><sub>2</sub>. Gear 1 seats against a shoulder at its right face (<i>x</i> = ${dfx(p.b1)} ${u}) and gear 2 against a shoulder at its left face (<i>x</i> = ${dfx(p.b2)} ${u}). The bearings seat against shoulders at <i>x</i> = ${dfx(p.a1)} and ${dfx(p.a2)} ${u}, and each bearing acts as a simple support at its center. Each gear is keyed with an end-milled keyseat at its center.</p>
   <p><b>Design task.</b> Choose a cold-drawn or heat-treated steel from the table, the five diameters ${DKEYS.map(k=>DLAB[k]).join(", ")}, and the fillet radius at each of the four shoulders so that the shaft meets every requirement below. Aim for a light shaft.</p>
   <ul>
-    <li>Infinite life with a factor of safety of at least ${p.nd} at every critical location by the ${SY_CRIT[p.crit]} criterion, and a first-cycle yield factor of at least ${p.nd} by von Mises.</li>
+    <li>A fatigue factor of safety of at least ${p.nd} for unlimited life at every critical location, using the ${SY_CRIT[p.crit]} criterion, and a first-cycle yield factor of at least ${p.nd} by von Mises.</li>
     <li>Slope at each bearing no more than ${p.tb} rad. Slope at each gear no more than ${p.tg} rad and transverse deflection at each gear no more than ${yg} (treat the mating shafts as rigid).</li>
     <li>Each shoulder steps up by a diameter ratio between 1.05 and 1.5, so that d<sub>A</sub> &lt; d<sub>1</sub> &lt; d<sub>c</sub> and d<sub>B</sub> &lt; d<sub>2</sub> &lt; d<sub>c</sub>.</li>
   </ul>
-  <p><b>Assumptions.</b> Machined surface; k<sub>c</sub> = k<sub>d</sub> = k<sub>e</sub> = 1; K<sub>fsm</sub> = K<sub>fs</sub>. Find K<sub>t</sub> and K<sub>ts</sub> at each shoulder from the stepped-shaft charts (the checker uses the Peterson curve fits given by Roark) and the notch sensitivities from the Neuber equation. The bending moment is fully reversed by rotation and the torque is steady. A bearing-shoulder fillet may not exceed the bearing corner radius of ${p.us?"0.04 in":"1 mm"}, nor the shoulder height h = (D − d)/2. A gear bore is chamfered, so a gear-shoulder fillet may be as large as h; it must be at least h/4, the lower limit of the torsion chart. The end-mill keyseats have r/d = 0.02. E = ${p.us?"30 Mpsi":"207 GPa"}; ${p.us?"steel weighs 0.282 lbm/in³":"ρ = 7850 kg/m³"}.</p>
+  <p><b>Assumptions.</b> Machined surface; k<sub>c</sub> = k<sub>d</sub> = k<sub>e</sub> = 1; K<sub>fsm</sub> = K<sub>fs</sub>. Find K<sub>t</sub> and K<sub>ts</sub> at each shoulder from the stepped-shaft charts (the checker uses standard curve fits to those charts) and the notch sensitivities from the Neuber equation. The bending moment is fully reversed by rotation and the torque is steady. A bearing-shoulder fillet may not exceed the bearing corner radius of ${p.us?"0.04 in":"1 mm"}, nor the shoulder height h = (D − d)/2. A gear bore is chamfered, so a gear-shoulder fillet may be as large as h; it must be at least h/4, the lower limit of the torsion chart. The end-mill keyseats have r/d = 0.02. E = ${p.us?"30 Mpsi":"207 GPa"}; ${p.us?"steel weighs 0.282 lbm/in³":"ρ = 7850 kg/m³"}.</p>
   <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">${gMatTable(SY_MAT.map(m=>[m[0],p.us?m[3]:m[1],p.us?m[4]:m[2]]),p.us,["S<sub>ut</sub>","S<sub>y</sub>"])}
   <table><tr><th>Stress raiser</th><th>K<sub>t</sub></th><th>K<sub>ts</sub></th></tr>
   <tr><td>End-mill keyseat, r/d = 0.02</td><td>2.14</td><td>3.0</td></tr></table></div>`}

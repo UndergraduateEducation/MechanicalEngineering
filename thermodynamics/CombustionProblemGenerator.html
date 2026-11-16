@@ -296,7 +296,7 @@ const dTsW=(pts,iso,Tmax=500)=>domeTs(W,{Tdome:350,crit:[4.412,373.95],iso:iso.f
 const dTsR=(pts,iso,Tmax=100)=>domeTs(RF,{Tlo:-48,Tdome:94,iso,Tmax,pts:pts.map(q=>({p:[q.s,q.T],l:q.l,dx:q.dx,dy:q.dy}))});
 
 const TEMPLATES={};
-// ===== Chapter 13: Combustion
+// ===== Combustion
 const FU={CH4:{x:1,y:4,n:"methane",f:"CH<sub>4</sub>",M:16.04,hf:-74850,st:"g"},C3H8:{x:3,y:8,n:"propane",f:"C<sub>3</sub>H<sub>8</sub>",M:44.10,hf:-103850,st:"g"},C8H18:{x:8,y:18,n:"liquid octane",f:"C<sub>8</sub>H<sub>18</sub>",M:114.22,hf:-249950,st:"l"}};
 const HFL=-285830;
 const fnm=k=>FU[k].f;

@@ -705,8 +705,8 @@ function spGenerate(seed){
 
 function spStatement(p){
   const where=p.layout==="between"?"between bearing <i>A</i> and gear <i>C</i>":"on an overhang beyond bearing <i>D</i>";
-  return `<p>A torque <i>T</i> = ${fmt(p.T)} N·m is applied to shaft <i>EFG</i>, which runs at constant speed and carries gear <i>F</i>. Gear <i>F</i> drives gear <i>C</i> on shaft <i>ABCD</i>, which in turn drives a chain sprocket <i>B</i> located ${where}. The chain transmits a force <i>P</i> on one strand, as shown; the slack strand carries no tension. Sprocket <i>B</i>, gear <i>C</i>, and gear <i>F</i> have pitch diameters <i>a</i> = ${p.a} mm, <i>b</i> = ${p.b} mm, and <i>c</i> = ${p.c} mm, and the gears mesh at a pressure angle <i>φ</i> = ${p.phi}°. Shaft <i>ABCD</i> has diameter <i>d</i> = ${p.d} mm. Neglect friction losses, and treat bearings <i>A</i>, <i>D</i>, <i>E</i>, and <i>G</i> as simple supports.</p>
-  <p>Find the chain force <i>P</i> and the bearing reactions on shaft <i>ABCD</i>. Locate the point on shaft <i>ABCD</i> with the largest tensile bending stress and the largest torsional shear stress, and at that point determine the maximum principal normal stress and the maximum shear stress.</p>`;
+  return `<p>Shaft <i>EFG</i> turns at constant speed under an input torque <i>T</i> = ${fmt(p.T)} N·m. Its gear <i>F</i> meshes with gear <i>C</i> on shaft <i>ABCD</i>, and shaft <i>ABCD</i> also carries a chain sprocket <i>B</i> located ${where}. Only the tight strand of the chain is loaded, with force <i>P</i> in the direction shown. The pitch diameters of sprocket <i>B</i>, gear <i>C</i> and gear <i>F</i> are <i>a</i> = ${p.a} mm, <i>b</i> = ${p.b} mm, and <i>c</i> = ${p.c} mm, and the gears mesh at a pressure angle <i>φ</i> = ${p.phi}°. Shaft <i>ABCD</i> has diameter <i>d</i> = ${p.d} mm. Neglect friction losses, and treat bearings <i>A</i>, <i>D</i>, <i>E</i>, and <i>G</i> as simple supports.</p>
+  <p>Find the chain force <i>P</i> and the bearing reactions on shaft <i>ABCD</i>. Then find the critical point on that shaft, where bending tension and torsional shear are both largest, and give the largest principal stress and the largest shear stress there.</p>`;
 }
 
 function spFigure(p,s){
@@ -997,7 +997,7 @@ function crSolution(p,s){
   <h3>3. (b) Stresses on the element</h3>
   <p><span class="eq">σ<sub>x</sub> = 32M/(πd³) = 32(${fmt(s.Mb)})/${fmt(pd3,3)} = ${fmt(s.sigma)} psi</span> (tension, along the rod axis)</p>
   <p><span class="eq">τ = 16T/(πd³) = 16(${fmt(s.T)})/${fmt(pd3,3)} = ${fmt(s.tau)} psi</span> (torsion, tangent to the surface)</p>
-  <p>Transverse shear is zero on the surface where σ<sub>x</sub> is largest. Its maximum, <span class="eq">4V/(3A) = ${fmt(s.tv)} psi</span>, occurs 90° away, where the bending stress is zero. There, torsion and transverse shear add to ${fmt(s.naShear)} psi, below the ${fmt(s.tmax)} psi found at the critical element, so neglecting transverse shear is justified.</p>
+  <p>Transverse shear is zero on the surface where σ<sub>x</sub> is largest. Its maximum, <span class="eq">4V/(3A) = ${fmt(s.tv)} psi</span>, occurs 90° away, at the neutral axis. There, torsion and transverse shear add to ${fmt(s.naShear)} psi, below the ${fmt(s.tmax)} psi found at the critical element, so neglecting transverse shear is justified.</p>
   <h3>4. (c) Principal stresses and maximum shear stress</h3>
   <p><span class="eq">σ<sub>1,2</sub> = σ<sub>x</sub>/2 ± √[(σ<sub>x</sub>/2)² + τ²]</span></p>
   <p class="final">σ<sub>1</sub> = ${fmt(s.s1)} psi, σ<sub>2</sub> = ${fmt(s.s2)} psi, τ<sub>max</sub> = ${fmt(s.tmax)} psi.</p>`;
@@ -1033,7 +1033,7 @@ function hkStatement(p){
     ?"at the bottom of the left loop, directly below its center"
     :`on the left loop, on a radial line at <i>θ</i> = ${p.theta}° below the line of action of <i>F</i>`;
   return `<p>A utility hook is bent from round rod of diameter <i>d</i> = ${p.d} mm into the shape shown. The loops have inside diameter <i>D<sub>i</sub></i> = ${p.Di} mm, and their centers are <i>L</i> = ${p.L} mm apart. Equal and opposite forces <i>F</i> = ${fmt(p.F,2).replace(/\.?0+$/,"")} kN act through the loop centers, and the load on the left loop is carried to the shank through the lower half of the loop. Section <i>B</i>–<i>B</i> is ${where}.</p>
-  <p>Find the stresses at the inner and outer surfaces of the rod at section <i>B</i>–<i>B</i>.</p>`;
+  <p>Find the normal stress at the inside and outside edges of the rod at section <i>B</i>–<i>B</i>.</p>`;
 }
 
 function hkFigure(p,s){
@@ -1159,7 +1159,7 @@ function bcGenerate(seed){
 function bcStatement(p){
   const F1=p.F2*p.L2/p.L1;
   return `<p>The cast-iron bell crank shown pivots on a pin at its center. Arm 1 is ${p.L1} mm long and makes the ${p.alpha}° angle shown; arm 2 is ${p.L2} mm long and vertical. Forces <i>F</i><sub>1</sub> and <i>F</i><sub>2</sub> = ${fmt(p.F2,2).replace(/\.?0+$/,"")} kN act at the arm ends, each perpendicular to its arm, and the crank is in equilibrium. The inner corner at the pivot is rounded to <i>r<sub>i</sub></i> = ${p.rf} mm. Section <i>A</i>–<i>A</i> runs from the center of that radius through the pivot to the outer corner; it consists of a ${p.t} mm web, a ${p.H} mm hub with a ${p.Db} mm bore lined with a nylon bushing, and the web again, with the radial dimensions shown.</p>
-  <p>Find <i>F</i><sub>1</sub>, and estimate the stresses at the inner and outer surfaces of the curved portion at section <i>A</i>–<i>A</i>. Treat the section as a curved beam carrying the bending moment of <i>F</i><sub>2</sub> about the pivot, and neglect the direct force at the section.</p>`;
+  <p>Find <i>F</i><sub>1</sub>, and estimate the normal stress at the inner and outer edges of section <i>A</i>–<i>A</i>. Treat the section as a curved beam carrying the bending moment of <i>F</i><sub>2</sub> about the pivot, and neglect the direct force at the section.</p>`;
 }
 
 function bcFigure(p,s){
@@ -1426,7 +1426,7 @@ function mcGenerate(seed){
 const mcFmt=v=>fmt(v,Number.isInteger(v)?0:2);
 function mcStatement(p){
   return `<p>For the plane stress state <i>σ<sub>x</sub></i> = ${mcFmt(p.sx)} ${p.unit}, <i>σ<sub>y</sub></i> = ${mcFmt(p.sy)} ${p.unit}, <i>τ<sub>xy</sub></i> = ${mcFmt(Math.abs(p.txy))} ${p.unit} ${p.txy>0?"ccw":"cw"} (the sense of the shear on the <i>x</i> face), draw a properly labeled Mohr's circle with clockwise shear plotted above the <i>σ</i> axis.</p>
-  <p>Find the principal normal stresses, the extreme shear stresses and the normal stress on their planes, and the angle from the <i>x</i> axis to <i>σ</i><sub>1</sub>. Draw the principal and maximum-shear stress elements and label all stresses and angles.</p>`;
+  <p>Find the principal normal stresses, the extreme shear stresses with the normal stress that accompanies them, and the angle between the <i>x</i> axis and the <i>σ</i><sub>1</sub> direction. Draw the principal and maximum-shear stress elements and label all stresses and angles.</p>`;
 }
 
 // stress element as SVG: rotation (deg, ccw), normal signs for x' and y' faces, shear sign (+ = ccw on the x' face)
@@ -1642,8 +1642,8 @@ function xsGenerate(seed){
 }
 function xsStatement(p,s){
   const M=p.us?`${fmt(p.M,1)} kip·in`:`${fmt(p.M,2)} kN·m`, n=s.pts.length, names=s.pts.map(q=>q.name);
-  return `<p>The cross section shown (dimensions in ${p.us?"inches":"millimeters"}) transmits a positive bending moment about the <i>z</i> axis, <i>M<sub>z</sub></i> = ${M}. Points ${names.slice(0,-1).join(", ")} and ${names[n-1]} mark the bottom surface, every abrupt change in the section, and the top surface.</p>
-  <p>Find the second moment of area about the neutral axis, the location of the neutral axis measured from the bottom surface ${names[0]}, the distances from the neutral axis to the top and bottom surfaces, and the bending stress at each of ${names.join(", ")}.</p>`;
+  return `<p>The section shown (dimensions in ${p.us?"inches":"millimeters"}) carries a positive bending moment <i>M<sub>z</sub></i> = ${M} about the <i>z</i> axis. Points ${names.slice(0,-1).join(", ")} and ${names[n-1]} mark the bottom surface, every abrupt change in the section, and the top surface.</p>
+  <p>Locate the neutral axis by its height above the bottom surface ${names[0]}, find the second moment of area about it, give the distance from the neutral axis to the extreme fibers above and below, and compute the bending stress at each of ${names.join(", ")}.</p>`;
 }
 function xsFigure(p,s){
   const {L,D,H}=xsBuild(p), us=p.us, Wm=Math.max(...L.flatMap(l=>l[2].flatMap(v=>v.map(Math.abs))))*2;
@@ -1704,8 +1704,8 @@ const TEMPLATES={
     name:"Overhanging tee beam: bending and shear stress",
     generate:beamGenerate, figure:beamFigure, solution:beamSolution,
     statement:p=>{const orient=p.flangeTop?"with the flange on top":"with the flange on the bottom";
-      return `<p>The tee-section beam shown rests on a pin at <i>B</i> and a roller at <i>C</i>, and overhangs ${fmt(p.a)} in to the left of <i>B</i>. A ${fmt(p.P)} lbf load acts downward at the free end <i>A</i>, and a uniform load of ${fmt(p.w)} lbf/in acts over the ${fmt(p.L)} in span <i>BC</i>. The section is oriented ${orient}. Neglect the self-weight. Determine:</p>
-      <p>(a) the maximum tensile and compressive bending stresses,<br>(b) the maximum shear stress due to <i>V</i>, and<br>(c) the maximum shear stress in the beam.</p>`},
+      return `<p>The tee-section beam shown rests on a pin at <i>B</i> and a roller at <i>C</i>, and overhangs ${fmt(p.a)} in to the left of <i>B</i>. A ${fmt(p.P)} lbf load acts downward at the free end <i>A</i>, and a uniform load of ${fmt(p.w)} lbf/in acts over the ${fmt(p.L)} in span <i>BC</i>. The section is oriented ${orient}. The beam's own weight is negligible. Find:</p>
+      <p>(a) the largest tension and the largest compression produced by bending,<br>(b) the largest transverse shear stress produced by <i>V</i>, and<br>(c) the largest shear stress anywhere in the beam.</p>`},
     fields:[
       {id:"t",label:"(a) Maximum tensile bending stress",unit:"psi"},
       {id:"c",label:"(a) Maximum compressive bending stress",unit:"psi"},
@@ -1825,7 +1825,7 @@ const TEMPLATES={
       {id:"s2",label:"Principal stress σ₂ (with sign)",unit:"",signed:true},
       {id:"R",label:"Extreme shear stress τ₁",unit:""},
       {id:"C",label:"Normal stress on the extreme-shear planes (with sign)",unit:"",signed:true},
-      {id:"ang",label:"Angle from the x axis to σ₁ (degrees)",unit:"°",tolAbs:0.5},
+      {id:"ang",label:"Angle measured from x to the σ₁ direction (degrees)",unit:"°",tolAbs:0.5},
       {id:"dir",label:"Sense of that angle",unit:"",choices:["ccw","cw"]}],
     truth:s=>({s1:s.s1,s2:s.s2,R:s.R,C:s.C,ang:Math.abs(s.tp),dir:s.dir}),
     note:"Stresses are in the units of the problem. Angles within 0.5° are accepted."
@@ -1890,7 +1890,7 @@ FLAWS["sprocket-shaft"]={step:3,
     return `<p>The total moment at each section is the sum of the moments in the two planes.</p><table><tr><th>Section</th><th>M<sub>xy</sub> (N·m)</th><th>M<sub>xz</sub> (N·m)</th><th>M = |M<sub>xy</sub>| + |M<sub>xz</sub>| (N·m)</th></tr>${rows}</table><p>The moment is largest at <i>${sb.crit.n}</i>.</p>`}};
 
 FLAWS["crank"]={step:3,
-  why:"Transverse shear stress is zero at the surface farthest from the neutral axis, where the bending stress is largest; it is largest on the neutral axis, where the bending stress is zero.",
+  why:"At the outermost fiber, where σ<sub>x</sub> peaks, transverse shear vanishes; it peaks at the neutral axis, where σ<sub>x</sub> vanishes. The two never add at the same point.",
   bad:(p,s)=>{const tau=s.tau+s.tv;return {...s,tau,...prin(s.sigma,tau)}},
   body:(p,sb,s)=>{const pd3=Math.PI*p.d**3;return `<p>${eqs(`σ<sub>x</sub> = 32M/(πd³) = 32(${fmt(sb.Mb)})/${fmt(pd3,3)} = ${fmt(sb.sigma)} psi`)} (tension, along the rod axis)</p>
   <p>Torsion gives ${eqs(`16T/(πd³) = ${fmt(s.tau)} psi`)} and the transverse shear force adds its maximum ${eqs(`4V/(3A) = ${fmt(sb.tv)} psi`)}, so the shear stress on the element is ${eqs(`τ = ${fmt(sb.tau)} psi`)}.</p>`}};

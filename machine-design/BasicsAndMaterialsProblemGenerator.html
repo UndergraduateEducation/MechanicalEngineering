@@ -255,7 +255,7 @@ const TEMPLATES={
     note:"" },
   "breakeven":{ name:"Breakeven point between two manufacturing methods",
     generate:beGenerate, figure:()=>"",
-    statement:p=>`<p>The costs to manufacture a part by methods A and B are estimated by <span class="eq">C<sub>A</sub> = ${p.a} + ${p.b1}P</span> and <span class="eq">C<sub>B</sub> = ${p.c} + ${p.b2}P − ${p.e}P²</span>, where the cost C is in dollars and P is the number of parts. Estimate the breakeven point and the cost at that point.</p>`,
+    statement:p=>`<p>Two manufacturing routes, A and B, are under consideration for a part. For a production run of P parts the total cost in dollars is <span class="eq">C<sub>A</sub> = ${p.a} + ${p.b1}P</span> for route A and <span class="eq">C<sub>B</sub> = ${p.c} + ${p.b2}P − ${p.e}P²</span> for route B. Find the run size at which the two routes cost the same, and that common cost.</p>`,
     fields:[{id:"P",label:"Breakeven quantity P",unit:"parts"},{id:"C",label:"Cost at breakeven",unit:"$"}],
     truth:s=>({P:s.P,C:s.C}),
     solution:(p,s)=>`<h3>Breakeven</h3><p>Set C<sub>A</sub> = C<sub>B</sub>: <span class="eq">${p.e}P²${p.dl?` + ${fmt(p.dl,1)}P`:""} − ${p.c-p.a} = 0</span>.</p>
@@ -263,14 +263,14 @@ const TEMPLATES={
     note:"Report P before rounding to a whole part." },
   "design-factor":{ name:"Minimum design factor from uncertainties",
     generate:dfGenerate, figure:()=>"",
-    statement:p=>`<p>A solid round part of diameter d is loaded by ${DF_LOAD[p.ld][0]}, which causes a stress <span class="eq">${DF_LOAD[p.ld][1]}</span>. The load is known within ±${p.uP} percent, the diameter within ±${p.ud} percent, and the strength within ±${p.uS} percent. Determine the minimum design factor that guarantees the part will not fail.</p>`,
+    statement:p=>`<p>A solid round part of diameter d carries ${DF_LOAD[p.ld][0]}, producing the stress <span class="eq">${DF_LOAD[p.ld][1]}</span>. The uncertainty is ±${p.uP} percent in the load, ±${p.ud} percent in the diameter and ±${p.uS} percent in the strength. What is the smallest design factor that still prevents failure in the worst combination?</p>`,
     fields:[{id:"nd",label:"Minimum design factor n<sub>d</sub>",unit:""}], truth:s=>({nd:s.nd}),
     solution:(p,s)=>`<h3>Worst case</h3><p>The largest stress occurs with the largest load and the smallest diameter, and the smallest strength must still exceed it. Since the stress varies as 1/d<sup>${s.k}</sup>,</p>
       <p><span class="eq">n<sub>d</sub> = (1 + ${p.uP/100}) / [(1 − ${p.uS/100})(1 − ${p.ud/100})<sup>${s.k}</sup>] = ${fmt(s.nd,3)}</span></p>`,
     note:"" },
   "rod-diameter":{ name:"Minimum diameter, preferred size, factor of safety",
     generate:rdGenerate, figure:rdFigure,
-    statement:p=>{const u=p.us?"lbf·in":"N·m",su=p.us?"kpsi":"MPa";return `<p>A solid circular rod of diameter d is subjected to ${p.tor?`a torque T = ${fmt(p.M)} ${u}, inducing a shear stress <span class="eq">τ = 16T/(πd³)</span>. The material has a shear strength of ${p.S} ${su}`:`a bending moment M = ${fmt(p.M)} ${u}, inducing a stress <span class="eq">σ = 32M/(πd³)</span>. The material has a strength of ${p.S} ${su}`}. Using a design factor of ${p.nd}, determine the minimum diameter of the rod. Select the next larger preferred size and determine the resulting factor of safety.</p>
+    statement:p=>{const u=p.us?"lbf·in":"N·m",su=p.us?"kpsi":"MPa";return `<p>A solid round bar of unknown diameter d carries ${p.tor?`a torque T = ${fmt(p.M)} ${u}, inducing a shear stress <span class="eq">τ = 16T/(πd³)</span>. The material has a shear strength of ${p.S} ${su}`:`a bending moment M = ${fmt(p.M)} ${u}, inducing a stress <span class="eq">σ = 32M/(πd³)</span>. The material has a strength of ${p.S} ${su}`}. With a design factor of ${p.nd}, find the smallest acceptable diameter, round it up to the next preferred size, and report the factor of safety that size gives.</p>
       <p>Preferred sizes (${p.us?"in":"mm"}): ${p.us?RD_IN.map(x=>x[1]).join(", "):RD_MM.join(", ")}.</p>`},
     get fields(){const u=cur&&cur.p.us?"in":"mm";return [{id:"dmin",label:"Minimum diameter",unit:u},{id:"dsel",label:"Preferred diameter",unit:u},{id:"n",label:"Factor of safety",unit:""}]},
     truth:s=>({dmin:s.dmin,dsel:s.dsel,n:s.n}),
@@ -282,7 +282,7 @@ const TEMPLATES={
     generate:gsGenerate, figure:gsFigure,
     statement:(p,s)=>{const c=p.ctx;return `<p>A series of tests on ${s.n} specimens gave the following ${c.what}, where ${c.sym} is the class midpoint in ${c.unit} and f is the class frequency.</p>
       <div style="overflow-x:auto"><table><tr><td>${c.sym}</td>${p.x.map(v=>`<td>${fmt(v,p.h%1?1:0)}</td>`).join("")}</tr><tr><td>f</td>${p.f.map(v=>`<td>${v}</td>`).join("")}</tr></table></div>
-      <p>(a) Estimate the mean and standard deviation of the population. (b) Presuming the distribution is normal, ${c.b==="below"?`how many of the ${s.n} specimens are predicted to fail at less than ${fmt(p.x0,1)} ${c.unit}?`:`what value of ${c.sym} is exceeded by ${p.R} percent of the population?`}</p>`},
+      <p>(a) Compute the sample mean and standard deviation. (b) Treating the data as normally distributed, ${c.b==="below"?`how many of the ${s.n} specimens would you expect to fall below ${fmt(p.x0,1)} ${c.unit}?`:`which value of ${c.sym} do ${p.R} percent of the population exceed?`}</p>`},
     get fields(){const c=cur&&cur.p.ctx;return [{id:"m",label:"(a) Mean",unit:c?c.unit:""},{id:"s",label:"(a) Standard deviation",unit:c?c.unit:""},
       {id:"b",label:c&&c.b==="below"?"(b) Number predicted":"(b) Value exceeded",unit:c&&c.b==="below"?"specimens":c?c.unit:""}]},
     truth:s=>({m:s.m,s:s.s,b:s.b}),
@@ -292,8 +292,8 @@ const TEMPLATES={
     note:"Use the sample standard deviation (divide by N − 1)." },
   "interference":{ name:"Stress-strength interference: reliability and design factor",
     generate:siGenerate, figure:siFigure,
-    statement:p=>p.axial?`<p>A round cold-drawn steel rod has a mean yield strength <span class="eq">S<sub>y</sub> = ${p.S} kpsi</span> with a standard deviation of ${p.sS} kpsi. The rod carries a mean static axial load <span class="eq">P = ${p.P} kip</span> with a standard deviation of ${p.sP} kip. Assuming the strength and load have normal distributions, determine the reliability against yielding for a design factor of ${p.nd}, and the corresponding rod diameter.</p>`
-      :`<p>A round cold-drawn steel rod carries a mean torque <span class="eq">T = ${fmt(p.T,1)} kN·m</span> with a standard deviation of ${p.sT} N·m. The material has a mean shear yield strength <span class="eq">S<sub>sy</sub> = ${p.S} MPa</span> with a standard deviation of ${p.sS} MPa. The maximum shear stress is <span class="eq">τ = 16T/(πd³)</span>. Assuming the strength and load have normal distributions, determine the design factor that corresponds to a reliability of ${p.R} against yielding, and the corresponding diameter.</p>`,
+    statement:p=>p.axial?`<p>The yield strength of a cold-drawn round steel bar has mean <span class="eq">S<sub>y</sub> = ${p.S} kpsi</span> and standard deviation ${p.sS} kpsi. The static axial load on the bar has mean <span class="eq">P = ${p.P} kip</span> and standard deviation ${p.sP} kip. Taking both as normally distributed, find the probability that the bar does not yield when it is sized with a design factor of ${p.nd}, and the bar diameter that design factor gives.</p>`
+      :`<p>A cold-drawn round steel bar transmits a torque with mean <span class="eq">T = ${fmt(p.T,1)} kN·m</span> and standard deviation ${p.sT} N·m. Its shear yield strength has mean <span class="eq">S<sub>sy</sub> = ${p.S} MPa</span> and standard deviation ${p.sS} MPa, and the peak shear stress is <span class="eq">τ = 16T/(πd³)</span>. Taking load and strength as normally distributed, find the design factor needed for a ${p.R} probability of no yielding, and the bar diameter it gives.</p>`,
     get fields(){return cur&&cur.p.axial?[{id:"z",label:"z",unit:"",signed:true},{id:"R",label:"Reliability R",unit:"",tolAbs:0.001},{id:"d",label:"Diameter d",unit:"in"}]:[{id:"nd",label:"Design factor n<sub>d</sub>",unit:""},{id:"d",label:"Diameter d",unit:"mm"}]},
     truth:s=>s.R!==undefined?{z:s.z,R:s.R,d:s.d}:{nd:s.nd,d:s.d},
     solution:(p,s)=>p.axial?`<h3>1. Coefficients of variation</h3><p><span class="eq">C<sub>S</sub> = ${p.sS}/${p.S} = ${fmt(s.CS,4)}</span>, <span class="eq">C<sub>σ</sub> = C<sub>P</sub> = ${p.sP}/${p.P} = ${fmt(s.CP,4)}</span>. The stress is proportional to the load, so it has the same coefficient of variation.</p>
@@ -307,7 +307,7 @@ const TEMPLATES={
     generate:tsGenerate, figure:tsFigure,
     statement:p=>`<p>Blocks ${p.blk.map(b=>b.n).join(", ")} sit in a groove of width D, leaving a gap w, as shown. The dimensions are</p>
       <p>${p.blk.map(b=>`<span class="eq">${b.n.toLowerCase()} = ${f3(b.a)} ± ${f3(b.t)} in</span>`).join(" ")} <span class="eq">D = ${f3(p.D)} ± ${f3(p.td)} in</span></p>
-      <p>(a) Determine the mean gap w̄ and its bilateral tolerance t<sub>w</sub>. (b) Determine the mean groove width D̄ that ensures w ≥ ${f3(p.wmin)} in, keeping the same tolerances.</p>`,
+      <p>(a) Find the nominal gap w̄ and its ± tolerance t<sub>w</sub>. (b) With every tolerance unchanged, what nominal groove width D̄ keeps the gap at ${f3(p.wmin)} in or more?</p>`,
     fields:[{id:"w",label:"(a) Mean gap w̄",unit:"in"},{id:"tw",label:"(a) Tolerance t<sub>w</sub>",unit:"in"},{id:"D",label:"(b) Mean groove width D̄",unit:"in"}],
     truth:s=>({w:s.w,tw:s.tw,D:s.Dreq}),
     solution:(p,s)=>`<h3>(a) Gap</h3><p><span class="eq">w̄ = D̄ − Σā = ${f3(p.D)} − ${f3(s.sa)} = ${f3(s.w)} in</span></p>
@@ -316,7 +316,7 @@ const TEMPLATES={
     note:"Worst-case (absolute) tolerancing." },
   "hardness":{ name:"Strength from Brinell hardness: sample mean and standard deviation",
     generate:hbGenerate, figure:()=>"",
-    statement:p=>`<p>Brinell hardness tests on a random sample of ${p.v.length} ${p.ci?"gray cast iron":"steel"} parts gave HB values of ${hbList(p.v)}, where a number in parentheses is the count of that value. Estimate the mean and standard deviation of the ultimate strength in ${p.us?"kpsi":"MPa"}.</p>`,
+    statement:p=>`<p>A sample of ${p.v.length} ${p.ci?"gray cast iron":"steel"} parts was checked for Brinell hardness, giving HB readings of ${hbList(p.v)} (a number in parentheses is how many parts gave that reading). Convert the readings to ultimate tensile strength and report the sample mean and standard deviation in ${p.us?"kpsi":"MPa"}.</p>`,
     get fields(){const u=cur&&cur.p.us?"kpsi":"MPa";return [{id:"m",label:"Mean S<sub>ut</sub>",unit:u},{id:"s",label:"Standard deviation of S<sub>ut</sub>",unit:u}]},
     truth:s=>({m:s.m,s:s.s}),
     solution:(p,s)=>{const u=p.us?"kpsi":"MPa";return `<h3>1. Hardness statistics</h3><p><span class="eq">H̄<sub>B</sub> = ${fmt(s.mH,2)}</span>, <span class="eq">s<sub>HB</sub> = ${fmt(s.sH,3)}</span> (sample standard deviation).</p>

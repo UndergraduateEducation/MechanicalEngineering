@@ -554,7 +554,7 @@ function msGenerate(seed){
   throw new Error("no valid problem");
 }
 function msStatement(p){
-  return `<p>A uniform steel shaft runs in bearings at <i>A</i> and <i>C</i>, ${p.l} mm apart. A couple <i>M<sub>B</sub></i> = ${p.M} N·m acts at <i>B</i>, ${p.a} mm from <i>A</i>. The bearings require the slope of the shaft at each end not to exceed ${p.th} rad. Take <i>E</i> = 207 GPa.</p>
+  return `<p>A uniform steel shaft runs in bearings at <i>A</i> and <i>C</i>, ${p.l} mm apart. A couple <i>M<sub>B</sub></i> = ${p.M} N·m acts at <i>B</i>, ${p.a} mm from <i>A</i>. Neither bearing can accept a shaft slope larger than ${p.th} rad. Take <i>E</i> = 207 GPa.</p>
   <p>(a) Which bearing governs, and what is the minimum diameter <i>d</i>? (b) Select <i>d</i> from the preferred sizes ${MS_SIZES.join(", ")} mm, and find the slopes at <i>A</i> and <i>C</i> for the selected diameter.</p>`;
 }
 function msFigure(p,s){
@@ -888,7 +888,7 @@ function puGenerate(seed){
 function puStatement(p){
   const seg=p.side==="left"?"segment <i>AB</i>, from <i>x</i> = 0 to <i>x</i> = <i>a</i>":"segment <i>BC</i>, from <i>x</i> = <i>a</i> to <i>x</i> = <i>l</i>";
   return `<p>The simply supported steel beam <i>AC</i> has span <i>l</i> = ${fmt(p.l,2)} m and carries a uniform load <i>w</i> = ${p.w} kN/m on ${seg}, with <i>a</i> = ${fmt(p.a,1)} m. Point <i>B</i> is at <i>x</i> = <i>a</i>. Take <i>E</i> = 207 GPa and <i>I</i> = ${p.I}×10⁻⁶ m⁴.</p>
-  <p>Find the reactions, the deflection at <i>B</i>, and the maximum deflection with its location <i>x</i> and segment. Deflections are positive upward.</p>`;
+  <p>Find the reactions, how far <i>B</i> deflects, and the largest deflection together with its position <i>x</i> and the segment it lies in. Deflections are positive upward.</p>`;
 }
 function puFigure(p,s){
   const S=620/p.l, X=x=>60+x*S, Yb=150, f1=v=>v.toFixed(1), it=v=>`<tspan font-style="italic">${v}</tspan>`;
@@ -934,7 +934,7 @@ function puSolution(p,s){
   <p>With singularity functions, <span class="eq">EIy″ = M = R<sub>1</sub>x ${left?"− w⟨x⟩²/2 + w⟨x − a⟩²/2":"− w⟨x − a⟩²/2"}</span>. Integrating twice with y(0) = 0:</p>
   <p><span class="eq">EIy = R<sub>1</sub>x³/6 ${sing} + C<sub>1</sub>x</span></p>
   <p>y(l) = 0 gives <span class="eq">C<sub>1</sub> = ${e(s.C1)} N·m²</span>. With <span class="eq">EI = ${e(s.EI)} N·m²</span>:</p>
-  ${left?`<p class="note">These are the textbook expressions: R₁ = wa(2l − a)/2l, R₂ = wa²/2l.</p>`:`<p class="note">In closed form, R₁ = wb²/2l, R₂ = wb(2l − b)/2l, and y<sub>AB</sub> = wb²x(2x² − 2l² + b²)/(24EIl).</p>`}
+  ${left?`<p class="note">These are the standard closed-form expressions: R₁ = wa(2l − a)/2l, R₂ = wa²/2l.</p>`:`<p class="note">In closed form, R₁ = wb²/2l, R₂ = wb(2l − b)/2l, and y<sub>AB</sub> = wb²x(2x² − 2l² + b²)/(24EIl).</p>`}
   <h3>3. Deflection at B</h3>
   <p class="final">y<sub>B</sub> = y(${fmt(p.a,1)}) = ${fmt(s.yB,3)} mm</p>
   <h3>4. Maximum deflection</h3>
@@ -1119,7 +1119,7 @@ const TEMPLATES={
   },
   "castigliano-bar":{ name:"L-shaped bar with an inclined end force: Castigliano deflection (SI)",
     generate:cbGenerate, figure:cbFigure, solution:cbSolution, statement:cbStatement,
-    fields:[{id:"delta",label:"Deflection of B in the direction of F",unit:"mm"},{id:"tors",label:"Part due to torsion of OA",unit:"mm"},
+    fields:[{id:"delta",label:"Deflection of B along the line of F",unit:"mm"},{id:"tors",label:"Part due to torsion of OA",unit:"mm"},
       {id:"ab",label:"Part due to segment AB",unit:"mm"}],
     truth:s=>({delta:s.delta,tors:s.c.OAt,ab:s.AB}),
     note:"Include bending, torsion and axial terms; neglect transverse shear."
@@ -1159,7 +1159,7 @@ const FLAWS={};
 const eqs=s=>`<span class="eq">${s}</span>`;
 
 FLAWS["cantilever-angles"]={step:1,
-  why:"The two angles act together as one section, so the second moment of area of the pair is twice that of one angle.",
+  why:"The two angles act together as one section, so I for the pair is twice I for one angle.",
   bad:(p,s)=>({...s,I:s.I/2,EI:s.EI/2,yAw:2*s.yAw,yAF:2*s.yAF,yBw:2*s.yBw,yBF:2*s.yBF,yA:2*s.yA,yB:2*s.yB,sTop:2*s.sTop,sBot:2*s.sBot,smax:2*s.smax}),
   body:(p,sb)=>`<p>The table gives I for one angle, and that is the I of the section: ${eqs(`I = ${fmt(sb.I1,1)} cm⁴ = ${(sb.I).toExponential(4)} m⁴`)}&nbsp; ${eqs(`EI = ${fmt(sb.EI/1000,2)} kN·m²`)}</p>
   <p>With the flange at the ${p.up?"top":"bottom"}, the neutral axis is ${fmt(sb.cTop*1000,1)} mm below the top surface and ${fmt(sb.cBot*1000,1)} mm above the bottom.</p>`};

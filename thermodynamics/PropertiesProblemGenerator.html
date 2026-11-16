@@ -296,7 +296,7 @@ const dTsW=(pts,iso,Tmax=500)=>domeTs(W,{Tdome:350,crit:[4.412,373.95],iso:iso.f
 const dTsR=(pts,iso,Tmax=100)=>domeTs(RF,{Tlo:-48,Tdome:94,iso,Tmax,pts:pts.map(q=>({p:[q.s,q.T],l:q.l,dx:q.dx,dy:q.dy}))});
 
 const TEMPLATES={};
-// ===== Chapter 3: Evaluating Properties
+// ===== Evaluating Properties
 const PHW=["compressed liquid","superheated vapor"];
 const pick_pT=(r,list=[100,200,500,1000,2000,4000,6000,8000,10000,12000])=>{for(let k=0;k<999;k++){const p=pick(r,list),T=pick(r,[40,60,80,100,120,160,200,240,280,320,360,400,440,500,540,600]);const Ts=W.Tsat(p);if(Math.abs(T-Ts)<8)continue;if(T<Ts&&T>340)continue;return [p,T]}};
 

@@ -296,7 +296,7 @@ const dTsW=(pts,iso,Tmax=500)=>domeTs(W,{Tdome:350,crit:[4.412,373.95],iso:iso.f
 const dTsR=(pts,iso,Tmax=100)=>domeTs(RF,{Tlo:-48,Tdome:94,iso,Tmax,pts:pts.map(q=>({p:[q.s,q.T],l:q.l,dx:q.dx,dy:q.dy}))});
 
 const TEMPLATES={};
-// ===== Chapter 8: Vapor Power Systems
+// ===== Vapor Power Systems
 const lnr=Math.log;
 function ran(r){ // random Rankine parameters
   return {pb:pick(r,[4000,6000,8000,10000,12000]),Tb:pick(r,[440,480,520,560,600]),pc:pick(r,[10,20,50,100]),eta:pick(r,[.8,.85,.9]),etp:pick(r,[.75,.8,.85])}}

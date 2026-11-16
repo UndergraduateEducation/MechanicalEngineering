@@ -296,7 +296,7 @@ const dTsW=(pts,iso,Tmax=500)=>domeTs(W,{Tdome:350,crit:[4.412,373.95],iso:iso.f
 const dTsR=(pts,iso,Tmax=100)=>domeTs(RF,{Tlo:-48,Tdome:94,iso,Tmax,pts:pts.map(q=>({p:[q.s,q.T],l:q.l,dx:q.dx,dy:q.dy}))});
 
 const TEMPLATES={};
-// ===== Chapter 12: Ideal Gas Mixtures and Psychrometrics
+// ===== Ideal Gas Mixtures and Psychrometrics
 const lnr=Math.log, Ru=8.314;
 const GP=["N2","O2","CO2","CO","CH4"]; const gM=g=>GAS[g].M;
 const cpm=g=>GAS[g].cp, cvm=g=>GAS[g].cp-Ru/GAS[g].M;
