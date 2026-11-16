@@ -304,7 +304,7 @@ const pick_pT=(r,list=[100,200,500,1000,2000,4000,6000,8000,10000,12000])=>{for(
 TEMPLATES["water-phase-pT"]={
   name:"Phase and properties of water at a given pressure and temperature",
   generate(seed){const r=mulberry32(seed),[pp,T]=pick_pT(r);const S=W.st(pp,T);return {p:{p:pp,T},s:{ph:S.ph,v:S.v,h:S.h,Ts:W.Tsat(pp),S}}},
-  statement:p=>`<p>Water is at ${PP(p.p)} and ${p.T} °C. Determine whether the water is a compressed liquid or a superheated vapor, and find its specific volume, in m³/kg, and specific enthalpy, in kJ/kg.</p>`,
+  statement:p=>`<p>Water is at ${PP(p.p)} and ${p.T} °C. Is it a compressed liquid or a superheated vapor? Give its specific volume (m³/kg) and specific enthalpy (kJ/kg).</p>`,
   figure:p=>{const S=W.st(p.p,p.T);return dTsW([{s:S.s,T:p.T,l:"1",dx:8,dy:-8}],[p.p],Math.max(500,p.T+30))},
   solution:(p,s)=>`<h3>1. Phase</h3><p>The saturation temperature at ${PP(p.p)} is <i>T</i><sub>sat</sub> = ${sig(s.Ts)} °C. Since <i>T</i> ${p.T<s.Ts?"&lt;":"&gt;"} <i>T</i><sub>sat</sub>, the water is a <b>${s.ph}</b>.</p>
   <h3>2. Properties</h3><p>${p.T<s.Ts?"For a compressed liquid, the superheated and compressed liquid tables apply; at moderate pressure the values are close to those of saturated liquid at the same temperature.":"Use the superheated vapor table at this pressure and temperature."}</p>${stTable([st("1",s.S)],["p","T","v","u","h","s"])}
@@ -317,9 +317,9 @@ TEMPLATES["water-quality-Tv"]={
   name:"Quality of a liquid-vapor mixture from temperature and specific volume",
   generate(seed){const r=mulberry32(seed),T=pick(r,[60,80,100,120,140,160,180,200,220,250]),sat=W.satT(T),x0=pick(r,[.1,.2,.3,.4,.5,.6,.7,.8,.9]);
     const v=+(sat.vf+x0*(sat.vg-sat.vf)).toPrecision(3),x=(v-sat.vf)/(sat.vg-sat.vf),S=W.mix(sat,x);return {p:{T,v},s:{x,p:sat.p,u:S.u,h:S.h,sat}}},
-  statement:p=>`<p>A two-phase liquid-vapor mixture of water at ${p.T} °C has a specific volume of ${p.v} m³/kg. Determine the quality, the pressure, in kPa, the specific internal energy, in kJ/kg, and the specific enthalpy, in kJ/kg.</p>`,
+  statement:p=>`<p>Water at ${p.T} °C exists as saturated liquid and vapor together, with an overall specific volume of ${p.v} m³/kg. Find the quality, the pressure (kPa), and the specific internal energy and specific enthalpy (kJ/kg).</p>`,
   figure:p=>{const sat=W.satT(p.T),x=(p.v-sat.vf)/(sat.vg-sat.vf),S=W.mix(sat,x);return dTsW([{s:S.s,T:p.T,l:"1",dx:8,dy:-8}],[sat.p],450)},
-  solution:(p,s)=>`<h3>1. Saturation data at ${p.T} °C</h3><p><i>p</i><sub>sat</sub> = ${sig(s.sat.p)} kPa, <i>v</i><sub>f</sub> = ${sig(s.sat.vf)}, <i>v</i><sub>g</sub> = ${sig(s.sat.vg)} m³/kg, <i>u</i><sub>f</sub> = ${sig(s.sat.uf)}, <i>u</i><sub>g</sub> = ${sig(s.sat.ug)}, <i>h</i><sub>f</sub> = ${sig(s.sat.hf)}, <i>h</i><sub>g</sub> = ${sig(s.sat.hg)}. Because <i>v</i><sub>f</sub> &lt; <i>v</i> &lt; <i>v</i><sub>g</sub>, the state is a two-phase mixture and the pressure is the saturation pressure.</p>
+  solution:(p,s)=>`<h3>1. Saturation data at ${p.T} °C</h3><p><i>p</i><sub>sat</sub> = ${sig(s.sat.p)} kPa, <i>v</i><sub>f</sub> = ${sig(s.sat.vf)}, <i>v</i><sub>g</sub> = ${sig(s.sat.vg)} m³/kg, <i>u</i><sub>f</sub> = ${sig(s.sat.uf)}, <i>u</i><sub>g</sub> = ${sig(s.sat.ug)}, <i>h</i><sub>f</sub> = ${sig(s.sat.hf)}, <i>h</i><sub>g</sub> = ${sig(s.sat.hg)}. Because <i>v</i><sub>f</sub> &lt; <i>v</i> &lt; <i>v</i><sub>g</sub>, the water is a saturated mixture, so its pressure equals <i>p</i><sub>sat</sub>(<i>T</i>).</p>
   <h3>2. Quality and properties</h3><p>${eq(`x = (v &minus; v<sub>f</sub>)/(v<sub>g</sub> &minus; v<sub>f</sub>) = (${p.v} &minus; ${sig(s.sat.vf)})/(${sig(s.sat.vg)} &minus; ${sig(s.sat.vf)}) = ${sig(s.x)}`)}</p>
   <p>${eq(`u = u<sub>f</sub> + x(u<sub>g</sub> &minus; u<sub>f</sub>) = ${sig(s.u)} kJ/kg`)} ${eq(`h = h<sub>f</sub> + x(h<sub>g</sub> &minus; h<sub>f</sub>) = ${sig(s.h)} kJ/kg`)}</p>
   <p class="final">x = ${sig(s.x,3)}; p = ${sig(s.p,4)} kPa; u = ${sig(s.u,4)} kJ/kg; h = ${sig(s.h,4)} kJ/kg.</p>`,
@@ -332,7 +332,7 @@ TEMPLATES["tank-liquid-vapor"]={
   generate(seed){const r=mulberry32(seed),pp=pick(r,[100,200,300,500,800,1000,1500,2000]),sat=W.satP(pp),m=pick(r,[1,2,5,10,20,50]),x0=pick(r,[.001,.002,.005,.01,.02,.05,.1,.3]);
     const V=+(m*(sat.vf+x0*(sat.vg-sat.vf))).toPrecision(3),v=V/m,x=(v-sat.vf)/(sat.vg-sat.vf);
     return {p:{pp,m,V},s:{x,mf:m*(1-x),mg:m*x,Vf:m*(1-x)*sat.vf,Vg:m*x*sat.vg,T:sat.T,sat}}},
-  statement:p=>`<p>A closed rigid tank of volume ${p.V} m³ contains ${p.m} kg of water at a pressure of ${PP(p.pp)}. The water is a mixture of saturated liquid and saturated vapor. Determine the quality of the mixture, the mass of liquid and the mass of vapor, in kg, and the volume occupied by the vapor, in m³.</p>`,
+  statement:p=>`<p>A sealed ${p.V}-m³ rigid vessel contains ${p.m} kg of water at ${PP(p.pp)}, present as saturated liquid and saturated vapor in equilibrium. Find the quality, the masses of liquid and of vapor (kg), and the volume taken up by the vapor (m³).</p>`,
   figure:p=>draw([{t:"rect",a:[-2,0],b:[2,2.6],rx:8,fill:"#fff"},{t:"poly",pts:[[-2,0],[2,0],[2,.9],[-2,.9]],fill:"#c9dcee"},{t:"txt",p:[0,.4],l:"liquid"},{t:"txt",p:[0,1.7],l:"vapor"},{t:"txt",p:[0,3.1],l:`V = ${p.V} m³, m = ${p.m} kg, p = ${PP(p.pp)}`}],560,260),
   solution:(p,s)=>`<h3>1. Quality</h3><p>At ${PP(p.pp)}: <i>v</i><sub>f</sub> = ${sig(s.sat.vf)} and <i>v</i><sub>g</sub> = ${sig(s.sat.vg)} m³/kg. The specific volume is <i>v</i> = <i>V</i>/<i>m</i> = ${sig(p.V/p.m)} m³/kg.</p>
   <p>${eq(`x = (v &minus; v<sub>f</sub>)/(v<sub>g</sub> &minus; v<sub>f</sub>) = ${sig(s.x)}`)}</p>
@@ -346,7 +346,7 @@ TEMPLATES["water-superheated"]={
   name:"Superheated water vapor table lookup",
   generate(seed){const r=mulberry32(seed);let pp,T,S;for(let k=0;k<99;k++){pp=pick(r,[100,300,500,1000,2000,3000,4000,6000,8000,10000,12000,14000]);T=pick(r,[200,240,280,320,360,400,440,500,540,600]);if(T>W.Tsat(pp)+20)break}
     S=W.vap(T,pp);return {p:{p:pp,T},s:{v:S.v,u:S.u,h:S.h,s:S.s,Ts:W.Tsat(pp),S}}},
-  statement:p=>`<p>Water vapor is at ${PP(p.p)} and ${p.T} °C. Determine its specific volume, in m³/kg, specific internal energy and enthalpy, in kJ/kg, and specific entropy, in kJ/kg·K.</p>`,
+  statement:p=>`<p>Using the superheated-vapor table for water at ${PP(p.p)} and ${p.T} °C, give the specific volume (m³/kg), the specific internal energy and specific enthalpy (kJ/kg), and the specific entropy (kJ/kg·K).</p>`,
   figure:p=>{const S=W.vap(p.T,p.p);return dTsW([{s:S.s,T:p.T,l:"1",dx:8,dy:-8}],[p.p],Math.max(500,p.T+30))},
   solution:(p,s)=>`<h3>1. Phase check</h3><p>At ${PP(p.p)}, <i>T</i><sub>sat</sub> = ${sig(s.Ts)} °C, which is below ${p.T} °C, so the vapor is superheated.</p><h3>2. Properties from the superheated vapor table</h3>${stTable([st("1",s.S)],["p","T","v","u","h","s"])}
   <p class="final">v = ${sig(s.v,4)} m³/kg; u = ${sig(s.u,4)} kJ/kg; h = ${sig(s.h,4)} kJ/kg; s = ${sig(s.s,4)} kJ/kg·K.</p>`,
@@ -359,7 +359,7 @@ TEMPLATES["compressed-liquid"]={
   generate(seed){const r=mulberry32(seed),T=pick(r,[40,60,80,100,120,150,180,200,220]),pp=pick(r,[5000,8000,10000,15000,20000,30000,50000]);
     if(W.psat(T)>pp*.8)return TEMPLATES["compressed-liquid"].generate(seed+7919);const S=W.liq(T,pp),sat=W.satT(T);
     return {p:{T,p:pp},s:{h:S.h,v:S.v,h1:sat.hf,h2:sat.hf+sat.vf*(pp-sat.p),sat,S}}},
-  statement:p=>`<p>Liquid water at ${p.T} °C is compressed to ${PP(p.p)}. Using the compressed liquid tables, the enthalpy is determined. Compare this with two approximations: (1) the enthalpy of saturated liquid at the same temperature, <i>h</i><sub>f</sub>(<i>T</i>), and (2) <i>h</i><sub>f</sub>(<i>T</i>) + <i>v</i><sub>f</sub>[<i>p</i> &minus; <i>p</i><sub>sat</sub>(<i>T</i>)]. Give the table value of the specific volume, in m³/kg, and the three enthalpy values, in kJ/kg.</p>`,
+  statement:p=>`<p>Water at ${p.T} °C is pressurized as a liquid to ${PP(p.p)}, and its enthalpy is read from the compressed-liquid table. Compare that value with two estimates: (1) the saturated-liquid enthalpy at the same temperature, <i>h</i><sub>f</sub>(<i>T</i>), and (2) <i>h</i><sub>f</sub>(<i>T</i>) + <i>v</i><sub>f</sub>[<i>p</i> &minus; <i>p</i><sub>sat</sub>(<i>T</i>)]. Report the tabulated specific volume (m³/kg) and all three enthalpies (kJ/kg).</p>`,
   figure:p=>dTsW([{s:W.liq(p.T,p.p).s,T:p.T,l:"1",dx:8,dy:-8}],[p.p],300),
   solution:(p,s)=>`<h3>1. Table values</h3>${stTable([st("1",s.S)],["p","T","v","h"])}
   <h3>2. Approximations</h3><p>At ${p.T} °C: <i>p</i><sub>sat</sub> = ${sig(s.sat.p)} kPa, <i>v</i><sub>f</sub> = ${sig(s.sat.vf)} m³/kg, <i>h</i><sub>f</sub> = ${sig(s.sat.hf)} kJ/kg.</p>
@@ -379,23 +379,23 @@ TEMPLATES["rigid-tank-water"]={
       const p1=pick(r,[1000,2000,3000,4000,6000]),T1=pick(r,[300,400,500,600]);if(T1<W.Tsat(p1)+60)continue;const S1=W.vap(T1,p1),T2=pick(r,[60,80,100,120,140,160,180,200]);const sat=W.satT(T2);
       if(S1.v<sat.vg*1.05||S1.v>sat.vg*40||T2>=W.satT(120).T&&false)continue;const x=(S1.v-sat.vf)/(sat.vg-sat.vf);if(x<.01||x>.95)continue;const S2=W.mix(sat,x);
       return {p:{mode,m,p1,T1,T2},s:{p2:sat.p,x2:x,Q:m*(S2.u-S1.u),ph2:S2.ph,S1,S2}}}},
-  statement:p=>p.mode==="heat"?`<p>A rigid tank contains ${p.m} kg of saturated water vapor at ${PP(p.p1)}. The water is heated until its temperature reaches ${p.T2} °C. Determine the final pressure, in kPa, and the heat transfer, in kJ.</p>`:`<p>A rigid tank contains ${p.m} kg of water vapor at ${PP(p.p1)} and ${p.T1} °C. The water is cooled until its temperature reaches ${p.T2} °C. Determine the final pressure, in kPa, the final quality, and the heat transfer, in kJ.</p>`,
+  statement:p=>p.mode==="heat"?`<p>${p.m} kg of saturated water vapor at ${PP(p.p1)} is sealed in a rigid tank and heated to ${p.T2} °C. Find the final pressure (kPa) and the heat added (kJ).</p>`:`<p>${p.m} kg of water vapor at ${PP(p.p1)} and ${p.T1} °C is sealed in a rigid tank and cooled to ${p.T2} °C. Find the final pressure (kPa), the final quality, and the heat transfer (kJ).</p>`,
   figure:p=>draw([{t:"rect",a:[-2,0],b:[2,2.2],rx:20,l:""},{t:"txt",p:[0,1.4],l:`water, ${p.m} kg`},{t:"txt",p:[0,.7],l:p.mode==="heat"?`${sbt("p","1")} = ${PP(p.p1)}`:`${sbt("p","1")} = ${PP(p.p1)}, ${sbt("T","1")} = ${p.T1} °C`},{a:[0,-1.3],b:[0,0],c:"r",l:p.mode==="heat"?"heat in":"heat out",off:-4,an:"middle"}].map(e=>e.l==="heat in"||e.l==="heat out"?{...e,a:p.mode==="heat"?[0,-1.2]:[0,0],b:p.mode==="heat"?[0,0]:[0,-1.2]}:e),520,260),
   solution:(p,s)=>`<h3>1. Initial state</h3>${stTable([st("1",s.S1)],["p","T","v","u"])}<h3>2. Final state</h3><p>The tank is rigid and closed, so the specific volume is constant: <i>v</i><sub>2</sub> = <i>v</i><sub>1</sub> = ${sig(s.S1.v)} m³/kg.</p>
   ${p.mode==="heat"?`<p>At ${p.T2} °C, <i>v</i> is above the saturated vapor value, so the final state is superheated vapor. Finding the pressure at which <i>v</i> = ${sig(s.S1.v)} m³/kg and <i>T</i> = ${p.T2} °C in the superheated table (interpolating in pressure):</p>`:`<p>At ${p.T2} °C, <i>v</i><sub>f</sub> = ${sig(W.satT(p.T2).vf)} and <i>v</i><sub>g</sub> = ${sig(W.satT(p.T2).vg)} m³/kg, so the final state is a two-phase mixture at the saturation pressure, with ${eq(`x<sub>2</sub> = (v &minus; v<sub>f</sub>)/(v<sub>g</sub> &minus; v<sub>f</sub>) = ${sig(s.x2)}`)}</p>`}
   ${stTable([st("2",s.S2)],["p","T","v","u","x"])}
-  <h3>3. Energy balance</h3><p>No work is done (rigid tank) and kinetic and potential energy changes are negligible: ${eq(`Q = m(u<sub>2</sub> &minus; u<sub>1</sub>) = ${p.m}(${sig(s.S2.u)} &minus; ${sig(s.S1.u)}) = ${sig(s.Q)} kJ`)}</p>
+  <h3>3. Energy balance</h3><p>The tank is rigid, so no work crosses the boundary, and bulk kinetic and potential energy do not change: ${eq(`Q = m(u<sub>2</sub> &minus; u<sub>1</sub>) = ${p.m}(${sig(s.S2.u)} &minus; ${sig(s.S1.u)}) = ${sig(s.Q)} kJ`)}</p>
   <p class="final">p<sub>2</sub> = ${sig(s.p2,4)} kPa; ${p.mode==="cool"?`x<sub>2</sub> = ${sig(s.x2,3)}; `:""}Q = ${sig(s.Q,4)} kJ (${s.Q>0?"into":"out of"} the water).</p>`,
   fields:p=>p.mode==="heat"?[{id:"p2",label:"Final pressure",unit:"kPa"},{id:"Q",label:"Heat transfer (positive into the water)",unit:"kJ",signed:true}]:[{id:"p2",label:"Final pressure",unit:"kPa"},{id:"x2",label:"Final quality",unit:""},{id:"Q",label:"Heat transfer (positive into the water)",unit:"kJ",signed:true}],
   truth:s=>s,note:"Heat transfer is signed."};
 
 // 7. constant-pressure heating
 TEMPLATES["isobaric-water"]={
-  name:"Water heated at constant pressure in a piston-cylinder assembly",
+  name:"Saturated water heated at constant pressure",
   generate(seed){const r=mulberry32(seed);
     for(let k=0;k<999;k++){const pp=pick(r,[100,200,300,500,1000,2000,3000,4000]),m=pick(r,[0.5,1,2,3,5]),x1=pick(r,[.1,.2,.3,.5,.7,.9]),T2=pick(r,[200,240,280,320,360,400,500,600]),sat=W.satP(pp);if(T2<sat.T+40)continue;
       const S1=W.mix(sat,x1),S2=W.vap(T2,pp);return {p:{pp,m,x1,T2},s:{W:m*pp*(S2.v-S1.v),dU:m*(S2.u-S1.u),Q:m*(S2.h-S1.h),S1,S2}}}},
-  statement:p=>`<p>${p.m} kg of water in a piston-cylinder assembly is initially a two-phase liquid-vapor mixture at ${PP(p.pp)} with a quality of ${p.x1}. The water is heated slowly at constant pressure, with the piston free to move, until its temperature is ${p.T2} °C. Determine the work done by the water, the change in internal energy, and the heat transfer, all in kJ.</p>`,
+  statement:p=>`<p>A piston-cylinder device holds ${p.m} kg of saturated water at ${PP(p.pp)} with quality ${p.x1}. With the piston free to move, the water is heated slowly at that pressure until it reaches ${p.T2} °C. Find the boundary work done by the water, its change in internal energy, and the heat added (all kJ).</p>`,
   figure:p=>draw([...cyl(-1.2,1.2,2.8),{t:"rect",a:[-1.2,2.1],b:[1.2,2.35],fill:"#cfd4da"},{t:"txt",p:[0,1],l:"water"},{a:[0,-1.2],b:[0,-.1],c:"r",l:"heat",off:-4},{a:[2,3.2],b:[2,2.4],c:"x",l:"constant p",an:"start",off:-4}].map(e=>e.l==="heat"?{...e,a:[0,-1.3],b:[0,-.15]}:e),520,300),
   solution:(p,s)=>`<h3>1. States</h3>${stTable([st("1",s.S1),st("2",s.S2)],["p","T","v","u","h","x"])}
   <h3>2. Work</h3><p>The pressure is constant: ${eq(`W = m p (v<sub>2</sub> &minus; v<sub>1</sub>) = ${p.m}(${p.pp})(${sig(s.S2.v)} &minus; ${sig(s.S1.v)}) = ${sig(s.W)} kJ`)}</p>
@@ -410,7 +410,7 @@ TEMPLATES["r134a-states"]={
   generate(seed){const r=mulberry32(seed);
     if(r()<.45){const T=pick(r,[-20,-10,0,10,20,30,40]),x=pick(r,[.1,.2,.3,.4,.6,.8]),sat=RF.satT(T),S=RF.mix(sat,x);return {p:{mode:"mix",T,x},s:{p:sat.p,v:S.v,h:S.h,s:S.s,ph:S.ph,S}}}
     for(let k=0;k<999;k++){const pp=pick(r,[200,400,600,800,1000,1200,1400]),T=pick(r,[20,30,40,50,60,70,80,90]);if(T<RF.Tsat(pp)+10)continue;const S=RF.sh(pp,T);return {p:{mode:"sh",p:pp,T},s:{v:S.v,h:S.h,s:S.s,p:pp,ph:S.ph,S}}}},
-  statement:p=>p.mode==="mix"?`<p>Refrigerant 134a is a two-phase liquid-vapor mixture at ${p.T} °C with a quality of ${p.x}. Determine the pressure, in kPa, the specific volume, in m³/kg, and the specific enthalpy, in kJ/kg. (The enthalpy and entropy of saturated liquid are zero at &minus;40 °C.)</p>`:`<p>Refrigerant 134a is at ${PP(p.p)} and ${p.T} °C. Determine the specific volume, in m³/kg, the specific enthalpy, in kJ/kg, and the specific entropy, in kJ/kg·K. (The enthalpy and entropy of saturated liquid are zero at &minus;40 °C.)</p>`,
+  statement:p=>p.mode==="mix"?`<p>Saturated R-134a at ${p.T} °C has a quality of ${p.x}. Find its pressure (kPa), specific volume (m³/kg) and specific enthalpy (kJ/kg). (Reference state: saturated liquid at &minus;40 °C has zero enthalpy and entropy.)</p>`:`<p>R-134a is at ${PP(p.p)} and ${p.T} °C. Find its specific volume (m³/kg), specific enthalpy (kJ/kg) and specific entropy (kJ/kg·K). (Reference state: saturated liquid at &minus;40 °C has zero enthalpy and entropy.)</p>`,
   figure:p=>{const S=p.mode==="mix"?RF.mix(RF.satT(p.T),p.x):RF.sh(p.p,p.T);return dTsR([{s:S.s,T:p.T,l:"1",dx:8,dy:-8}],p.mode==="mix"?[RF.satT(p.T).p]:[p.p])},
   solution:(p,s)=>p.mode==="mix"?`<h3>1. Saturation data at ${p.T} °C</h3><p><i>p</i><sub>sat</sub> = ${sig(RF.satT(p.T).p)} kPa; <i>v</i><sub>f</sub> = ${sig(RF.satT(p.T).vf)}, <i>v</i><sub>g</sub> = ${sig(RF.satT(p.T).vg)} m³/kg; <i>h</i><sub>f</sub> = ${sig(RF.satT(p.T).hf)}, <i>h</i><sub>g</sub> = ${sig(RF.satT(p.T).hg)} kJ/kg.</p>
   <h3>2. Mixture properties</h3><p>${eq(`v = v<sub>f</sub> + x(v<sub>g</sub> &minus; v<sub>f</sub>) = ${sig(s.v)} m³/kg`)} ${eq(`h = h<sub>f</sub> + x(h<sub>g</sub> &minus; h<sub>f</sub>) = ${sig(s.h)} kJ/kg`)}</p><p class="final">p = ${sig(s.p,4)} kPa; v = ${sig(s.v,4)} m³/kg; h = ${sig(s.h,4)} kJ/kg.</p>`:
@@ -423,7 +423,7 @@ TEMPLATES["ideal-gas-tank"]={
   name:"Ideal gas in a rigid tank: mass and final pressure",
   generate(seed){const r=mulberry32(seed),g=pick(r,["N2","O2","air","CO2","He","Ar","CO"]),p={g,V:pick(r,[0.1,0.2,0.5,1,2,5]),p1:pick(r,[100,200,300,500,1000]),T1:pick(r,[10,20,25,30,40]),T2:pick(r,[100,150,200,300,400,500])};
     const R=Rg(g),m=p.p1*p.V/(R*(p.T1+273.15)),p2=m*R*(p.T2+273.15)/p.V;return {p,s:{m,p2,R}}},
-  statement:p=>`<p>A rigid tank of volume ${p.V} m³ contains ${GAS[p.g].name} at ${p.p1} kPa and ${p.T1} °C. Modeling the gas as an ideal gas, determine the mass of gas in the tank, in kg. The tank is then heated until the temperature is ${p.T2} °C. Determine the final pressure, in kPa.</p>`,
+  statement:p=>`<p>A ${p.V}-m³ rigid tank holds ${GAS[p.g].name} at ${p.p1} kPa and ${p.T1} °C. Treating the gas as ideal, find its mass (kg). If the tank is then heated to ${p.T2} °C, what is the new pressure (kPa)?</p>`,
   figure:p=>draw([{t:"rect",a:[-2,0],b:[2,2.2],rx:20,l:""},{t:"txt",p:[0,1.4],l:GN(p.g)},{t:"txt",p:[0,.7],l:`V = ${p.V} m³`},{a:[0,-1.2],b:[0,-.1],c:"r",l:"",off:0},{t:"txt",p:[0,-1.4],l:"heating"}],480,240),
   solution:(p,s)=>`<h3>1. Mass</h3><p>The gas constant is <i>R</i> = <i>R̄</i>/<i>M</i> = 8.314/${GAS[p.g].M} = ${sig(s.R)} kJ/kg·K.</p><p>${eq(`m = p<sub>1</sub>V/(R T<sub>1</sub>) = ${p.p1}(${p.V})/(${sig(s.R)}(${p.T1+273.15})) = ${sig(s.m)} kg`)}</p>
   <h3>2. Final pressure</h3><p>The mass and volume are constant, so ${eq(`p<sub>2</sub> = p<sub>1</sub>T<sub>2</sub>/T<sub>1</sub> = ${p.p1}(${p.T2+273.15})/(${p.T1+273.15}) = ${sig(s.p2)} kPa`)}</p>
@@ -436,7 +436,7 @@ TEMPLATES["ideal-vs-table"]={
   name:"Ideal gas model compared with the steam tables",
   generate(seed){const r=mulberry32(seed);let pp,T;for(let k=0;k<99;k++){pp=pick(r,[10,50,100,500,1000,3000,6000,10000,14000]);T=pick(r,[100,150,200,250,300,400,500,600]);if(T>W.Tsat(pp)+25)break}
     const S=W.vap(T,pp),vi=RW*(T+273.15)/pp,Z=pp*S.v/(RW*(T+273.15));return {p:{p:pp,T},s:{v:S.v,vi,err:100*(vi-S.v)/S.v,Z}}},
-  statement:p=>`<p>Water vapor is at ${PP(p.p)} and ${p.T} °C. Determine the specific volume from the superheated vapor table and from the ideal gas model, using <i>R</i> = 0.4615 kJ/kg·K, both in m³/kg. Then find the percent error of the ideal gas value and the compressibility factor <i>Z</i> = <i>p v</i>/(<i>R T</i>).</p>`,
+  statement:p=>`<p>Water vapor is at ${PP(p.p)} and ${p.T} °C. Read its specific volume from the superheated-vapor table and also compute it from the ideal-gas equation with <i>R</i> = 0.4615 kJ/kg·K (both in m³/kg). Then give the percentage error of the ideal-gas value and the compressibility factor <i>Z</i> = <i>p v</i>/(<i>R T</i>).</p>`,
   figure:p=>{const S=W.vap(p.T,p.p);return dTsW([{s:S.s,T:p.T,l:"1",dx:8,dy:-8}],[p.p],Math.max(500,p.T+30))},
   solution:(p,s)=>`<h3>1. Table value</h3><p><i>v</i> = ${sig(s.v)} m³/kg.</p><h3>2. Ideal gas value</h3><p>${eq(`v = R T/p = 0.4615(${p.T+273.15})/${p.p} = ${sig(s.vi)} m³/kg`)}</p><h3>3. Error and compressibility factor</h3><p>${eq(`error = (v<sub>ideal</sub> &minus; v<sub>table</sub>)/v<sub>table</sub> = ${sig(s.err)} %`)} ${eq(`Z = p v/(R T) = ${sig(s.Z)}`)}</p>
   <p class="final">v(table) = ${sig(s.v,4)}; v(ideal) = ${sig(s.vi,4)} m³/kg; error = ${sig(s.err,3)} %; Z = ${sig(s.Z,4)}.</p>`,
@@ -448,7 +448,7 @@ TEMPLATES["ideal-gas-isobaric"]={
   name:"Ideal gas heated at constant pressure (constant specific heats)",
   generate(seed){const r=mulberry32(seed),g=pick(r,["air","N2","O2","CO2","He","Ar","CO"]),p={g,m:pick(r,[0.5,1,2,3,5]),T1:pick(r,[20,25,30,50,100]),T2:pick(r,[200,300,400,500,600]),p:pick(r,[100,200,300,500])};
     const R=Rg(g),cp=GAS[g].cp,cv=cp-R,m=p.m,dT=p.T2-p.T1;return {p,s:{Q:m*cp*dT,W:m*R*dT,dU:m*cv*dT,cp,cv,R}}},
-  statement:p=>`<p>${p.m} kg of ${GAS[p.g].name} in a piston-cylinder assembly is heated at a constant pressure of ${p.p} kPa from ${p.T1} °C to ${p.T2} °C. Model the gas as an ideal gas with constant specific heat <i>c<sub>p</sub></i> = ${GAS[p.g].cp} kJ/kg·K and gas constant <i>R</i> = ${sig(Rg(p.g),4)} kJ/kg·K. Determine the work done by the gas, the change in internal energy, and the heat transfer, in kJ.</p>`,
+  statement:p=>`<p>In a piston-cylinder device, ${p.m} kg of ${GAS[p.g].name} is heated from ${p.T1} °C to ${p.T2} °C while the pressure stays at ${p.p} kPa. Treat the gas as ideal with constant <i>c<sub>p</sub></i> = ${GAS[p.g].cp} kJ/kg·K and <i>R</i> = ${sig(Rg(p.g),4)} kJ/kg·K. Find the boundary work done by the gas, its change in internal energy, and the heat added (kJ).</p>`,
   figure:p=>draw([...cyl(-1.2,1.2,2.8),{t:"rect",a:[-1.2,2.0],b:[1.2,2.25],fill:"#cfd4da"},{t:"txt",p:[0,1],l:GN(p.g)},{a:[0,-1.3],b:[0,-.15],c:"r",l:"",off:0},{t:"txt",p:[0,-1.5],l:"heat"}],480,300),
   solution:(p,s)=>`<h3>1. Gas properties</h3><p>${eq(`R = 8.314/${GAS[p.g].M} = ${sig(s.R)} kJ/kg·K`)} ${eq(`c<sub>v</sub> = c<sub>p</sub> &minus; R = ${sig(s.cv)} kJ/kg·K`)}</p>
   <h3>2. Work, internal energy, and heat transfer</h3><p>${eq(`W = p(V<sub>2</sub> &minus; V<sub>1</sub>) = m R(T<sub>2</sub> &minus; T<sub>1</sub>) = ${p.m}(${sig(s.R)})(${p.T2-p.T1}) = ${sig(s.W)} kJ`)}</p><p>${eq(`ΔU = m c<sub>v</sub>ΔT = ${sig(s.dU)} kJ`)} ${eq(`Q = ΔU + W = m c<sub>p</sub>ΔT = ${sig(s.Q)} kJ`)}</p>
@@ -461,9 +461,9 @@ TEMPLATES["ideal-gas-polytropic"]={
   name:"Polytropic compression of air",
   generate(seed){const r=mulberry32(seed),p={m:pick(r,[0.5,1,2,3]),p1:pick(r,[100,150,200]),T1:pick(r,[20,25,30,40]),pr:pick(r,[3,4,5,6,8]),n:pick(r,[1.2,1.25,1.3,1.35])};
     const R=0.287,T1=p.T1+273.15,T2=T1*p.pr**((p.n-1)/p.n),Wk=p.m*R*(T2-T1)/(1-p.n),dU=p.m*0.718*(T2-T1);return {p,s:{T2:T2-273.15,W:Wk,dU,Q:dU+Wk}}},
-  statement:p=>`<p>${p.m} kg of air at ${p.p1} kPa and ${p.T1} °C is compressed in a piston-cylinder assembly according to <i>p V</i><sup>${p.n}</sup> = constant until the pressure reaches ${p.p1*p.pr} kPa. Model the air as an ideal gas with <i>R</i> = 0.287 kJ/kg·K and constant <i>c<sub>v</sub></i> = 0.718 kJ/kg·K. Determine the final temperature, in °C, the work, in kJ, and the heat transfer, in kJ.</p>`,
+  statement:p=>`<p>In a piston-cylinder device, ${p.m} kg of air at ${p.p1} kPa and ${p.T1} °C is compressed along <i>p V</i><sup>${p.n}</sup> = constant to ${p.p1*p.pr} kPa. Treat air as an ideal gas with <i>R</i> = 0.287 kJ/kg·K and constant <i>c<sub>v</sub></i> = 0.718 kJ/kg·K. Find the final temperature (°C), the boundary work (kJ) and the heat transfer (kJ).</p>`,
   figure:p=>{const N=40,c=[],V1=p.m*0.287*(p.T1+273.15)/p.p1,V2=V1*(1/p.pr)**(1/p.n);for(let i=0;i<=N;i++){const V=V2+(V1-V2)*i/N;c.push([V,p.p1*(V1/V)**p.n])}return plot2({xl:"V (m³)",yl:"p (kPa)",curves:[{pts:c,fill:"#eec878"}],points:[{p:[V1,p.p1],l:"1"},{p:[V2,p.p1*p.pr],l:"2"}],H:320})},
-  solution:(p,s)=>`<h3>1. Final temperature</h3><p>For a polytropic process of an ideal gas, ${eq(`T<sub>2</sub> = T<sub>1</sub>(p<sub>2</sub>/p<sub>1</sub>)<sup>(n&minus;1)/n</sup> = ${p.T1+273.15}(${p.pr})<sup>${sig((p.n-1)/p.n,3)}</sup> = ${sig(s.T2+273.15)} K = ${sig(s.T2)} °C`)}</p>
+  solution:(p,s)=>`<h3>1. Final temperature</h3><p>Combining <i>pV<sup>n</sup></i> = constant with <i>pV</i> = <i>mRT</i>, ${eq(`T<sub>2</sub> = T<sub>1</sub>(p<sub>2</sub>/p<sub>1</sub>)<sup>(n&minus;1)/n</sup> = ${p.T1+273.15}(${p.pr})<sup>${sig((p.n-1)/p.n,3)}</sup> = ${sig(s.T2+273.15)} K = ${sig(s.T2)} °C`)}</p>
   <h3>2. Work</h3><p>${eq(`W = m R(T<sub>2</sub> &minus; T<sub>1</sub>)/(1 &minus; n) = ${p.m}(0.287)(${sig(s.T2-p.T1)})/(1 &minus; ${p.n}) = ${sig(s.W)} kJ`)}</p>
   <h3>3. Heat transfer</h3><p>${eq(`ΔU = m c<sub>v</sub>(T<sub>2</sub> &minus; T<sub>1</sub>) = ${sig(s.dU)} kJ`)} ${eq(`Q = ΔU + W = ${sig(s.Q)} kJ`)}</p>
   <p class="final">T<sub>2</sub> = ${sig(s.T2,4)} °C; W = ${sig(s.W,3)} kJ; Q = ${sig(s.Q,3)} kJ.</p>`,

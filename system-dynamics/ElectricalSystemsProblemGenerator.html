@@ -276,7 +276,7 @@ TEMPLATES["rc-switch-transient"]={
     const p={E:pick(r,range(5,24,1)),R1:pick(r,range(1,10,1)),R2:pick(r,range(1,10,1)),C:pick(r,range(10,100,10)),q:pick(r,[0.5,1,2])};
     const v0=p.E*p.R2/(p.R1+p.R2),tau=p.R2*p.C;p.t1=p.q*tau;
     return {p,s:{v0,tau,i1:v0/p.R2*Math.exp(-p.t1/tau)}};},
-  statement:p=>`<p>In the circuit shown, <i>E</i> = ${p.E} V, <i>R</i><sub>1</sub> = ${p.R1} ${kO}, <i>R</i><sub>2</sub> = ${p.R2} ${kO}, and <i>C</i> = ${p.C} ${uF}. The circuit is in a steady state with switch <i>S</i> closed, and <i>S</i> is opened at <i>t</i> = 0. Determine the capacitor voltage at <i>t</i> = 0, the time constant of the discharge, and the current <i>i</i> through <i>R</i><sub>2</sub> at <i>t</i> = ${nf(p.t1)} ms.</p>`,
+  statement:p=>`<p>In the circuit shown, <i>E</i> = ${p.E} V, <i>R</i><sub>1</sub> = ${p.R1} ${kO}, <i>R</i><sub>2</sub> = ${p.R2} ${kO}, and <i>C</i> = ${p.C} ${uF}. Switch <i>S</i> has been closed long enough for all currents to settle, and it is opened at <i>t</i> = 0. Determine the capacitor voltage at <i>t</i> = 0, the time constant of the discharge, and the current <i>i</i> through <i>R</i><sub>2</sub> at <i>t</i> = ${nf(p.t1)} ms.</p>`,
   figure:p=>ckt([{t:"src",x:60,y:120,l:"E"},{t:"w",p:[[60,104],[60,50],[90,50]]},{t:"sw",a:[90,50],b:[160,50],l:"S"},{t:"R",a:[160,50],b:[290,50],l:"R₁"},{t:"w",p:[[290,50],[400,50]]},
     {t:"C",a:[290,50],b:[290,190],l:"C"},{t:"R",a:[400,50],b:[400,190],l:"R₂"},{t:"w",p:[[60,136],[60,190],[400,190]]},{t:"node",x:290,y:50},{t:"node",x:290,y:190},{t:"txt",x:430,y:110,l:"i ↓",an:"start"}],480,210),
   solution:(p,s)=>`<h3>1. Initial capacitor voltage</h3>

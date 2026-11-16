@@ -324,7 +324,7 @@ TEMPLATES["rotating-unbalance"]={
       const b=2*p.z*Math.sqrt(p.k*p.M),X=p.m*p.e*w*w/Math.hypot(p.k-p.M*w*w,b*w),F=X*Math.hypot(p.k,b*w);
       if(Math.abs(F-p.k*X)<0.04*F) continue;
       return {p,s:{w,b,X:X*1000,F}};}},
-  statement:p=>`<p>A machine of total mass <i>M</i> = ${p.M} kg contains an unbalanced mass <i>m</i> = ${nf(p.m)} kg at radius ${nf(p.e)} m and runs at ${p.f} Hz. It is mounted on an isolator of stiffness <i>k</i> = ${nf(p.k/1e5)} × 10⁵ N/m with damping ratio ${ze} = ${p.z}, and moves only vertically. Determine the amplitude of the machine's vibration and the amplitude of the force transmitted to the foundation.</p>`,
+  statement:p=>`<p>A machine of total mass <i>M</i> = ${p.M} kg contains an unbalanced mass <i>m</i> = ${nf(p.m)} kg at radius ${nf(p.e)} m and runs at ${p.f} Hz. It is mounted on an isolator of stiffness <i>k</i> = ${nf(p.k/1e5)} × 10⁵ N/m with damping ratio ${ze} = ${p.z}, and moves only vertically. Determine the vibration amplitude of the machine and the peak force that the isolator passes to the floor.</p>`,
   solution:(p,s)=>`<h3>1. Excitation</h3>
   <p>The unbalance produces a vertical force of amplitude ${eq(`<i>me</i>ω² = ${nf(p.m)}(${nf(p.e)})(${sig(s.w)})² = ${sig(p.m*p.e*s.w*s.w)} N`)}, with ω = 2π(${p.f}) rad/s.</p>
   <h3>2. Amplitude</h3>

@@ -318,7 +318,7 @@ const Tr={co2:[2000,2200,2400,2600,2800,3000],h2o:[2000,2200,2400,2600,2800,3000
 TEMPLATES["k-from-gibbs"]={
   name:"Equilibrium constant from Gibbs functions",
   generate(seed){const r=mulberry32(seed),k=rxPick(r),T=pick(r,Tr[k]),R=RX[k];return {p:{k,T},s:{dG:dG(R,T),lnK:lnK(R,T),K:Kc(R,T)}}},
-  statement:p=>`<p>For the reaction ${RX[p.k].t} at ${p.T} K, determine the change in the Gibbs function, Δ<i>G</i>°, in kJ/kmol, the natural logarithm of the equilibrium constant <i>K</i>, and the equilibrium constant <i>K</i>. The standard-state pressure is 1 atm and Δ<i>G</i>° = Σ ν<sub>i</sub> <i>g</i>°<sub>i</sub>(<i>T</i>), where <i>g</i>° = <i>h̄</i> &minus; <i>T s̄</i>° is the Gibbs function of each species at 1 atm.</p>`,
+  statement:p=>`<p>Consider the reaction ${RX[p.k].t} at ${p.T} K, with the standard state at 1 atm. Using Δ<i>G</i>° = Σ ν<sub>i</sub> <i>g</i>°<sub>i</sub>(<i>T</i>), where <i>g</i>° = <i>h̄</i> &minus; <i>T s̄</i>° is each species' Gibbs function at 1 atm, find Δ<i>G</i>° (kJ/kmol), ln <i>K</i>, and the equilibrium constant <i>K</i>.</p>`,
   figure:p=>eqFig(RX[p.k],p.T),
   solution:(p,s)=>`<h3>1. Gibbs functions</h3>${gtab(RX[p.k],p.T)}<h3>2. Equilibrium constant</h3><p>${eq(`ΔG° = Σ ν<sub>i</sub> g°<sub>i</sub> = ${sig(s.dG)} kJ/kmol`)} ${eq(`ln K = &minus;ΔG°/(R<sub>u</sub>T) = ${sig(s.lnK,4)}`)} ${eq(`K = ${sig(s.K,4)}`)}</p>
   <p class="final">ΔG° = ${sig(s.dG,4)} kJ/kmol; ln K = ${sig(s.lnK,4)}; K = ${sig(s.K,4)}.</p>`,
@@ -327,7 +327,7 @@ TEMPLATES["k-from-gibbs"]={
 TEMPLATES["vant-hoff"]={
   name:"Van't Hoff equation",
   generate(seed){const r=mulberry32(seed),k=rxPick(r),T1=pick(r,Tr[k].slice(0,2)),T2=T1+pick(r,[200,400,600]),R=RX[k],dh=(dH(R,T1)+dH(R,T2))/2,K1=Kc(R,T1),lnr2=lnr(K1)+dh/Ru*(1/T1-1/T2),K2=Math.exp(lnr2),Kt=Kc(R,T2);return {p:{k,T1,T2},s:{K1,dh,K2,Kt,err:(K2-Kt)/Kt*100}}},
-  statement:p=>`<p>For ${RX[p.k].t}, the equilibrium constant at ${p.T1} K is ${sig(Kc(RX[p.k],p.T1),4)}, and the average enthalpy of reaction between ${p.T1} K and ${p.T2} K is ${sig((dH(RX[p.k],p.T1)+dH(RX[p.k],p.T2))/2,5)} kJ/kmol. Use the van't Hoff equation with constant enthalpy of reaction to estimate the equilibrium constant at ${p.T2} K. Compare with the value ${sig(Kc(RX[p.k],p.T2),4)} from Gibbs functions and give the percent difference.</p>`,
+  statement:p=>`<p>For ${RX[p.k].t}, <i>K</i> = ${sig(Kc(RX[p.k],p.T1),4)} at ${p.T1} K, and the enthalpy of reaction averaged over ${p.T1} K to ${p.T2} K is ${sig((dH(RX[p.k],p.T1)+dH(RX[p.k],p.T2))/2,5)} kJ/kmol. Treating the enthalpy of reaction as constant, estimate <i>K</i> at ${p.T2} K from the van't Hoff equation, and report how far (in percent) the estimate is from the Gibbs-function value of ${sig(Kc(RX[p.k],p.T2),4)}.</p>`,
   figure:p=>plot2({xl:"1/T (1/K × 1000)",yl:"ln K",curves:[{pts:range(p.T1,p.T2+1,(p.T2-p.T1)/10).map(T=>[1000/T,lnK(RX[p.k],T)]),col:"#2b5d8a"}],points:[{p:[1000/p.T1,lnK(RX[p.k],p.T1)],l:"1",dx:6,dy:-8},{p:[1000/p.T2,lnK(RX[p.k],p.T2)],l:"2",dx:6,dy:-8}],H:260}),
   solution:(p,s)=>`<h3>1. Van't Hoff equation</h3><p>${eq(`ln(K<sub>2</sub>/K<sub>1</sub>) = (ΔH̄°/R<sub>u</sub>)(1/T<sub>1</sub> &minus; 1/T<sub>2</sub>)`)} ${eq(`ln(K<sub>2</sub>/K<sub>1</sub>) = (${sig(s.dh,5)}/8.314)(1/${p.T1} &minus; 1/${p.T2}) = ${sig(lnr(s.K2/s.K1),4)}`)} ${eq(`K<sub>2</sub> = ${sig(s.K2,4)}`)}</p><p>The value from Gibbs functions is ${sig(s.Kt,4)}, so the difference is ${sig(s.err)}%.</p>
   <p class="final">K<sub>2</sub> = ${sig(s.K2,4)}; difference = ${sig(s.err,3)}%.</p>`,
@@ -345,7 +345,7 @@ const dSol=(p,s)=>`<h3>1. Equilibrium constant</h3>${gtab(RX[p.k],p.T)}<p>${eq(`
 TEMPLATES["co2-dissociation"]={
   name:"Dissociation of carbon dioxide",
   generate(seed){const r=mulberry32(seed),p={k:"co2",T:pick(r,[2200,2400,2600,2800,3000]),P:pick(r,[1,2,5,10])};const s=dSolve(p);return {p,s}},
-  statement:p=>`<p>One kmol of CO<sub>2</sub> dissociates at ${p.T} K and ${p.P} atm according to CO<sub>2</sub> ⇌ CO + ½O<sub>2</sub>, and the mixture is in equilibrium. Treat the mixture as an ideal gas mixture. Determine the equilibrium constant <i>K</i> at this temperature, the extent of dissociation <i>z</i> (kmol of CO<sub>2</sub> dissociated per kmol initially), and the mole fraction of CO in the equilibrium mixture.</p>`,
+  statement:p=>`<p>Starting from 1 kmol of CO<sub>2</sub>, the reaction CO<sub>2</sub> ⇌ CO + ½O<sub>2</sub> comes to equilibrium at ${p.T} K and ${p.P} atm. Treat the mixture as ideal gases. Find <i>K</i> at this temperature, the extent of reaction <i>z</i> (kmol of CO<sub>2</sub> that dissociate per kmol supplied), and the mole fraction of CO at equilibrium.</p>`,
   figure:p=>eqFig(RX.co2,p.T,p.P),
   solution:(p,s)=>dSol(p,s)+`<p class="final">K = ${sig(s.K,4)}; z = ${sig(s.z,4)}; y<sub>CO</sub> = ${sig(s.y[1],4)}.</p>`,
   fields:p=>[{id:"K",label:"Equilibrium constant",unit:""},{id:"z",label:"Extent of dissociation",unit:""},{id:"yCO",label:"Mole fraction of CO",unit:""}],truth:s=>({K:s.K,z:s.z,yCO:s.y[1]}),note:""};
@@ -353,7 +353,7 @@ TEMPLATES["co2-dissociation"]={
 TEMPLATES["h2o-dissociation"]={
   name:"Dissociation of water vapor",
   generate(seed){const r=mulberry32(seed),p={k:"h2o",T:pick(r,[2200,2400,2600,2800,3000]),P:pick(r,[1,2,5,10])};const s=dSolve(p);return {p,s}},
-  statement:p=>`<p>One kmol of H<sub>2</sub>O vapor dissociates at ${p.T} K and ${p.P} atm according to H<sub>2</sub>O ⇌ H<sub>2</sub> + ½O<sub>2</sub>, and the mixture is in equilibrium. Treat the mixture as an ideal gas mixture. Determine the equilibrium constant <i>K</i>, the extent of dissociation <i>z</i>, and the mole fraction of H<sub>2</sub> in the equilibrium mixture.</p>`,
+  statement:p=>`<p>Starting from 1 kmol of H<sub>2</sub>O vapor, the reaction H<sub>2</sub>O ⇌ H<sub>2</sub> + ½O<sub>2</sub> comes to equilibrium at ${p.T} K and ${p.P} atm. Treat the mixture as ideal gases. Find <i>K</i>, the extent of reaction <i>z</i>, and the mole fraction of H<sub>2</sub> at equilibrium.</p>`,
   figure:p=>eqFig(RX.h2o,p.T,p.P),
   solution:(p,s)=>dSol(p,s)+`<p class="final">K = ${sig(s.K,4)}; z = ${sig(s.z,4)}; y<sub>H₂</sub> = ${sig(s.y[1],4)}.</p>`,
   fields:p=>[{id:"K",label:"Equilibrium constant",unit:""},{id:"z",label:"Extent of dissociation",unit:""},{id:"yH2",label:"Mole fraction of H2",unit:""}],truth:s=>({K:s.K,z:s.z,yH2:s.y[1]}),note:""};
@@ -361,7 +361,7 @@ TEMPLATES["h2o-dissociation"]={
 TEMPLATES["pressure-effect"]={
   name:"Effect of pressure on dissociation",
   generate(seed){const r=mulberry32(seed),k=pick(r,["co2","h2o"]),T=pick(r,[2400,2600,2800,3000]),P1=pick(r,[1,2]),P2=P1*pick(r,[5,10,20]),a=disso(k,T,P1),b=disso(k,T,P2);return {p:{k,T,P1,P2},s:{z1:a.z,z2:b.z,K:a.K}}},
-  statement:p=>`<p>One kmol of ${GAS[DIS[p.k][0]].name} dissociates according to ${RX[p.k].t} at ${p.T} K. Determine the extent of dissociation <i>z</i> at total pressures of ${p.P1} atm and ${p.P2} atm, and describe in one sentence the effect of raising the pressure. Enter the two values of <i>z</i>.</p>`,
+  statement:p=>`<p>Starting from 1 kmol of ${GAS[DIS[p.k][0]].name}, the reaction ${RX[p.k].t} comes to equilibrium at ${p.T} K. Find the extent of reaction <i>z</i> when the total pressure is ${p.P1} atm and when it is ${p.P2} atm, and state in one sentence how a higher pressure changes the result. Enter both values of <i>z</i>.</p>`,
   figure:p=>plot2({xl:"p (atm)",yl:"z",curves:[{pts:[1,2,5,10,20,50].map(P=>[P,disso(p.k,p.T,P).z]),col:"#2b5d8a"}],points:[{p:[p.P1,disso(p.k,p.T,p.P1).z],l:"1",dx:6,dy:-8},{p:[p.P2,disso(p.k,p.T,p.P2).z],l:"2",dx:6,dy:-8}],H:260}),
   solution:(p,s)=>`<h3>1. Equilibrium constant</h3><p>${eq(`ln K = ${sig(lnr(s.K),4)}, K = ${sig(s.K,4)}`)}</p><h3>2. Extent of dissociation</h3><p>${eq(`K = [z/(1 + z/2)]·[(z/2)/(1 + z/2)]<sup>1/2</sup>(p/p<sub>0</sub>)<sup>1/2</sup>/[(1 &minus; z)/(1 + z/2)]`)} Solving by trial: ${eq(`z(${p.P1} atm) = ${sig(s.z1,4)}`)} ${eq(`z(${p.P2} atm) = ${sig(s.z2,4)}`)}</p><p>The reaction increases the number of moles, so raising the pressure shifts the equilibrium toward the reactant and decreases the dissociation.</p>
   <p class="final">z = ${sig(s.z1,4)} at ${p.P1} atm; z = ${sig(s.z2,4)} at ${p.P2} atm.</p>`,
@@ -371,7 +371,7 @@ TEMPLATES["water-gas-shift"]={
   name:"Water-gas shift reaction",
   generate(seed){const r=mulberry32(seed),T=pick(r,[700,800,900,1000,1200,1400]),w=pick(r,[1,2,3]),P=pick(r,[1,5,20]),K=Kc(RX.wgs,T);
     const f=z=>Math.log(z*z/((1-z)*(w-z)))-Math.log(K),z=bisect(f,1e-9,1-1e-9,100);const nt=1+w;return {p:{T,w,P},s:{K,z,nCO:1-z,nH2O:w-z,nCO2:z,nH2:z,yH2:z/nt}}},
-  statement:p=>`<p>A mixture of 1 kmol of CO and ${p.w} kmol of H<sub>2</sub>O vapor reaches equilibrium at ${p.T} K and ${p.P} atm according to CO + H<sub>2</sub>O ⇌ CO<sub>2</sub> + H<sub>2</sub>. Treat the mixture as an ideal gas mixture. Determine the equilibrium constant, the kmol of CO<sub>2</sub> formed, and the mole fraction of hydrogen in the equilibrium mixture.</p>`,
+  statement:p=>`<p>1 kmol of CO and ${p.w} kmol of H<sub>2</sub>O vapor react through CO + H<sub>2</sub>O ⇌ CO<sub>2</sub> + H<sub>2</sub> and reach equilibrium at ${p.T} K and ${p.P} atm. Treat the mixture as ideal gases. Find <i>K</i>, the kmol of CO<sub>2</sub> produced, and the mole fraction of H<sub>2</sub> at equilibrium.</p>`,
   figure:p=>eqFig(RX.wgs,p.T,p.P),
   solution:(p,s)=>`<h3>1. Equilibrium constant</h3>${gtab(RX.wgs,p.T)}<p>${eq(`ln K = ${sig(lnr(s.K),4)}`)} ${eq(`K = ${sig(s.K,4)}`)}</p>
   <h3>2. Composition</h3><p>With <i>z</i> kmol of CO converted: CO ${sig(s.nCO,4)}, H<sub>2</sub>O ${sig(s.nH2O,4)}, CO<sub>2</sub> <i>z</i>, H<sub>2</sub> <i>z</i>. The number of moles is unchanged, so the pressure drops out: ${eq(`K = z²/[(1 &minus; z)(${p.w} &minus; z)]`)} ${eq(`z = ${sig(s.z,4)} kmol`)} ${eq(`y<sub>H₂</sub> = z/${1+p.w} = ${sig(s.yH2,4)}`)}</p>
@@ -382,7 +382,7 @@ TEMPLATES["no-formation"]={
   name:"Formation of nitric oxide in air",
   generate(seed){const r=mulberry32(seed),T=pick(r,[1800,2000,2200,2500,2800,3000]),P=pick(r,[1,5,10]),K=Kc(RX.no,T);
     const f=z=>Math.log(z/Math.sqrt((.79-z/2)*(.21-z/2)))-Math.log(K),z=bisect(f,1e-12,.4199,100);return {p:{T,P},s:{K,z,ppm:z*1e6}}},
-  statement:p=>`<p>A mixture of 0.79 kmol N<sub>2</sub> and 0.21 kmol O<sub>2</sub> reaches equilibrium at ${p.T} K and ${p.P} atm with the reaction ½N<sub>2</sub> + ½O<sub>2</sub> ⇌ NO. Assume that NO is the only product. Determine the equilibrium constant, the kmol of NO formed, and the mole fraction of NO expressed in parts per million.</p>`,
+  statement:p=>`<p>Air, taken as 0.79 kmol N<sub>2</sub> with 0.21 kmol O<sub>2</sub>, is brought to equilibrium at ${p.T} K and ${p.P} atm through ½N<sub>2</sub> + ½O<sub>2</sub> ⇌ NO, with NO the only species formed. Find <i>K</i>, the kmol of NO produced, and the NO mole fraction in parts per million.</p>`,
   figure:p=>eqFig(RX.no,p.T,p.P),
   solution:(p,s)=>`<h3>1. Equilibrium constant</h3>${gtab(RX.no,p.T)}<p>${eq(`ln K = ${sig(lnr(s.K),4)}`)} ${eq(`K = ${sig(s.K,4)}`)}</p>
   <h3>2. Composition</h3><p>The reaction produces <i>z</i> kmol of NO and consumes <i>z</i>/2 kmol each of N<sub>2</sub> and O<sub>2</sub>. The total remains 1 kmol, so ${eq(`K = z/[(0.79 &minus; z/2)(0.21 &minus; z/2)]<sup>1/2</sup>`)} and the pressure does not matter. ${eq(`z = ${sig(s.z,4)} kmol`)} ${eq(`y<sub>NO</sub> = ${sig(s.z,4)}`)} that is ${sig(s.ppm,4)} ppm.</p>
@@ -395,7 +395,7 @@ const psat=(c,T)=>Math.pow(10,ANT[c][0]-ANT[c][1]/(T+ANT[c][2]))*0.133322;
 TEMPLATES["raoult-law"]={
   name:"Raoult's law for an ideal binary solution",
   generate(seed){const r=mulberry32(seed),T=pick(r,[60,70,80,90,100]),x=pick(r,[.2,.3,.4,.5,.6,.7]),pb=psat("benzene",T),pt=psat("toluene",T),P=x*pb+(1-x)*pt,y=x*pb/P;return {p:{T,x},s:{pb,pt,P,y}}},
-  statement:p=>`<p>A liquid solution of benzene and toluene at ${p.T} °C contains ${p.x*100}% benzene on a mole basis and behaves as an ideal solution. The saturation pressures are given by the Antoine equations log<sub>10</sub>(<i>p</i>/mmHg) = <i>A</i> &minus; <i>B</i>/(<i>T</i> + <i>C</i>), with <i>T</i> in °C, where for benzene <i>A</i> = 6.90565, <i>B</i> = 1211.033, <i>C</i> = 220.790, and for toluene <i>A</i> = 6.95464, <i>B</i> = 1344.8, <i>C</i> = 219.482 (1 mmHg = 0.133322 kPa). Determine the saturation pressure of each pure component, in kPa, the total pressure at which the solution is in equilibrium with its vapor, in kPa, and the mole fraction of benzene in the vapor.</p>`,
+  statement:p=>`<p>A benzene-toluene liquid at ${p.T} °C, containing ${p.x*100} mol% benzene, behaves as an ideal solution. Pure-component vapor pressures follow the Antoine form log<sub>10</sub>(<i>p</i>/mmHg) = <i>A</i> &minus; <i>B</i>/(<i>T</i> + <i>C</i>), <i>T</i> in °C, with <i>A</i> = 6.90565, <i>B</i> = 1211.033, <i>C</i> = 220.790 for benzene and <i>A</i> = 6.95464, <i>B</i> = 1344.8, <i>C</i> = 219.482 for toluene (1 mmHg = 0.133322 kPa). Find the vapor pressure of each pure liquid (kPa), the pressure at which the liquid is in equilibrium with its vapor (kPa), and the benzene mole fraction in that vapor.</p>`,
   figure:p=>plot2({xl:"x benzene",yl:"p (kPa)",curves:[{pts:[0,.25,.5,.75,1].map(x=>[x,x*psat("benzene",p.T)+(1-x)*psat("toluene",p.T)]),col:"#2b5d8a"}],points:[{p:[p.x,p.x*psat("benzene",p.T)+(1-p.x)*psat("toluene",p.T)],l:"state",dx:8,dy:-8}],H:260,xr:[0,1],xt:[0,.2,.4,.6,.8,1]}),
   solution:(p,s)=>`<h3>1. Saturation pressures</h3><p>${eq(`p<sub>sat,B</sub> = ${sig(s.pb,4)} kPa`)} ${eq(`p<sub>sat,T</sub> = ${sig(s.pt,4)} kPa`)}</p>
   <h3>2. Raoult's law</h3><p>The partial pressure of each component is <i>x<sub>i</sub> p<sub>sat,i</sub></i>: ${eq(`p = x p<sub>sat,B</sub> + (1 &minus; x)p<sub>sat,T</sub> = ${p.x}(${sig(s.pb,4)}) + ${sig(1-p.x,3)}(${sig(s.pt,4)}) = ${sig(s.P,4)} kPa`)} ${eq(`y<sub>B</sub> = x p<sub>sat,B</sub>/p = ${sig(s.y,4)}`)}</p>
@@ -406,7 +406,7 @@ const HEN={O2:{H:4.38e4,M:32,n:"oxygen"},N2:{H:8.76e4,M:28.01,n:"nitrogen"},CO2:
 TEMPLATES["henrys-law"]={
   name:"Henry's law for a gas dissolved in water",
   generate(seed){const r=mulberry32(seed),g=pick(r,["O2","N2","CO2"]),pg=pick(r,[1,2,5,10]),yg=g==="CO2"?pick(r,[.2,.5,1]):pick(r,[.21,.79,1]),x=yg*pg/HEN[g].H,mgkg=x/(1-x)*HEN[g].M/18.015;return {p:{g,pg,yg},s:{x,pp:yg*pg,mgkg:mgkg*1000,mg:mgkg}}},
-  statement:p=>`<p>Liquid water at 25 °C is in contact with a gas mixture at a total pressure of ${p.pg} bar. ${p.yg===1?`The gas is pure ${GAS[p.g].name}.`:`The gas contains ${p.yg*100}% ${GAS[p.g].name} by mole, and the rest is insoluble in water.`} Henry's constant for ${HEN[p.g].n} in water at 25 °C is ${HEN[p.g].H} bar. Use Henry's law, <i>y<sub>i</sub> p</i> = <i>x<sub>i</sub> H</i>, to determine the mole fraction of ${HEN[p.g].n} dissolved in the water, and the mass of dissolved gas per kg of water, in g/kg.</p>`,
+  statement:p=>`<p>Water at 25 °C is exposed to a gas at a total pressure of ${p.pg} bar. ${p.yg===1?`The gas is pure ${GAS[p.g].name}.`:`The gas is ${p.yg*100} mol% ${GAS[p.g].name}; the balance does not dissolve in water.`} At 25 °C, the Henry's constant of ${HEN[p.g].n} in water is ${HEN[p.g].H} bar. Using <i>y<sub>i</sub> p</i> = <i>x<sub>i</sub> H</i>, find the mole fraction of ${HEN[p.g].n} in the water and the dissolved mass per kg of water (g/kg).</p>`,
   figure:p=>draw([{t:"rect",a:[0,0],b:[2.8,1.2],fill:"#c9dcee",l:"water, 25 °C"},{t:"rect",a:[0,1.2],b:[2.8,2.4],l:`gas, ${p.pg} bar`}],460,230),
   solution:(p,s)=>`<h3>1. Partial pressure</h3><p>${eq(`p<sub>i</sub> = y<sub>i</sub> p = ${p.yg}(${p.pg}) = ${sig(s.pp,4)} bar`)}</p><h3>2. Dissolved mole fraction</h3><p>${eq(`x<sub>i</sub> = p<sub>i</sub>/H = ${sig(s.pp,4)}/${HEN[p.g].H} = ${sig(s.x,4)}`)}</p><h3>3. Mass per kg of water</h3><p>${eq(`m<sub>g</sub>/m<sub>w</sub> = [x/(1 &minus; x)](M<sub>g</sub>/M<sub>w</sub>) = ${sig(s.mg,4)}`)} that is ${sig(s.mgkg,4)} g/kg.</p>
   <p class="final">x = ${sig(s.x,4)}; ${sig(s.mgkg,4)} g of gas per kg of water.</p>`,

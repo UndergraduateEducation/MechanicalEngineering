@@ -309,7 +309,7 @@ TEMPLATES["power-cycle-claim"]={
   generate(seed){const r=mulberry32(seed),p={Th:pick(r,[500,600,800,1000,1200]),Tc:pick(r,[300,320,350]),Qh:pick(r,[100,200,500,1000,2000]),eta:0};
     const em=1-p.Tc/p.Th;p.eta=+(em*pick(r,[.5,.7,.9,1.1,1.25])).toPrecision(2);p.eta=Math.min(p.eta,.9);p.W=+(p.eta*p.Qh).toPrecision(3);
     const eta=p.W/p.Qh;return {p,s:{eta:100*eta,Qc:p.Qh-p.W,em:100*em,ok:eta<=em+1e-9?"Possible":"Impossible",Wmax:em*p.Qh}}},
-  statement:p=>`<p>An inventor claims to have developed a power cycle that receives ${p.Qh} kW by heat transfer from a reservoir at ${p.Th} K, and delivers a net power output of ${p.W} kW while rejecting the remaining energy by heat transfer to a reservoir at ${p.Tc} K. Determine the thermal efficiency of the cycle, in percent, the rate of heat rejection, in kW, the maximum thermal efficiency possible for any cycle operating between these reservoirs, in percent, and whether the claim is possible.</p>`,
+  statement:p=>`<p>Someone claims to have built an engine that takes in ${p.Qh} kW of heat from a source at ${p.Th} K, produces ${p.W} kW of net power, and discards the rest as heat to a sink at ${p.Tc} K. Find the claimed thermal efficiency (%), the heat rejection rate (kW), the highest efficiency any engine could reach between these two temperatures (%), and whether the claim can be true.</p>`,
   figure:p=>hetFig("engine",`${p.Th} K`,`${p.Tc} K`,sbt("Q","H")+` = ${p.Qh} kW`,sbt("Q","C"),sbt("W","cycle")+` = ${p.W} kW`),
   solution:(p,s)=>`<h3>1. Efficiency and heat rejection</h3><p>${eq(`η = Ẇ<sub>cycle</sub>/Q̇<sub>H</sub> = ${p.W}/${p.Qh} = ${sig(s.eta/100)} = ${sig(s.eta)} %`)} ${eq(`Q̇<sub>C</sub> = Q̇<sub>H</sub> &minus; Ẇ<sub>cycle</sub> = ${sig(s.Qc)} kW`)}</p>
   <h3>2. Carnot limit</h3><p>${eq(`η<sub>max</sub> = 1 &minus; T<sub>C</sub>/T<sub>H</sub> = 1 &minus; ${p.Tc}/${p.Th} = ${sig(s.em/100)} = ${sig(s.em)} %`)}</p>
@@ -323,7 +323,7 @@ TEMPLATES["refrigerator-limit"]={
   name:"Refrigerator: maximum coefficient of performance and minimum power",
   generate(seed){const r=mulberry32(seed),p={Tc:pick(r,[250,255,260,265,275]),Th:pick(r,[295,300,305,310]),Qc:pick(r,[1,2,3,5,10]),f:pick(r,[.3,.5,.6,.8,1.1])};
     const cm=p.Tc/(p.Th-p.Tc);p.beta=+(cm*p.f).toPrecision(2);return {p,s:{cm,Wmin:p.Qc/cm,W:p.Qc/p.beta,ok:p.beta<=cm+1e-9?"Possible":"Impossible"}}},
-  statement:p=>`<p>A refrigeration cycle removes energy by heat transfer at a rate of ${p.Qc} kW from a cold space at ${p.Tc} K and discharges energy to the surroundings at ${p.Th} K. A manufacturer states that its coefficient of performance is ${p.beta}. Determine the maximum coefficient of performance of any refrigeration cycle operating between these temperatures, the minimum theoretical power input, in kW, the power input implied by the stated coefficient of performance, in kW, and whether the statement is possible.</p>`,
+  statement:p=>`<p>A refrigerator draws ${p.Qc} kW of heat out of a cold space at ${p.Tc} K and rejects heat to surroundings at ${p.Th} K. Its maker advertises a coefficient of performance of ${p.beta}. Find the largest coefficient of performance possible between these temperatures, the smallest power input that could do the job (kW), the power input that the advertised coefficient implies (kW), and whether the advertised figure is achievable.</p>`,
   figure:p=>hetFig("refrig",`${p.Th} K`,`${p.Tc} K`,sbt("Q","H"),sbt("Q","C")+` = ${p.Qc} kW`,sbt("W","cycle")),
   solution:(p,s)=>`<h3>1. Maximum coefficient of performance</h3><p>${eq(`β<sub>max</sub> = T<sub>C</sub>/(T<sub>H</sub> &minus; T<sub>C</sub>) = ${p.Tc}/(${p.Th} &minus; ${p.Tc}) = ${sig(s.cm)}`)}</p>
   <h3>2. Power</h3><p>${eq(`Ẇ<sub>min</sub> = Q̇<sub>C</sub>/β<sub>max</sub> = ${p.Qc}/${sig(s.cm)} = ${sig(s.Wmin)} kW`)} ${eq(`Ẇ<sub>stated</sub> = Q̇<sub>C</sub>/β = ${p.Qc}/${p.beta} = ${sig(s.W)} kW`)}</p>
@@ -337,7 +337,7 @@ TEMPLATES["heat-pump-house"]={
   name:"Heat pump heating a house",
   generate(seed){const r=mulberry32(seed),p={UA:pick(r,[200,250,300,400,500]),Ti:pick(r,[20,21,22]),To:pick(r,[-10,-5,0,5]),f:pick(r,[.4,.5,.6,.7])};
     const Q=p.UA*(p.Ti-p.To)/1000,cm=(p.Ti+273.15)/(p.Ti-p.To);return {p,s:{Q,cm,Wmin:Q/cm,cop:cm*p.f,W:Q/(cm*p.f)}}},
-  statement:p=>`<p>A house loses heat to the outdoors at a rate given by ${p.UA}(<i>T</i><sub>i</sub> &minus; <i>T</i><sub>o</sub>) watts, with temperatures in °C. The house is kept at ${p.Ti} °C by a heat pump while the outdoor temperature is ${p.To} °C. Determine the required heating rate, in kW, the maximum coefficient of performance of a heat pump between these temperatures, the minimum power input, in kW, and the power input, in kW, if the actual coefficient of performance is ${p.f*100}% of the maximum.</p>`,
+  statement:p=>`<p>A house loses heat at ${p.UA}(<i>T</i><sub>i</sub> &minus; <i>T</i><sub>o</sub>) watts, with both temperatures in °C. A heat pump holds the inside at ${p.Ti} °C while it is ${p.To} °C outdoors. Find the heating load (kW), the largest coefficient of performance a heat pump could have between these temperatures, the smallest possible power input (kW), and the power input (kW) when the real coefficient of performance is ${p.f*100}% of that largest value.</p>`,
   figure:p=>hetFig("hp",`house ${p.Ti} °C`,`outdoors ${p.To} °C`,sbt("Q","H"),sbt("Q","C"),sbt("W","cycle")),
   solution:(p,s)=>`<h3>1. Heating rate</h3><p>At steady state the heat pump must supply the heat loss: ${eq(`Q̇<sub>H</sub> = ${p.UA}(${p.Ti} &minus; (${p.To}))/1000 = ${sig(s.Q)} kW`)}</p>
   <h3>2. Limits</h3><p>${eq(`γ<sub>max</sub> = T<sub>H</sub>/(T<sub>H</sub> &minus; T<sub>C</sub>) = ${sig(p.Ti+273.15)}/${p.Ti-p.To} = ${sig(s.cm)}`)} ${eq(`Ẇ<sub>min</sub> = Q̇<sub>H</sub>/γ<sub>max</sub> = ${sig(s.Wmin)} kW`)}</p>
@@ -352,7 +352,7 @@ TEMPLATES["cycle-entropy-check"]={
   generate(seed){const r=mulberry32(seed),p={Th:pick(r,[500,600,800,1000]),Tc:pick(r,[300,350,400]),Qh:pick(r,[100,200,300,500])};if(p.Th===500&&p.Tc===400)p.Tc=350;
     const mode=pick(r,["rev","irr","imp"]),Qrev=p.Qh*p.Tc/p.Th,f=mode==="rev"?1:mode==="irr"?pick(r,[1.1,1.2,1.3]):pick(r,[.6,.75,.9]);p.Qc=+(Qrev*f).toPrecision(3);
     const sg=p.Qc/p.Tc-p.Qh/p.Th;return {p,s:{W:p.Qh-p.Qc,sg,cls:Math.abs(sg)<1e-3*p.Qh/p.Th?"Reversible":sg>0?"Irreversible":"Impossible"}}},
-  statement:p=>`<p>A power cycle receives ${p.Qh} kW by heat transfer from a reservoir at ${p.Th} K and rejects ${p.Qc} kW by heat transfer to a reservoir at ${p.Tc} K. There are no other heat transfers. Determine the net power developed, in kW, and the rate of entropy production of the cycle, in kW/K, and classify the cycle as reversible, irreversible, or impossible.</p>`,
+  statement:p=>`<p>A heat engine takes in ${p.Qh} kW from a reservoir at ${p.Th} K and rejects ${p.Qc} kW to a reservoir at ${p.Tc} K, with no other heat exchange. Find its net power (kW) and the entropy it generates per unit time (kW/K), and decide whether the cycle is reversible, irreversible, or impossible.</p>`,
   figure:p=>hetFig("engine",`${p.Th} K`,`${p.Tc} K`,sbt("Q","H")+` = ${p.Qh} kW`,sbt("Q","C")+` = ${p.Qc} kW`,sbt("W","cycle")),
   solution:(p,s)=>`<h3>1. Net power</h3><p>${eq(`Ẇ<sub>cycle</sub> = Q̇<sub>H</sub> &minus; Q̇<sub>C</sub> = ${p.Qh} &minus; ${p.Qc} = ${sig(s.W)} kW`)}</p>
   <h3>2. Entropy production</h3><p>The entropy balance for the cycle (the entropy change of the system over a cycle is zero) gives ${eq(`σ̇ = Q̇<sub>C</sub>/T<sub>C</sub> &minus; Q̇<sub>H</sub>/T<sub>H</sub> = ${p.Qc}/${p.Tc} &minus; ${p.Qh}/${p.Th} = ${sig(s.sg)} kW/K`)}</p>
@@ -366,7 +366,7 @@ TEMPLATES["carnot-cycle"]={
   name:"Carnot power cycle",
   generate(seed){const r=mulberry32(seed),p={Th:pick(r,[600,800,1000,1200,1500]),Tc:pick(r,[300,320,350,400]),Qh:pick(r,[100,200,500,800]),N:pick(r,[10,20,30,60])};
     const eta=1-p.Tc/p.Th,Wn=eta*p.Qh;return {p,s:{eta:100*eta,Wn,Qc:p.Qh-Wn,P:Wn*p.N/60}}},
-  statement:p=>`<p>A reversible power cycle of Carnot type uses a gas in a piston-cylinder assembly. During the isothermal expansion at ${p.Th} K the gas receives ${p.Qh} kJ by heat transfer, and the isothermal compression takes place at ${p.Tc} K. Determine the thermal efficiency, in percent, the net work per cycle, in kJ, the heat rejected per cycle, in kJ, and the net power, in kW, if the assembly executes ${p.N} cycles per minute.</p>`,
+  statement:p=>`<p>Gas in a piston-cylinder device runs a Carnot power cycle. It takes in ${p.Qh} kJ of heat during the isothermal expansion at ${p.Th} K and rejects heat during the isothermal compression at ${p.Tc} K. Find the thermal efficiency (%), the net work per cycle (kJ), the heat rejected per cycle (kJ), and the power output (kW) at ${p.N} cycles per minute.</p>`,
   figure:p=>{const T1=[],a=[1,2.5],b=[2.5*1.1,2.5*1.1];const c=(V0,V1,p0,n)=>Array.from({length:21},(_,i)=>{const V=V0+(V1-V0)*i/20;return [V,p0*(V0/V)**n]});
     const k=1.4,V1=1,V2=2,p1=4,Th=p.Th,Tc=p.Tc,V3=V2*3.2,V4=V1*3.2,p2=p1*V1/V2;const adia=(Va,pa,Vb)=>Array.from({length:21},(_,i)=>{const V=Va+(Vb-Va)*i/20;return [V,pa*(Va/V)**k]});const p3=p2*(V2/V3)**k;
     const A=[...c(V1,V2,p1,1),...adia(V2,p2,V3),...Array.from({length:21},(_,i)=>{const V=V3+(V4-V3)*i/20;return [V,p3*V3/V]}),...adia(V4,p3*V3/V4,V1)];
@@ -383,7 +383,7 @@ TEMPLATES["plant-fraction-carnot"]={
   name:"Power plant operating between a hot source and the environment",
   generate(seed){const r=mulberry32(seed),p={Th:pick(r,[120,150,180,250,300,400]),Tc:pick(r,[10,15,20,25]),f:pick(r,[.4,.5,.6,.7]),W:pick(r,[1,2,5,10,20,50])};
     const em=1-(p.Tc+273.15)/(p.Th+273.15),eta=p.f*em;return {p,s:{em:100*em,eta:100*eta,Qh:p.W/eta,Qc:p.W/eta-p.W}}},
-  statement:p=>`<p>A power plant uses a heat source at ${p.Th} °C and rejects heat to the environment at ${p.Tc} °C. The actual thermal efficiency of the plant is ${p.f*100}% of the maximum efficiency that any power cycle could have between these temperatures. The net power output is ${p.W} MW. Determine the maximum possible thermal efficiency, the actual thermal efficiency, in percent, the heat input rate, in MW, and the heat rejection rate, in MW.</p>`,
+  statement:p=>`<p>A power station draws heat from a source at ${p.Th} °C and rejects heat to the environment at ${p.Tc} °C. Its real efficiency is ${p.f*100}% of the theoretical limit for these two temperatures, and it delivers ${p.W} MW net. Find the theoretical efficiency limit, the actual efficiency (%), the rate of heat input (MW) and the rate of heat rejection (MW).</p>`,
   figure:p=>hetFig("engine",`source ${p.Th} °C`,`environment ${p.Tc} °C`,sbt("Q","H"),sbt("Q","C"),sbt("W","net")+` = ${p.W} MW`),
   solution:(p,s)=>`<h3>1. Efficiencies</h3><p>${eq(`η<sub>max</sub> = 1 &minus; (${p.Tc}+273.15)/(${p.Th}+273.15) = ${sig(s.em/100)} = ${sig(s.em)} %`)} ${eq(`η = ${p.f}(${sig(s.em)}) = ${sig(s.eta)} %`)}</p>
   <h3>2. Heat transfer rates</h3><p>${eq(`Q̇<sub>H</sub> = Ẇ/η = ${p.W}/${sig(s.eta/100)} = ${sig(s.Qh)} MW`)} ${eq(`Q̇<sub>C</sub> = Q̇<sub>H</sub> &minus; Ẇ = ${sig(s.Qc)} MW`)}</p>
@@ -396,7 +396,7 @@ TEMPLATES["carnot-sensitivity"]={
   name:"Effect of reservoir temperatures on the Carnot efficiency",
   generate(seed){const r=mulberry32(seed),p={Th:pick(r,[500,600,700,800,1000]),Tc:pick(r,[280,300,320,350]),d:pick(r,[20,30,50,80])};
     const e0=1-p.Tc/p.Th;return {p,s:{e0:100*e0,eh:100*(1-p.Tc/(p.Th+p.d)),ec:100*(1-(p.Tc-p.d)/p.Th)}}},
-  statement:p=>`<p>A reversible power cycle operates between a hot reservoir at ${p.Th} K and a cold reservoir at ${p.Tc} K. Determine its thermal efficiency, in percent. Then determine the efficiency if (a) the hot reservoir temperature is increased by ${p.d} K, and (b) the cold reservoir temperature is decreased by ${p.d} K, in each case with the other temperature unchanged.</p>`,
+  statement:p=>`<p>A reversible heat engine runs between reservoirs at ${p.Th} K and ${p.Tc} K. Find its thermal efficiency (%). Then find the new efficiency if (a) the hot reservoir is made ${p.d} K hotter, or (b) the cold reservoir is made ${p.d} K colder, changing only one temperature each time.</p>`,
   figure:p=>hetFig("engine",`${p.Th} K`,`${p.Tc} K`,sbt("Q","H"),sbt("Q","C"),sbt("W","cycle")),
   solution:(p,s)=>`<p>${eq(`η = 1 &minus; T<sub>C</sub>/T<sub>H</sub> = 1 &minus; ${p.Tc}/${p.Th} = ${sig(s.e0)} %`)}</p><p>(a) ${eq(`η = 1 &minus; ${p.Tc}/${p.Th+p.d} = ${sig(s.eh)} %`)}</p><p>(b) ${eq(`η = 1 &minus; ${p.Tc-p.d}/${p.Th} = ${sig(s.ec)} %`)}</p>
   <p class="final">η = ${sig(s.e0,3)} %; (a) ${sig(s.eh,3)} %; (b) ${sig(s.ec,3)} %.</p>`,
@@ -408,7 +408,7 @@ TEMPLATES["heatpump-cost"]={
   name:"Cost of heating: heat pump versus electric resistance",
   generate(seed){const r=mulberry32(seed),p={Q:pick(r,[10000,15000,20000,30000]),cop:pick(r,[2.5,3,3.5,4]),c:pick(r,[0.10,0.12,0.15,0.18])};
     const Rc=p.Q*p.c,Hc=p.Q/p.cop*p.c;return {p,s:{Rc,Hc,sav:Rc-Hc,pw:p.Q/p.cop}}},
-  statement:p=>`<p>A building needs ${fmt(p.Q)} kWh of heating energy during a winter season. A heat pump with an average coefficient of performance of ${p.cop} is compared with electric resistance heating, which converts each kWh of electricity to 1 kWh of heat. Electricity costs $${p.c.toFixed(2)} per kWh. Determine the electrical energy used by the heat pump, in kWh, the season cost of each option, in dollars, and the savings from the heat pump, in dollars.</p>`,
+  statement:p=>`<p>A building requires ${fmt(p.Q)} kWh of heat over one heating season. Option 1 is a heat pump with a seasonal average coefficient of performance of ${p.cop}; option 2 is electric resistance heating, which turns each kWh of electricity into 1 kWh of heat. Electricity is priced at $${p.c.toFixed(2)} per kWh. Find the electricity used by the heat pump (kWh), the seasonal cost of each option ($), and the amount saved with the heat pump ($).</p>`,
   figure:p=>hetFig("hp","building","outdoors",sbt("Q","H"),sbt("Q","C"),sbt("W","elec")),
   solution:(p,s)=>`<p>${eq(`W<sub>hp</sub> = Q/γ = ${p.Q}/${p.cop} = ${sig(s.pw)} kWh`)}</p><p>${eq(`cost<sub>resistance</sub> = ${p.Q}(${p.c}) = $${sig(s.Rc)}`)} ${eq(`cost<sub>heat pump</sub> = ${sig(s.pw)}(${p.c}) = $${sig(s.Hc)}`)} ${eq(`savings = $${sig(s.sav)}`)}</p>
   <p class="final">W<sub>hp</sub> = ${sig(s.pw,4)} kWh; resistance $${sig(s.Rc,4)}; heat pump $${sig(s.Hc,4)}; savings $${sig(s.sav,4)}.</p>`,

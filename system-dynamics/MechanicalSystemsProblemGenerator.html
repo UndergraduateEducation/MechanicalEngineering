@@ -274,7 +274,7 @@ TEMPLATES["brake-deceleration"]={
   generate(seed){const r=mulberry32(seed);
     const w0=pick(r,range(60,200,10)),w1=pick(r,range(10,w0-30,10)),t=pick(r,range(5,20,1));
     return {p:{w0,w1,t},s:{al:(w1-w0)/t,th:(w0+w1)*t/2}};},
-  statement:p=>`<p>A brake is applied to a flywheel rotating at ${p.w0} rad/s. The angular velocity decreases uniformly to ${p.w1} rad/s in ${p.t} s. Determine the angular acceleration α (negative for a deceleration) and the total angle θ through which the flywheel turns during the ${p.t}-s interval.</p>`,
+  statement:p=>`<p>A flywheel spinning at ${p.w0} rad/s is braked so that its speed falls at a constant rate, reaching ${p.w1} rad/s after ${p.t} s. Determine the angular acceleration α (negative for a deceleration) and the total angle θ through which the flywheel turns during the ${p.t}-s interval.</p>`,
   solution:(p,s)=>`<h3>1. Angular acceleration</h3>
   <p>${eq(`α = (ω<sub>1</sub> − ω<sub>0</sub>)/<i>t</i> = (${p.w1} − ${p.w0})/${p.t} = ${sig(s.al)} rad/s²`)}</p>
   <h3>2. Angle turned</h3>

@@ -175,7 +175,7 @@ TEMPLATES["velocity-feedback"]={
       if(kh<0.02) continue;
       return {p,s:{wn,kh,tp:PI/wdOf(p.z,wn),Mp:MpOf(p.z)}};}
     throw new Error("no valid problem");},
-  statement:p=>`<p>The position control system in the figure has a minor feedback loop of gain <i>k</i> that feeds back the velocity, the output of the block ${nf(p.K)}/(${S} + ${nf(p.a)}). Determine the value of <i>k</i> for which the closed-loop poles have a damping ratio ${ze} = ${p.z}. Then determine the undamped natural frequency ${wn_}, the peak time <i>t<sub>p</sub></i>, and the maximum percent overshoot <i>M<sub>p</sub></i> of the unit-step response.</p>`,
+  statement:p=>`<p>The position control system in the figure has a minor feedback loop of gain <i>k</i> that feeds back the velocity, the output of the block ${nf(p.K)}/(${S} + ${nf(p.a)}). Choose <i>k</i> so that the damping ratio of the closed-loop poles equals ${ze} = ${p.z}. Then determine the undamped natural frequency ${wn_}, the peak time <i>t<sub>p</sub></i>, and the maximum percent overshoot <i>M<sub>p</sub></i> of the unit-step response.</p>`,
   figure:p=>velFig(nf(p.K),`s + ${nf(p.a)}`,"k"),
   solution:(p,s)=>`<h3>1. Reduce the block diagram</h3>
   <p>The minor loop gives ${eq(`${frac(p.K,`${S} + ${nf(p.a)} + ${p.K}<i>k</i>`)}`)}, and closing the unity loop around it and the integrator gives</p>
