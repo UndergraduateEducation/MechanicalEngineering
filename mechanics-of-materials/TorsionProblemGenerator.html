@@ -646,7 +646,7 @@ const TW={name:"Thin-walled rectangular tube: shear flow, stresses, angle of twi
     {id:"tau1",label:"Shear stress in top and bottom walls",unit:u.S},{id:"tau2",label:"Shear stress in side walls",unit:u.S},{id:"th",label:"Angle of twist",unit:"degrees"},{id:"Tw",label:"Largest torque",unit:u.T}]},
   truth:(p,s)=>({A0:s.A0,q:s.q,tau1:s.tau1*TU(p.us).sf,tau2:s.tau2*TU(p.us).sf,th:s.th,Tw:s.Tw*TU(p.us).tf}),note:"Answers within 2% are accepted."};
 
-// ===== 8. rectangular and circular segments in series (Table 3.1 coefficients)
+// ===== 8. rectangular and circular segments in series (coefficients C1, C2 given in the statement)
 const RT31=[[1.0,0.208,0.141],[1.2,0.219,0.166],[1.5,0.231,0.196],[2.0,0.246,0.229],[2.5,0.258,0.249],[3.0,0.267,0.263],[4.0,0.282,0.281],[5.0,0.291,0.291],[10.0,0.312,0.312]];
 function rsGenerate(seed){
   const r=mulberry32(seed);
@@ -663,13 +663,22 @@ function rsGenerate(seed){
   throw new Error("no valid problem");
 }
 function rsFigure(p){
-  const u=TU(p.us),x0=140,W=480,sc=W/(p.L[0]+p.L[1]),xB=x0+p.L[0]*sc,yc=140,mx=Math.max(p.a,p.d),k=110/mx,hb=p.b*k,ha=p.a*k,rr=p.d*k/2;
-  let b=WALLV(x0,yc-90,yc+90,true)+CYL(xB,x0+W,yc,rr,GFILL[p.m])
-   +`<polygon points="${x0},${yc-ha/2} ${xB},${yc-ha/2} ${xB},${yc+ha/2} ${x0},${yc+ha/2}" fill="${GFILL[p.m]}" stroke="${C.steelln}" stroke-width="1.5"/>`
-   +`<polygon points="${x0},${yc-ha/2} ${x0+hb*0.5},${yc-ha/2-hb*0.35} ${xB+hb*0.5},${yc-ha/2-hb*0.35} ${xB},${yc-ha/2}" fill="#f4f5f2" stroke="${C.steelln}" stroke-width="1.5"/>`
-   +TV(x0+W+30,yc,1,"T")+TX((x0+xB)/2,yc+5,`${p.a} × ${p.b} ${u.L}`,{s:12})+TX((xB+x0+W)/2,yc+5,`d = ${p.d} ${u.L}`,{s:12})
-   +DIMH(x0,xB,yc+90,`${lb_(p.L[0],p.us)} ${u.Lb}`)+DIMH(xB,x0+W,yc+90,`${lb_(p.L[1],p.us)} ${u.Lb}`);
-  return SVG(760,260,b);
+  // oblique view: front face a (height) by L1, depth b drawn at (dx,-dy); the shaft is attached at the centre of the end face
+  const u=TU(p.us),x0=150,W=470,sc=W/(p.L[0]+p.L[1]),xB=x0+p.L[0]*sc,yc=150,mx=Math.max(p.a,p.d),k=100/mx,ha=p.a*k,hb=p.b*k,rr=p.d*k/2,dx=0.45*hb,dy=0.32*hb;
+  const ft=yc+dy/2-ha/2,fb=yc+dy/2+ha/2,xs=xB+dx/2,xe=xs+p.L[1]*sc,yb=Math.max(fb,yc+rr),st=`stroke="${C.steelln}" stroke-width="1.5"`;
+  const bar=`<polygon points="${x0},${ft} ${x0+dx},${ft-dy} ${xB+dx},${ft-dy} ${xB},${ft}" fill="#f4f5f2" ${st}/>`
+   +`<polygon points="${x0},${ft} ${xB},${ft} ${xB},${fb} ${x0},${fb}" fill="${GFILL[p.m]}" ${st}/>`
+   +`<polygon points="${xB},${ft} ${xB+dx},${ft-dy} ${xB+dx},${fb-dy} ${xB},${fb}" fill="#cfc2a8" ${st}/>`;
+  // a shaft narrower than the end face leaves it; a wider shaft shows its own end face behind the bar
+  let b=2*rr<ha?bar+CYL(xs,xe,yc,rr,GFILL[p.m],false,true):CYL(xs,xe,yc,rr,GFILL[p.m])+bar;
+  const yl=Math.min(ft-dy,yc-rr)-10;
+  b+=WALLV(x0,Math.min(ft-dy,yc-rr)-14,yb+14,true)
+   +AR(xB-22,yc+dy/2,xB-22,ft+1,C.dim,1)+AR(xB-22,yc+dy/2,xB-22,fb-1,C.dim,1)+TX(xB-30,yc+dy/2+4,`a = ${p.a} ${u.L}`,{s:13,c:C.dim,a:"end"})
+   +LN(xB+dx/2,ft-dy/2,xB+dx/2+6,yl+4,{c:C.dim,w:.8})+TX(xB+dx/2+8,yl,`b = ${p.b} ${u.L}`,{s:13,c:C.dim,a:"start"})
+   +TX((xs+xe)/2+(2*rr<ha?0:20),yc-rr-10,`d = ${p.d} ${u.L}`,{s:13})
+   +TV(xe+14,yc,1,"T")
+   +DIMH(x0+dx/2,xs,yb+34,`${lb_(p.L[0],p.us)} ${u.Lb}`)+DIMH(xs,xe,yb+34,`${lb_(p.L[1],p.us)} ${u.Lb}`);
+  return SVG(760,yb+64,b);
 }
 function rsStatement(p){
   const u=TU(p.us),Gs=p.m==="wood"?(p.us?"G = 75 000 psi":"G = 0.5 GPa"):Gstr(p.m,p.us),ws=p.us?fmt(p.tw)+" psi":p.tw+" MPa";
@@ -682,7 +691,7 @@ function rsSolution(p,s){
   <p class="final">T<sub>max</sub> = ${tq(s.T,p.us)} ${u.T}, governed by the ${s.gov.toLowerCase()}.</p>
   <h3>2. Angle of twist</h3><p>Rectangular: θ = TL/(C₂ab³G) = ${sig(s.thr)}°. Circular: θ = TL/(GJ) = ${sig(s.thc)}°.</p><p class="final">θ = ${sig(s.th)}°</p>`;
 }
-const RS={name:"Rectangular and circular bar segments in series (Table 3.1)",
+const RS={name:"Rectangular and circular bar segments in series",
   generate:rsGenerate,figure:rsFigure,statement:rsStatement,solution:rsSolution,
   fields:p=>{const u=TU(p.us);return [{id:"Tr",label:"Largest torque, rectangular segment",unit:u.T},{id:"Tc",label:"Largest torque, circular segment",unit:u.T},{id:"T",label:"Largest safe torque",unit:u.T},
     {id:"gov",label:"Governing segment",unit:"",choices:["Rectangular segment","Circular segment"]},{id:"th",label:"Angle of twist of the free end",unit:"degrees"}]},
