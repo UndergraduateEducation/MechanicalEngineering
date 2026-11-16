@@ -476,10 +476,26 @@ function pdGenerate(seed){
   throw new Error("no valid problem");
 }
 function pdFigure(p){
-  const u=TU(p.us);
-  let b=RC(70,95,90,90,{f:"#c9ced6",c:C.steelln})+TX(115,145,"motor",{s:13})+CYL(160,560,140,22,GFILL[p.m])+RC(560,70,22,140,{f:"#c9ced6",c:C.steelln})
-   +TX(360,90,`${p.P} ${p.us?"hp":"kW"} at ${p.us?p.f+" rev/min":p.f+" Hz"}`,{s:14,c:C.load})+DIMH(160,560,210,`twist limited to ${p.th}° in ${lb_(p.L,p.us)} ${u.Lb}`)+TX(371,145,"d = ?",{s:13});
-  return SVG(760,240,b);
+  const u=TU(p.us),yc=135,g=222,xm=250,xe=640,xa=300,xb=555,xp=600,sl={c:C.steelln,w:1.5},body={f:"#c9ced6",c:C.steelln};
+  let b=HATCH(50,g,640,10)+LN(50,g,690,g,sl);
+  // motor: finned frame, end bell, mounting base
+  b+=RC(80,g-14,150,14,body)+RC(95,g-28,120,14,body)
+   +`<rect x="60" y="${yc-55}" width="170" height="110" rx="8" fill="#c9ced6" stroke="${C.steelln}" stroke-width="1.5"/>`;
+  for(let y=yc-44;y<=yc+44;y+=11) if(Math.abs(y-yc)>14) b+=LN(66,y,224,y,{c:C.steelln,w:1});
+  b+=`<rect x="105" y="${yc-11}" width="80" height="22" rx="3" fill="#eef1f4" stroke="${C.steelln}" stroke-width="1"/>`+TX(145,yc+5,"motor",{s:13})
+   +RC(230,yc-40,xm-230,80,body);
+  // shaft (left end inside the motor bell), pulley, bearings
+  b+=CYL(xm,xe,yc,12,GFILL[p.m],false,true);
+  b+=RC(xp,yc-62,26,124,{f:"#b8bec7",c:C.steelln})+RC(xp-8,yc-20,42,40,{f:"#c9ced6",c:C.steelln})
+   +LN(xp,yc-50,xp+26,yc-50,{c:C.steelln,w:1})+LN(xp,yc+50,xp+26,yc+50,{c:C.steelln,w:1})+TX(xp+40,yc-48,"pulley",{s:12,c:C.dim,a:"start"});
+  [xa,xb].forEach(x=>{b+=RC(x-24,g-12,48,12,body)+`<path d="M${x-16},${g-12} L${x-16},${yc-8} A16,16 0 0 1 ${x+16},${yc-8} L${x+16},${g-12} Z" fill="#c9ced6" stroke="${C.steelln}" stroke-width="1.5"/>`
+    +LN(x-16,yc+16,x+16,yc+16,{c:C.steelln,w:1})+TX(x,g+26,"bearing",{s:12,c:C.dim})});
+  // sense of rotation, power, diameter
+  const xr=430;b+=`<path d="M${xr},${yc-22} A8,22 0 0 1 ${xr},${yc+22}" fill="none" stroke="${C.load}" stroke-width="2"/>`+`<polygon points="${xr},${yc+22} ${xr+9},${yc+15} ${xr+8},${yc+26}" fill="${C.load}"/>`
+   +TX(xr,yc-34,`${p.P} ${p.us?"hp":"kW"} at ${p.us?p.f+" rev/min":p.f+" Hz"}`,{s:14,c:C.load})
+   +LN(470,yc+12,490,yc+40,{c:C.dim,w:.8})+TX(500,yc+52,"d = ?",{s:13,a:"start"});
+  b+=DIMH(xm,xp,40,`twist limited to ${p.th}° in ${lb_(p.L,p.us)} ${u.Lb}`,{up:1})+LN(xm,46,xm,yc-14,{c:C.dim,w:.8,d:"3 3"})+LN(xp,46,xp,yc-64,{c:C.dim,w:.8,d:"3 3"});
+  return SVG(760,256,b);
 }
 function pdStatement(p){
   const u=TU(p.us);
