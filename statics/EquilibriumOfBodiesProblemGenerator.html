@@ -192,7 +192,7 @@ TEMPLATES["beam-pin-roller"]={
       if(By<.1*tot||Math.abs(Ay)<.05*tot||Math.abs(Ax)<.05*tot) continue;
       return {p,s:{P2x,P2y,Ax,Ay,By}};}
     throw new Error("no valid problem");},
-  statement:p=>`<p>A beam of length ${p.L} ${LU(p)} is supported by a pin at <i>A</i> and a roller at <i>B</i>. It carries a vertical force <i>P</i><sub>1</sub> = ${p.P1} ${FU(p)} downward at ${p.a1} ${LU(p)} from <i>A</i>, a force <i>P</i><sub>2</sub> = ${p.P2} ${FU(p)} at ${p.a2} ${LU(p)} directed at ${p.th}° counterclockwise from the positive <i>x</i> axis, and a couple of moment ${Math.abs(p.C)} ${MU(p)} (${sg(p.C)}) at ${p.a3} ${LU(p)}. Neglect the weight of the beam. Determine the reactions at <i>A</i> and <i>B</i>. Take <i>A<sub>x</sub></i> positive to the right and <i>A<sub>y</sub></i> and <i>B<sub>y</sub></i> positive upward.</p>`,
+  statement:p=>`<p>A ${p.L} ${LU(p)} beam has a pin at <i>A</i> and a roller at <i>B</i>. It carries a vertical force <i>P</i><sub>1</sub> = ${p.P1} ${FU(p)} downward at ${p.a1} ${LU(p)} from <i>A</i>, a force <i>P</i><sub>2</sub> = ${p.P2} ${FU(p)} at ${p.a2} ${LU(p)} directed at ${p.th}° counterclockwise from the positive <i>x</i> axis, and a couple of moment ${Math.abs(p.C)} ${MU(p)} (${sg(p.C)}) at ${p.a3} ${LU(p)}. Neglect the weight of the beam. Determine the reactions at <i>A</i> and <i>B</i>. Take <i>A<sub>x</sub></i> positive to the right and <i>A<sub>y</sub></i> and <i>B<sub>y</sub></i> positive upward.</p>`,
   figure:p=>{const k=Math.max(.35,p.L/12),e=[...beamBase(p.L,k),...pinS(0,k),...rollS(p.L,k)];
     e.push({a:[p.a1,1.5],b:[p.a1,.15],c:"r"},{t:"txt",p:[p.a1,1.85],l:sbt("P",1)+" = "+p.P1+" "+FU(p),an:p.a1<p.a2?"end":"start"});
     const dx=cs(p.th),dy=sn(p.th);e.push({a:[p.a2-1.7*dx,-1.7*dy],b:[p.a2,0],c:"r"},{t:"txt",p:[p.a2-1.7*dx,-1.7*dy+(dy<0?.4:-.7)],l:sbt("P",2)+" = "+p.P2+" "+FU(p),an:p.a1<p.a2?"start":"end"});
@@ -224,7 +224,7 @@ TEMPLATES["beam-distributed"]={
       if(By<.1*(Fw+p.P)||Ay<.1*(Fw+p.P)) continue;
       return {p,s:{Fw,xb,By,Ay}};}
     throw new Error("no valid problem");},
-  statement:p=>`<p>A beam of length ${p.L} ${LU(p)} is supported by a pin at <i>A</i> and a roller at <i>B</i>. A uniform distributed load of intensity <i>w</i> = ${p.w} ${WU(p)} acts downward from ${p.a} ${LU(p)} to ${p.b} ${LU(p)} measured from <i>A</i>, and a point load <i>P</i> = ${p.P} ${FU(p)} acts downward at ${p.c} ${LU(p)} from <i>A</i>. Neglect the weight of the beam. Determine the resultant of the distributed load, its distance from <i>A</i>, and the vertical reactions at <i>A</i> and <i>B</i>.</p>`,
+  statement:p=>`<p>A ${p.L} ${LU(p)} beam rests on a pin at <i>A</i> and a roller at <i>B</i>. A uniform distributed load of intensity <i>w</i> = ${p.w} ${WU(p)} acts downward from ${p.a} ${LU(p)} to ${p.b} ${LU(p)} measured from <i>A</i>, and a point load <i>P</i> = ${p.P} ${FU(p)} acts downward at ${p.c} ${LU(p)} from <i>A</i>. Neglect the weight of the beam. Determine the resultant of the distributed load, its distance from <i>A</i>, and the vertical reactions at <i>A</i> and <i>B</i>.</p>`,
   figure:p=>{const k=Math.max(.35,p.L/12),e=[...beamBase(p.L,k),...pinS(0,k),...rollS(p.L,k)];
     e.push({t:"poly",pts:[[p.a,.15],[p.a,1],[p.b,1],[p.b,.15]],fill:"#f4d6d6"});
     for(let x=p.a;x<=p.b+1e-9;x+=(p.b-p.a)/Math.max(2,Math.round(p.b-p.a)))e.push({a:[x,1],b:[x,.15],c:"r",w:1.6});
@@ -431,6 +431,224 @@ TEMPLATES["boom-ball-cables-3d"]={
 };
 
 
+// 9. meshing spur gears (pressure angle)
+const gLen=(p,v)=>p.us?v/12:v/1000;
+TEMPLATES["gears-mesh"]={
+  name:"Two meshing spur gears: tooth force and bearing reaction",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const us=r()<.5,rA=us?pick(r,range(2,6,.5)):pick(r,range(50,150,10)),rB=us?pick(r,range(3,10,.5)):pick(r,range(80,250,10)),
+        p={us,rA,rB,M:us?pick(r,range(20,200,10)):pick(r,range(20,300,10)),ph:pick(r,[14.5,20,25])};
+      if(Math.abs(rA-rB)<.15*rB||Math.max(rA,rB)>2.5*Math.min(rA,rB)) continue;
+      const Ft=p.M/gLen(p,rA),F=Ft/cs(p.ph),MB=Ft*gLen(p,rB),Bx=-F*sn(p.ph),By=-F*cs(p.ph);
+      return {p,s:{Ft,F,MB,Bx,By}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>Gear <i>A</i> (pitch radius ${p.rA} ${SU(p)}) drives gear <i>B</i> (pitch radius ${p.rB} ${SU(p)}). Both turn on fixed axles whose centers lie on a horizontal line, with <i>A</i> on the left, and the system is at rest. A counterclockwise couple <i>M<sub>A</sub></i> = ${p.M} ${MU(p)} acts on gear <i>A</i>; a couple <i>M<sub>B</sub></i> acts on gear <i>B</i> to hold it. The teeth push on each other along a line inclined at the pressure angle <i>φ</i> = ${p.ph}° to the common tangent, in the direction that pushes the gears apart. Gear weights are negligible. Find the tangential and total tooth contact forces, the couple <i>M<sub>B</sub></i>, and the force components that the axle exerts on gear <i>B</i> (right and up positive).</p>`,
+  figure:p=>{const a=p.rA,b=p.rB,xB=a+b,h=.07*Math.min(a,b),e=[];
+    const gear=(cx,R,fill,ph)=>{const n=Math.max(12,Math.round(R/h*1.6)),pts=[];for(let i=0;i<n;i++)[[0,R-h],[.18,R-h],[.32,R+h],[.68,R+h],[.82,R-h]].forEach(([f,rr])=>{const t=(i+f)/n*360+ph;pts.push([cx+rr*cs(t),rr*sn(t)])});return {t:"poly",pts,fill}};
+    e.push(gear(0,a,"#e7eef6",0),gear(xB,b,"#efe6d4",180/Math.max(12,Math.round(b/h*1.6))),{t:"pt",p:[0,0],l:it("A"),dx:-16,dy:-8,r:4},{t:"pt",p:[xB,0],l:it("B"),dx:8,dy:-8,r:4});
+    const L=.8*Math.min(a,b);e.push({a:[a-L*sn(p.ph),-L*cs(p.ph)],b:[a+L*sn(p.ph),L*cs(p.ph)],t:"ln",c:"b",d:1,w:1.4},{a:[a,-L],b:[a,L],t:"ln",c:"x",d:1,w:1});
+    e.push({t:"arc",p:[a,0],r:.75*L,t0:90-p.ph,t1:90,l:`${it("φ")} = ${p.ph}°`,lr:2},{t:"pt",p:[a,0],r:3});
+    e.push({t:"carc",p:[0,0],ccw:1,r:22,below:1},{t:"txt",p:[0,-a-4*h],l:`${sbt("M","A")} = ${p.M} ${MU(p)} (counterclockwise)`});
+    e.push({t:"dim",a:[0,0],b:[a*cs(135),a*sn(135)],l:`${p.rA} ${SU(p)}`,flip:1},{t:"dim",a:[xB,0],b:[xB+b*cs(45),b*sn(45)],l:`${p.rB} ${SU(p)}`});
+    return draw(e,600,380)},
+  solution:(p,s)=>`<h3>1. Tangential force from gear A</h3>
+  <p>Take moments about the axle of <i>A</i>. Only the tangential component <i>F<sub>t</sub></i> of the tooth force has a moment arm (the pitch radius); the separating component passes through the axle.</p>
+  <p>${eq(`F<sub>t</sub> = M<sub>A</sub>/r<sub>A</sub> = ${p.M}/${sig(gLen(p,p.rA))} = ${sig(s.Ft)} ${FU(p)}`)}</p>
+  <h3>2. Total tooth force</h3>
+  <p>The tooth force acts along the line inclined at <i>φ</i> to the common tangent, so ${eq(`F = F<sub>t</sub>/cos φ = ${sig(s.Ft)}/cos ${p.ph}° = ${sig(s.F)} ${FU(p)}`)}</p>
+  <h3>3. Equilibrium of gear B</h3>
+  <p>On gear <i>B</i> the tooth force has components ${eq(`(F sin φ, F cos φ) = (${sig(s.F*sn(p.ph))}, ${sig(s.F*cs(p.ph))}) ${FU(p)}`)}, applied at its pitch circle. Moments about its axle give ${eq(`M<sub>B</sub> = F<sub>t</sub> r<sub>B</sub> = ${sig(s.Ft)}(${sig(gLen(p,p.rB))}) = ${sig(s.MB)} ${MU(p)}`)} (counterclockwise). Force equilibrium gives the axle force ${eq(`B<sub>x</sub> = ${sig(s.Bx)} ${FU(p)}, B<sub>y</sub> = ${sig(s.By)} ${FU(p)}`)}</p>
+  <p class="final">F<sub>t</sub> = ${sig(s.Ft,3)} ${FU(p)}, F = ${sig(s.F,3)} ${FU(p)}, M<sub>B</sub> = ${sig(s.MB,3)} ${MU(p)}, B<sub>x</sub> = ${sig(s.Bx,3)} ${FU(p)}, B<sub>y</sub> = ${sig(s.By,3)} ${FU(p)}.</p>
+  <p class="note">The couple ratio M<sub>B</sub>/M<sub>A</sub> equals r<sub>B</sub>/r<sub>A</sub> whatever the pressure angle; the pressure angle only changes the axle loads.</p>`,
+  fields:p=>[{id:"Ft",label:"Tangential tooth force F<sub>t</sub>",unit:FU(p)},{id:"F",label:"Total tooth force F",unit:FU(p)},{id:"MB",label:"Couple M<sub>B</sub> on gear B",unit:MU(p)},{id:"Bx",label:"B<sub>x</sub> (right positive)",unit:FU(p),signed:true},{id:"By",label:"B<sub>y</sub> (up positive)",unit:FU(p),signed:true}],
+  truth:s=>({Ft:s.Ft,F:s.F,MB:s.MB,Bx:s.Bx,By:s.By}),
+  note:"Axle force components are signed: right and up are positive."
+};
+
+// 10. rigid bar on a pin and a spring
+TEMPLATES["bar-spring"]={
+  name:"Rigid bar on a pin and a spring: spring force and deflection",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const us=r()<.5,L=ri(r,4,9),c=ri(r,1,L-1),a=ri(r,1,L),p={us,L,c,a,P:us?pick(r,range(50,400,25)):pick(r,range(200,2000,100)),k:us?pick(r,range(200,1500,100)):pick(r,range(20,200,10))};
+      if(a===c) continue;
+      const Fs=p.P*a/c,d=Fs/p.k,dB=d*L/c,Ay=p.P-Fs;
+      if(Math.abs(Ay)<.05*p.P) continue;
+      return {p,s:{Fs,d,dB,Ay}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A rigid horizontal bar <i>AB</i>, ${p.L} ${LU(p)} long and of negligible weight, is pinned at <i>A</i> and rests on a vertical spring at <i>C</i>, ${p.c} ${LU(p)} from <i>A</i>. The spring stiffness is <i>k</i> = ${p.k} ${KU(p)}, and the bar is horizontal before loading. A downward load <i>P</i> = ${p.P} ${FU(p)} is applied ${p.a} ${LU(p)} from <i>A</i>. Treat the rotation of the bar as small. Find the spring force, the spring compression, the downward deflection of end <i>B</i>, and the pin reaction <i>A<sub>y</sub></i> (up positive).</p>`,
+  figure:p=>{const k=Math.max(.35,p.L/12),e=[...beamBase(p.L,k),...pinS(0,k)];
+    e.push({t:"spring",a:[p.c,-2.2*k],b:[p.c,-.1]},gnd(p.c,-2.2*k,k),{t:"pt",p:[p.c,0],l:it("C"),dx:6,dy:-10,r:3.5});
+    e.push({a:[p.a,1.6],b:[p.a,.15],c:"r"},{t:"txt",p:[p.a,1.95],l:`${it("P")} = ${p.P} ${FU(p)}`},{t:"txt",p:[p.c+.45,-1.3*k],l:`${it("k")} = ${p.k} ${KU(p)}`,an:"start"});
+    e.push(...dimsBelow(p.L,[p.c,p.a,p.L],-2.4*k-1.2,p));
+    return draw(e,600,380)},
+  solution:(p,s)=>`<h3>1. Moments about A</h3>
+  <p>The spring pushes up on the bar at <i>C</i> with force <i>F<sub>s</sub></i>: ${eq(`ΣM<sub>A</sub> = 0: F<sub>s</sub>(${p.c}) &minus; ${p.P}(${p.a}) = 0`)} so ${eq(`F<sub>s</sub> = ${sig(s.Fs)} ${FU(p)}`)}</p>
+  <h3>2. Spring compression</h3>
+  <p>${eq(`δ<sub>C</sub> = F<sub>s</sub>/k = ${sig(s.Fs)}/${p.k} = ${sig(s.d)} ${SU(p)}`)}</p>
+  <h3>3. Deflection of B</h3>
+  <p>The bar is rigid and turns about <i>A</i>, so deflections grow in proportion to distance from <i>A</i>: ${eq(`δ<sub>B</sub> = δ<sub>C</sub>(L/c) = ${sig(s.d)}(${p.L}/${p.c}) = ${sig(s.dB)} ${SU(p)}`)}</p>
+  <h3>4. Pin reaction</h3>
+  <p>${eq(`ΣF<sub>y</sub> = 0: A<sub>y</sub> + F<sub>s</sub> &minus; P = 0`)} so ${eq(`A<sub>y</sub> = ${sig(s.Ay)} ${FU(p)}`)}</p>
+  <p class="final">F<sub>s</sub> = ${sig(s.Fs,3)} ${FU(p)}, δ<sub>C</sub> = ${sig(s.d,3)} ${SU(p)}, δ<sub>B</sub> = ${sig(s.dB,3)} ${SU(p)}, A<sub>y</sub> = ${sig(s.Ay,3)} ${FU(p)}.</p>`,
+  fields:p=>[{id:"Fs",label:"Spring force F<sub>s</sub>",unit:FU(p)},{id:"d",label:"Spring compression",unit:SU(p)},{id:"dB",label:"Deflection of B",unit:SU(p)},{id:"Ay",label:"A<sub>y</sub> (up positive)",unit:FU(p),signed:true}],
+  truth:s=>({Fs:s.Fs,d:s.d,dB:s.dB,Ay:s.Ay}),
+  note:"A<sub>y</sub> is signed (up positive); the other answers are magnitudes."
+};
+
+// 11. static determinacy and proper support
+const DET_CASES=[
+  {d:"a pin at A and a roller on a horizontal surface at B",s:[["pin",0],["roll",1]],u:3,c:0,why:"three reactions whose lines of action are neither all parallel nor concurrent"},
+  {d:"a pin at A and a second pin at B",s:[["pin",0],["pin",1]],u:4,c:1,why:"four reactions, one more than the three equilibrium equations"},
+  {d:"a fixed support at A and a roller on a horizontal surface at B",s:[["fix",0],["roll",1]],u:4,c:1,why:"four reactions (two forces and a moment at A, one force at B)"},
+  {d:"a fixed support at A and a pin at B",s:[["fix",0],["pin",1]],u:5,c:1,why:"five reactions (three at A, two at B)"},
+  {d:"a fixed support at A only",s:[["fix",0]],u:3,c:0,why:"three reactions (two forces and a moment) that can balance any load"},
+  {d:"rollers on a horizontal surface at A, at the midpoint, and at B",s:[["roll",0],["roll",.5],["roll",1]],u:3,c:2,why:"three reactions that are all vertical, so no horizontal force can be resisted"},
+  {d:"rollers on a horizontal surface at A and at B",s:[["roll",0],["roll",1]],u:2,c:2,why:"only two vertical reactions, so a horizontal load cannot be resisted"},
+  {d:"a pin at A and a horizontal link at B running along the axis of the beam to a wall",s:[["pin",0],["link",1]],u:3,c:2,why:"three reactions whose lines of action all pass through A, so a moment about A cannot be resisted"},
+  {d:"a pin at A and a roller at B bearing against a vertical wall",s:[["pin",0],["wroll",1]],u:3,c:2,why:"three reactions whose lines of action all pass through A (the wall reaction acts along the beam), so a moment about A cannot be resisted"},
+  {d:"a pin at A and rollers on a horizontal surface at the midpoint and at B",s:[["pin",0],["roll",.5],["roll",1]],u:4,c:1,why:"four reactions, one more than the three equilibrium equations"},
+  {d:"a roller on a horizontal surface at A, a roller bearing against a vertical wall at A, and a roller on a horizontal surface at B",s:[["roll",0],["wrollA",0],["roll",1]],u:3,c:0,why:"three reactions that are neither all parallel nor concurrent"},
+  {d:"pins at A and at B and a roller on a horizontal surface at the midpoint",s:[["pin",0],["roll",.5],["pin",1]],u:5,c:1,why:"five reactions, two more than the three equilibrium equations"}];
+const detFig=p=>{const L=p.L,k=Math.max(.35,L/12),e=[{a:[0,0],b:[L,0],c:"m",t:"ln",w:5}];
+  DET_CASES[p.i].s.forEach(([ty,f])=>{const x=f*L;
+    if(ty==="pin")e.push(...pinS(x,k));
+    if(ty==="roll")e.push(...rollS(x,k));
+    if(ty==="fix")e.push({t:"hatch",a:[0,-1.1*k],b:[0,1.1*k],side:-1});
+    if(ty==="link")e.push({a:[L,0],b:[L+1.6*k,0],t:"ln",w:2.4},{t:"pt",p:[L+1.6*k,0],r:4},{t:"hatch",a:[L+1.6*k,-.9*k],b:[L+1.6*k,.9*k],side:1});
+    if(ty==="wroll")e.push({t:"pulley",p:[L+.3*k,0],r:7},{t:"hatch",a:[L+.62*k,-.8*k],b:[L+.62*k,.8*k],side:1});
+    if(ty==="wrollA")e.push({t:"pulley",p:[-.3*k,0],r:7},{t:"hatch",a:[-.62*k,-.8*k],b:[-.62*k,.8*k],side:-1});});
+  e.push({t:"pt",p:[0,0],l:it("A"),dx:-6,dy:-14,r:4,an:"end"},{t:"pt",p:[L,0],l:it("B"),dx:6,dy:-14,r:4});
+  e.push({t:"dim",a:[0,-2.2*k],b:[L,-2.2*k],l:`${L} ${LU(p)}`,flip:1});
+  return draw(e,600,300)};
+const DET_CH=["determinate and properly supported","statically indeterminate","improperly supported"];
+TEMPLATES["determinacy"]={
+  name:"Static determinacy and proper support of a body",
+  generate(seed){const r=mulberry32(seed);const i=ri(r,0,DET_CASES.length-1),q=DET_CASES[i];
+    const p={us:r()<.5,i,L:ri(r,4,9)};return {p,s:{u:q.u,n:3,deg:Math.max(0,q.u-3),cls:DET_CH[q.c]}};},
+  statement:p=>`<p>A rigid beam <i>AB</i>, ${p.L} ${LU(p)} long, lies in a vertical plane and is supported by ${DET_CASES[p.i].d}. Count the unknown support reactions, give the number of independent equilibrium equations for a body in a plane, give the degree of static indeterminacy (zero if there are not more unknowns than equations), and classify the support.</p>`,
+  figure:detFig,
+  solution:(p,s)=>{const q=DET_CASES[p.i];return `<h3>1. Count the reactions</h3>
+  <p>A roller or link supplies one force along a known line; a pin supplies two force components; a fixed support supplies two force components and a moment. Here there are ${eq(`${q.u} unknown reactions`)}.</p>
+  <h3>2. Equations available</h3>
+  <p>A body in a plane has ${eq(`3`)} independent equilibrium equations: two force sums and one moment sum.</p>
+  <h3>3. Degree of indeterminacy</h3>
+  <p>${eq(`${q.u} &minus; 3 = ${q.u-3}`)}, so the degree is ${eq(`${s.deg}`)}.</p>
+  <h3>4. Arrangement of the reactions</h3>
+  <p>Counting is not enough: the reactions must also be able to resist every load. This support has ${q.why}.</p>
+  <p class="final">${q.u} unknowns, 3 equations, degree ${s.deg}: ${s.cls}.</p>
+  <p class="note">A body is improperly supported when its reactions are all parallel or all concurrent, whatever their number.</p>`},
+  fields:p=>[{id:"u",label:"Number of unknown reactions",unit:"",tolAbs:0},{id:"n",label:"Number of equilibrium equations",unit:"",tolAbs:0},{id:"deg",label:"Degree of indeterminacy",unit:"",tolAbs:0},{id:"cls",label:"Classification",unit:"",choices:DET_CH}],
+  truth:s=>({u:s.u,n:s.n,deg:s.deg,cls:s.cls}),
+  note:"Enter whole numbers."
+};
+
+// 12. three-force member
+TEMPLATES["three-force"]={
+  name:"Three-force member: concurrency of the forces",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const us=r()<.5,L=ri(r,4,9),a=ri(r,1,L-1),p={us,L,a,al:pick(r,range(35,70,5)),P:us?pick(r,range(100,800,50)):pick(r,range(500,4000,250))};
+      const T=p.P*a*cs(p.al)/(L*sn(p.al)),A=Math.hypot(T,p.P),be=deg(Math.atan2(p.P,T)),xD=a*cs(p.al),yD=L*sn(p.al);
+      if(Math.abs(be-p.al)<6) continue;
+      return {p,s:{T,A,be,xD,yD}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A straight bar <i>AB</i>, ${p.L} ${LU(p)} long and of negligible weight, is pinned at its lower end <i>A</i> and makes an angle of ${p.al}° with the floor. A horizontal cable attached at the upper end <i>B</i> runs to a wall on the left. A vertical load <i>P</i> = ${p.P} ${FU(p)} hangs from the bar ${p.a} ${LU(p)} from <i>A</i>, measured along the bar. The bar carries forces at three points only. Use the fact that the three forces must be concurrent to find the angle of the pin force at <i>A</i> above the horizontal, then find the cable tension and the magnitude of the pin force.</p>`,
+  figure:p=>{const B=[p.L*cs(p.al),p.L*sn(p.al)],C=[p.a*cs(p.al),p.a*sn(p.al)],k=Math.max(.35,p.L/12),e=[{t:"hatch",a:[-.9,0],b:[B[0]+1.2,0],side:1},{t:"hatch",a:[-1.4,-.3],b:[-1.4,B[1]+1],side:-1}];
+    e.push({a:[0,0],b:B,c:"m",t:"ln",w:5},{a:B,b:[-1.4,B[1]],t:"ln",w:1.8},{t:"pt",p:[0,0],l:it("A"),dx:-14,dy:16,r:4},{t:"pt",p:B,l:it("B"),dx:8,dy:-8,r:4});
+    e.push({a:[C[0],C[1]-.15],b:[C[0],C[1]-1.8],c:"r"},{t:"txt",p:[C[0]+.25,C[1]-1.4],l:`${it("P")} = ${p.P} ${FU(p)}`,an:"start"},{t:"pt",p:C,r:3});
+    e.push({t:"arc",p:[0,0],r:1.2,t0:0,t1:p.al,l:`${p.al}°`});
+    return draw(e,600,400)},
+  solution:(p,s)=>`<h3>1. Point of concurrency</h3>
+  <p>The cable force is horizontal through <i>B</i>, at height ${eq(`${p.L} sin ${p.al}° = ${sig(s.yD)} ${LU(p)}`)}. The load is vertical through the point ${eq(`x = ${p.a} cos ${p.al}° = ${sig(s.xD)} ${LU(p)}`)}. These lines meet at <i>D</i>(${sig(s.xD)}, ${sig(s.yD)}) ${LU(p)}.</p>
+  <h3>2. Direction of the pin force</h3>
+  <p>For a three-force member the third force also passes through <i>D</i>, so the pin force at <i>A</i> points along <i>AD</i>: ${eq(`β = tan<sup>&minus;1</sup>(${sig(s.yD)}/${sig(s.xD)}) = ${sig(s.be)}°`)}</p>
+  <h3>3. Magnitudes</h3>
+  <p>The vertical component of the pin force balances <i>P</i> and its horizontal component balances <i>T</i>: ${eq(`A sin β = ${p.P}`)} so ${eq(`A = ${sig(s.A)} ${FU(p)}`)}; ${eq(`T = A cos β = ${sig(s.T)} ${FU(p)}`)}</p>
+  <p class="final">β = ${sig(s.be,3)}°, T = ${sig(s.T,3)} ${FU(p)}, A = ${sig(s.A,3)} ${FU(p)}.</p>
+  <p class="note">The pin force is not directed along the bar: the bar is loaded between its ends, so it is a three-force member, not a two-force member.</p>`,
+  fields:p=>[{id:"be",label:"Angle β of the pin force above the horizontal",unit:"°"},{id:"T",label:"Cable tension T",unit:FU(p)},{id:"A",label:"Pin force magnitude A",unit:FU(p)}],
+  truth:s=>({be:s.be,T:s.T,A:s.A}),
+  note:"Enter magnitudes; the angle is in degrees."
+};
+
+// 13. shaft on two bearings with a pulley and a gear (3D)
+TEMPLATES["shaft-bearings-3d"]={
+  name:"Shaft on two bearings with a pulley and a gear (space)",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const us=r()<.5,L=ri(r,7,12),xs=[];while(xs.length<2){const x=ri(r,2,L-2);if(xs.every(v=>Math.abs(v-x)>=2))xs.push(x)}
+      const p={us,L,xC:xs[0],xD:xs[1],rC:us?pick(r,range(4,10,1)):pick(r,range(100,250,25)),rD:us?pick(r,range(2,8,1)):pick(r,range(50,200,25)),T1:us?pick(r,range(50,300,10)):pick(r,range(200,1500,50)),F:us?pick(r,range(50,400,10)):pick(r,range(200,2000,50))};
+      if(Math.abs(p.rC-p.rD)<.3*Math.max(p.rC,p.rD)) continue;
+      const T2=p.T1+p.rD*p.F/p.rC,Bz=p.xC*(p.T1+T2)/L,Az=p.T1+T2-Bz,By=-p.xD*p.F/L,Ay=-p.F-By;
+      return {p,s:{T2,Ay,Az,By,Bz}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A horizontal shaft lies along the <i>x</i> axis and turns at constant speed in two bearings, <i>A</i> at <i>x</i> = 0 and <i>B</i> at <i>x</i> = ${p.L} ${LU(p)}. The bearings exert forces only in the <i>y</i> and <i>z</i> directions. A pulley of radius ${p.rC} ${SU(p)} at <i>x</i> = ${p.xC} ${LU(p)} carries a belt whose two strands both pull straight down (−<i>z</i>): the strand at <i>y</i> = +${p.rC} ${SU(p)} has tension <i>T</i><sub>1</sub> = ${p.T1} ${FU(p)}, and the strand at <i>y</i> = −${p.rC} ${SU(p)} has the unknown tension <i>T</i><sub>2</sub>. A gear of radius ${p.rD} ${SU(p)} at <i>x</i> = ${p.xD} ${LU(p)} receives a tooth force <i>F</i> = ${p.F} ${FU(p)} in the +<i>y</i> direction at its top point (<i>z</i> = +${p.rD} ${SU(p)}). Weights are negligible. Find <i>T</i><sub>2</sub> and the bearing force components.</p>`,
+  figure:p=>{const X=2,Lx=X*p.L,R=Math.max(p.rC,p.rD),sc=(Lx/9)/R,rc=p.rC*sc,rd=p.rD*sc,Q=q=>P3([X*q[0],q[1],q[2]]),e=[];
+    const ring=(x,rr)=>{const pts=[];for(let t=0;t<360;t+=10)pts.push(Q([x,rr*cs(t),rr*sn(t)]));return pts};
+    const brg=x=>({t:"poly",pts:[[-.35,-.5],[.35,-.5],[.35,.5],[-.35,.5]].map(([y,z])=>Q([x,y*.4*Math.max(rc,rd),z*.4*Math.max(rc,rd)])),fill:"#d9d9d9"});
+    const disks=[[p.xC,rc,"#e7eef6"],[p.xD,rd,"#efe6d4"]].sort((u,v)=>u[0]-v[0]);let x0=0;e.push(brg(0));
+    disks.forEach(([x,rr,fill])=>{e.push({a:Q([x0,0,0]),b:Q([x,0,0]),c:"m",t:"ln",w:4},{t:"poly",pts:ring(x,rr),fill});x0=x});
+    e.push({a:Q([x0,0,0]),b:Q([p.L,0,0]),c:"m",t:"ln",w:4},brg(p.L));
+    const dz=Math.max(rc,rd)*1.1;
+    e.push({a:Q([p.xC,rc,0]),b:Q([p.xC,rc,-dz]),c:"r",l:`${sbt("T",1)} = ${p.T1} ${FU(p)}`,off:8},{a:Q([p.xC,-rc,0]),b:Q([p.xC,-rc,-dz]),c:"r",l:sbt("T",2),off:8});
+    e.push({a:Q([p.xD,-1.2*rd,rd]),b:Q([p.xD,0,rd]),c:"r"},{t:"txt",p:Q([p.xD,-1.3*rd,rd*1.35]),l:`${it("F")} = ${p.F} ${FU(p)}`,an:"end"});
+    e.push({t:"pt",p:Q([0,0,0]),l:it("A"),dx:-6,dy:-12,r:4,an:"end"},{t:"pt",p:Q([p.L,0,0]),l:it("B"),dx:-6,dy:-12,r:4,an:"end"});
+    const up=(x,o)=>x<o;e.push({t:"txt",p:Q([p.xC,up(p.xC,p.xD)?.8*rc:0,up(p.xC,p.xD)?rc*.95:-rc*1.3]),l:it("C"),an:up(p.xC,p.xD)?"start":"middle"},{t:"txt",p:Q([p.xD,up(p.xD,p.xC)?.8*rd:0,up(p.xD,p.xC)?rd*.95:-rd*1.3]),l:it("D"),an:up(p.xD,p.xC)?"start":"middle"});
+    const Rm=1.7*Math.max(rc,rd);[["x",[p.L+1.2,0,0]],["y",[0,Rm,0]],["z",[0,0,Rm]]].forEach(([n,v])=>e.unshift({a:Q([0,0,0]),b:Q(v),l:it(n),c:"x",d:1,w:1.1,off:10}));
+    return draw(e,600,400)},
+  solution:(p,s)=>`<h3>1. Moments about the shaft axis (x)</h3>
+  <p>The shaft turns at constant speed, so the moments about its axis balance. The belt strands are vertical at <i>y</i> = ±${p.rC} ${SU(p)}; the gear force is horizontal at height ${p.rD} ${SU(p)}:</p>
+  <p>${eq(`ΣM<sub>x</sub> = 0: r<sub>C</sub>(T<sub>2</sub> &minus; T<sub>1</sub>) &minus; r<sub>D</sub>F = 0`)} so ${eq(`T<sub>2</sub> = ${p.T1} + ${p.rD}(${p.F})/${p.rC} = ${sig(s.T2)} ${FU(p)}`)}</p>
+  <h3>2. Moments about the y axis through A (vertical forces)</h3>
+  <p>${eq(`ΣM<sub>y</sub> = 0: ${p.xC}(T<sub>1</sub> + T<sub>2</sub>) &minus; ${p.L}B<sub>z</sub> = 0`)} so ${eq(`B<sub>z</sub> = ${sig(s.Bz)} ${FU(p)}`)}; then ${eq(`A<sub>z</sub> = T<sub>1</sub> + T<sub>2</sub> &minus; B<sub>z</sub> = ${sig(s.Az)} ${FU(p)}`)}</p>
+  <h3>3. Moments about the z axis through A (horizontal forces)</h3>
+  <p>${eq(`ΣM<sub>z</sub> = 0: ${p.xD}F + ${p.L}B<sub>y</sub> = 0`)} so ${eq(`B<sub>y</sub> = ${sig(s.By)} ${FU(p)}`)}; then ${eq(`A<sub>y</sub> = &minus;F &minus; B<sub>y</sub> = ${sig(s.Ay)} ${FU(p)}`)}</p>
+  <p class="final">T<sub>2</sub> = ${sig(s.T2,3)} ${FU(p)}; A = (${sig(s.Ay,3)}, ${sig(s.Az,3)}), B = (${sig(s.By,3)}, ${sig(s.Bz,3)}) ${FU(p)} as (y, z) components.</p>
+  <p class="note">The radii appear only in the torque balance; the bearing forces depend on where the loads act along the shaft.</p>`,
+  fields:p=>[{id:"T2",label:"Belt tension T<sub>2</sub>",unit:FU(p)},{id:"Ay",label:"A<sub>y</sub>",unit:FU(p),signed:true},{id:"Az",label:"A<sub>z</sub>",unit:FU(p),signed:true},{id:"By",label:"B<sub>y</sub>",unit:FU(p),signed:true},{id:"Bz",label:"B<sub>z</sub>",unit:FU(p),signed:true}],
+  truth:s=>({T2:s.T2,Ay:s.Ay,Az:s.Az,By:s.By,Bz:s.Bz}),
+  note:"Bearing components are signed along the y and z axes."
+};
+
+// 14. design: largest load for a cable and a pin with allowable forces
+TEMPLATES["design-cable-pin"]={
+  name:"Design: largest load limited by the cable and the pin",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const us=r()<.5,L=ri(r,5,10),p={us,L,a:ri(r,2,L),th:pick(r,range(25,60,5)),W:us?pick(r,range(50,300,25)):pick(r,range(200,1500,100)),Ta:us?pick(r,range(1000,4000,250)):pick(r,range(5000,20000,1000)),Aa:us?pick(r,range(800,4000,200)):pick(r,range(4000,20000,1000))};
+      if(p.W/2<.06*p.Ta*sn(p.th)) continue;
+      const s=dcpSolve(p,p.W);
+      if(!(s.PT>0&&s.PA>0)||Math.abs(s.PT-s.PA)<.08*Math.min(s.PT,s.PA)) continue;
+      return {p,s};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A uniform horizontal beam, ${p.L} ${LU(p)} long and weighing ${p.W} ${FU(p)}, is pinned to a wall at <i>A</i> and held at its free end <i>B</i> by a cable that rises to the wall at ${p.th}° above the beam. A load <i>P</i> will hang ${p.a} ${LU(p)} from <i>A</i>. The cable may carry at most ${p.Ta} ${FU(p)}, and the pin may carry a resultant force of at most ${p.Aa} ${FU(p)}. Find the largest <i>P</i> allowed by the cable alone, the largest <i>P</i> allowed by the pin alone, and the design load, and state which part governs.</p>`,
+  figure:p=>{const H=p.L*Math.tan(rad(p.th)),e=[{t:"hatch",a:[0,-1],b:[0,H+.8],side:-1},{a:[0,0],b:[p.L,0],c:"m",t:"ln",w:5},{a:[p.L,0],b:[0,H],t:"ln",w:1.8},
+      {t:"pt",p:[0,0],l:it("A"),dx:10,dy:18,r:4},{t:"pt",p:[p.L,0],l:it("B"),dx:6,dy:18,r:4},{t:"pt",p:[0,H],r:3.5},
+      {a:[p.a,1.3],b:[p.a,.15],c:"r"},{t:"txt",p:[p.a+.2,.9],l:`${it("P")} = ?`,an:"start"},{a:[p.L/2,-.12],b:[p.L/2,-1.4],c:"r",w:2},{t:"txt",p:[p.L/2+.3,-1.2],l:`${it("W")} = ${p.W} ${FU(p)}`,an:"start"},
+      {t:"arc",p:[p.L,0],r:1.3,t0:180-p.th,t1:180,l:`${p.th}°`},{t:"dim",a:[0,-2.8],b:[p.L,-2.8],l:`${p.L} ${LU(p)}`,flip:1}];
+    return draw(e,600,440)},
+  solution:(p,s)=>`<h3>1. Cable tension and pin force in terms of P</h3>
+  <p>Moments about <i>A</i>: ${eq(`T sin ${p.th}° (${p.L}) = ${p.W}(${p.L/2}) + P(${p.a})`)}. Force equilibrium then gives ${eq(`A<sub>x</sub> = T cos ${p.th}°`)} and ${eq(`A<sub>y</sub> = ${p.W} + P &minus; T sin ${p.th}° = ${sig(p.W/2)} + ${sig(1-p.a/p.L)}P`)}</p>
+  <h3>2. Limit set by the cable</h3>
+  <p>Set <i>T</i> = ${p.Ta} ${FU(p)}: ${eq(`P = (${p.Ta} sin ${p.th}° (${p.L}) &minus; ${p.W}(${p.L/2}))/${p.a} = ${sig(s.PT)} ${FU(p)}`)}</p>
+  <h3>3. Limit set by the pin</h3>
+  <p>Set ${eq(`√(A<sub>x</sub>² + A<sub>y</sub>²) = ${p.Aa}`)}; both components grow linearly with <i>P</i>, so this is a quadratic in <i>P</i> whose positive root is ${eq(`P = ${sig(s.PA)} ${FU(p)}`)}</p>
+  <h3>4. Design load</h3>
+  <p>The design load is the smaller value: ${eq(`P<sub>max</sub> = ${sig(s.Pmax)} ${FU(p)}`)}, set by the ${s.gov}.</p>
+  <p class="final">P (cable) = ${sig(s.PT,3)} ${FU(p)}, P (pin) = ${sig(s.PA,3)} ${FU(p)}, P<sub>max</sub> = ${sig(s.Pmax,3)} ${FU(p)}; the ${s.gov} governs.</p>`,
+  fields:p=>[{id:"PT",label:"Largest P allowed by the cable",unit:FU(p)},{id:"PA",label:"Largest P allowed by the pin",unit:FU(p)},{id:"Pmax",label:"Design load P<sub>max</sub>",unit:FU(p)},{id:"gov",label:"Governing part",unit:"",choices:["cable","pin"]}],
+  truth:s=>({PT:s.PT,PA:s.PA,Pmax:s.Pmax,gov:s.gov}),
+  note:"Enter magnitudes."
+};
+function dcpSolve(p,Wm){const S=sn(p.th),C=cs(p.th),L=p.L,a=p.a,W=p.W;
+  const PT=(p.Ta*S*L-Wm*L/2)/a;
+  // pin: Ax=(W L/2+P a)/(L tan th), Ay=W+P-(W L/2+P a)/L ; |A|=Aa
+  const ax0=(Wm*L/2)/(L*S)*C,ax1=a/(L*S)*C,ay0=W-Wm/2,ay1=1-a/L;
+  const qa=ax1*ax1+ay1*ay1,qb=2*(ax0*ax1+ay0*ay1),qc=ax0*ax0+ay0*ay0-p.Aa*p.Aa,PA=(-qb+Math.sqrt(qb*qb-4*qa*qc))/(2*qa);
+  const Pmax=Math.min(PT,PA);return {PT,PA,Pmax,gov:PT<PA?"cable":"pin"}}
+
 // ===== planted errors: one conceptual mistake per problem type
 const FLAWS={};
 
@@ -531,6 +749,75 @@ FLAWS["boom-ball-cables-3d"]={n:3,step:2,
   <p>${eq(`T<sub>1</sub> = ${sig(T1)} ${FU(p)}`)} ${eq(`T<sub>2</sub> = ${sig(T2)} ${FU(p)}`)}</p>
   <h3>3. Force equilibrium</h3>
   <p class="final">T<sub>1</sub> = ${sig(T1,3)}, T<sub>2</sub> = ${sig(T2,3)} ${FU(p)}; O = (${sig(Ox,3)}, ${sig(Oy,3)}, ${sig(Oz,3)}) ${FU(p)}.</p>`}};
+
+FLAWS["gears-mesh"]={n:3,step:2,
+  why:"The tooth force acts along the line of action, inclined at the pressure angle to the common tangent, so the total force is the tangential force divided by cos φ and it has a separating component.",
+  html:(p,s)=>{const F=s.Ft,Bx=0,By=-s.Ft;
+    return `<h3>1. Tangential force from gear A</h3>
+  <p>${eq(`F<sub>t</sub> = M<sub>A</sub>/r<sub>A</sub> = ${p.M}/${sig(gLen(p,p.rA))} = ${sig(s.Ft)} ${FU(p)}`)}</p>
+  <h3>2. Total tooth force</h3>
+  <p>The teeth push on each other along the common tangent, so the whole tooth force is the tangential force: ${eq(`F = F<sub>t</sub> = ${sig(F)} ${FU(p)}`)}</p>
+  <h3>3. Equilibrium of gear B</h3>
+  <p>${eq(`M<sub>B</sub> = F<sub>t</sub> r<sub>B</sub> = ${sig(s.MB)} ${MU(p)}`)}; the axle force balances the tooth force: ${eq(`B<sub>x</sub> = ${Bx}, B<sub>y</sub> = ${sig(By)} ${FU(p)}`)}</p>
+  <p class="final">F<sub>t</sub> = ${sig(s.Ft,3)} ${FU(p)}, F = ${sig(F,3)} ${FU(p)}, M<sub>B</sub> = ${sig(s.MB,3)} ${MU(p)}, B<sub>x</sub> = 0, B<sub>y</sub> = ${sig(By,3)} ${FU(p)}.</p>`}};
+
+FLAWS["bar-spring"]={n:4,step:3,
+  why:"The bar rotates about the pin, so the deflection at <i>B</i> is the spring compression scaled by the ratio of distances from <i>A</i>, L/c.",
+  html:(p,s)=>`<h3>1. Moments about A</h3>
+  <p>${eq(`F<sub>s</sub>(${p.c}) = ${p.P}(${p.a})`)} so ${eq(`F<sub>s</sub> = ${sig(s.Fs)} ${FU(p)}`)}</p>
+  <h3>2. Spring compression</h3>
+  <p>${eq(`δ<sub>C</sub> = ${sig(s.Fs)}/${p.k} = ${sig(s.d)} ${SU(p)}`)}</p>
+  <h3>3. Deflection of B</h3>
+  <p>The bar is rigid, so every point of it moves by the same amount as the spring: ${eq(`δ<sub>B</sub> = δ<sub>C</sub> = ${sig(s.d)} ${SU(p)}`)}</p>
+  <h3>4. Pin reaction</h3>
+  <p>${eq(`A<sub>y</sub> = P &minus; F<sub>s</sub> = ${sig(s.Ay)} ${FU(p)}`)}</p>
+  <p class="final">F<sub>s</sub> = ${sig(s.Fs,3)} ${FU(p)}, δ<sub>C</sub> = ${sig(s.d,3)} ${SU(p)}, δ<sub>B</sub> = ${sig(s.d,3)} ${SU(p)}, A<sub>y</sub> = ${sig(s.Ay,3)} ${FU(p)}.</p>`};
+
+FLAWS["determinacy"]={n:4,step:2,
+  why:"A rigid body in a plane has three independent equilibrium equations: two force sums and one moment sum.",
+  html:(p,s)=>{const q=DET_CASES[p.i],deg=Math.max(0,q.u-2);
+    return `<h3>1. Count the reactions</h3>
+  <p>There are ${eq(`${q.u} unknown reactions`)}.</p>
+  <h3>2. Equations available</h3>
+  <p>The forces must balance in the <i>x</i> and <i>y</i> directions, which gives ${eq(`2`)} equations.</p>
+  <h3>3. Degree of indeterminacy</h3>
+  <p>${eq(`${q.u} &minus; 2 = ${q.u-2}`)}, so the degree is ${eq(`${deg}`)}.</p>
+  <h3>4. Classification</h3>
+  <p class="final">${q.u} unknowns, 2 equations, degree ${deg}: ${deg>0&&q.c!==2?DET_CH[1]:s.cls}.</p>`}};
+
+FLAWS["three-force"]={n:3,step:2,
+  why:"The bar carries a load between its ends, so it is a three-force member; the pin force must pass through the point where the cable and load lines meet, not along the bar.",
+  html:(p,s)=>{const be=p.al,T=p.P/Math.tan(rad(p.al)),A=p.P/sn(p.al);
+    return `<h3>1. Point of concurrency</h3>
+  <p>The cable and the load lines meet at <i>D</i>(${sig(s.xD)}, ${sig(s.yD)}) ${LU(p)}.</p>
+  <h3>2. Direction of the pin force</h3>
+  <p>The bar is pinned at <i>A</i>, so the pin pushes along the bar: ${eq(`β = ${p.al}°`)}</p>
+  <h3>3. Magnitudes</h3>
+  <p>${eq(`A sin β = ${p.P}`)} so ${eq(`A = ${sig(A)} ${FU(p)}`)}; ${eq(`T = A cos β = ${sig(T)} ${FU(p)}`)}</p>
+  <p class="final">β = ${p.al}°, T = ${sig(T,3)} ${FU(p)}, A = ${sig(A,3)} ${FU(p)}.</p>`}};
+
+FLAWS["shaft-bearings-3d"]={n:3,step:1,
+  why:"The belt tensions and the gear force act at different radii, so the torque balance about the shaft axis is r<sub>C</sub>(T<sub>2</sub> &minus; T<sub>1</sub>) = r<sub>D</sub>F, not T<sub>2</sub> &minus; T<sub>1</sub> = F.",
+  html:(p,s)=>{const T2=p.T1+p.F,Bz=p.xC*(p.T1+T2)/p.L,Az=p.T1+T2-Bz;
+    return `<h3>1. Moments about the shaft axis (x)</h3>
+  <p>The difference of the belt tensions must balance the gear force: ${eq(`T<sub>2</sub> = T<sub>1</sub> + F = ${p.T1} + ${p.F} = ${sig(T2)} ${FU(p)}`)}</p>
+  <h3>2. Moments about the y axis through A</h3>
+  <p>${eq(`B<sub>z</sub> = ${p.xC}(T<sub>1</sub> + T<sub>2</sub>)/${p.L} = ${sig(Bz)} ${FU(p)}`)}, ${eq(`A<sub>z</sub> = ${sig(Az)} ${FU(p)}`)}</p>
+  <h3>3. Moments about the z axis through A</h3>
+  <p>${eq(`B<sub>y</sub> = ${sig(s.By)} ${FU(p)}`)}, ${eq(`A<sub>y</sub> = ${sig(s.Ay)} ${FU(p)}`)}</p>
+  <p class="final">T<sub>2</sub> = ${sig(T2,3)} ${FU(p)}; A = (${sig(s.Ay,3)}, ${sig(Az,3)}), B = (${sig(s.By,3)}, ${sig(Bz,3)}) ${FU(p)}.</p>`}};
+
+FLAWS["design-cable-pin"]={n:4,step:1,
+  why:"The weight of the beam acts at its midpoint and has a moment about <i>A</i>; leaving it out of the moment equation understates the cable tension.",
+  html:(p,s)=>{const f=dcpSolve(p,0);
+    return `<h3>1. Cable tension and pin force in terms of P</h3>
+  <p>Moments about <i>A</i>: ${eq(`T sin ${p.th}° (${p.L}) = P(${p.a})`)}. Force equilibrium then gives ${eq(`A<sub>x</sub> = T cos ${p.th}°`)} and ${eq(`A<sub>y</sub> = ${p.W} + P &minus; T sin ${p.th}°`)}</p>
+  <h3>2. Limit set by the cable</h3>
+  <p>${eq(`P = ${p.Ta} sin ${p.th}° (${p.L})/${p.a} = ${sig(f.PT)} ${FU(p)}`)}</p>
+  <h3>3. Limit set by the pin</h3>
+  <p>${eq(`√(A<sub>x</sub>² + A<sub>y</sub>²) = ${p.Aa}`)} gives ${eq(`P = ${sig(f.PA)} ${FU(p)}`)}</p>
+  <h3>4. Design load</h3>
+  <p class="final">P (cable) = ${sig(f.PT,3)} ${FU(p)}, P (pin) = ${sig(f.PA,3)} ${FU(p)}, P<sub>max</sub> = ${sig(f.Pmax,3)} ${FU(p)}; the ${f.gov} governs.</p>`}};
 
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.

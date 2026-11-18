@@ -389,6 +389,62 @@ TEMPLATES["space-truss-joint"]={
 };
 
 
+// zero-force members in a Pratt truss
+const ZF_N={L0:[0,0],L1:[1,0],L2:[2,0],L3:[3,0],L4:[4,0],U1:[1,1],U2:[2,1],U3:[3,1]};
+const ZF_M=[["L0","L1"],["L1","L2"],["L2","L3"],["L3","L4"],["U1","U2"],["U2","U3"],["L0","U1"],["U3","L4"],["U1","L1"],["U2","L2"],["U3","L3"],["U1","L2"],["U3","L2"]];
+const zfName=m=>m[0]+m[1];
+function zfSolve(d,h,loads){// returns member forces (tension +) and reactions Ax, Ay, By
+  const J=Object.keys(ZF_N),X=n=>[ZF_N[n][0]*d,ZF_N[n][1]*h],nu=ZF_M.length+3,A=[],b=[];
+  J.forEach(j=>{const rx=new Array(nu).fill(0),ry=new Array(nu).fill(0);
+    ZF_M.forEach((m,i)=>{if(m.includes(j)){const o=m[0]===j?m[1]:m[0],a=X(j),c=X(o),L=Math.hypot(c[0]-a[0],c[1]-a[1]);rx[i]=(c[0]-a[0])/L;ry[i]=(c[1]-a[1])/L}});
+    if(j==="L0"){rx[nu-3]=1;ry[nu-2]=1}if(j==="L4")ry[nu-1]=1;
+    A.push(rx,ry);b.push(0,(loads[j]||0))});
+  const n=nu;for(let c=0;c<n;c++){let pv=c;for(let r=c+1;r<n;r++)if(Math.abs(A[r][c])>Math.abs(A[pv][c]))pv=r;
+    [A[c],A[pv]]=[A[pv],A[c]];[b[c],b[pv]]=[b[pv],b[c]];for(let r=0;r<n;r++)if(r!==c){const f=A[r][c]/A[c][c];for(let k=c;k<n;k++)A[r][k]-=f*A[c][k];b[r]-=f*b[c]}}
+  return b.map((v,i)=>v/A[i][i])}
+function zfInspect(loads){// zero-force members found by the two inspection rules
+  const zero=new Set(),X=n=>ZF_N[n];let ch=true;
+  const col=(a,b,j)=>{const u=[X(a)[0]-X(j)[0],X(a)[1]-X(j)[1]],v=[X(b)[0]-X(j)[0],X(b)[1]-X(j)[1]];return Math.abs(u[0]*v[1]-u[1]*v[0])<1e-9};
+  while(ch){ch=false;
+    for(const j of Object.keys(ZF_N)){if(j==="L0"||j==="L4"||loads[j])continue;
+      const ms=ZF_M.filter(m=>m.includes(j)&&!zero.has(zfName(m))),oth=ms.map(m=>m[0]===j?m[1]:m[0]);
+      if(ms.length===2&&!col(oth[0],oth[1],j)){ms.forEach(m=>zero.add(zfName(m)));ch=true}
+      if(ms.length===3)for(let i=0;i<3;i++){const a=oth[(i+1)%3],c=oth[(i+2)%3];if(col(a,c,j)&&!zero.has(zfName(ms[i]))){zero.add(zfName(ms[i]));ch=true}}}}
+  return zero}
+TEMPLATES["zero-force"]={
+  name:"Zero-force members in a Pratt truss",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const us=r()<.5,d=ri(r,3,8),h=ri(r,3,8),loads={U2:pick(r,range(200,1500,50))};
+      const extra=["L1","L2","L3","U1","U3"].filter(()=>r()<.3);extra.forEach(j=>loads[j]=pick(r,range(200,1500,50)));
+      const p={us,d,h,loads};const neg={};Object.entries(loads).forEach(([j,v])=>neg[j]=v);
+      const sol=zfSolve(d,h,neg),F={};ZF_M.forEach((m,i)=>F[zfName(m)]=sol[i]);
+      const mx=Math.max(...Object.values(F).map(Math.abs)),num=Object.keys(F).filter(n=>Math.abs(F[n])<1e-9*mx),ins=zfInspect(loads);
+      if(num.length!==ins.size||num.some(n=>!ins.has(n))) continue;
+      if(Object.keys(F).some(n=>!ins.has(n)&&Math.abs(F[n])<.03*mx)) continue;
+      return {p,s:{F,nz:num.length,zero:num}};}
+    throw new Error("no valid problem");},
+  statement:p=>{const L=Object.entries(p.loads).map(([j,v])=>`${v} ${FU(p)} at ${j}`).join(", ");
+    return `<p>The Pratt truss shown has four panels, each ${p.d} ${LU(p)} wide, and a height of ${p.h} ${LU(p)}. It rests on a pin at <i>L</i>0 and a roller at <i>L</i>4. Vertical downward loads act at these joints: ${L}. Neglect the weights of the members. Identify the zero-force members by inspection, then find the forces in members <i>U</i>1<i>L</i>1, <i>U</i>2<i>L</i>2, <i>U</i>3<i>L</i>3 and <i>U</i>1<i>L</i>2 (tension positive).</p>`},
+  figure:p=>{const N={};Object.entries(ZF_N).forEach(([n,q])=>N[n]=[q[0]*p.d,q[1]*p.h]);const s=Math.max(p.d,p.h)/4,e=trussEls(N,ZF_M,s);
+    e.push(...pinS(0,0,s),...rollS(4*p.d,0,s));
+    Object.entries(p.loads).forEach(([j,v])=>{const q=N[j];e.push(...dnArrow(q[0],q[1],s,`${v} ${FU(p)}`,q[1]<.01,q[1]<.01?.5:0))});
+    e.push(...dimsB([0,p.d,2*p.d,3*p.d,4*p.d],-3.4*s,p,s),{t:"dim",a:[4*p.d+1.6*s,0],b:[4*p.d+1.6*s,p.h],l:`${p.h} ${LU(p)}`});
+    return draw(e,640,400)},
+  solution:(p,s)=>{const f=n=>sig(s.F[n]),z=s.zero;
+    return `<h3>1. Inspection rules</h3>
+  <p>At an unloaded joint where two of three members are collinear, the third member carries no force. At an unloaded joint with only two non-collinear members, both carry no force. Supports and loaded joints are excluded.</p>
+  <h3>2. Apply the rules</h3>
+  <p>${z.length?`The rules identify ${z.map(n=>`<i>${n}</i>`).join(" and ")} as zero-force members (at ${z.map(n=>`joint <i>L</i>${n.slice(3)}`).join(" and ")} the two bottom-chord members are collinear and there is no load).`:"Every joint that could satisfy a rule carries a load, so no member is zero by inspection."} Joint <i>U</i>2 has two collinear chord members, but it carries a load, so <i>U</i>2<i>L</i>2 is not a zero-force member: ${eq(`ΣF<sub>y</sub> = 0 at U2: F<sub>U2L2</sub> = &minus;${p.loads.U2} ${FU(p)}`)}</p>
+  <h3>3. Remaining member forces</h3>
+  <p>Solving the joints (or a section through the second panel) gives ${eq(`F<sub>U1L1</sub> = ${f("U1L1")}`)}, ${eq(`F<sub>U3L3</sub> = ${f("U3L3")}`)}, ${eq(`F<sub>U1L2</sub> = ${f("U1L2")} ${FU(p)}`)}</p>
+  <p class="final">${s.nz} zero-force member${s.nz===1?"":"s"}; F<sub>U1L1</sub> = ${sig(s.F.U1L1,3)}, F<sub>U2L2</sub> = ${sig(s.F.U2L2,3)}, F<sub>U3L3</sub> = ${sig(s.F.U3L3,3)}, F<sub>U1L2</sub> = ${sig(s.F.U1L2,3)} ${FU(p)}.</p>
+  <p class="note">Zero-force members depend on the loading; they are kept because they brace the truss and carry load under other loadings.</p>`},
+  fields:p=>[{id:"nz",label:"Number of zero-force members",unit:"",tolAbs:0},{id:"U1L1",label:"F<sub>U1L1</sub>",unit:FU(p),signed:true},{id:"U2L2",label:"F<sub>U2L2</sub>",unit:FU(p),signed:true},{id:"U3L3",label:"F<sub>U3L3</sub>",unit:FU(p),signed:true},{id:"U1L2",label:"F<sub>U1L2</sub>",unit:FU(p),signed:true}],
+  truth:s=>({nz:s.nz,U1L1:s.F.U1L1,U2L2:s.F.U2L2,U3L3:s.F.U3L3,U1L2:s.F.U1L2}),
+  note:"Member forces are signed: tension positive, compression negative."
+};
+
 // ===== planted errors: one conceptual mistake per problem type
 const FLAWS={};
 
@@ -462,6 +518,17 @@ FLAWS["space-truss-joint"]={n:3,step:1,
   <p>${eq(`T<sub>A</sub>λ<sub>A</sub> + T<sub>B</sub>λ<sub>B</sub> + T<sub>C</sub>λ<sub>C</sub> + F = 0`)}</p>
   <h3>3. Solve</h3>
   <p class="final">T<sub>OA</sub> = ${sig(T[0],3)}, T<sub>OB</sub> = ${sig(T[1],3)}, T<sub>OC</sub> = ${sig(T[2],3)} ${FU(p)}.</p>`}};
+
+FLAWS["zero-force"]={n:3,step:2,
+  why:"The collinear-members rule applies only to an unloaded joint. Joint U2 carries a load, so the vertical member U2L2 must balance it.",
+  html:(p,s)=>{const nz=s.nz+1;
+    return `<h3>1. Inspection rules</h3>
+  <p>At a joint where two of three members are collinear, the third member carries no force.</p>
+  <h3>2. Apply the rules</h3>
+  <p>${s.zero.length?`${s.zero.map(n=>`<i>${n}</i>`).join(" and ")} ${s.zero.length>1?"are":"is"} zero by this rule. `:""}Joint <i>U</i>2 also has two collinear chord members, <i>U</i>1<i>U</i>2 and <i>U</i>2<i>U</i>3, so ${eq(`F<sub>U2L2</sub> = 0`)}</p>
+  <h3>3. Remaining member forces</h3>
+  <p>${eq(`F<sub>U1L1</sub> = ${sig(s.F.U1L1)}`)}, ${eq(`F<sub>U3L3</sub> = ${sig(s.F.U3L3)}`)}, ${eq(`F<sub>U1L2</sub> = ${sig(s.F.U1L2)} ${FU(p)}`)}</p>
+  <p class="final">${nz} zero-force members; F<sub>U1L1</sub> = ${sig(s.F.U1L1,3)}, F<sub>U2L2</sub> = 0, F<sub>U3L3</sub> = ${sig(s.F.U3L3,3)}, F<sub>U1L2</sub> = ${sig(s.F.U1L2,3)} ${FU(p)}.</p>`}};
 
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.

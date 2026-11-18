@@ -375,6 +375,43 @@ TEMPLATES["bent-bar-3d"]={
 };
 
 
+// V(x) and M(x) by integrating a linearly varying load
+TEMPLATES["linear-load-integration"]={
+  name:"Shear and moment by integration: linearly varying load",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const us=r()<.5,L=ri(r,4,12),st=us?10:100,p={us,L,w0:us?pick(r,range(0,300,10)):pick(r,range(0,4000,100)),w1:us?pick(r,range(0,300,10)):pick(r,range(0,4000,100)),x1:ri(r,1,L-1)};
+      if(p.w0+p.w1===0||Math.max(p.w0,p.w1)<2*Math.min(p.w0,p.w1)) continue;
+      const W=(p.w0+p.w1)*L/2,By=(p.w0*L*L/2+(p.w1-p.w0)*L*L/3)/L,Ay=W-By,a=(p.w1-p.w0)/(2*L);
+      const V=x=>Ay-p.w0*x-a*x*x,M=x=>Ay*x-p.w0*x*x/2-(p.w1-p.w0)*x**3/(6*L);
+      const xm=Math.abs(a)<1e-12?Ay/p.w0:(-p.w0+Math.sqrt(p.w0*p.w0+4*a*Ay))/(2*a);
+      if(!(xm>0&&xm<L)||Math.abs(xm-L/2)<.06*L||Math.abs(V(p.x1))<.05*Math.max(Ay,By)) continue;
+      return {p,s:{W,Ay,By,V1:V(p.x1),M1:M(p.x1),xm,Mm:M(xm)}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A simply supported beam <i>AB</i> of length ${p.L} ${LU(p)} (pin at <i>A</i>, roller at <i>B</i>) carries a distributed downward load whose intensity varies linearly from <i>w</i><sub>0</sub> = ${p.w0} ${WU(p)} at <i>A</i> to <i>w</i><sub>1</sub> = ${p.w1} ${WU(p)} at <i>B</i>. Measure <i>x</i> from <i>A</i>. Neglect the weight of the beam. Find the support reactions, obtain <i>V</i>(<i>x</i>) and <i>M</i>(<i>x</i>) by integrating the load, evaluate them at <i>x</i> = ${p.x1} ${LU(p)}, and find the location and value of the largest bending moment.</p>`,
+  figure:p=>{const k=Math.max(.35,p.L/12),m=Math.max(p.w0,p.w1),h0=.15+1.4*p.w0/m,h1=.15+1.4*p.w1/m,e=[...beamBase(p.L,k),...pinS(0,k),...rollS(p.L,k)];
+    e.push(poly([[0,.15],[0,h0],[p.L,h1],[p.L,.15]],"#f4d6d6"));const n=Math.max(4,Math.round(p.L));
+    for(let i=0;i<=n;i++){const x=p.L*i/n,h=h0+(h1-h0)*i/n;if(h>.4)e.push({a:[x,h],b:[x,.15],c:"r",w:1.6})}
+    e.push({t:"txt",p:[0,Math.max(h0,.6)+.35],l:`${sbt("w",0)} = ${p.w0} ${WU(p)}`,an:"start"},{t:"txt",p:[p.L,Math.max(h1,.6)+.35],l:`${sbt("w",1)} = ${p.w1} ${WU(p)}`,an:"end"});
+    e.push({t:"dim",a:[0,-1.8*k-.6],b:[p.L,-1.8*k-.6],l:`${p.L} ${LU(p)}`,flip:1});
+    return draw(e,600,360)},
+  solution:(p,s)=>{const d=p.w1-p.w0;return `<h3>1. Reactions</h3>
+  <p>Split the load into a uniform part ${p.w0} ${WU(p)} and a triangular part rising from 0 to ${d} ${WU(p)}. Moments about <i>A</i>: ${eq(`${p.L}B<sub>y</sub> = ${p.w0}(${p.L})(${p.L}/2) + ½(${d})(${p.L})(2·${p.L}/3)`)} so ${eq(`B<sub>y</sub> = ${sig(s.By)} ${FU(p)}`)}; ${eq(`A<sub>y</sub> = ${sig(s.W)} &minus; B<sub>y</sub> = ${sig(s.Ay)} ${FU(p)}`)}</p>
+  <h3>2. Shear by integration</h3>
+  <p>With <i>w</i>(<i>x</i>) = ${p.w0} ${d<0?"&minus;":"+"} ${sig(Math.abs(d)/p.L)}<i>x</i> downward, ${eq(`dV/dx = &minus;w(x)`)} and <i>V</i>(0) = <i>A<sub>y</sub></i>:</p>
+  <p>${eq(`V(x) = ${sig(s.Ay)} &minus; ${p.w0}x ${d<0?"+":"&minus;"} ${sig(Math.abs(d)/(2*p.L))}x²`)}</p>
+  <h3>3. Moment by integration</h3>
+  <p>${eq(`dM/dx = V`)} with <i>M</i>(0) = 0:</p>
+  <p>${eq(`M(x) = ${sig(s.Ay)}x &minus; ${sig(p.w0/2)}x² ${d<0?"+":"&minus;"} ${sig(Math.abs(d)/(6*p.L))}x³`)}</p>
+  <p>At <i>x</i> = ${p.x1} ${LU(p)}: ${eq(`V = ${sig(s.V1)} ${FU(p)}`)}, ${eq(`M = ${sig(s.M1)} ${MU(p)}`)}</p>
+  <h3>4. Largest moment</h3>
+  <p>The moment is largest where <i>V</i> = 0. Solving the quadratic gives ${eq(`x = ${sig(s.xm)} ${LU(p)}`)} and ${eq(`M<sub>max</sub> = M(${sig(s.xm)}) = ${sig(s.Mm)} ${MU(p)}`)}</p>
+  <p class="final">A<sub>y</sub> = ${sig(s.Ay,3)} ${FU(p)}, B<sub>y</sub> = ${sig(s.By,3)} ${FU(p)}; V = ${sig(s.V1,3)} ${FU(p)}, M = ${sig(s.M1,3)} ${MU(p)} at x = ${p.x1} ${LU(p)}; M<sub>max</sub> = ${sig(s.Mm,3)} ${MU(p)} at x = ${sig(s.xm,3)} ${LU(p)}.</p>${SGN}`},
+  fields:p=>[{id:"Ay",label:"A<sub>y</sub> (up)",unit:FU(p)},{id:"By",label:"B<sub>y</sub> (up)",unit:FU(p)},{id:"V1",label:`V at x = ${p.x1} ${LU(p)}`,unit:FU(p),signed:true},{id:"M1",label:`M at x = ${p.x1} ${LU(p)}`,unit:MU(p),signed:true},{id:"xm",label:"Location of M<sub>max</sub>",unit:LU(p)},{id:"Mm",label:"M<sub>max</sub>",unit:MU(p)}],
+  truth:s=>({Ay:s.Ay,By:s.By,V1:s.V1,M1:s.M1,xm:s.xm,Mm:s.Mm}),
+  note:"V and M are signed by the convention stated in the solution."
+};
+
 // ===== planted errors: one conceptual mistake per problem type
 const FLAWS={};
 
@@ -458,6 +495,19 @@ FLAWS["bent-bar-3d"]={n:3,step:3,
   <p>The position vector of <i>D</i> is ${eq(`r = (${p.a}, ${p.b}, 0) ${LU(p)}`)}, so</p>
   <p>${eq(`M = &minus;r × F = ${fv(M)} ${MU(p)}`)}</p>
   <p class="final">N = ${sig(s.N,3)}, V<sub>y</sub> = ${sig(s.Vy,3)}, V<sub>z</sub> = ${sig(s.Vz,3)} ${FU(p)}; T = ${sig(M[0],3)}, M<sub>y</sub> = ${sig(M[1],3)}, M<sub>z</sub> = ${sig(M[2],3)} ${MU(p)}.</p>`}};
+
+FLAWS["linear-load-integration"]={n:4,step:4,
+  why:"The largest moment occurs where the shear is zero. For a load that is not symmetric about midspan that point is not at midspan.",
+  html:(p,s)=>{const x=p.L/2,Ay=s.Ay,M=Ay*x-p.w0*x*x/2-(p.w1-p.w0)*x**3/(6*p.L);
+    return `<h3>1. Reactions</h3>
+  <p>${eq(`A<sub>y</sub> = ${sig(s.Ay)} ${FU(p)}`)}, ${eq(`B<sub>y</sub> = ${sig(s.By)} ${FU(p)}`)}</p>
+  <h3>2. Shear by integration</h3>
+  <p>${eq(`V(x) = A<sub>y</sub> &minus; w<sub>0</sub>x &minus; (w<sub>1</sub> &minus; w<sub>0</sub>)x²/(2L)`)}</p>
+  <h3>3. Moment by integration</h3>
+  <p>${eq(`M(x) = A<sub>y</sub>x &minus; w<sub>0</sub>x²/2 &minus; (w<sub>1</sub> &minus; w<sub>0</sub>)x³/(6L)`)}; at <i>x</i> = ${p.x1} ${LU(p)}: ${eq(`V = ${sig(s.V1)} ${FU(p)}`)}, ${eq(`M = ${sig(s.M1)} ${MU(p)}`)}</p>
+  <h3>4. Largest moment</h3>
+  <p>For a simply supported beam the largest moment is at midspan: ${eq(`x = ${sig(x)} ${LU(p)}`)}, ${eq(`M<sub>max</sub> = ${sig(M)} ${MU(p)}`)}</p>
+  <p class="final">M<sub>max</sub> = ${sig(M,3)} ${MU(p)} at x = ${sig(x,3)} ${LU(p)}.</p>`}};
 
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.

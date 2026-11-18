@@ -479,6 +479,38 @@ TEMPLATES["mast-cables-3d"]={
 };
 
 
+// design: cable sag set by the allowable tension
+TEMPLATES["cable-design"]={
+  name:"Design: smallest sag of a cable with an allowable tension",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const us=r()<.5,p={us,sp:pick(r,range(4,16,1)),W:us?pick(r,range(100,1200,50)):pick(r,range(500,6000,250)),Ta:0};
+      p.Ta=Math.round(p.W*pick(r,range(.6,3,.05))/(us?50:250))*(us?50:250);
+      const sv=p.W/(2*p.Ta);if(!(sv>.08&&sv<.92)) continue;
+      const th=deg(Math.asin(sv));if(Math.abs(th-45)<6) continue;
+      const sag=p.sp/2*Math.tan(rad(th)),Lc=p.sp/cs(th);
+      return {p,s:{sv,th,sag,Lc}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A load <i>W</i> = ${p.W} ${FU(p)} hangs from a ring at the midpoint of a cable. The ends of the cable are fixed to two supports at the same height, ${p.sp} ${LU(p)} apart. The cable may carry a tension of at most ${p.Ta} ${FU(p)}. Treat the ring as a particle and neglect the weight of the cable. Find the smallest angle <i>θ</i> that each half of the cable may make with the horizontal, the corresponding sag of the ring below the supports, and the cable length that gives this sag.</p>`,
+  figure:p=>{const h=p.sp/2*.55,e=[{t:"hatch",a:[-.6,0],b:[p.sp+.6,0],side:-1},
+      {a:[0,0],b:[p.sp/2,-h],t:"ln",w:2},{a:[p.sp,0],b:[p.sp/2,-h],t:"ln",w:2},{t:"pt",p:[0,0],r:4},{t:"pt",p:[p.sp,0],r:4},{t:"pt",p:[p.sp/2,-h],r:4.5},
+      {a:[p.sp/2,-h-.1],b:[p.sp/2,-h-2],c:"r",l:`${it("W")} = ${p.W} ${FU(p)}`,off:12},
+      {t:"arc",p:[0,0],r:1.4,t0:-deg(Math.atan2(h,p.sp/2)),t1:0,l:it("θ"),lr:2},{t:"dim",a:[0,.9],b:[p.sp,.9],l:`${p.sp} ${LU(p)}`},
+      {t:"dim",a:[p.sp+.9,0],b:[p.sp+.9,-h],l:it("h")},{a:[p.sp/2,-h],b:[p.sp+.9,-h],t:"ln",c:"x",d:1,w:.8}];
+    return draw(e,600,360)},
+  solution:(p,s)=>`<h3>1. Equilibrium of the ring</h3>
+  <p>By symmetry both halves carry the same tension <i>T</i> at angle <i>θ</i> below the horizontal. The horizontal components cancel, and the vertical components support the load: ${eq(`2T sin θ = W`)}</p>
+  <h3>2. Smallest angle</h3>
+  <p>The tension grows as <i>θ</i> shrinks, so the limit <i>T</i> = ${p.Ta} ${FU(p)} sets the smallest angle: ${eq(`sin θ = W/(2T) = ${p.W}/(2·${p.Ta}) = ${sig(s.sv)}`)} so ${eq(`θ<sub>min</sub> = ${sig(s.th)}°`)}</p>
+  <h3>3. Sag and cable length</h3>
+  <p>${eq(`h = (s/2) tan θ = ${sig(p.sp/2)} tan ${sig(s.th)}° = ${sig(s.sag)} ${LU(p)}`)} ${eq(`L = s/cos θ = ${p.sp}/cos ${sig(s.th)}° = ${sig(s.Lc)} ${LU(p)}`)}</p>
+  <p class="final">θ<sub>min</sub> = ${sig(s.th,3)}°, h = ${sig(s.sag,3)} ${LU(p)}, L = ${sig(s.Lc,3)} ${LU(p)}.</p>
+  <p class="note">A shorter cable gives a smaller sag and a larger tension; any cable at least this long is acceptable.</p>`,
+  fields:p=>[{id:"th",label:"Smallest angle θ",unit:"°"},{id:"sag",label:"Sag h",unit:LU(p)},{id:"Lc",label:"Cable length L",unit:LU(p)}],
+  truth:s=>({th:s.th,sag:s.sag,Lc:s.Lc}),
+  note:"Enter magnitudes; the angle is in degrees."
+};
+
 // ===== planted errors: one conceptual mistake per problem type
 const FLAWS={};
 
@@ -592,6 +624,17 @@ FLAWS["mast-cables-3d"]={n:3,step:1,
   <p>${eq(`T<sub>A</sub> = ${sig(TA)} ${FU(p)}`)} ${eq(`T<sub>C</sub> = ${sig(TC)} ${FU(p)}`)}</p>
   <h3>3. Mast force</h3>
   <p class="final">T<sub>A</sub> = ${sig(TA,3)}, T<sub>C</sub> = ${sig(TC,3)}, F<sub>m</sub> = ${sig(-(TA*la[2]+TC*lc[2]),3)} ${FU(p)} (compression).</p>`}};
+
+FLAWS["cable-design"]={n:3,step:2,
+  why:"The load is vertical, so it is balanced by the vertical components of the tensions, T sin θ, where θ is measured from the horizontal.",
+  html:(p,s)=>{const c=p.W/(2*p.Ta),th=deg(Math.acos(c)),sag=p.sp/2*Math.tan(rad(th)),Lc=p.sp/cs(th);
+    return `<h3>1. Equilibrium of the ring</h3>
+  <p>Both halves carry the same tension <i>T</i> at angle <i>θ</i> to the horizontal.</p>
+  <h3>2. Smallest angle</h3>
+  <p>${eq(`2T cos θ = W`)} so ${eq(`cos θ = ${p.W}/(2·${p.Ta}) = ${sig(c)}`)} and ${eq(`θ<sub>min</sub> = ${sig(th)}°`)}</p>
+  <h3>3. Sag and cable length</h3>
+  <p>${eq(`h = ${sig(p.sp/2)} tan ${sig(th)}° = ${sig(sag)} ${LU(p)}`)} ${eq(`L = ${p.sp}/cos ${sig(th)}° = ${sig(Lc)} ${LU(p)}`)}</p>
+  <p class="final">θ<sub>min</sub> = ${sig(th,3)}°, h = ${sig(sag,3)} ${LU(p)}, L = ${sig(Lc,3)} ${LU(p)}.</p>`}};
 
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.

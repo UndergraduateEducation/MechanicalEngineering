@@ -204,7 +204,7 @@ TEMPLATES["push-pull-block"]={
       if(N<.3*p.W) continue;
       return {p,s:{P,N,F:P*c}};}
     throw new Error("no valid problem");},
-  statement:p=>`<p>A crate of weight <i>W</i> = ${p.W} ${FU(p)} rests on a horizontal floor, where the coefficient of static friction is <i>μ<sub>s</sub></i> = ${mu2(p.mu)}. A force <i>P</i> is applied at ${p.al}° ${p.push?"below":"above"} the horizontal, ${p.push?"pushing":"pulling"} the crate to the right. Determine the force <i>P</i> at which sliding is impending, together with the normal force <i>N</i> and the friction force <i>F</i> at that instant.</p>`,
+  statement:p=>`<p>A crate of weight <i>W</i> = ${p.W} ${FU(p)} sits on a level floor; between crate and floor <i>μ<sub>s</sub></i> = ${mu2(p.mu)}. A force <i>P</i> is applied at ${p.al}° ${p.push?"below":"above"} the horizontal, ${p.push?"pushing":"pulling"} the crate to the right. Determine the force <i>P</i> at which sliding is impending, together with the normal force <i>N</i> and the friction force <i>F</i> at that instant.</p>`,
   figure:p=>{const c=cs(p.al),s=sn(p.al),e=[floor(-3,6),rect(0,0,3,2,"#eec878"),{t:"txt",p:[1.5,.8],l:`${it("W")} = ${p.W} ${FU(p)}`}];
     if(p.push){e.push({a:[-2.6*c,2+2.6*s],b:[0,2],c:"r"},{t:"txt",p:[-2.6*c-.1,2+2.6*s+.35],l:it("P"),an:"end"},{a:[0,2],b:[-1.8,2],t:"ln",c:"x",d:1,w:1},{t:"arc",p:[0,2],r:1.5,t0:180-p.al,t1:180,l:ang(p.al),lr:4})}
     else e.push({a:[3,1],b:[3+2.6*c,1+2.6*s],c:"r",l:it("P"),off:10},{a:[3,1],b:[5.2,1],t:"ln",c:"x",d:1,w:1},{t:"arc",p:[3,1],r:1.5,t0:0,t1:p.al,l:ang(p.al),lr:4});
@@ -231,7 +231,7 @@ TEMPLATES["tip-or-slip"]={
       const Ps=p.mu*p.W,Pt=p.W*p.b/(2*p.a);if(Math.abs(Ps-Pt)<.1*Math.min(Ps,Pt)) continue;
       return {p,s:{Ps,Pt,mode:Ps<Pt?"slides":"tips",P:Math.min(Ps,Pt)}};}
     throw new Error("no valid problem");},
-  statement:p=>`<p>A uniform block of weight <i>W</i> = ${p.W} ${FU(p)}, width <i>b</i> = ${p.b} ${LU(p)} and height <i>h</i> = ${p.h} ${LU(p)}, rests on a horizontal floor with coefficient of static friction <i>μ<sub>s</sub></i> = ${mu2(p.mu)}. A horizontal force <i>P</i> is applied to the left face at a height <i>a</i> = ${p.a} ${LU(p)} above the floor and is slowly increased. Determine the force <i>P</i><sub>slide</sub> for which sliding would start, the force <i>P</i><sub>tip</sub> for which the block would start to tip, what happens first, and the force at which motion starts.</p>`,
+  statement:p=>`<p>A uniform block of weight <i>W</i> = ${p.W} ${FU(p)}, width <i>b</i> = ${p.b} ${LU(p)} and height <i>h</i> = ${p.h} ${LU(p)}, rests on a horizontal floor with coefficient of static friction <i>μ<sub>s</sub></i> = ${mu2(p.mu)}. A horizontal push <i>P</i> acts on the left face at a height <i>a</i> = ${p.a} ${LU(p)} above the floor and is slowly increased. Determine the force <i>P</i><sub>slide</sub> for which sliding would start, the force <i>P</i><sub>tip</sub> for which the block would start to tip, what happens first, and the force at which motion starts.</p>`,
   figure:p=>{const e=[floor(-3.5,p.b+1),rect(0,0,p.b,p.h,"#eec878"),{t:"txt",p:[p.b/2,p.a<p.h/2?p.h*.72:p.h*.3],l:`${it("W")} = ${p.W} ${FU(p)}`},{a:[-2.8,p.a],b:[0,p.a],c:"r"},{t:"txt",p:[-2.9,p.a],l:it("P"),an:"end"},
       {t:"dim",a:[0,-1.0],b:[p.b,-1.0],l:`${p.b} ${LU(p)}`,flip:1},{t:"dim",a:[p.b+.6,0],b:[p.b+.6,p.h],l:`${p.h} ${LU(p)}`},{t:"dim",a:[-1.2,0],b:[-1.2,p.a],l:`${p.a} ${LU(p)}`,flip:1}];
     return draw(e,600,420)},
@@ -378,6 +378,43 @@ TEMPLATES["belt-drive"]={
 };
 
 
+// friction with forces in two directions on an incline
+TEMPLATES["incline-sideways"]={
+  name:"Block on an incline pushed sideways (friction in two directions)",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const us=r()<.5,p={us,W:us?pick(r,range(20,400,10)):pick(r,range(100,2000,50)),al:pick(r,range(10,35,1)),mu:pick(r,range(.3,.9,.05)),P:0};
+      const N=p.W*cs(p.al),G=p.W*sn(p.al),Fm=p.mu*N;if(G>.85*Fm) continue;
+      const Pm=Math.sqrt(Fm*Fm-G*G);p.P=Math.round(Pm*pick(r,range(.4,1.6,.05))/(us?1:5))*(us?1:5);if(p.P<=0) continue;
+      const Fr=Math.hypot(G,p.P),slip=Fr>Fm?"yes":"no",be=deg(Math.atan2(p.P,G));
+      if(Math.abs(Fr/Fm-1)<.05||Math.abs(Pm/Fm-1)<.04) continue;
+      return {p,s:{N,G,Fm,Pm,Fr,slip,be}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A block of weight <i>W</i> = ${p.W} ${FU(p)} rests on a plane inclined at ${p.al}° to the horizontal; the coefficient of static friction is <i>μ<sub>s</sub></i> = ${p.mu.toFixed(2)}. A force <i>P</i> = ${p.P} ${FU(p)} pushes the block horizontally across the slope, parallel to the plane and perpendicular to the line of steepest descent. Find the normal force, the friction force needed to hold the block, and the angle between that friction force and the up-slope direction. Decide whether the block slips, and find the largest sideways force the block can resist.</p>`,
+  figure:p=>{const S=sn(p.al),C=cs(p.al),Lx=5.5,H=Lx*Math.tan(rad(p.al)),e=[{t:"poly",pts:[[0,0],[Lx,0],[0,H]],fill:"#e6e6e6"},floor(-.3,Lx+.3),{t:"arc",p:[Lx,0],r:1.3,t0:180-p.al,t1:180,l:`${p.al}°`,lr:2}];
+    const m=[Lx*.45,H*(1-.45)],u=[-C,S],n=[S,C],b=.5,q=(a,c)=>[m[0]+a*u[0]+c*n[0],m[1]+a*u[1]+c*n[1]];
+    e.push({t:"poly",pts:[q(-b,0),q(b,0),q(b,2*b),q(-b,2*b)],fill:"#eec878"},{t:"txt",p:[Lx/2,-.7],l:"side view"});
+    const X0=Lx+1.6,Y0=0,w=4.4,h=3.4;e.push(rect(X0,Y0,X0+w,Y0+h,"#f2f2f2"),{t:"txt",p:[X0+w/2,-.7],l:"view normal to the plane"});
+    const c=[X0+w/2+.3,Y0+h/2+.3];e.push(rect(c[0]-.4,c[1]-.4,c[0]+.4,c[1]+.4,"#eec878"));
+    e.push({a:[c[0],c[1]-.4],b:[c[0],c[1]-1.5],c:"g"},{t:"txt",p:[c[0]+.2,c[1]-1.3],l:`${it("W")} sin ${p.al}°`,an:"start"});
+    e.push({a:[c[0]-1.9,c[1]],b:[c[0]-.42,c[1]],c:"r"},{t:"txt",p:[c[0]-1.9,c[1]+.35],l:`${it("P")} = ${p.P} ${FU(p)}`,an:"start"});
+    e.push({a:[X0+w+.35,Y0+.4],b:[X0+w+.35,Y0+h-.4],c:"x",w:1.2},{t:"txt",p:[X0+w+.55,Y0+h/2],l:"up slope",an:"start"});
+    return draw(e,680,330)},
+  solution:(p,s)=>`<h3>1. Normal force</h3>
+  <p>Perpendicular to the plane only <i>N</i> and the normal component of the weight act: ${eq(`N = W cos ${p.al}° = ${sig(s.N)} ${FU(p)}`)}</p>
+  <h3>2. Friction needed for equilibrium</h3>
+  <p>In the plane of the incline two forces act besides friction: the down-slope component ${eq(`W sin ${p.al}° = ${sig(s.G)} ${FU(p)}`)} and the sideways force <i>P</i>. The friction force must balance their resultant, so it has magnitude ${eq(`F = √((W sin α)² + P²) = ${sig(s.Fr)} ${FU(p)}`)} and points at ${eq(`β = tan<sup>&minus;1</sup>(P/(W sin α)) = ${sig(s.be)}°`)} from the up-slope direction, toward the side opposite to <i>P</i>.</p>
+  <h3>3. Slip check</h3>
+  <p>Friction is limited in magnitude, whatever its direction: ${eq(`μ<sub>s</sub>N = ${sig(s.Fm)} ${FU(p)}`)}. Since ${eq(`F ${s.slip==="yes"?"&gt;":"&lt;"} μ<sub>s</sub>N`)}, the block ${s.slip==="yes"?"slips":"does not slip"}.</p>
+  <h3>4. Largest sideways force</h3>
+  <p>Set the required friction equal to the limit: ${eq(`P<sub>max</sub> = √((μ<sub>s</sub>N)² &minus; (W sin α)²) = ${sig(s.Pm)} ${FU(p)}`)}</p>
+  <p class="final">N = ${sig(s.N,3)} ${FU(p)}, F = ${sig(s.Fr,3)} ${FU(p)} at β = ${sig(s.be,3)}°; slips: ${s.slip}; P<sub>max</sub> = ${sig(s.Pm,3)} ${FU(p)}.</p>
+  <p class="note">The limit μ<sub>s</sub>N applies to the magnitude of the friction force, not to each of its components separately.</p>`,
+  fields:p=>[{id:"N",label:"Normal force N",unit:FU(p)},{id:"Fr",label:"Friction force needed F",unit:FU(p)},{id:"be",label:"Angle β from up slope",unit:"°"},{id:"slip",label:"Does the block slip?",unit:"",choices:["yes","no"]},{id:"Pm",label:"Largest sideways force P<sub>max</sub>",unit:FU(p)}],
+  truth:s=>({N:s.N,Fr:s.Fr,be:s.be,slip:s.slip,Pm:s.Pm}),
+  note:"Enter magnitudes; the angle is in degrees."
+};
+
 // ===== planted errors: one conceptual mistake per problem type
 const FLAWS={};
 
@@ -470,6 +507,19 @@ FLAWS["belt-drive"]={n:3,step:2,
   <h3>3. Power</h3>
   <p>${eq(`P = ${sig(Pw)} ${p.us?"hp":"kW"}`)}</p>
   <p class="final">T<sub>2</sub> = ${sig(s.T2,3)} ${FU(p)}, T<sub>q</sub> = ${sig(Tq,3)} ${p.us?"lbf·in":"N·m"}, P = ${sig(Pw,3)} ${p.us?"hp":"kW"}.</p>`}};
+
+FLAWS["incline-sideways"]={n:4,step:3,
+  why:"The friction limit μ<sub>s</sub>N bounds the magnitude of the friction force. Checking the up-slope and sideways components separately against μ<sub>s</sub>N allows a resultant larger than the limit.",
+  html:(p,s)=>{const slip=(s.G>s.Fm||p.P>s.Fm)?"yes":"no",Pm=s.Fm;
+    return `<h3>1. Normal force</h3>
+  <p>${eq(`N = W cos ${p.al}° = ${sig(s.N)} ${FU(p)}`)}</p>
+  <h3>2. Friction needed for equilibrium</h3>
+  <p>${eq(`F = √((W sin α)² + P²) = ${sig(s.Fr)} ${FU(p)}`)} at ${eq(`β = ${sig(s.be)}°`)} from up slope.</p>
+  <h3>3. Slip check</h3>
+  <p>Check each direction against ${eq(`μ<sub>s</sub>N = ${sig(s.Fm)} ${FU(p)}`)}: up slope ${eq(`${sig(s.G)}`)}, sideways ${eq(`${p.P}`)}. ${slip==="yes"?"One component exceeds the limit, so the block slips.":"Both are below the limit, so the block does not slip."}</p>
+  <h3>4. Largest sideways force</h3>
+  <p>The sideways friction component may reach the limit: ${eq(`P<sub>max</sub> = μ<sub>s</sub>N = ${sig(Pm)} ${FU(p)}`)}</p>
+  <p class="final">slips: ${slip}; P<sub>max</sub> = ${sig(Pm,3)} ${FU(p)}.</p>`}};
 
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.

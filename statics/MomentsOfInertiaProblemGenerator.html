@@ -367,6 +367,35 @@ TEMPLATES["rod-sphere-pivot"]={
 };
 
 
+// mass moments of inertia of a solid of revolution by integration
+const SRV={.5:"a paraboloid of revolution",1:"a right circular cone",2:"a solid with a concave profile"};
+TEMPLATES["mass-integration"]={
+  name:"Mass moments of inertia of a solid of revolution by integration",
+  generate(seed){const r=mulberry32(seed);
+    const p={us:false,n:pick(r,[.5,1,2]),R:pick(r,range(40,200,10)),h:pick(r,range(100,500,20)),rho:pick(r,[2700,7850,8900,1200,7200])};
+    const R=p.R/1000,h=p.h/1000,n=p.n,m=p.rho*Math.PI*R*R*h/(2*n+1),Ix=p.rho*Math.PI*R**4*h/(2*(4*n+1)),Iy=p.rho*Math.PI*(R**4*h/(4*(4*n+1))+R*R*h**3/(2*n+3));
+    return {p,s:{m,Ix,Iy,kx:Math.sqrt(Ix/m)*1000}}},
+  statement:p=>`<p>A homogeneous solid of density ${p.rho} kg/m³ is formed by revolving about the <i>x</i> axis the region under the curve <i>r</i> = <i>R</i>(<i>x</i>/<i>h</i>)${p.n===1?"":`<sup>${frac(p.n)}</sup>`} for 0 ≤ <i>x</i> ≤ <i>h</i>, with <i>R</i> = ${p.R} mm and <i>h</i> = ${p.h} mm. The result is ${SRV[p.n]} with its tip at the origin. Using thin disks perpendicular to the <i>x</i> axis, find the mass, the moment of inertia about the <i>x</i> axis, the radius of gyration about the <i>x</i> axis, and the moment of inertia about the <i>y</i> axis through the tip.</p>`,
+  figure:p=>{const R=p.R/Math.max(p.R,p.h)*4,h=p.h/Math.max(p.R,p.h)*4,f=x=>R*Math.pow(x/h,p.n),up=[],dn=[];
+    for(let i=0;i<=40;i++){const x=h*i/40;up.push([x,f(x)]);dn.push([x,-f(x)])}
+    const e=[{t:"poly",pts:[...up,...dn.reverse()],fill:"#e7eef6"},{a:[-.6,0],b:[h+1.2,0],c:"x",l:it("x"),off:8,w:1.1},{a:[0,-R-.6],b:[0,R+.9],c:"x",l:it("y"),off:8,w:1.1}];
+    const xd=.62*h,rd=f(xd);e.push({t:"poly",pts:[[xd,-rd],[xd+.12*h,-rd],[xd+.12*h,rd],[xd,rd]],fill:"#f4d6d6"},{t:"txt",p:[xd+.06*h,rd+.35],l:`${it("dx")}`});
+    e.push({t:"dim",a:[0,-R-.9],b:[h,-R-.9],l:`${it("h")} = ${p.h} mm`,flip:1},{t:"dim",a:[h+.8,0],b:[h+.8,R],l:`${it("R")} = ${p.R} mm`},{a:[h,R],b:[h+.9,R],t:"ln",c:"x",d:1,w:.8});
+    return draw(e,600,360)},
+  solution:(p,s)=>{const n=p.n,R=p.R/1000,h=p.h/1000;return `<h3>1. Disk element</h3>
+  <p>A disk of thickness <i>dx</i> at position <i>x</i> has radius <i>r</i> = <i>R</i>(<i>x</i>/<i>h</i>)${n===1?"":`<sup>${frac(n)}</sup>`} and mass ${eq(`dm = ρπr² dx`)}. Its moment of inertia about its own axis (the <i>x</i> axis) is ${eq(`½ dm r²`)}; about its own diameter it is ${eq(`¼ dm r²`)}.</p>
+  <h3>2. Mass</h3>
+  <p>${eq(`m = ρπR²∫<sub>0</sub><sup>h</sup>(x/h)<sup>${frac(2*n)}</sup>dx = ρπR²h/${sig(2*n+1)} = ${sig(s.m)} kg`)}</p>
+  <h3>3. About the x axis</h3>
+  <p>${eq(`I<sub>x</sub> = ½ρπR⁴∫<sub>0</sub><sup>h</sup>(x/h)<sup>${frac(4*n)}</sup>dx = ρπR⁴h/${sig(2*(4*n+1))} = ${sig(s.Ix)} kg·m²`)}; ${eq(`k<sub>x</sub> = √(I<sub>x</sub>/m) = ${sig(s.kx)} mm`)}</p>
+  <h3>4. About the y axis through the tip</h3>
+  <p>Each disk contributes its diametral moment plus the parallel-axis term: ${eq(`dI<sub>y</sub> = ¼ dm r² + x² dm`)}, so ${eq(`I<sub>y</sub> = ρπ[R⁴h/${sig(4*(4*n+1))} + R²h³/${sig(2*n+3)}] = ${sig(s.Iy)} kg·m²`)}</p>
+  <p class="final">m = ${sig(s.m,3)} kg, I<sub>x</sub> = ${sig(s.Ix,3)} kg·m², k<sub>x</sub> = ${sig(s.kx,3)} mm, I<sub>y</sub> = ${sig(s.Iy,3)} kg·m².</p>`},
+  fields:p=>[{id:"m",label:"Mass m",unit:"kg"},{id:"Ix",label:"I<sub>x</sub>",unit:"kg·m²"},{id:"kx",label:"Radius of gyration k<sub>x</sub>",unit:"mm"},{id:"Iy",label:"I<sub>y</sub> (through the tip)",unit:"kg·m²"}],
+  truth:s=>({m:s.m,Ix:s.Ix,kx:s.kx,Iy:s.Iy}),
+  note:"Use SI units as given."
+};
+
 // ===== planted errors: one conceptual mistake per problem type
 const FLAWS={};
 
@@ -449,6 +478,19 @@ FLAWS["rod-sphere-pivot"]={n:2,step:1,
   <h3>2. Mass center and I<sub>G</sub></h3>
   <p>${eq(`x̄ = ${sig(s.xG)} ${lm(p)}`)} ${eq(`I<sub>G</sub> = I<sub>O</sub> &minus; M x̄² = ${sig(IG)} ${MI(p)}`)}</p>
   <p class="final">I<sub>O</sub> = ${sig(Io,3)} ${MI(p)}, x̄ = ${sig(s.xG,3)} ${lm(p)}, I<sub>G</sub> = ${sig(IG,3)} ${MI(p)}.</p>`}};
+
+FLAWS["mass-integration"]={n:4,step:1,
+  why:"A thin disk of mass dm and radius r has moment of inertia ½ dm r² about its own axis; dm r² is the value for a thin ring.",
+  html:(p,s)=>{const Ix=2*s.Ix,kx=Math.sqrt(Ix/s.m)*1000;
+    return `<h3>1. Disk element</h3>
+  <p>A disk of radius <i>r</i> and mass ${eq(`dm = ρπr² dx`)} has all its mass at distance up to <i>r</i> from the axis, so its moment of inertia about the <i>x</i> axis is ${eq(`dm r²`)}; about its own diameter it is ${eq(`¼ dm r²`)}.</p>
+  <h3>2. Mass</h3>
+  <p>${eq(`m = ${sig(s.m)} kg`)}</p>
+  <h3>3. About the x axis</h3>
+  <p>${eq(`I<sub>x</sub> = ρπR⁴∫<sub>0</sub><sup>h</sup>(x/h)<sup>${frac(4*p.n)}</sup>dx = ${sig(Ix)} kg·m²`)}; ${eq(`k<sub>x</sub> = ${sig(kx)} mm`)}</p>
+  <h3>4. About the y axis through the tip</h3>
+  <p>${eq(`I<sub>y</sub> = ${sig(s.Iy)} kg·m²`)}</p>
+  <p class="final">m = ${sig(s.m,3)} kg, I<sub>x</sub> = ${sig(Ix,3)} kg·m², k<sub>x</sub> = ${sig(kx,3)} mm, I<sub>y</sub> = ${sig(s.Iy,3)} kg·m².</p>`}};
 
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.

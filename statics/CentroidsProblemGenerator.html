@@ -255,7 +255,7 @@ TEMPLATES["pappus-guldinus"]={
     const p={us:r()<.5,r:ri(r,2,6),H:ri(r,3,8),d:ri(r,2,6)};
     const Ls=Math.hypot(p.r,p.d),V=Math.PI*p.r*p.r*p.H+Math.PI*p.r*p.r*p.d/3,S=2*Math.PI*p.r*p.H+Math.PI*p.r*Ls;
     return {p,s:{Ls,V,S}};},
-  statement:p=>`<p>A tank is formed by rotating the plane region shown through 360° about the vertical <i>y</i> axis. The region is a rectangle of width ${p.r} ${LU(p)} and height ${p.H} ${LU(p)} resting on a right triangle of the same width and depth ${p.d} ${LU(p)}, with its apex on the axis of rotation. Use the theorems of Pappus and Guldinus to find the volume of the solid, and the area of its curved outer surface (the cylindrical side and the conical bottom; the flat top is not included).</p>`,
+  statement:p=>`<p>A tank is formed by rotating the plane region shown through 360° about the vertical <i>y</i> axis. The region is a rectangle of width ${p.r} ${LU(p)} and height ${p.H} ${LU(p)} resting on a right triangle of the same width and depth ${p.d} ${LU(p)}, with its apex on the axis of rotation. Apply the Pappus-Guldinus theorems to obtain the enclosed volume and the area of the curved outer surface (the cylindrical side and the conical bottom; the flat top is not included).</p>`,
   figure:p=>draw([poly([[0,0],[p.r,0],[p.r,p.H],[0,p.H]]),poly([[0,0],[p.r,0],[0,-p.d]],"#e7dcc0"),{a:[0,-p.d-1],b:[0,p.H+1],t:"ln",c:"b",d:1,w:1.4},{t:"txt",p:[.25,p.H+1.3],l:it("y"),an:"start"},
     {t:"dim",a:[0,p.H+.9],b:[p.r,p.H+.9],l:`${p.r} ${LU(p)}`},{t:"dim",a:[p.r+.6,0],b:[p.r+.6,p.H],l:`${p.H} ${LU(p)}`},{t:"dim",a:[p.r+.6,-p.d],b:[p.r+.6,0],l:`${p.d} ${LU(p)}`},{t:"txt",p:[-.3,p.H/2],l:"axis of rotation",an:"end"}],620,380),
   solution:(p,s)=>`<h3>1. Volume (second theorem)</h3>
@@ -283,7 +283,7 @@ TEMPLATES["trapezoid-load-beam"]={
       const R=(p.w1+p.w2)*p.L/2,xb=p.L*(p.w1+2*p.w2)/(3*(p.w1+p.w2));
       return {p,s:{R,xb,Ay:R*(p.L-xb)/p.L,By:R*xb/p.L}};}
     throw new Error("no valid problem");},
-  statement:p=>`<p>A beam of length ${p.L} ${LU(p)} is supported by a pin at <i>A</i> (left end) and a roller at <i>B</i> (right end). It carries a downward distributed load that varies linearly from <i>w</i><sub>1</sub> = ${p.w1} ${WU(p)} at <i>A</i> to <i>w</i><sub>2</sub> = ${p.w2} ${WU(p)} at <i>B</i>. Determine the magnitude of the equivalent resultant force, its distance from <i>A</i>, and the vertical reactions at <i>A</i> and <i>B</i>.</p>`,
+  statement:p=>`<p>A ${p.L} ${LU(p)} beam rests on a pin at its left end <i>A</i> and a roller at its right end <i>B</i>. It carries a downward distributed load that varies linearly from <i>w</i><sub>1</sub> = ${p.w1} ${WU(p)} at <i>A</i> to <i>w</i><sub>2</sub> = ${p.w2} ${WU(p)} at <i>B</i>. Determine the magnitude of the equivalent resultant force, its distance from <i>A</i>, and the vertical reactions at <i>A</i> and <i>B</i>.</p>`,
   figure:p=>{const k=Math.max(.35,p.L/12),m=Math.max(p.w1,p.w2),h1=2*p.w1/m,h2=2*p.w2/m,e=[{a:[0,0],b:[p.L,0],c:"m",t:"ln",w:5},{t:"pt",p:[0,0],l:it("A"),dx:-16,dy:-8,r:4},{t:"pt",p:[p.L,0],l:it("B"),dx:6,dy:-10,r:4},...pinS(0,k),...rollS(p.L,k),poly([[0,.15],[0,.15+h1],[p.L,.15+h2],[p.L,.15]],"#f4d6d6")];
     for(let i=0;i<=4;i++){const x=p.L*i/4,h=h1+(h2-h1)*i/4;e.push({a:[x,.15+h],b:[x,.15],c:"r",w:1.6})}
     e.push({t:"txt",p:[0,.15+h1+.45],l:sbt("w",1)+" = "+p.w1+" "+WU(p),an:"start"},{t:"txt",p:[p.L,.15+h2+.45],l:sbt("w",2)+" = "+p.w2+" "+WU(p),an:"end"},{t:"dim",a:[0,-2.6*k],b:[p.L,-2.6*k],l:`${p.L} ${LU(p)}`,flip:1});
@@ -340,7 +340,7 @@ TEMPLATES["composite-solid-3d"]={
       const V=rows.reduce((s,q)=>s+q.A,0),xb=rows.reduce((s,q)=>s+q.A*q.x,0)/V,yb=rows.reduce((s,q)=>s+q.A*q.y,0)/V,zb=rows.reduce((s,q)=>s+q.A*q.z,0)/V;
       return {p,s:{rows,V,xb,yb,zb}};}
     throw new Error("no valid problem");},
-  statement:p=>`<p>A solid of uniform density consists of a rectangular block of dimensions ${p.a} ${LU(p)} (<i>x</i>) by ${p.b} ${LU(p)} (<i>y</i>) by ${p.c} ${LU(p)} (<i>z</i>) occupying 0 &le; <i>x</i> &le; ${p.a}, 0 &le; <i>y</i> &le; ${p.b}, 0 &le; <i>z</i> &le; ${p.c} ${LU(p)}, and a circular cylinder of radius ${p.rr} ${LU(p)} and height ${p.hc} ${LU(p)} standing on the top face. The axis of the cylinder is vertical and passes through <i>x</i> = ${p.xc} ${LU(p)}, <i>y</i> = ${p.yc} ${LU(p)}. The <i>z</i> axis points up. Determine the coordinates of the center of mass of the solid.</p>`,
+  statement:p=>`<p>A solid of uniform density consists of a rectangular block of dimensions ${p.a} ${LU(p)} (<i>x</i>) by ${p.b} ${LU(p)} (<i>y</i>) by ${p.c} ${LU(p)} (<i>z</i>) occupying 0 &le; <i>x</i> &le; ${p.a}, 0 &le; <i>y</i> &le; ${p.b}, 0 &le; <i>z</i> &le; ${p.c} ${LU(p)}, and a circular cylinder of radius ${p.rr} ${LU(p)} and height ${p.hc} ${LU(p)} standing on the top face. The axis of the cylinder is vertical and passes through <i>x</i> = ${p.xc} ${LU(p)}, <i>y</i> = ${p.yc} ${LU(p)}. The <i>z</i> axis points up. Locate the center of mass of the solid (give <i>x</i>, <i>y</i> and <i>z</i>).</p>`,
   solution:(p,s)=>`<h3>1. Parts</h3>
   <p>The solid is a block and a cylinder. Each part has a known volume and a center of mass at its geometric center: the block at (${p.a/2}, ${p.b/2}, ${p.c/2}) ${LU(p)}, and the cylinder on its axis at half its height above the top face of the block.</p>
   <h3>2. Tabulate</h3>
@@ -353,6 +353,71 @@ TEMPLATES["composite-solid-3d"]={
   note:"Measure from the corner of the block at the origin."
 };
 
+
+// gas pressure on a tank end cap and on the shell
+const gpU=p=>p.us?"psi":"MPa";
+TEMPLATES["gas-pressure"]={
+  name:"Gas pressure: force on a tank head and on the shell",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const us=r()<.5,p={us,R:us?pick(r,range(6,30,1)):pick(r,range(150,750,25)),Ls:us?pick(r,range(24,120,6)):pick(r,range(600,3000,100)),pg:us?pick(r,range(50,400,10)):pick(r,range(.4,2.8,.1)),n:pick(r,[8,12,16,20,24])};
+      const F=p.pg*Math.PI*p.R**2,Fb=F/p.n,Fs=p.pg*2*p.R*p.Ls;
+      return {p,s:{F,Fb,Fs}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A cylindrical tank of inside radius <i>R</i> = ${p.R} ${SU(p)} and length ${p.Ls} ${SU(p)} holds a gas at a uniform gauge pressure of ${p.pg} ${gpU(p)}. One end is closed by a hemispherical head fastened to the shell by ${p.n} equally spaced bolts. Find the resultant force of the gas on the head, the force carried by each bolt, and the force that tends to split the shell along two lines on opposite sides of it (the force on one half of the shell, perpendicular to the cutting plane).</p>`,
+  figure:p=>{const R=1,L=Math.min(4,Math.max(2,p.Ls/p.R/2)),e=[{t:"poly",pts:[[0,-R],[L,-R],[L,R],[0,R]],fill:"#e7eef6"}];
+    const cap=[];for(let t=90;t>=-90;t-=6)cap.push([L+R*cs(t),R*sn(t)]);e.push({t:"poly",pts:[[L,R],...cap,[L,-R]],fill:"#efe6d4"});
+    e.push({a:[L,-R-.15],b:[L,R+.15],t:"ln",w:3});for(let i=0;i<5;i++){const y=-R+.2+i*(2*R-.4)/4;e.push({t:"pt",p:[L,y],r:3})}
+    for(let t=-60;t<=60;t+=30)e.push({a:[L+.35*cs(t),.35*sn(t)],b:[L+.85*R*cs(t),.85*R*sn(t)],c:"b",w:1.6});
+    e.push({t:"txt",p:[L/2,0],l:`${it("p")} = ${p.pg} ${gpU(p)}`},{t:"dim",a:[L+R+.4,0],b:[L+R+.4,R],l:`${it("R")} = ${p.R} ${SU(p)}`},{t:"dim",a:[0,-R-.5],b:[L,-R-.5],l:`${p.Ls} ${SU(p)}`,flip:1},{t:"txt",p:[L+.5*R,R+.35],l:"head"});
+    return draw(e,600,320)},
+  solution:(p,s)=>`<h3>1. Force on the head</h3>
+  <p>The pressure acts normal to the curved head at every point. By symmetry the resultant is along the tank axis, and the axial components of the pressure forces add up to the pressure times the area projected on a plane normal to the axis, a circle of radius <i>R</i>:</p>
+  <p>${eq(`F = pπR² = ${p.pg}·π·${p.R}² = ${sig(s.F)} ${FU(p)}`)}</p>
+  <h3>2. Bolt force</h3>
+  <p>The bolts share the head force equally: ${eq(`F<sub>b</sub> = F/${p.n} = ${sig(s.Fb)} ${FU(p)}`)}</p>
+  <h3>3. Splitting force on the shell</h3>
+  <p>On half of the shell the same projection argument applies; the projected area is the rectangle 2<i>R</i> × length: ${eq(`F<sub>s</sub> = p(2R)(${p.Ls}) = ${sig(s.Fs)} ${FU(p)}`)}</p>
+  <p class="final">F = ${sig(s.F,3)} ${FU(p)}, F<sub>b</sub> = ${sig(s.Fb,3)} ${FU(p)}, F<sub>s</sub> = ${sig(s.Fs,3)} ${FU(p)}.</p>
+  <p class="note">The shape of the head does not matter: a flat plate, a hemisphere and an ellipsoidal head of the same radius carry the same axial force.</p>`,
+  fields:p=>[{id:"F",label:"Force on the head F",unit:FU(p)},{id:"Fb",label:"Force per bolt",unit:FU(p)},{id:"Fs",label:"Splitting force on the shell",unit:FU(p)}],
+  truth:s=>({F:s.F,Fb:s.Fb,Fs:s.Fs}),
+  note:"Enter magnitudes."
+};
+
+// inclined rectangular gate under water
+TEMPLATES["inclined-gate"]={
+  name:"Fluid pressure on an inclined gate",
+  generate(seed){const r=mulberry32(seed);
+    for(let k=0;k<5000;k++){
+      const us=r()<.5,p={us,Lg:ri(r,2,6),b:ri(r,1,5),th:pick(r,range(30,75,5)),d1:pick(r,range(.5,6,.5))};
+      const g=us?62.4:9810,S=sn(p.th),F=g*p.b*(p.d1*p.Lg+S*p.Lg**2/2),sc=(p.d1*p.Lg**2/2+S*p.Lg**3/3)/(p.d1*p.Lg+S*p.Lg**2/2),P=F*sc/p.Lg;
+      if(sc/(p.Lg/2)-1<.04) continue;
+      return {p,s:{g,F,sc,P}};}
+    throw new Error("no valid problem");},
+  statement:p=>`<p>A rectangular gate <i>AB</i>, ${p.Lg} ${LU(p)} long and ${p.b} ${LU(p)} wide, holds back water (specific weight ${p.us?"62.4 lbf/ft³":"9.81 kN/m³"}). The gate is inclined at ${p.th}° to the horizontal. Its upper edge <i>A</i> is a hinge ${p.d1} ${LU(p)} below the free surface, and its lower edge <i>B</i> rests against a stop that pushes on the gate perpendicular to it. The other side of the gate is open to the atmosphere, and the gate weight is negligible. Find the resultant water force on the gate, the location of its line of action measured along the gate from <i>A</i>, and the force <i>P</i> exerted by the stop.</p>`,
+  figure:p=>{const S=sn(p.th),C=cs(p.th),A=[0,-p.d1],B=[p.Lg*C,-p.d1-p.Lg*S],x0=-2.2,e=[];
+    e.push({t:"poly",pts:[[x0,0],[0,0],A,B,[x0,B[1]]],fill:"#d6e6f4"},{a:[x0,0],b:[B[0]+1.2,0],t:"ln",c:"b",w:1.4},{t:"txt",p:[x0+.5,.3],l:"water"});
+    e.push({a:A,b:B,c:"m",t:"ln",w:5},{a:[0,0],b:A,t:"ln",w:2.4},{t:"pt",p:A,l:it("A"),dx:10,dy:-6,r:4.5},{t:"pt",p:B,l:it("B"),dx:-12,dy:20,r:4,an:"end"});
+    const n=[S,C];e.push({a:[B[0]+1.6*n[0],B[1]+1.6*n[1]],b:[B[0]+.08*n[0],B[1]+.08*n[1]],c:"r"},{t:"txt",p:[B[0]+1.85*n[0]+.15,B[1]+1.85*n[1]],l:`${it("P")}`,an:"start"});
+    for(let i=1;i<=4;i++){const t=i/5,q=[A[0]+t*(B[0]-A[0]),A[1]+t*(B[1]-A[1])];e.push({a:[q[0]-(.3+.6*t)*S,q[1]-(.3+.6*t)*C],b:[q[0]-.05*S,q[1]-.05*C],c:"b",w:1.4})}
+    e.push({t:"dim",a:[-1.1,0],b:[-1.1,-p.d1],l:`${p.d1} ${LU(p)}`},{t:"arc",p:B,r:1.3,t0:180-p.th,t1:180,l:`${p.th}°`,lr:2},{a:B,b:[B[0]-1.4,B[1]],t:"ln",c:"x",d:1,w:1},
+      {t:"txt",p:[(A[0]+B[0])/2+.55,(A[1]+B[1])/2+.2],l:`${p.Lg} ${LU(p)}`,an:"start"});
+    return draw(e,600,400)},
+  solution:(p,s)=>`<h3>1. Pressure along the gate</h3>
+  <p>Let <i>s</i> be the distance along the gate from <i>A</i>. The depth there is ${eq(`d<sub>1</sub> + s sin θ`)}, so the pressure is ${eq(`γ(d<sub>1</sub> + s sin θ)`)}, a load that varies linearly from <i>A</i> to <i>B</i>.</p>
+  <h3>2. Resultant force</h3>
+  <p>${eq(`F = γb∫<sub>0</sub><sup>L</sup>(d<sub>1</sub> + s sin θ)ds = γb(d<sub>1</sub>L + L² sin θ/2) = ${sig(s.F)} ${FU(p)}`)}</p>
+  <h3>3. Center of pressure</h3>
+  <p>${eq(`s<sub>p</sub> = [∫<sub>0</sub><sup>L</sup>s(d<sub>1</sub> + s sin θ)ds]/[∫<sub>0</sub><sup>L</sup>(d<sub>1</sub> + s sin θ)ds] = (d<sub>1</sub>L²/2 + L³ sin θ/3)/(d<sub>1</sub>L + L² sin θ/2) = ${sig(s.sc)} ${LU(p)}`)}</p>
+  <h3>4. Force from the stop</h3>
+  <p>Moments about the hinge <i>A</i>: ${eq(`P(${p.Lg}) = F s<sub>p</sub>`)} so ${eq(`P = ${sig(s.P)} ${FU(p)}`)}</p>
+  <p class="final">F = ${sig(s.F,3)} ${FU(p)}, s<sub>p</sub> = ${sig(s.sc,3)} ${LU(p)} from A, P = ${sig(s.P,3)} ${FU(p)}.</p>
+  <p class="note">The center of pressure lies below the centroid of the gate because the pressure grows with depth.</p>`,
+  fields:p=>[{id:"F",label:"Resultant water force F",unit:FU(p)},{id:"sc",label:"Distance of F from A along the gate",unit:LU(p)},{id:"P",label:"Force from the stop P",unit:FU(p)}],
+  truth:s=>({F:s.F,sc:s.sc,P:s.P}),
+  note:"Enter magnitudes."
+};
 
 // ===== planted errors: one conceptual mistake per problem type
 const FLAWS={};
@@ -438,6 +503,30 @@ FLAWS["composite-solid-3d"]={n:3,step:1,
   <p>${eq(`V<sub>block</sub> = ${sig(rows[0].A)} ${VU(p)}`)} ${eq(`V<sub>cyl</sub> = ${sig(rows[1].A)} ${VU(p)}`)}</p>
   <h3>3. Center of mass</h3>
   <p class="final">x̄ = ${sig(xb,3)}, ȳ = ${sig(yb,3)}, z̄ = ${sig(zb,3)} ${LU(p)}.</p>`}};
+
+FLAWS["gas-pressure"]={n:3,step:1,
+  why:"Only the axial components of the pressure forces survive; they add up to the pressure times the projected area πR², not the curved surface area 2πR².",
+  html:(p,s)=>{const F=p.pg*2*Math.PI*p.R**2,Fb=F/p.n;
+    return `<h3>1. Force on the head</h3>
+  <p>The pressure acts over the whole inside surface of the hemispherical head, of area 2π<i>R</i>²: ${eq(`F = p(2πR²) = ${sig(F)} ${FU(p)}`)}</p>
+  <h3>2. Bolt force</h3>
+  <p>${eq(`F<sub>b</sub> = F/${p.n} = ${sig(Fb)} ${FU(p)}`)}</p>
+  <h3>3. Splitting force on the shell</h3>
+  <p>${eq(`F<sub>s</sub> = p(2R)(${p.Ls}) = ${sig(s.Fs)} ${FU(p)}`)}</p>
+  <p class="final">F = ${sig(F,3)} ${FU(p)}, F<sub>b</sub> = ${sig(Fb,3)} ${FU(p)}, F<sub>s</sub> = ${sig(s.Fs,3)} ${FU(p)}.</p>`}};
+
+FLAWS["inclined-gate"]={n:4,step:3,
+  why:"The pressure increases with depth, so the resultant acts through the centroid of the pressure distribution, below the centroid of the gate area.",
+  html:(p,s)=>{const sc=p.Lg/2,P=s.F/2;
+    return `<h3>1. Pressure along the gate</h3>
+  <p>The pressure is ${eq(`γ(d<sub>1</sub> + s sin θ)`)}.</p>
+  <h3>2. Resultant force</h3>
+  <p>${eq(`F = γb(d<sub>1</sub>L + L² sin θ/2) = ${sig(s.F)} ${FU(p)}`)}</p>
+  <h3>3. Center of pressure</h3>
+  <p>The resultant acts at the centroid of the rectangular gate: ${eq(`s<sub>p</sub> = L/2 = ${sig(sc)} ${LU(p)}`)}</p>
+  <h3>4. Force from the stop</h3>
+  <p>${eq(`P = F s<sub>p</sub>/L = ${sig(P)} ${FU(p)}`)}</p>
+  <p class="final">F = ${sig(s.F,3)} ${FU(p)}, s<sub>p</sub> = ${sig(sc,3)} ${LU(p)}, P = ${sig(P,3)} ${FU(p)}.</p>`}};
 
 // ===== error report form (Google Form with prefilled fields)
 // Chapter, problem type, seed, and page link are read from the page and prefilled in the Google Form. Leave FORM.url empty to hide the button.
