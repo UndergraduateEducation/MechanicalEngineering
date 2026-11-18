@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eccentric Loading Problem Generator</title>
+<style>
+  .howto h2{font-size:1.05rem;margin:0 0 .3em;font-weight:600}
+  .howto p{margin:0;color:var(--muted);font-size:.95rem}
+  .reportrow{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem;color:var(--muted)}
+  #flawed h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  :root{--ink:#1f2328;--muted:#5b6470;--line:#d9dde3;--bg:#fbfaf7;--card:#ffffff;--accent:#1e5a32;--ok:#1e7a3c;--bad:#b3261e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Georgia","Times New Roman",serif}
+  header{padding:22px 24px 8px;max-width:980px;margin:0 auto}
+  h1{font-size:1.45rem;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--muted);font-family:system-ui,sans-serif;font-size:.9rem}
+  .sub a{color:var(--accent)}
+  main{max-width:980px;margin:0 auto;padding:8px 24px 40px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:system-ui,sans-serif;font-size:.9rem}
+  button{font:inherit;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:7px 14px;cursor:pointer}
+  button.ghost{background:#fff;color:var(--accent)}
+  button:hover{filter:brightness(1.08)}
+  input[type=number],input[type=text]{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:9em}
+  select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;max-width:100%}
+  label{color:var(--muted)}
+  svg{width:100%;height:auto;display:block}
+  .statement p{margin:.3em 0}
+  .answers{display:grid;grid-template-columns:auto auto auto;gap:8px 12px;align-items:center;font-family:system-ui,sans-serif;font-size:.92rem}
+  .answers input{width:8em}
+  .mark{font-weight:600;min-width:7em}.mark.ok{color:var(--ok)}.mark.bad{color:var(--bad)}
+  #solution{display:none}
+  #solution h3{font-size:1.05rem;margin:1.1em 0 .3em}
+  table{border-collapse:collapse;font-family:system-ui,sans-serif;font-size:.88rem;margin:.4em 0}
+  td,th{border-bottom:1px solid var(--line);padding:4px 12px;text-align:right}
+  th{color:var(--muted);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;background:#f4f5f2;border-radius:6px;padding:6px 10px;display:inline-block;margin:3px 0}
+  .note{color:var(--muted);font-size:.92rem}
+  .final{font-weight:600}
+  @media (max-width:640px){.answers{grid-template-columns:1fr 1fr}.answers .mark{grid-column:span 2}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mechanics of Materials: Eccentric Loading Problem Generator</h1>
+  <div class="sub">Loads applied off the centroid, bending combined with torsion, and stresses at a point under combined loading. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem.</div>
+</header>
+<main>
+  <div class="card howto">
+    <h2>How to use</h2>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <div class="reportrow"><span id="reportLbl">Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
+  </div>
+  <div class="card bar"><label>Mode</label><button id="mPractice">Practice</button><button class="ghost" id="mError">Find the error</button></div>
+  <div class="card bar"><label for="typeSel">Problem type</label><select id="typeSel"></select></div>
+  <div class="card bar">
+    <button id="newBtn">New problem</button>
+    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load seed</button>
+  </div>
+  <div class="card" id="figCard"><div id="fig"></div></div>
+  <div class="card statement" id="statement"></div>
+  <div class="card" id="flawCard" style="display:none">
+    <p class="note" style="margin:0 0 .6em">Worked solution as submitted by a student. One step contains an error.</p>
+    <div id="flawed"></div>
+  </div>
+  <div class="card">
+    <div class="answers" id="answers"></div>
+    <div class="bar" style="margin-top:12px">
+      <button id="checkBtn">Check answers</button>
+      <button class="ghost" id="solBtn">Show solution</button>
+      <span class="note" id="ansNote"></span>
+    </div>
+  </div>
+  <div class="card" id="solution"></div>
+</main>
+<script>
+const PAGE_CH="Mechanics of Materials: Eccentric Loading";
+// ===== common helpers: seeded random numbers, number formatting, SVG drawing
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+const range=(a,b,s)=>{const o=[];for(let v=a;v<=b+1e-9;v+=s)o.push(+v.toFixed(4));return o};
+function fmt(v,d=0){return Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+function sig(v,n=3){if(v===0)return "0";const e=Math.floor(Math.log10(Math.abs(v)));return fmt(+v.toPrecision(n),Math.min(20,Math.max(0,n-1-e)))}
+function fx(v){for(let d=0;d<=4;d++)if(Math.abs(+v.toFixed(d)-v)<1e-9*Math.max(1,Math.abs(v)))return fmt(v,d);return sig(v,4)}
+const FR={0.1875:"³⁄₁₆",0.3125:"⁵⁄₁₆",0.25:"¼",0.375:"⅜",0.5:"½",0.625:"⅝",0.75:"¾",0.875:"⅞",1:"1",1.25:"1¼",1.5:"1½"};
+const dstr=v=>FR[v]||String(v);
+const C={fill:"#f7e2c4",ln:"#78461a",load:"#aa1e28",dim:"#5b6470",ink:"#1f2328",green:"#1e5a32",light:"#cde1cd",steel:"#dfe4ea",steelln:"#46505c"};
+const TX=(x,y,s,o={})=>`<text x="${x}" y="${y}" text-anchor="${o.a||"middle"}" font-size="${o.s||14}" fill="${o.c||C.ink}" font-family="Georgia,serif"${o.i?' font-style="italic"':""}>${s}</text>`;
+const LN=(x1,y1,x2,y2,o={})=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"${o.d?` stroke-dasharray="${o.d}"`:""}${o.cap?' stroke-linecap="round"':""}/>`;
+function AR(x1,y1,x2,y2,c=C.load,w=2.2){const a=Math.atan2(y2-y1,x2-x1),h=11,s=0.4;
+  const p=(da)=>`${(x2-h*Math.cos(a+da)).toFixed(1)},${(y2-h*Math.sin(a+da)).toFixed(1)}`;
+  return LN(x1,y1,x2-6*Math.cos(a),y2-6*Math.sin(a),{c,w})+`<polygon points="${x2.toFixed(1)},${y2.toFixed(1)} ${p(s)} ${p(-s)}" fill="${c}"/>`}
+const RC=(x,y,w,h,o={})=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${o.f||C.fill}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"/>`;
+const CI=(x,y,r,o={})=>`<circle cx="${x}" cy="${y}" r="${r}" fill="${o.f||"#fff"}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"/>`;
+function DIMH(x1,x2,y,label,o={}){const up=o.up?-6:16;
+  return LN(x1,y,x2,y,{c:C.dim,w:1})+LN(x1,y-5,x1,y+5,{c:C.dim,w:1})+LN(x2,y-5,x2,y+5,{c:C.dim,w:1})+TX((x1+x2)/2,y+up,label,{s:13,c:C.dim})}
+function DIMV(x,y1,y2,label,o={}){const dx=o.left?-8:8;
+  return LN(x,y1,x,y2,{c:C.dim,w:1})+LN(x-5,y1,x+5,y1,{c:C.dim,w:1})+LN(x-5,y2,x+5,y2,{c:C.dim,w:1})+TX(x+dx,(y1+y2)/2+4,label,{s:13,c:C.dim,a:o.left?"end":"start"})}
+function HATCH(x,y,w,h){let s=RC(x,y,w,h,{f:"#eceae4",c:C.ln,w:1});
+  for(let i=-h;i<w;i+=8){const xa=Math.max(x,x+i),ya=y+(xa-(x+i)),xb=Math.min(x+w,x+i+h),yb=y+(xb-(x+i));s+=LN(xa,ya,xb,yb,{c:"#9a8f80",w:.8})}return s}
+const SVG=(w,h,b)=>`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" role="img">${b}</svg>`;
+const sub=(a,b)=>`${a}<sub>${b}</sub>`;
+const iv=s=>`<i>${s}</i>`;
+
+const nice=(v,st)=>+(Math.round(v/st)*st).toFixed(4);
+const deg=Math.PI/180;
+const EL=(cx,cy,rx,ry,o={})=>`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${o.f||"none"}" stroke="${o.c||C.ln}" stroke-width="${o.w||1.5}"${o.d?` stroke-dasharray="${o.d}"`:""}/>`;
+const DOT=(x,y,c=C.load)=>`<circle cx="${x}" cy="${y}" r="4.5" fill="${c}" stroke="${c}"/>`;
+// base slab with visible thickness: top face centered on (cx,cy), half-width a, depth offset (dx,dy), thickness t
+function SLAB(cx,cy,a=85,dx=50,dy=34,t=14){
+  const p=[[cx-a-dx/2,cy+dy/2],[cx+a-dx/2,cy+dy/2],[cx+a+dx/2,cy-dy/2],[cx-a+dx/2,cy-dy/2]],q=v=>v.map(c=>c.toFixed(1)).join(",");
+  return `<polygon points="${p.map(q).join(" ")}" fill="#eceae4" stroke="${C.ln}" stroke-width="1.3"/>`
+   +`<polygon points="${q(p[0])} ${q(p[1])} ${p[1][0]},${p[1][1]+t} ${p[0][0]},${p[0][1]+t}" fill="#d9d4c8" stroke="${C.ln}" stroke-width="1.3"/>`
+   +`<polygon points="${q(p[1])} ${q(p[2])} ${p[2][0]},${p[2][1]+t} ${p[1][0]},${p[1][1]+t}" fill="#c8c2b4" stroke="${C.ln}" stroke-width="1.3"/>`}
+// vertical circular cylinder from ytop to ybot (axis x, radius r, ellipse half-height ry), shaded, with its curved bottom edge
+function CYL(x,ytop,ybot,r,ry,id,c1,c2,ln){
+  return `<defs><linearGradient id="${id}" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="${c2}"/><stop offset="0.35" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>`
+   +`<path d="M ${x-r} ${ytop} L ${x-r} ${ybot} A ${r} ${ry} 0 0 0 ${x+r} ${ybot} L ${x+r} ${ytop} Z" fill="url(#${id})" stroke="none"/>`
+   +`<path d="M ${x-r} ${ytop} L ${x-r} ${ybot} A ${r} ${ry} 0 0 0 ${x+r} ${ybot} L ${x+r} ${ytop}" fill="none" stroke="${ln}" stroke-width="1.5"/>`}
+
+// ===== 4. shaft with a gear between two bearings: bending plus torsion, smallest diameter
+function sgSolve(p,wrongM){
+  const T=p.us?63025*p.pw/p.n:p.pw*1000/(2*Math.PI*p.n/60);              // lb·in. or N·m
+  const F=p.us?T/p.r:T/(p.r/1000);                                         // lb or N
+  const M=wrongM?F*(p.us?p.r:p.r/1000):F*(p.us?p.a*(p.L-p.a)/p.L:(p.a/1000)*(p.L-p.a)/p.L);   // lb·in. or N·m
+  const Te=Math.hypot(M,T),d=p.us?Math.cbrt(16*Te/(Math.PI*p.tw*1000)):Math.cbrt(16*Te*1000/(Math.PI*p.tw));
+  return {T,F,M,Te,d};
+}
+function sgGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,L=pick(r,us?[24,30,36,40,48]:[400,500,600,750,900]);
+    const a=nice(L*pick(r,[0.25,0.3,0.4,0.5,0.6,0.7,0.75]),us?1:10);
+    const p={us,L,a,r:pick(r,us?[2,3,4,5,6]:[50,75,100,125,150]),pw:pick(r,us?range(5,60,5):range(5,50,5)),n:pick(r,range(300,1800,100)),tw:pick(r,us?[6,8,10,12]:[40,50,60,70])};
+    const s=sgSolve(p,false);
+    if(s.M/s.T<0.35||s.M/s.T>3) continue;
+    if(us?(s.d<0.75||s.d>4):(s.d<20||s.d>100)) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function sgFigure(p){
+  const u=p.us?"in.":"mm",xA=120,xB=560,cy=140,sc=(xB-xA)/p.L,xC=xA+p.a*sc,rp=70;
+  let s=LN(xA-30,cy,xB+90,cy,{c:C.steelln,w:14,cap:1})+LN(xA-30,cy,xB+90,cy,{c:"#c3cad2",w:10,cap:1});
+  [xA,xB].forEach(x=>{s+=RC(x-16,cy-20,32,40,{f:"#eceae4",c:C.ln,w:1.2})+`<polygon points="${x},${cy+20} ${x-18},${cy+50} ${x+18},${cy+50}" fill="#eceae4" stroke="${C.ln}"/>`+HATCH(x-26,cy+50,52,10)});
+  s+=RC(xC-9,cy-rp,18,2*rp,{f:"#e8c690"})+LN(xC-9,cy-rp,xC+9,cy-rp,{c:C.ln,w:3})+LN(xC-9,cy+rp,xC+9,cy+rp,{c:C.ln,w:3})
+   +AR(xC+28,cy-60,xC+28,cy-4)+TX(xC+40,cy-34,"F",{s:16,i:1,c:C.load,a:"start"})
+   +DIMV(xC-30,cy-rp,cy,`r = ${fx(p.r)} ${u}`,{left:1})
+   +RC(xB+76,cy-16,16,32,{f:"#9aa5b1",c:C.steelln})
+   +`<path d="M ${xB+104} ${cy-30} A 14 30 0 1 1 ${xB+104} ${cy+30}" fill="none" stroke="${C.load}" stroke-width="2.2"/><polygon points="${xB+104},${cy+30} ${xB+114},${cy+22} ${xB+112},${cy+36}" fill="${C.load}"/>`
+   +TX(xB+130,cy-36,"T",{s:16,i:1,c:C.load,a:"start"})+TX(xB+84,cy+40,"coupling",{s:12,c:C.dim})
+   +TX(xA,cy-30,"A",{s:15,i:1})+TX(xB,cy-30,"B",{s:15,i:1})+TX(xC+16,cy+rp+14,"C",{s:15,i:1,a:"start"})
+   +DIMH(xA,xC,cy+92,`${fx(p.a)} ${u}`)+DIMH(xA,xB,cy+124,`${fx(p.L)} ${u}`);
+  return SVG(760,cy+150,s);
+}
+function sgStatement(p){
+  const u=p.us?"in.":"mm",Pu=p.us?"hp":"kW",su=p.us?"ksi":"MPa";
+  return `<p>A solid steel shaft turns at ${p.n} rpm in bearings at ${iv("A")} and ${iv("B")}, ${fx(p.L)} ${u} apart. Gear ${iv("C")}, of pitch radius ${fx(p.r)} ${u}, is keyed to the shaft ${fx(p.a)} ${u} from ${iv("A")}; it receives ${p.pw} ${Pu} from a mating gear that engages it at the front of its rim, so the tooth force ${iv("F")} on gear ${iv("C")} is vertical and tangent to the pitch circle. All of that power leaves the shaft through a coupling at the end beyond ${iv("B")}. The bearings exert no moments, and the weights of the shaft and gear are neglected.</p>
+  <p>Find the torque carried by the shaft between ${iv("C")} and the coupling, the tooth force, and the bending moment at ${iv("C")}. Then find the smallest shaft diameter for which the shear stress does not exceed ${p.tw} ${su}.</p>`;
+}
+function sgSolution(p,s){
+  const u=p.us?"in.":"mm",Tu=p.us?"lb·in.":"N·m",Fu=p.us?"lb":"kN",fF=p.us?1:1/1000;
+  return `<h3>1. Torque</h3><p>${p.us?"With power in horsepower and speed in rpm, T = 63,025 P/n":"T = P/ω, with ω = 2πn/60"}:</p><p class="eq">T = ${sig(s.T,4)} ${Tu}</p>
+  <p>Segment ${iv("AC")} carries no torque; segment ${iv("CB")} and the stub to the coupling carry ${iv("T")}.</p>
+  <h3>2. Tooth force</h3><p class="eq">F = T/r = ${sig(s.F*fF,4)} ${Fu}</p>
+  <h3>3. Bending moment</h3><p>The shaft acts as a simply supported beam with the force ${iv("F")} at ${iv("C")}. The reactions are F(L − a)/L at ${iv("A")} and Fa/L at ${iv("B")}, and the moment is largest under the gear:</p>
+  <p class="eq">M<sub>C</sub> = F a (L − a)/L = ${sig(s.M,4)} ${Tu}</p>
+  <h3>4. Diameter</h3><p>Just to the right of ${iv("C")} the section carries both M<sub>C</sub> and ${iv("T")}. At its surface, σ = 32M/(πd³) and τ = 16T/(πd³), so the largest shear stress is</p>
+  <p class="eq">τ<sub>max</sub> = √((σ/2)² + τ²) = (16/πd³)√(M² + T²), &nbsp; √(M² + T²) = ${sig(s.Te,4)} ${Tu}</p>
+  <p class="final">d<sub>min</sub> = [16√(M² + T²)/(πτ<sub>w</sub>)]<sup>1/3</sup> = ${sig(s.d)} ${u}</p>`;
+}
+const SG={name:"Gear shaft: bending and torsion, smallest diameter",
+  generate:sgGenerate,figure:sgFigure,statement:sgStatement,solution:sgSolution,
+  fields:p=>{const Tu=p.us?"lb·in.":"N·m";return [{id:"T",label:"Torque in segment CB",unit:Tu},{id:"F",label:"Tooth force F",unit:p.us?"lb":"kN"},
+    {id:"M",label:"Bending moment at C",unit:Tu},{id:"d",label:"Smallest diameter",unit:p.us?"in.":"mm"}]},
+  truth:(p,s)=>({T:s.T,F:p.us?s.F:s.F/1000,M:s.M,d:s.d}),note:"Answers within 2% are accepted."};
+
+// ===== 5. hollow post with a horizontal arm: axial, bending, torsion and transverse shear at two points
+function paSolve(p,sub){
+  const Ro=p.D/2,Ri=Ro-p.t,A=Math.PI*(Ro*Ro-Ri*Ri),I=Math.PI*(Ro**4-Ri**4)/4,J=2*I,Q=2/3*(Ro**3-Ri**3),k=p.us?1:1000;
+  const T=p.H*p.l,Mx=p.H*p.z,Mz=p.V*p.l;
+  const sa=-p.V*k/A-Mx*k*Ro/I,tt=T*k*Ro/J,tv=p.H*k*Q/(I*2*p.t),sb=-p.V*k/A-Mz*k*Ro/I,tb=sub?Math.abs(tt-tv):tt+tv;
+  return {Ro,Ri,A,I,J,Q,T,Mx,Mz,sa,ta:tt,tt,tv,sb,tb,tmb:Math.hypot(sb/2,tb)};
+}
+function paGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,D=pick(r,us?[2,2.5,3,3.5,4]:[50,60,75,90,100]),t=pick(r,us?[0.125,0.1875,0.25,0.3125]:[3,4,5,6,8]);
+    const p={us,D,t,l:pick(r,us?range(6,24,2):range(150,600,50)),z:pick(r,us?range(6,30,2):range(150,800,50)),
+      V:pick(r,us?range(100,1500,100):range(0.5,6,0.5)),H:pick(r,us?range(100,1500,100):range(0.5,6,0.5))};
+    const s=paSolve(p,false),mx=Math.max(Math.abs(s.sa),Math.abs(s.sb),s.tb);
+    if(us?(mx<3000||mx>30000):(mx<20||mx>200)) continue;
+    if(s.tv<0.06*s.tb||s.ta<0.15*Math.abs(s.sa)) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function paFigure(p){
+  const u=p.us?"in.":"mm",Fu=p.us?"lb":"kN",X0=300,R=32,ry=11,Yt=60,Ya=76,Ys=250,Yb=320,ax=X0+250;
+  let s=SLAB(X0,Yb-17)+CYL(X0,Yt,Yb-17,R,ry,"gtube","#f2d9b0","#c99a5e",C.ln)+EL(X0,Yt,R,ry,{f:"#f2d9b0"})+EL(X0,Yt,R*Math.max(0.55,1-2*p.t/p.D),ry*Math.max(0.55,1-2*p.t/p.D),{f:"#9c7442"})+EL(X0,Ys,R,ry,{c:C.dim,w:1,d:"4 3"})
+   +RC(X0+R-4,Ya-8,ax-X0-R+4,16,{f:"#d7b07c"})+EL(ax,Ya,5,8,{f:"#d7b07c"});
+  const za=[-0.7,0.55];
+  s+=AR(ax,Ya,ax,Ya+66)+TX(ax+10,Ya+60,`${fx(p.V)} ${Fu}`,{s:13,c:C.load,a:"start"})
+   +AR(ax,Ya,ax+66*za[0],Ya+66*za[1])+TX(ax+66*za[0]-6,Ya+66*za[1]+14,`${fx(p.H)} ${Fu}`,{s:13,c:C.load,a:"end"})
+   +DOT(X0,Ys+ry,C.green)+TX(X0-8,Ys+ry+18,"a",{s:15,i:1,c:C.green,a:"end"})+DOT(X0+R,Ys,C.green)+TX(X0+R+8,Ys+16,"b",{s:15,i:1,c:C.green,a:"start"})
+   +DIMH(X0,ax,Ya-34,`ℓ = ${fx(p.l)} ${u}`,{up:1})+LN(X0,Yt-ry-4,X0,Ya-40,{c:C.dim,w:.8,d:"2 3"})
+   +LN(X0+R+6,Ys,ax+110,Ys,{c:C.dim,w:.8,d:"2 3"})+LN(ax+8,Ya,ax+110,Ya,{c:C.dim,w:.8,d:"2 3"})+DIMV(ax+104,Ya,Ys,`H = ${fx(p.z)} ${u}`)
+   +TX(X0-R-10,Yt+40,"post",{s:12,c:C.dim,a:"end"})+TX((X0+ax)/2,Ya+26,"arm",{s:12,c:C.dim});
+  const tx=110,ty=180;
+  s+=AR(tx,ty,tx+44,ty,C.dim,1.4)+AR(tx,ty,tx,ty-44,C.dim,1.4)+AR(tx,ty,tx-30,ty+24,C.dim,1.4)
+   +TX(tx+50,ty+5,"x",{s:14,i:1,c:C.dim,a:"start"})+TX(tx,ty-50,"y",{s:14,i:1,c:C.dim})+TX(tx-36,ty+36,"z",{s:14,i:1,c:C.dim});
+  return SVG(760,Yb+26,s);
+}
+function paStatement(p){
+  const u=p.us?"in.":"mm",Fu=p.us?"lb":"kN";
+  return `<p>A vertical steel tube with outer diameter ${dstr(p.D)} ${u} and wall thickness ${dstr(p.t)} ${u} is fixed to a base. A horizontal arm welded to its top extends along ${iv("x")}. At the tip of the arm, a horizontal distance ℓ = ${fx(p.l)} ${u} from the tube axis, two forces act: ${fx(p.V)} ${Fu} vertically downward and ${fx(p.H)} ${Fu} horizontally in the +${iv("z")} direction. Points ${iv("a")} and ${iv("b")} lie on the outer surface of the tube at a cross section ${fx(p.z)} ${u} below the line of action of the horizontal force: ${iv("a")} faces +${iv("z")} and ${iv("b")} faces +${iv("x")}.</p>
+  <p>Determine the normal and shear stresses at ${iv("a")} and at ${iv("b")} on that cross section, and the largest in-plane shear stress at ${iv("b")}. Report the shear stresses as magnitudes and the normal stresses with sign (tension positive).</p>`;
+}
+function paSolution(p,s){
+  const u=p.us?"in.":"mm",su=p.us?"psi":"MPa",Mu=p.us?"lb·in.":"N·m",Fu=p.us?"lb":"kN";
+  return `<h3>1. Section properties</h3><p>r<sub>o</sub> = ${sig(s.Ro,4)} ${u}, r<sub>i</sub> = ${sig(s.Ri,4)} ${u}; A = π(r<sub>o</sub>² − r<sub>i</sub>²) = ${sig(s.A,4)} ${p.us?"in.²":"mm²"}, I = π(r<sub>o</sub>⁴ − r<sub>i</sub>⁴)/4 = ${sig(s.I,4)} ${p.us?"in.⁴":"mm⁴"}, J = 2I. For the transverse shear at the neutral axis, Q = (2/3)(r<sub>o</sub>³ − r<sub>i</sub>³) = ${sig(s.Q,4)} ${p.us?"in.³":"mm³"} and the cut width is 2t.</p>
+  <h3>2. Internal forces at the section</h3><p>Moving the two tip forces to the centroid of the section:</p>
+  <p class="eq">axial: ${fx(p.V)} ${Fu} (compression); &nbsp; shear: ${fx(p.H)} ${Fu} along z; &nbsp; torque: T = ${fx(p.H)}·${fx(p.l)} = ${sig(s.T,4)} ${Mu}</p><br>
+  <p class="eq">bending from the horizontal force: ${fx(p.H)}·${fx(p.z)} = ${sig(s.Mx,4)} ${Mu}; &nbsp; from the vertical force: ${fx(p.V)}·${fx(p.l)} = ${sig(s.Mz,4)} ${Mu}</p>
+  <p>The horizontal force bends the tube toward +${iv("z")}, compressing the side of ${iv("a")}; the vertical force bends it toward +${iv("x")}, compressing the side of ${iv("b")}.</p>
+  <h3>3. Point a</h3><p>Point ${iv("a")} lies on the neutral axis for the bending by the vertical force and at the extreme fiber for the bending by the horizontal force, where the transverse shear stress is zero.</p>
+  <p class="eq">σ<sub>a</sub> = −V/A − M r<sub>o</sub>/I = ${sig(s.sa)} ${su}, &nbsp; τ<sub>a</sub> = T r<sub>o</sub>/J = ${sig(s.ta)} ${su}</p>
+  <h3>4. Point b</h3><p>Point ${iv("b")} is at the extreme fiber for the bending by the vertical force and on the neutral axis for the bending by the horizontal force, so the transverse shear stress there is largest. At ${iv("b")} the torsional and the transverse shear stresses both point in the +${iv("z")} direction and add.</p>
+  <p class="eq">σ<sub>b</sub> = −V/A − M r<sub>o</sub>/I = ${sig(s.sb)} ${su}, &nbsp; τ<sub>b</sub> = T r<sub>o</sub>/J + VQ/(I·2t) = ${sig(s.tt)} + ${sig(s.tv)} = ${sig(s.tb)} ${su}</p>
+  <h3>5. Largest in-plane shear stress at b</h3><p class="final">τ<sub>max</sub> = √((σ<sub>b</sub>/2)² + τ<sub>b</sub>²) = ${sig(s.tmb)} ${su}</p>`;
+}
+const PA={name:"Tube with a loaded arm: stresses at two surface points",
+  generate:paGenerate,figure:paFigure,statement:paStatement,solution:paSolution,
+  fields:p=>{const su=p.us?"psi":"MPa";return [{id:"sa",label:"Normal stress at a (signed)",unit:su,signed:true},{id:"ta",label:"Shear stress at a",unit:su},
+    {id:"sb",label:"Normal stress at b (signed)",unit:su,signed:true},{id:"tb",label:"Shear stress at b",unit:su},{id:"tmb",label:"Largest in-plane shear stress at b",unit:su}]},
+  truth:(p,s)=>({sa:s.sa,ta:s.ta,sb:s.sb,tb:s.tb,tmb:s.tmb}),note:"Enter signed normal stresses; tension is positive."};
+
+// ===== 6. rectangular cantilever installed at an angle: stress at a corner versus the angle
+function rbSolve(p,same){
+  const Ss=p.b*p.h*p.h/6,Sw=same?Ss:p.h*p.b*p.b/6,M=p.P*p.L*(p.us?1:1000);   // lb·in. or N·mm
+  const sg=bt=>M*(Math.cos(bt*deg)/Ss+Math.sin(bt*deg)/Sw);
+  const bst=Math.atan(Ss/Sw)/deg;
+  return {Ss,Sw,M,s0:sg(0),s90:sg(90),sb:sg(p.be),bst,smax:M*Math.hypot(1/Ss,1/Sw)};
+}
+function rbGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,b=pick(r,us?[1,1.5,2,2.5]:[20,25,30,40,50]),h=nice(b*pick(r,[1.5,2,2.5,3]),us?0.5:5);
+    const p={us,b,h,L:pick(r,us?range(24,72,6):range(200,800,50)),P:pick(r,us?range(100,800,50):range(0.2,2,0.1)),be:pick(r,range(15,75,5))};
+    const s=rbSolve(p,false);
+    if(us?(s.smax<4000||s.smax>40000):(s.smax<30||s.smax>250)) continue;
+    if(Math.abs(p.be-s.bst)<5) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function rbFigure(p){
+  const u=p.us?"in.":"mm",Fu=p.us?"lb":"kN";
+  let s=HATCH(330,50,26,170)+RC(80,110,250,50,{f:C.fill})+AR(96,40,96,108)+TX(108,62,`${fx(p.P)} ${Fu}`,{s:13,c:C.load,a:"start"})
+   +DIMH(80,330,196,`L = ${fx(p.L)} ${u}`)+TX(80,135,"",{})+TX(205,240,"side view",{s:12,c:C.dim});
+  const cx=560,cy=135,sc=Math.min(120/p.h,70/p.b),hh=p.h*sc/2,bb=p.b*sc/2,be=p.be*deg;
+  const uh=[Math.sin(be),-Math.cos(be)],wh=[Math.cos(be),Math.sin(be)];             // screen: y down; u-hat tilted β from vertical
+  const pt=(a,c)=>[cx+a*uh[0]*hh+c*wh[0]*bb,cy+a*uh[1]*hh+c*wh[1]*bb];
+  const cs=[pt(1,-1),pt(1,1),pt(-1,1),pt(-1,-1)];
+  s+=`<polygon points="${cs.map(q=>q.map(v=>v.toFixed(1)).join(",")).join(" ")}" fill="${C.fill}" stroke="${C.ln}" stroke-width="1.5"/>`
+   +LN(cx,cy-hh-30,cx,cy+hh+10,{c:C.dim,w:1,d:"5 4"})+LN(cx,cy,cx+uh[0]*(hh+30),cy+uh[1]*(hh+30),{c:C.dim,w:1,d:"5 4"})
+   +`<path d="M ${cx} ${cy-hh-18} A ${hh+18} ${hh+18} 0 0 1 ${(cx+uh[0]*(hh+18)).toFixed(1)} ${(cy+uh[1]*(hh+18)).toFixed(1)}" fill="none" stroke="${C.dim}" stroke-width="1.2"/>`
+   +TX(cx+12,cy-hh-26,"β",{s:15,i:1,c:C.dim,a:"start"})+AR(cx,cy,cx,cy+hh+30)+DOT(cs[0][0],cs[0][1],C.green)+TX(cs[0][0]-8,cs[0][1]-6,"a",{s:15,i:1,c:C.green,a:"end"})
+   +TX(cx+(pt(0,1)[0]-cx)*1.5+6,cy+(pt(0,1)[1]-cy)*1.5,`${dstr(p.h)} ${u}`,{s:12,c:C.dim,a:"start"})
+   +TX(pt(-1,0)[0]+(pt(-1,0)[0]-cx)*0.25,pt(-1,0)[1]+(pt(-1,0)[1]-cy)*0.4+12,`${dstr(p.b)} ${u}`,{s:12,c:C.dim})
+   +TX(cx,256,"section at the wall (β shown for the given case)",{s:12,c:C.dim});
+  return SVG(760,268,s);
+}
+function rbStatement(p){
+  const u=p.us?"in.":"mm",Fu=p.us?"lb":"kN";
+  return `<p>A cantilever of length ${fx(p.L)} ${u} has a solid rectangular section ${dstr(p.b)} ${u} by ${dstr(p.h)} ${u}. It may be mounted so that its long (${dstr(p.h)} ${u}) sides are tilted by any angle β between 0 and 90° from the vertical. A vertical force of ${fx(p.P)} ${Fu} acts through the centroid of the free-end section. Point ${iv("a")} is the corner of the section at the wall that stands highest when 0 < β < 90° (see the end view).</p>
+  <p>Find the normal stress at ${iv("a")} when β = 0, when β = 90° and when β = ${p.be}°. Then find the angle β at which the stress at ${iv("a")} is greatest, and that greatest stress.</p>`;
+}
+function rbSolution(p,s){
+  const su=p.us?"psi":"MPa",Mu=p.us?"lb·in.":"N·mm",u=p.us?"in.³":"mm³";
+  return `<h3>1. Moment components and section moduli</h3><p>The moment at the wall is M = PL = ${sig(s.M,4)} ${Mu}, acting about a horizontal axis. Resolve it along the principal axes of the section: M cos β bends the bar about the axis parallel to the short side (section modulus S<sub>1</sub> = bh²/6 = ${sig(s.Ss,4)} ${u}) and M sin β bends it about the axis parallel to the long side (S<sub>2</sub> = hb²/6 = ${sig(s.Sw,4)} ${u}). Both components produce tension at ${iv("a")}:</p>
+  <p class="eq">σ<sub>a</sub>(β) = M (cos β/S<sub>1</sub> + sin β/S<sub>2</sub>)</p>
+  <h3>2. The two extreme mountings</h3><p class="eq">β = 0: σ<sub>a</sub> = M/S<sub>1</sub> = ${sig(s.s0)} ${su}; &nbsp; β = 90°: σ<sub>a</sub> = M/S<sub>2</sub> = ${sig(s.s90)} ${su}</p>
+  <h3>3. The given angle</h3><p class="eq">β = ${p.be}°: σ<sub>a</sub> = ${sig(s.sb)} ${su}</p>
+  <h3>4. Greatest stress</h3><p>Setting dσ<sub>a</sub>/dβ = 0 gives tan β = S<sub>1</sub>/S<sub>2</sub> = h/b, and substituting back,</p>
+  <p class="final">β = ${sig(s.bst,3)}°, σ<sub>max</sub> = M√(1/S<sub>1</sub>² + 1/S<sub>2</sub>²) = ${sig(s.smax)} ${su}</p>`;
+}
+const RB={name:"Tilted rectangular cantilever: corner stress and worst mounting angle",
+  generate:rbGenerate,figure:rbFigure,statement:rbStatement,solution:rbSolution,
+  fields:p=>{const su=p.us?"psi":"MPa";return [{id:"s0",label:"Stress at a for β = 0",unit:su},{id:"s90",label:"Stress at a for β = 90°",unit:su},
+    {id:"sb",label:`Stress at a for β = ${p.be}°`,unit:su},{id:"bst",label:"Angle β giving the greatest stress (within 0.5°)",unit:"°",abs:0.5},{id:"smax",label:"Greatest stress at a",unit:su}]},
+  truth:(p,s)=>({s0:s.s0,s90:s.s90,sb:s.sb,bst:s.bst,smax:s.smax}),note:"Stresses within 2% are accepted; the angle within 0.5°."};
+
+// ===== 7. overhanging I-beam: largest normal and shear stress, principal stress at the web-flange junction
+function obSolve(p,wrongQ){
+  const RA=p.w*(p.L*p.L-p.a*p.a)/(2*p.L),RB=p.w*(p.L+p.a)**2/(2*p.L);
+  const MB=p.w*p.a*p.a/2,Mp=RA*RA/(2*p.w),Vl=p.w*p.L-RA,V=Math.max(Vl,p.w*p.a);
+  const {bf,tf,d,tw}=p,I=(bf*d**3-(bf-tw)*(d-2*tf)**3)/12;
+  const kM=p.us?12:1e6,kV=p.us?1:1000,M=MB*kM,Vf=V*kV;
+  const Qf=bf*tf*(d/2-tf/2),Qn=Qf+tw*(d/2-tf)**2/2,yj=d/2-tf;
+  const sm=M*(d/2)/I,tm=Vf*Qn/(I*tw),sj=M*yj/I,tj=Vf*(wrongQ?Qn:Qf)/(I*tw),sp=sj/2+Math.hypot(sj/2,tj);
+  return {RA,RB,MB,Mp,V,I,Qf,Qn,yj,sm,tm,sj,tj,sp};
+}
+function obGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,L=pick(r,us?[10,12,14,15,16,18,20]:[3,3.5,4,4.5,5,6]);
+    const a=nice(L*pick(r,[0.45,0.5,0.55,0.6,0.65]),us?1:0.5);
+    const p={us,L,a,w:pick(r,us?range(1,6,0.5):range(10,80,5)),
+      d:pick(r,us?[10,12,14,16,18]:[250,300,350,400,450]),bf:pick(r,us?[5,6,7,8,10]:[120,150,180,200,250]),
+      tf:pick(r,us?[0.375,0.5,0.625,0.75]:[10,12,15,18,20]),tw:pick(r,us?[0.25,0.3125,0.375,0.5]:[6,8,10,12])};
+    if(p.bf<0.4*p.d||p.bf>0.8*p.d) continue;
+    const s=obSolve(p,false);
+    if(s.Mp>=0.9*s.MB) continue;
+    if(us?(s.sm<8||s.sm>30):(s.sm<50||s.sm>220)) continue;
+    if(s.tj<0.2*s.sj) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function obFigure(p){
+  const u=p.us?"ft":"m",du=p.us?"in.":"mm",wu=p.us?"kips/ft":"kN/m",x0=70,W=430,sc=W/(p.L+p.a),xB=x0+p.L*sc,xC=x0+W,yb=130;
+  let s=RC(x0,yb-9,W,18,{f:"#cfd6de",c:C.steelln});
+  for(let i=0;i<=16;i++){const x=x0+W*i/16;s+=AR(x,yb-56,x,yb-10,C.load,1.4)}
+  s+=LN(x0,yb-56,xC,yb-56,{c:C.load,w:1.4})+TX((x0+xC)/2,yb-64,`${fx(p.w)} ${wu}`,{s:13,c:C.load})
+   +`<polygon points="${x0},${yb+9} ${x0-12},${yb+30} ${x0+12},${yb+30}" fill="#eceae4" stroke="${C.ln}"/>`+HATCH(x0-20,yb+30,40,8)
+   +CI(xB,yb+18,8,{f:"#eceae4"})+HATCH(xB-20,yb+26,40,8)
+   +TX(x0-14,yb-14,"A",{s:15,i:1,a:"end"})+TX(xB+26,yb+26,"B",{s:15,i:1,a:"start"})+TX(xC+12,yb+5,"C",{s:15,i:1,a:"start"})
+   +DIMH(x0,xB,yb+62,`${fx(p.L)} ${u}`)+DIMH(xB,xC,yb+62,`${fx(p.a)} ${u}`);
+  const sx=640,sy=50,hs=150,kk=hs/p.d,bfp=p.bf*kk,tfp=Math.max(6,p.tf*kk),twp=Math.max(4,p.tw*kk);
+  s+=RC(sx-bfp/2,sy,bfp,tfp,{f:"#cfd6de",c:C.steelln})+RC(sx-bfp/2,sy+hs-tfp,bfp,tfp,{f:"#cfd6de",c:C.steelln})+RC(sx-twp/2,sy+tfp,twp,hs-2*tfp,{f:"#cfd6de",c:C.steelln})
+   +DIMH(sx-bfp/2,sx+bfp/2,sy-10,`${dstr(p.bf)} ${du}`,{up:1})+DIMV(sx-bfp/2-14,sy,sy+hs,`${dstr(p.d)} ${du}`,{left:1})
+   +TX(sx+twp/2+6,sy+hs/2,`web ${dstr(p.tw)} ${du}`,{s:12,c:C.dim,a:"start"})+TX(sx+bfp/2+6,sy+hs-tfp/2+4,`${dstr(p.tf)} ${du}`,{s:12,c:C.dim,a:"start"})
+   +TX(sx,sy+hs+22,"section",{s:12,c:C.dim});
+  return SVG(780,232,s);
+}
+function obStatement(p){
+  const u=p.us?"ft":"m",du=p.us?"in.":"mm",wu=p.us?"kips/ft":"kN/m";
+  return `<p>A steel beam rests on a pin at ${iv("A")} and a roller at ${iv("B")}, ${fx(p.L)} ${u} apart, and projects ${fx(p.a)} ${u} beyond ${iv("B")} to a free end ${iv("C")}. A distributed load of ${fx(p.w)} ${wu}, which includes the beam's own weight, covers its whole length. The section is a symmetric I made of plates: two flanges ${dstr(p.bf)} × ${dstr(p.tf)} ${du} and a web ${dstr(p.tw)} ${du} thick, for an overall depth of ${dstr(p.d)} ${du}.</p>
+  <p>Find the largest bending moment and the largest shear force (magnitudes), the largest normal stress σ<sub>m</sub> and the largest shear stress τ<sub>m</sub> in the beam, and the largest principal stress at the point where the web meets a flange, on the section where the bending moment is largest.</p>`;
+}
+function obSolution(p,s){
+  const Mu=p.us?"kip·ft":"kN·m",Vu=p.us?"kips":"kN",su=p.us?"ksi":"MPa",du=p.us?"in.":"mm";
+  return `<h3>1. Reactions, shear and moment</h3><p>Moments about ${iv("B")} and about ${iv("A")}: R<sub>A</sub> = w(L² − a²)/(2L) = ${sig(s.RA,4)} ${Vu} and R<sub>B</sub> = w(L + a)²/(2L) = ${sig(s.RB,4)} ${Vu}.</p>
+  <p>The positive moment in span ${iv("AB")} peaks where V = 0, at x = R<sub>A</sub>/w, with value R<sub>A</sub>²/(2w) = ${sig(s.Mp,4)} ${Mu}. The negative moment over ${iv("B")} is wa²/2 = ${sig(s.MB,4)} ${Mu}, which is larger. Just left of ${iv("B")} the shear has magnitude wL − R<sub>A</sub>, and just right of it wa; the larger is</p>
+  <p class="eq">|M|<sub>max</sub> = ${sig(s.MB,4)} ${Mu} (at B), &nbsp; |V|<sub>max</sub> = ${sig(s.V,4)} ${Vu} (at B)</p>
+  <h3>2. Moment of inertia</h3><p class="eq">I = [b<sub>f</sub>d³ − (b<sub>f</sub> − t<sub>w</sub>)(d − 2t<sub>f</sub>)³]/12 = ${sig(s.I,4)} ${p.us?"in.⁴":"mm⁴"}</p>
+  <h3>3. Largest normal and shear stresses</h3><p>σ<sub>m</sub> occurs at the outer fibers at ${iv("B")}. τ<sub>m</sub> occurs at the neutral axis at ${iv("B")}, where Q = b<sub>f</sub>t<sub>f</sub>(d − t<sub>f</sub>)/2 + t<sub>w</sub>(d/2 − t<sub>f</sub>)²/2 = ${sig(s.Qn,4)} ${p.us?"in.³":"mm³"}.</p>
+  <p class="eq">σ<sub>m</sub> = |M|(d/2)/I = ${sig(s.sm)} ${su}, &nbsp; τ<sub>m</sub> = VQ/(It<sub>w</sub>) = ${sig(s.tm)} ${su}</p>
+  <h3>4. Stresses at the web–flange junction at B</h3><p>The junction is y = d/2 − t<sub>f</sub> = ${sig(s.yj,4)} ${du} from the neutral axis. The area beyond it is one flange, so Q = b<sub>f</sub>t<sub>f</sub>(d − t<sub>f</sub>)/2 = ${sig(s.Qf,4)} ${p.us?"in.³":"mm³"}.</p>
+  <p class="eq">σ = |M|y/I = ${sig(s.sj)} ${su}, &nbsp; τ = VQ/(It<sub>w</sub>) = ${sig(s.tj)} ${su}</p>
+  <h3>5. Principal stress at the junction</h3><p class="final">σ<sub>max</sub> = σ/2 + √((σ/2)² + τ²) = ${sig(s.sp)} ${su}</p>
+  <p class="note">Compare with σ<sub>m</sub>: in short, heavily loaded I-beams the principal stress at the junction can approach or exceed the outer-fiber stress.</p>`;
+}
+const OB={name:"Overhanging I-beam: principal stress at the web–flange junction",
+  generate:obGenerate,figure:obFigure,statement:obStatement,solution:obSolution,
+  fields:p=>{const su=p.us?"ksi":"MPa";return [{id:"M",label:"Largest |M|",unit:p.us?"kip·ft":"kN·m"},{id:"V",label:"Largest |V|",unit:p.us?"kips":"kN"},
+    {id:"sm",label:"Largest normal stress σ_m",unit:su},{id:"tm",label:"Largest shear stress τ_m",unit:su},{id:"sp",label:"Principal stress at the junction",unit:su}]},
+  truth:(p,s)=>({M:s.MB,V:s.V,sm:s.sm,tm:s.tm,sp:s.sp}),note:"Answers within 2% are accepted."};
+
+// ===== shaft with a loaded plate at its top: stresses and principal stresses at a surface point
+function dsSolve(p,noV){
+  const r=p.d/2,A=Math.PI*r*r,I=Math.PI*r**4/4,J=2*I,k=p.us?1:1000;
+  const Nc=p.P1+p.P2,M1=p.R*p.P1,T=p.R*p.Q,M2=p.R*p.P2+p.h*p.Q;           // kips·in. or kN·mm (= N·m)
+  const sa=-Nc*k/A,sb=M1*k*r/I,sg=sa+sb,tT=T*k*r/J,tV=noV?0:4*p.Q*k/(3*A),tau=tT+tV,R=Math.hypot(sg/2,tau);
+  return {r,A,I,J,Nc,M1,M2,T,sa,sb,sg,tT,tV,tau,s1:sg/2+R,s2:sg/2-R,tm:R};
+}
+function dsGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4;
+    const p={us,d:pick(r,us?[1.25,1.5,1.75,2,2.25,2.5]:[30,35,40,45,50,60]),R:pick(r,us?[1.5,2,2.5,3,4]:[40,50,60,75,100]),
+      h:pick(r,us?range(4,14,1):range(100,350,25)),P1:pick(r,us?range(1,8,0.5):range(2,30,1)),P2:pick(r,us?range(1,8,0.5):range(2,30,1)),
+      Q:pick(r,us?range(0.5,5,0.5):range(1,15,1))};
+    if(p.R<0.9*p.d) continue;
+    const s=dsSolve(p,false);
+    if(us?(s.tm<3||s.tm>30):(s.tm<20||s.tm>200)) continue;
+    if(Math.abs(s.sg)<0.15*s.tm||s.tau<0.15*s.tm||s.tV<0.08*s.tau) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function dsFigure(p){
+  const u=p.us?"in.":"mm",Fu=p.us?"kips":"kN",X0=330,rp=24,Rx=130,Ry=38,Yd=110,th=14,Ys=300,Yb=360;
+  let s=SLAB(X0,Yb-17)+CYL(X0,Yd,Yb-17,rp,8,"gshaft","#eef1f4","#9aa5b1",C.steelln)
+   +EL(X0,Ys,rp,8,{c:C.dim,w:1,d:"4 3"})
+   +`<path d="M ${X0-Rx} ${Yd} L ${X0-Rx} ${Yd+th} A ${Rx} ${Ry} 0 0 0 ${X0+Rx} ${Yd+th} L ${X0+Rx} ${Yd} Z" fill="#e8c690" stroke="${C.ln}" stroke-width="1.5"/>`
+   +EL(X0,Yd,Rx,Ry,{f:"#f2d9b0"})+LN(X0,Yd,X0+Rx,Yd,{c:C.dim,w:1,d:"4 3"})+TX(X0+Rx/2,Yd-6,`R = ${fx(p.R)} ${u}`,{s:12,c:C.dim})
+   +AR(X0,Yd-Ry-62,X0,Yd-Ry)+TX(X0+10,Yd-Ry-44,`${fx(p.P1)} ${Fu}`,{s:13,c:C.load,a:"start"})
+   +AR(X0+Rx,Yd-62,X0+Rx,Yd)+TX(X0+Rx+10,Yd-44,`${fx(p.P2)} ${Fu}`,{s:13,c:C.load,a:"start"})
+   +AR(X0,Yd+Ry,X0+90,Yd+Ry)+TX(X0+96,Yd+Ry+18,`${fx(p.Q)} ${Fu}`,{s:13,c:C.load,a:"start"})
+   +DOT(X0,Ys+8,C.green)+TX(X0-10,Ys+24,"H",{s:15,i:1,c:C.green,a:"end"})+TX(X0+rp+8,Yd+70,"A",{s:15,i:1,a:"start"})+TX(X0+rp+40,Yb-12,"B",{s:15,i:1,a:"start"})
+   +LN(X0+Rx+6,Yd+th,X0+Rx+70,Yd+th,{c:C.dim,w:.8,d:"2 3"})+LN(X0+rp+6,Ys,X0+Rx+70,Ys,{c:C.dim,w:.8,d:"2 3"})
+   +DIMV(X0+Rx+64,Yd+th,Ys,`h = ${fx(p.h)} ${u}`)+TX(X0-rp-10,Ys-50,`shaft diameter ${dstr(p.d)} ${u}`,{s:12,c:C.dim,a:"end"});
+  const tx=100,ty=230;
+  s+=AR(tx,ty,tx+44,ty,C.dim,1.4)+AR(tx,ty,tx,ty-44,C.dim,1.4)+AR(tx,ty,tx-30,ty+24,C.dim,1.4)
+   +TX(tx+50,ty+5,"x",{s:14,i:1,c:C.dim,a:"start"})+TX(tx,ty-50,"y",{s:14,i:1,c:C.dim})+TX(tx-36,ty+36,"z",{s:14,i:1,c:C.dim});
+  return SVG(760,Yb+26,s);
+}
+function dsStatement(p){
+  const u=p.us?"in.":"mm",Fu=p.us?"kips":"kN";
+  return `<p>A solid shaft ${iv("AB")} of diameter ${dstr(p.d)} ${u} stands vertically and is fixed to a base at ${iv("B")}. A circular plate of radius ${fx(p.R)} ${u} is centered on its upper end ${iv("A")}. Three forces act on the edge of the plate, all in the plane of the plate: ${fx(p.P1)} ${Fu} downward at the rearmost point of the edge (on the −${iv("z")} side), ${fx(p.P2)} ${Fu} downward at the point of the edge on the +${iv("x")} side, and ${fx(p.Q)} ${Fu} horizontally in the +${iv("x")} direction at the front point of the edge (on the +${iv("z")} side), tangent to the edge.</p>
+  <p>Point ${iv("H")} is on the surface of the shaft, on the side facing +${iv("z")}, ${fx(p.h)} ${u} below the plane of the plate. On the horizontal cross section through ${iv("H")}, find the normal and shear stresses at ${iv("H")}. Then find the principal stresses and the largest in-plane shear stress at ${iv("H")}.</p>`;
+}
+function dsSolution(p,s){
+  const u=p.us?"in.":"mm",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN",Mu=p.us?"kip·in.":"N·m";
+  return `<h3>1. Section properties</h3><p>r = ${sig(s.r,4)} ${u}; A = πr² = ${sig(s.A,4)} ${p.us?"in.²":"mm²"}, I = πr⁴/4 = ${sig(s.I,4)} ${p.us?"in.⁴":"mm⁴"}, J = 2I.</p>
+  <h3>2. Internal forces at the section through H</h3><p>Move the three forces to the center of the section, a distance h below the plate:</p>
+  <p class="eq">axial: ${fx(p.P1)} + ${fx(p.P2)} = ${sig(s.Nc,4)} ${Fu} (compression); &nbsp; shear: ${fx(p.Q)} ${Fu} in the +x direction; &nbsp; torque: T = ${fx(p.Q)}·${fx(p.R)} = ${sig(s.T,4)} ${Mu}</p><br>
+  <p class="eq">bending in the y–z plane: ${fx(p.P1)}·${fx(p.R)} = ${sig(s.M1,4)} ${Mu}; &nbsp; bending in the x–y plane: ${fx(p.P2)}·${fx(p.R)} + ${fx(p.Q)}·${fx(p.h)} = ${sig(s.M2,4)} ${Mu}</p>
+  <p>The rear force bends the shaft backward and stretches the front, where ${iv("H")} is. The bending in the x–y plane has its neutral axis through ${iv("H")}, so it causes no normal stress there.</p>
+  <h3>3. Normal stress at H</h3><p class="eq">σ = −${sig(s.Nc,4)}/A + M r/I = ${sig(s.sa)} + ${sig(s.sb)} = ${sig(s.sg)} ${su}</p>
+  <h3>4. Shear stress at H</h3><p>The torque gives Tr/J. Point ${iv("H")} lies on the neutral axis for the bending caused by the horizontal force, so the transverse shear stress there is at its peak, 4V/(3A) for a solid circle. Both stresses act in the +${iv("x")} direction on the section and add:</p>
+  <p class="eq">τ = Tr/J + 4V/(3A) = ${sig(s.tT)} + ${sig(s.tV)} = ${sig(s.tau)} ${su}</p>
+  <h3>5. Principal stresses</h3><p class="eq">σ<sub>1,2</sub> = σ/2 ± √((σ/2)² + τ²) = ${sig(s.sg/2)} ± ${sig(s.tm)} ${su}</p>
+  <p class="final">σ<sub>1</sub> = ${sig(s.s1)} ${su}, σ<sub>2</sub> = ${sig(s.s2)} ${su}, τ<sub>max</sub> = ${sig(s.tm)} ${su}</p>`;
+}
+const DS={name:"Shaft with a loaded plate: principal stresses at a surface point",
+  generate:dsGenerate,figure:dsFigure,statement:dsStatement,solution:dsSolution,
+  fields:p=>{const su=p.us?"ksi":"MPa";return [{id:"sg",label:"Normal stress at H (signed)",unit:su,signed:true},{id:"tau",label:"Shear stress at H",unit:su},
+    {id:"s1",label:"Principal stress σ₁ (signed)",unit:su,signed:true},{id:"s2",label:"Principal stress σ₂ (signed)",unit:su,signed:true},{id:"tm",label:"Largest in-plane shear stress",unit:su}]},
+  truth:(p,s)=>({sg:s.sg,tau:s.tau,s1:s.s1,s2:s.s2,tm:s.tm}),note:"Enter signed normal stresses; tension is positive."};
+
+// ===== bent bar ABD fixed at a wall: principal stresses at a point on the top face
+function bbSolve(p,noV){
+  const k=p.us?1:1000,A=p.b*p.c,Iz=p.b*p.c**3/12,a=p.L1-p.xH;
+  const Mv=p.Fv*a,Mh=p.Fz*a,sa=-p.Fa*k/A,sb=Mv*k*(p.c/2)/Iz,sg=sa+sb,tau=noV?0:1.5*p.Fz*k/A,R=Math.hypot(sg/2,tau);
+  return {A,Iz,a,Mv,Mh,sa,sb,sg,tau,s1:sg/2+R,s2:sg/2-R,tm:R};
+}
+function bbGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,xH=pick(r,us?range(1,4,0.5):range(30,80,10));
+    const p={us,xH,L1:xH+pick(r,us?range(4,10,1):range(100,250,25)),L2:pick(r,us?range(4,10,1):range(100,250,25)),
+      b:pick(r,us?[1,1.25,1.5,2]:[30,40,50,60]),c:pick(r,us?[0.5,0.625,0.75,1]:[15,20,25,30]),
+      Fv:pick(r,us?range(0.1,1,0.05):range(0.2,3,0.1)),Fa:pick(r,us?range(0.5,5,0.5):range(1,10,0.5)),Fz:pick(r,us?range(0.5,5,0.5):range(1,10,0.5))};
+    const s=bbSolve(p,false);
+    if(us?(s.tm<3||s.tm>30):(s.tm<20||s.tm>200)) continue;
+    if(Math.abs(s.sg)<0.15*s.tm||s.tau<0.15*s.tm) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function bbFigure(p){
+  const u=p.us?"in.":"mm",Fu=p.us?"kips":"kN",s=380/(p.L1+0.6*p.L2+p.b),X0=150,Y0=120;
+  const cs=Math.max(p.c*s,16)/s,bs=Math.max(p.b*s,22)/s;
+  const P=(x,y,z)=>[X0+s*x-0.6*s*z,Y0-s*y+0.45*s*z],pg=(pts,f)=>`<polygon points="${pts.map(q=>P(...q).map(v=>v.toFixed(1)).join(",")).join(" ")}" fill="${f}" stroke="${C.ln}" stroke-width="1.3"/>`;
+  const box=(x0,x1,y0,y1,z0,z1)=>pg([[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]],"#e8c690")+pg([[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1]],"#f7e2c4")+pg([[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]],"#f0d3a6");
+  const Wy=cs/2+75/s,Wz=bs/2+45/s,wq=(y,z)=>P(0,y,z).map(v=>v.toFixed(1)).join(",");
+  let g=`<defs><pattern id="bbhatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#eceae4"/><line x1="0" y1="0" x2="0" y2="8" stroke="#9a8f80" stroke-width="1.6"/></pattern></defs>`
+   +`<polygon points="${wq(Wy,-Wz)} ${wq(Wy,Wz)} ${wq(-Wy,Wz)} ${wq(-Wy,-Wz)}" fill="url(#bbhatch)" stroke="${C.ln}" stroke-width="1.2"/>`
+   +box(0,p.L1+bs/2,-cs/2,cs/2,-bs/2,bs/2)+box(p.L1-bs/2,p.L1+bs/2,-cs/2,cs/2,bs/2,p.L2);
+  const H=P(p.xH,cs/2,0),B=P(p.L1,cs/2,0),Fa=P(p.L1+bs/2,0,0),D=P(p.L1,0,p.L2),Dt=P(p.L1,0,p.L2+75/s);
+  g+=DOT(...H,C.green)+`<text x="${(H[0]+12).toFixed(1)}" y="${(H[1]-13).toFixed(1)}" font-size="14" fill="${C.green}" stroke="#fff" stroke-width="4" paint-order="stroke" font-family="Georgia,serif"><tspan font-style="italic" font-size="15">H</tspan> (top surface)</text>`
+   +AR(B[0],B[1]-66,B[0],B[1])+TX(B[0]+10,B[1]-56,`${fx(p.Fv)} ${Fu}`,{s:13,c:C.load,a:"start"})
+   +AR(Fa[0]+78,Fa[1],Fa[0],Fa[1])+TX(Fa[0]+84,Fa[1]+5,`${fx(p.Fa)} ${Fu}`,{s:13,c:C.load,a:"start"})
+   +((q,r)=>LN(q[0],q[1],r[0],r[1],{c:C.dim,w:.8,d:"6 3 2 3"}))(P(p.L1,0,0),P(p.L1,0,p.L2))
+   +((q,r)=>LN(q[0],q[1],r[0],r[1],{c:C.dim,w:.8,d:"6 3 2 3"}))(D,P(p.L1,0,p.L2+100/s))
+   +AR(Dt[0],Dt[1],D[0],D[1])+TX(Dt[0]-10,Dt[1]-6,`${fx(p.Fz)} ${Fu}`,{s:13,c:C.load,a:"end"})
+   +((q)=>`<text x="${(q[0]-6).toFixed(1)}" y="${(q[1]+18).toFixed(1)}" font-size="15" font-style="italic" text-anchor="end" fill="${C.ln}" stroke="#fff" stroke-width="4" paint-order="stroke" font-family="Georgia,serif">A</text>`)(P(0,-cs/2,bs/2))+TX(B[0]+28,B[1]-6,"B",{s:15,i:1,a:"start"})+TX(D[0]+(s*bs/2)+10,D[1]+18,"D",{s:15,i:1,a:"start"});
+  const yb=P(0,cs/2,-bs/2)[1],xs=x=>P(x,cs/2,0)[0],x0=xs(0);   // dimensions measured along the center line of AB (z = 0)
+  g+=DIMH(x0,xs(p.xH),yb-22,`${fx(p.xH)} ${u}`,{up:1})+DIMH(x0,xs(p.L1),yb-50,`${fx(p.L1)} ${u}`,{up:1})
+   +LN(x0,yb-56,x0,P(0,cs/2,0)[1],{c:C.dim,w:.8,d:"2 3"})+((q,r)=>LN(q[0],q[1],r[0],r[1],{c:C.dim,w:.8,d:"6 3 2 3"}))(P(0,0,0),[P(p.L1+bs/2,0,0)[0]+78,P(p.L1+bs/2,0,0)[1]])
+   +LN(xs(p.xH),yb-28,xs(p.xH),H[1]-4,{c:C.dim,w:.8,d:"2 3"})+LN(xs(p.L1),yb-56,xs(p.L1),B[1]-4,{c:C.dim,w:.8,d:"2 3"});
+  const m=P(p.L1+bs/2,-cs/2,(p.L2+bs/2)/2);
+  g+=TX(m[0]+14,m[1]+8,`${fx(p.L2)} ${u} (B to D)`,{s:13,c:C.dim,a:"start"})
+   +TX(380,Math.max(D[1],Dt[1])+44,`Cross section of AB: ${dstr(p.b)} ${u} wide (along z) by ${dstr(p.c)} ${u} deep (along y)`,{s:13,c:C.dim});
+  const tx=650,ty=90;
+  g+=AR(tx,ty,tx+40,ty,C.dim,1.4)+AR(tx,ty,tx,ty-40,C.dim,1.4)+AR(tx,ty,tx-28,ty+22,C.dim,1.4)
+   +TX(tx+46,ty+5,"x",{s:14,i:1,c:C.dim,a:"start"})+TX(tx,ty-46,"y",{s:14,i:1,c:C.dim})+TX(tx-34,ty+34,"z",{s:14,i:1,c:C.dim});
+  return SVG(780,Math.max(D[1],Dt[1])+60,g);
+}
+function bbStatement(p){
+  const u=p.us?"in.":"mm",Fu=p.us?"kips":"kN";
+  return `<p>The machine part ${iv("ABD")} is a bar of rectangular section, ${dstr(p.b)} ${u} wide and ${dstr(p.c)} ${u} deep, bent at a right angle at ${iv("B")}. Leg ${iv("AB")} runs along ${iv("x")} from a wall at ${iv("A")} and is ${fx(p.L1)} ${u} long; leg ${iv("BD")} runs along +${iv("z")} and is ${fx(p.L2)} ${u} long. At ${iv("B")}, a force of ${fx(p.Fv)} ${Fu} acts vertically downward and a force of ${fx(p.Fa)} ${Fu} acts along ${iv("AB")} toward the wall. At ${iv("D")}, a force of ${fx(p.Fz)} ${Fu} acts along ${iv("DB")}, pointing toward ${iv("B")}. All three forces act along center lines of the legs.</p>
+  <p>Point ${iv("H")} lies on the middle of the top face of ${iv("AB")}, ${fx(p.xH)} ${u} from the wall. Find the normal and shear stresses at ${iv("H")} on the cross section through it, the principal stresses, and the largest in-plane shear stress.</p>`;
+}
+function bbSolution(p,s){
+  const u=p.us?"in.":"mm",su=p.us?"ksi":"MPa",Fu=p.us?"kips":"kN",Mu=p.us?"kip·in.":"N·m";
+  return `<h3>1. Internal forces at the section through H</h3><p>Use the part of the bar beyond the section as a free body. The section is ${sig(s.a,4)} ${u} from ${iv("B")}; the force at ${iv("D")} acts along ${iv("BD")}, so its line passes through ${iv("B")}.</p>
+  <p class="eq">axial: ${fx(p.Fa)} ${Fu} (compression); &nbsp; vertical shear: ${fx(p.Fv)} ${Fu}; &nbsp; horizontal shear: ${fx(p.Fz)} ${Fu} along z</p><br>
+  <p class="eq">vertical bending: ${fx(p.Fv)}·${sig(s.a,4)} = ${sig(s.Mv,4)} ${Mu}; &nbsp; horizontal bending: ${fx(p.Fz)}·${sig(s.a,4)} = ${sig(s.Mh,4)} ${Mu}; &nbsp; torque: 0</p>
+  <h3>2. Normal stress at H</h3><p>A = ${sig(s.A,4)} ${p.us?"in.²":"mm²"}, and I = bc³/12 = ${sig(s.Iz,4)} ${p.us?"in.⁴":"mm⁴"} for vertical bending. The downward force puts the top face in tension. The horizontal bending has its neutral axis on the vertical center plane, which contains ${iv("H")}, so it adds nothing.</p>
+  <p class="eq">σ = −${fx(p.Fa)}/A + M(c/2)/I = ${sig(s.sa)} + ${sig(s.sb)} = ${sig(s.sg)} ${su}</p>
+  <h3>3. Shear stress at H</h3><p>The vertical shear gives no shear stress at the top face. The horizontal shear force acts across the width, and ${iv("H")} is on the neutral axis for that direction, so it carries the peak value for a rectangle:</p>
+  <p class="eq">τ = 3V/(2A) = ${sig(s.tau)} ${su}</p>
+  <h3>4. Principal stresses</h3><p class="eq">σ<sub>1,2</sub> = σ/2 ± √((σ/2)² + τ²) = ${sig(s.sg/2)} ± ${sig(s.tm)} ${su}</p>
+  <p class="final">σ<sub>1</sub> = ${sig(s.s1)} ${su}, σ<sub>2</sub> = ${sig(s.s2)} ${su}, τ<sub>max</sub> = ${sig(s.tm)} ${su}</p>`;
+}
+const BB={name:"Bent bar fixed at a wall: principal stresses on the top face",
+  generate:bbGenerate,figure:bbFigure,statement:bbStatement,solution:bbSolution,
+  fields:p=>{const su=p.us?"ksi":"MPa";return [{id:"sg",label:"Normal stress at H (signed)",unit:su,signed:true},{id:"tau",label:"Shear stress at H",unit:su},
+    {id:"s1",label:"Principal stress σ₁ (signed)",unit:su,signed:true},{id:"s2",label:"Principal stress σ₂ (signed)",unit:su,signed:true},{id:"tm",label:"Largest in-plane shear stress",unit:su}]},
+  truth:(p,s)=>({sg:s.sg,tau:s.tau,s1:s.s1,s2:s.s2,tm:s.tm}),note:"Enter signed normal stresses; tension is positive."};
+
+// ===== rectangular structural tube under two horizontal forces: stresses at three points of a section
+function bpSolve(p,noF){
+  const {w,dd,t,xc}=p,k=p.us?1:1000,wi=w-2*t,di=dd-2*t;
+  const Iz=(dd*w**3-di*wi**3)/12,Ix=(w*dd**3-wi*di**3)/12,Am=(w-t)*(dd-t);
+  const fxv=-p.sx*p.Px,fzv=-p.sz*p.Pz,Mz=-p.H*fxv,Mx=p.H*fzv,My=-p.e*fzv;           // force components and moments on the lower part
+  const sa=-Mx*k*(dd/2)/Ix,sb=Mz*k*(w/2)/Iz,sc=Mz*k*xc/Iz+sa;
+  const Qa=(dd*(w/2)**2-di*(wi/2)**2)/2,Qb=(w*(dd/2)**2-wi*(di/2)**2)/2,Qc=(dd*((w/2)**2-xc*xc)-di*((wi/2)**2-xc*xc))/2,Qf=t*xc*(dd-t)/2;
+  const tT=My*k/(2*t*Am),tVa=fxv*k*Qa/(Iz*2*t),tVb=fzv*k*Qb/(Ix*2*t),tVc=fxv*k*Qc/(Iz*2*t),tFc=noF?0:-fzv*k*Qf/(Ix*t);
+  const ta=tT+tVa,tb=-tT+tVb,tc=tT+tVc+tFc;
+  return {Iz,Ix,Am,Mz,Mx,My,T:Math.abs(My),sa,sb,sc,Qa,Qb,Qc,Qf,tT,tVa,tVb,tVc,tFc,ta,tb,tc};
+}
+function bpGenerate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<5000;k++){
+    const us=r()<0.4,w=pick(r,us?[4,5,6,8]:[100,120,150,200]),dd=pick(r,us?[3,4,5,6]:[80,100,120,150]);
+    if(w===dd) continue;
+    const t=pick(r,us?[0.1875,0.25,0.3125]:[5,6,8]),st=us?0.25:5;
+    const xc=nice(w*pick(r,[0.15,0.2,0.25,0.3]),st);if(xc<=0||xc>w/2-t-st) continue;
+    const p={us,w,dd,t,xc,H:pick(r,us?range(10,30,2):range(250,750,50)),e:nice(w*pick(r,[0.15,0.25,0.35,0.5]),st),
+      Px:pick(r,us?range(200,2000,100):range(1,10,0.5)),Pz:pick(r,us?range(200,2000,100):range(1,10,0.5)),sx:pick(r,[1,-1]),sz:pick(r,[1,-1])};
+    if(p.e<=0) continue;
+    const s=bpSolve(p,false),mx=Math.max(...[s.sa,s.sb,s.sc].map(Math.abs));
+    if(us?(mx<2000||mx>25000):(mx<15||mx>180)) continue;
+    const tm=Math.max(...[s.ta,s.tb,s.tc].map(Math.abs));
+    if([s.ta,s.tb,s.tc].some(v=>Math.abs(v)<0.1*tm)||Math.abs(s.tFc)<0.06*Math.abs(s.tc)) continue;
+    return {p,s};
+  }
+  throw new Error("no valid problem");
+}
+function bpFigure(p){
+  const u=p.us?"in.":"mm",Fu=p.us?"lb":"kN",s=120/p.w,X0=360,Yt=70,Yf=Yt+22,Ys=290,Yb=370,hw=p.w/2,hd=p.dd/2;
+  const P=(x,Y,z)=>[X0+s*x-0.6*s*z,Y+0.45*s*z],pg=(pts,f,o="")=>`<polygon points="${pts.map(q=>q.map(v=>v.toFixed(1)).join(",")).join(" ")}" fill="${f}" stroke="${C.steelln}" stroke-width="1.3"${o}/>`;
+  const ti=p.t*s<4?4/s:p.t;
+  let g=pg([P(-hw-0.25*p.w,Yb,hd+0.25*p.dd),P(hw+0.3*p.w,Yb,hd+0.25*p.dd),P(hw+0.3*p.w,Yb,-hd-0.25*p.dd),P(-hw-0.25*p.w,Yb,-hd-0.25*p.dd)],"#eceae4")
+   +pg([P(hw,Yt,-hd),P(hw,Yb,-hd),P(hw,Yb,hd),P(hw,Yt,hd)],"#c3cad2")
+   +pg([P(-hw,Yt,hd),P(hw,Yt,hd),P(hw,Yb,hd),P(-hw,Yb,hd)],"#dfe4ea")
+   +pg([P(-hw,Yt,-hd),P(hw,Yt,-hd),P(hw,Yt,hd),P(-hw,Yt,hd)],"#eef1f4")
+   +pg([P(-hw+ti,Yt,-hd+ti),P(hw-ti,Yt,-hd+ti),P(hw-ti,Yt,hd-ti),P(-hw+ti,Yt,hd-ti)],"#9aa5b1");
+  const ln=(a,b)=>LN(a[0],a[1],b[0],b[1],{c:C.dim,w:1,d:"4 3"});
+  g+=ln(P(-hw,Ys,hd),P(hw,Ys,hd))+ln(P(hw,Ys,hd),P(hw,Ys,-hd));
+  const a=P(0,Ys,hd),b=P(hw,Ys,0),c=P(p.xc,Ys,hd);
+  g+=DOT(...a,C.green)+DOT(...b,C.green)+DOT(...c,C.green)+TX(a[0]-4,a[1]-10,"a",{s:15,i:1,c:C.green})+TX(c[0]+4,c[1]-10,"c",{s:15,i:1,c:C.green})+TX(b[0]+10,b[1]+4,"b",{s:15,i:1,c:C.green,a:"start"});
+  const fx0=P(hw,Yf,0),fz0=P(p.e,Yf,hd),L=72;
+  g+=(p.sx>0?AR(fx0[0]+L,fx0[1],fx0[0],fx0[1]):AR(fx0[0],fx0[1],fx0[0]+L,fx0[1]))+TX(fx0[0]+L+6,fx0[1]+5,`${fx(p.Px)} ${Fu}`,{s:13,c:C.load,a:"start"});
+  const zt=[fz0[0]-0.6*L,fz0[1]+0.45*L];
+  g+=(p.sz>0?AR(zt[0],zt[1],fz0[0],fz0[1]):AR(fz0[0],fz0[1],zt[0],zt[1]))+TX(zt[0]-6,zt[1]+14,`${fx(p.Pz)} ${Fu}`,{s:13,c:C.load,a:"end"});
+  const at=P(0,Yt,hd);
+  g+=LN(at[0],at[1],a[0],a[1],{c:C.dim,w:.6,d:"1 4"})
+   +DIMH(at[0],fz0[0],Yt-0.45*s*hd-18,`e = ${fx(p.e)} ${u}`,{up:1})+LN(fz0[0],fz0[1],fz0[0],Yt-0.45*s*hd-18,{c:C.dim,w:.6,d:"1 4"})
+   +DIMH(a[0],c[0],a[1]+24,`${fx(p.xc)} ${u}`)+LN(c[0],c[1],c[0],a[1]+24,{c:C.dim,w:.8,d:"2 3"})
+   +DIMV(P(hw,0,-hd)[0]+120,Yf,Ys,`H = ${fx(p.H)} ${u}`)+LN(fx0[0],Yf,P(hw,0,-hd)[0]+126,Yf,{c:C.dim,w:.6,d:"2 3"})+LN(b[0],Ys,P(hw,0,-hd)[0]+126,Ys,{c:C.dim,w:.6,d:"2 3"});
+  const tx=110,ty=200;
+  g+=AR(tx,ty,tx+40,ty,C.dim,1.4)+AR(tx,ty,tx,ty-40,C.dim,1.4)+AR(tx,ty,tx-28,ty+22,C.dim,1.4)
+   +TX(tx+46,ty+5,"x",{s:14,i:1,c:C.dim,a:"start"})+TX(tx,ty-46,"y",{s:14,i:1,c:C.dim})+TX(tx-34,ty+34,"z",{s:14,i:1,c:C.dim})
+   +TX(380,Yb+0.45*s*(hd+0.25*p.dd)+28,`Outside ${fx(p.w)} ${u} (along x) by ${fx(p.dd)} ${u} (along z); wall ${dstr(p.t)} ${u}`,{s:13,c:C.dim});
+  return SVG(760,Yb+0.45*s*(hd+0.25*p.dd)+42,g);
+}
+function bpStatement(p){
+  const u=p.us?"in.":"mm",Fu=p.us?"lb":"kN";
+  return `<p>A vertical structural tube of rectangular section, ${fx(p.w)} ${u} along ${iv("x")} by ${fx(p.dd)} ${u} along ${iv("z")} outside, with a uniform wall ${dstr(p.t)} ${u} thick, is fixed at its base. Two horizontal forces act near its top, at a height ${fx(p.H)} ${u} above the cross section of interest: ${fx(p.Px)} ${Fu} in the ${p.sx>0?"−":"+"}${iv("x")} direction, along a line through the axis of the tube, and ${fx(p.Pz)} ${Fu} in the ${p.sz>0?"−":"+"}${iv("z")} direction, along a line ${fx(p.e)} ${u} from the axis on the +${iv("x")} side.</p>
+  <p>On that cross section, point ${iv("a")} is at the middle of the face toward +${iv("z")}, point ${iv("b")} is at the middle of the face toward +${iv("x")}, and point ${iv("c")} is on the +${iv("z")} face, ${fx(p.xc)} ${u} from ${iv("a")} toward the +${iv("x")} edge. Find the normal stress and the magnitude of the shear stress at ${iv("a")}, ${iv("b")} and ${iv("c")}. Use T/(2tA<sub>m</sub>) for the torsional shear stress, with A<sub>m</sub> the area enclosed by the mid-line of the wall, and ignore stress concentrations at the corners.</p>`;
+}
+function bpSolution(p,s){
+  const u=p.us?"in.":"mm",su=p.us?"psi":"MPa",Mu=p.us?"lb·in.":"N·m",u3=p.us?"in.³":"mm³",u4=p.us?"in.⁴":"mm⁴",dx=p.sx>0?"−x":"+x",dz=p.sz>0?"−z":"+z";
+  const sgn=v=>v>=0?"+":"−",dir=(v,a)=>`${Math.abs(v)<1e-12?"":(v>0?"+":"−")}${a}`;
+  return `<h3>1. Section properties</h3><p>For the outer rectangle minus the inner one (inside ${sig(p.w-2*p.t,4)} × ${sig(p.dd-2*p.t,4)} ${u}):</p>
+  <p class="eq">I (stress varying with x) = ${sig(s.Iz,4)} ${u4}, &nbsp; I (stress varying with z) = ${sig(s.Ix,4)} ${u4}, &nbsp; A<sub>m</sub> = (${fx(p.w)} − t)(${fx(p.dd)} − t) = ${sig(s.Am,4)} ${p.us?"in.²":"mm²"}</p>
+  <h3>2. Internal forces</h3><p>The ${dx} force gives a shear ${fx(p.Px)} and a moment ${fx(p.Px)}·${fx(p.H)} = ${sig(Math.abs(s.Mz),4)} ${Mu} that stretches the ${p.sx>0?"+x":"−x"} face. The ${dz} force gives a shear ${fx(p.Pz)}, a moment ${fx(p.Pz)}·${fx(p.H)} = ${sig(Math.abs(s.Mx),4)} ${Mu} that stretches the ${p.sz>0?"+z":"−z"} face, and a torque T = ${fx(p.Pz)}·${fx(p.e)} = ${sig(s.T,4)} ${Mu}.</p>
+  <h3>3. Normal stresses</h3><p class="eq">σ<sub>a</sub> = ${sig(s.sa)} ${su}, &nbsp; σ<sub>b</sub> = ${sig(s.sb)} ${su}, &nbsp; σ<sub>c</sub> = ${sig(s.sc-s.sa)} ${sgn(s.sa)} ${sig(Math.abs(s.sa))} = ${sig(s.sc)} ${su}</p>
+  <p class="note">Point a is on the neutral axis for the x-bending; point b is on the neutral axis for the z-bending; point c feels both.</p>
+  <h3>4. Shear stresses at a and b</h3><p>Torsion: T/(2tA<sub>m</sub>) = ${sig(Math.abs(s.tT))} ${su}, circulating around the wall. The shear force along x is carried by the two walls parallel to x, with the peak on their center line; with Q = ${sig(s.Qa,4)} ${u3} and cut width 2t it gives ${sig(Math.abs(s.tVa))} ${su} at ${iv("a")}. Likewise the force along z gives ${sig(Math.abs(s.tVb))} ${su} at ${iv("b")} (Q = ${sig(s.Qb,4)} ${u3}). Taking directions into account on the cross section:</p>
+  <p class="eq">a (along x): ${sig(s.tT)} ${sgn(s.tVa)} ${sig(Math.abs(s.tVa))} ⇒ |τ<sub>a</sub>| = ${sig(Math.abs(s.ta))} ${su}; &nbsp; b (along z): ${sig(-s.tT)} ${sgn(s.tVb)} ${sig(Math.abs(s.tVb))} ⇒ |τ<sub>b</sub>| = ${sig(Math.abs(s.tb))} ${su}</p>
+  <h3>5. Shear stress at c</h3><p>At ${iv("c")} three stresses act along the wall, all in the x direction. Torsion: ${sig(s.tT)} ${su}. The x-direction shear force: the area beyond a cut at ${iv("c")} through both walls parallel to x has Q = ${sig(s.Qc,4)} ${u3}, giving ${sig(s.tVc)} ${su}. The z-direction shear force: for that force the +z wall acts as a flange, and the shear flow grows from zero at ${iv("a")}; the wall segment between ${iv("a")} and ${iv("c")} has Q = t·${fx(p.xc)}·(${fx(p.dd)} − t)/2 = ${sig(s.Qf,4)} ${u3}, giving ${sig(s.tFc)} ${su} (cut width t).</p>
+  <p class="final">|τ<sub>c</sub>| = |${sig(s.tT)} ${sgn(s.tVc)} ${sig(Math.abs(s.tVc))} ${sgn(s.tFc)} ${sig(Math.abs(s.tFc))}| = ${sig(Math.abs(s.tc))} ${su}</p>`;
+}
+const BP={name:"Rectangular tube with two side forces: stresses at three points",
+  generate:bpGenerate,figure:bpFigure,statement:bpStatement,solution:bpSolution,
+  fields:p=>{const su=p.us?"psi":"MPa";return [{id:"sa",label:"Normal stress at a (signed)",unit:su,signed:true},{id:"ta",label:"Shear stress at a",unit:su},
+    {id:"sb",label:"Normal stress at b (signed)",unit:su,signed:true},{id:"tb",label:"Shear stress at b",unit:su},
+    {id:"sc",label:"Normal stress at c (signed)",unit:su,signed:true},{id:"tc",label:"Shear stress at c",unit:su}]},
+  truth:(p,s)=>({sa:s.sa,ta:Math.abs(s.ta),sb:s.sb,tb:Math.abs(s.tb),sc:s.sc,tc:Math.abs(s.tc)}),note:"Enter signed normal stresses (tension +) and shear stress magnitudes."};
+
+const TEMPLATES={"overhang-ibeam":OB,"gear-shaft":SG,"tube-arm":PA,"disk-shaft":DS,"bent-bar":BB,"box-post":BP,"tilted-cantilever":RB};
+
+// ===== planted errors
+const FLAWS={};
+const EQ=s=>`<p class="eq">${s}</p>`, PP=s=>`<p>${s}</p>`, FIN=s=>`<p class="final">${s}</p>`;
+const g4=v=>sig(v,4);
+
+FLAWS["gear-shaft"]={step:3,
+  why:"The rim radius r is the moment arm of the tooth force about the shaft axis, which gives the torque. The bending moment comes from treating the shaft as a beam on the two bearings: M<sub>C</sub> = F a (L − a)/L.",
+  run:(p,s)=>{const w=sgSolve(p,true),Tu=p.us?"lb·in.":"N·m",u=p.us?"in.":"mm";
+    return {v:{M:w.M,d:w.d},steps:[
+      ["Torque",EQ(`T = ${g4(s.T)} ${Tu}`)],
+      ["Tooth force",EQ(`F = T/r = ${g4(p.us?s.F:s.F/1000)} ${p.us?"lb":"kN"}`)],
+      ["Bending moment",PP("The tooth force acts at the rim, a distance r from the shaft center, so")+EQ(`M<sub>C</sub> = F r = ${g4(w.M)} ${Tu}`)],
+      ["Diameter",EQ(`√(M² + T²) = ${g4(w.Te)} ${Tu}`)+FIN(`d<sub>min</sub> = [16√(M² + T²)/(πτ<sub>w</sub>)]<sup>1/3</sup> = ${g4(w.d)} ${u}`)]]}}};
+
+FLAWS["tube-arm"]={step:4,
+  why:"At b the torque and the horizontal shear force both push the material of the section in the +z direction, so the torsional and transverse shear stresses add. They would subtract on the opposite side of the tube.",
+  run:(p,s)=>{const w=paSolve(p,true),su=p.us?"psi":"MPa";
+    return {v:{tb:w.tb,tmb:w.tmb},steps:[
+      ["Section properties",EQ(`A = ${g4(s.A)}, I = ${g4(s.I)}, J = ${g4(s.J)}, Q = ${g4(s.Q)}`)],
+      ["Internal forces",EQ(`T = ${g4(s.T)}, M (horizontal force) = ${g4(s.Mx)}, M (vertical force) = ${g4(s.Mz)} ${p.us?"lb·in.":"N·m"}`)],
+      ["Point a",EQ(`σ<sub>a</sub> = ${g4(s.sa)} ${su}, τ<sub>a</sub> = ${g4(s.ta)} ${su}`)],
+      ["Point b",PP("The torsional and transverse shear stresses act in opposite senses at b:")+EQ(`σ<sub>b</sub> = ${g4(s.sb)} ${su}, τ<sub>b</sub> = |${g4(s.tt)} − ${g4(s.tv)}| = ${g4(w.tb)} ${su}`)],
+      ["Largest shear at b",FIN(`τ<sub>max</sub> = √((σ<sub>b</sub>/2)² + τ<sub>b</sub>²) = ${g4(w.tmb)} ${su}`)]]}}};
+
+FLAWS["tilted-cantilever"]={step:1,
+  why:"Each moment component must be divided by the section modulus about its own axis: bh²/6 for M cos β and hb²/6 for M sin β, because the short side is the depth for the second component.",
+  run:(p,s)=>{const w=rbSolve(p,true),su=p.us?"psi":"MPa";
+    return {v:{s90:w.s90,sb:w.sb,bst:w.bst,smax:w.smax},steps:[
+      ["Moment components",PP("Both components bend the same rectangular bar, so both use S = bh²/6:")+EQ(`σ<sub>a</sub>(β) = (M/S)(cos β + sin β), S = ${g4(w.Ss)}`)],
+      ["Extreme mountings",EQ(`β = 0: ${g4(w.s0)} ${su}; β = 90°: ${g4(w.s90)} ${su}`)],
+      ["Given angle",EQ(`β = ${p.be}°: ${g4(w.sb)} ${su}`)],
+      ["Greatest stress",FIN(`tan β = 1 ⇒ β = ${g4(w.bst)}°, σ<sub>max</sub> = ${g4(w.smax)} ${su}`)]]}}};
+
+FLAWS["overhang-ibeam"]={step:4,
+  why:"Q is the first moment of the area beyond the point considered. At the web–flange junction that area is only the flange, so Q = b<sub>f</sub>t<sub>f</sub>(d − t<sub>f</sub>)/2; the neutral-axis value also counts the upper half of the web.",
+  run:(p,s)=>{const w=obSolve(p,true),su=p.us?"ksi":"MPa";
+    return {v:{sp:w.sp},steps:[
+      ["Shear and moment",EQ(`|M|<sub>max</sub> = ${g4(s.MB)} ${p.us?"kip·ft":"kN·m"}, |V|<sub>max</sub> = ${g4(s.V)} ${p.us?"kips":"kN"} (at B)`)],
+      ["Moment of inertia",EQ(`I = ${g4(s.I)}`)],
+      ["Largest stresses",EQ(`σ<sub>m</sub> = ${g4(s.sm)} ${su}, τ<sub>m</sub> = ${g4(s.tm)} ${su}`)],
+      ["Junction stresses",PP("Use the same Q as for the neutral axis, since the junction lies inside the web:")+EQ(`σ = ${g4(w.sj)} ${su}, τ = VQ/(It<sub>w</sub>) = ${g4(w.tj)} ${su}`)],
+      ["Principal stress",FIN(`σ<sub>max</sub> = ${g4(w.sp)} ${su}`)]]}}};
+
+
+FLAWS["disk-shaft"]={step:4,
+  why:"H is at the extreme fiber only for the bending in the y–z plane. For the horizontal shear force along x, H lies on the neutral axis, where the transverse shear stress reaches 4V/(3A), and it adds to the torsional shear stress.",
+  run:(p,s)=>{const w=dsSolve(p,true),su=p.us?"ksi":"MPa";
+    return {v:{tau:w.tau,s1:w.s1,s2:w.s2,tm:w.tm},steps:[
+      ["Section properties",EQ(`A = ${g4(s.A)}, I = ${g4(s.I)}, J = ${g4(s.J)}`)],
+      ["Internal forces",EQ(`axial ${g4(s.Nc)} (C), T = ${g4(s.T)}, M (rear force) = ${g4(s.M1)}`)],
+      ["Normal stress at H",EQ(`σ = ${g4(s.sg)} ${su}`)],
+      ["Shear stress at H",PP("H is on the outer surface of the shaft, where the transverse shear stress vanishes, so only torsion acts:")+EQ(`τ = Tr/J = ${g4(w.tau)} ${su}`)],
+      ["Principal stresses",FIN(`σ<sub>1</sub> = ${g4(w.s1)}, σ<sub>2</sub> = ${g4(w.s2)}, τ<sub>max</sub> = ${g4(w.tm)} ${su}`)]]}}};
+
+FLAWS["bent-bar"]={step:3,
+  why:"The top face is free of shear only for the vertical shear force. The horizontal shear force acts across the width, and its neutral axis is the vertical center plane, which contains H; there τ = 3V/(2A).",
+  run:(p,s)=>{const w=bbSolve(p,true),su=p.us?"ksi":"MPa";
+    return {v:{tau:w.tau,s1:w.s1,s2:w.s2,tm:w.tm},steps:[
+      ["Internal forces",EQ(`axial ${fx(p.Fa)} (C), vertical bending ${g4(s.Mv)}, horizontal bending ${g4(s.Mh)}`)],
+      ["Normal stress at H",EQ(`σ = ${g4(s.sg)} ${su}`)],
+      ["Shear stress at H",PP("H lies on a free surface (the top face), so the shear stress there is zero:")+EQ(`τ = 0`)],
+      ["Principal stresses",FIN(`σ<sub>1</sub> = ${g4(w.s1)}, σ<sub>2</sub> = ${g4(w.s2)}, τ<sub>max</sub> = ${g4(w.tm)} ${su}`)]]}}};
+
+FLAWS["box-post"]={step:5,
+  why:"For the z-direction shear force the +z wall is a flange. The shear flow in it is zero at its center line (point a) and grows toward the corners, so at c it equals V·Q/(I·t) with Q taken for the wall segment between a and c.",
+  run:(p,s)=>{const w=bpSolve(p,true),su=p.us?"psi":"MPa";
+    return {v:{tc:Math.abs(w.tc)},steps:[
+      ["Section properties",EQ(`I<sub>x-var</sub> = ${g4(s.Iz)}, I<sub>z-var</sub> = ${g4(s.Ix)}, A<sub>m</sub> = ${g4(s.Am)}`)],
+      ["Internal forces",EQ(`T = ${g4(s.T)}, moments ${g4(Math.abs(s.Mz))} and ${g4(Math.abs(s.Mx))}`)],
+      ["Normal stresses",EQ(`σ<sub>a</sub> = ${g4(s.sa)}, σ<sub>b</sub> = ${g4(s.sb)}, σ<sub>c</sub> = ${g4(s.sc)} ${su}`)],
+      ["Shear at a and b",EQ(`|τ<sub>a</sub>| = ${g4(Math.abs(s.ta))}, |τ<sub>b</sub>| = ${g4(Math.abs(s.tb))} ${su}`)],
+      ["Shear at c",PP("The z-direction shear force is carried by the walls parallel to z, so it produces no shear stress in the +z wall:")+FIN(`|τ<sub>c</sub>| = |${g4(s.tT)} ${s.tVc>=0?"+":"−"} ${g4(Math.abs(s.tVc))}| = ${g4(Math.abs(w.tc))} ${su}`)]]}}};
+
+const $=id=>document.getElementById(id);
+let curKey,curSeed,cur,curFields=[],curTruth={},curMode="practice";
+const tidy=h=>h.replace(/\bin\.\.(?!\.)/g,"in.").replace(/\b([Aa]) (aluminum|inelastic|unequal)\b/g,"$1n $2");
+const FLAWSET=typeof FLAWS!=="undefined"?FLAWS:{};
+const hunting=()=>curMode==="error";
+// ----- planted error: run it and check that it changes at least one answer by more than 3%
+function flawRun(F,p,s,T){const o=F.run(p,s),tr=T.truth(p,s);
+  const vis=Object.entries(o.v).some(([k,v])=>typeof tr[k]==="number"&&isFinite(v)&&Math.abs(v-tr[k])>0.03*Math.max(Math.abs(tr[k]),1e-12));
+  return {o,vis}}
+function flawHtml(o){return o.steps.map(([t,h],i)=>`<h3>${i+1}. ${t}</h3>${h}`).join("")}
+// ----- error report (Google Form, prefilled)
+const FORM={course:"Mechanics of Materials",url:"https://docs.google.com/forms/d/e/1FAIpQLSftFp58658vLVmSxLj70vzpvd77jEl0j39v0z5pbZyFLiG3kQ/viewform",entry:{chapter:"entry.1462158031",type:"entry.1326981178",seed:"entry.1711704812",link:"entry.1990210382",course:"entry.187645410"}};
+function reportUrl(){const q=new URLSearchParams({usp:"pp_url"});
+  q.set(FORM.entry.chapter,PAGE_CH);q.set(FORM.entry.type,TEMPLATES[curKey].name+(hunting()?" (find the error)":""));
+  q.set(FORM.entry.seed,String(curSeed??""));q.set(FORM.entry.link,location.href);q.set(FORM.entry.course,FORM.course);return FORM.url+"?"+q.toString()}
+function fillTypes(){const keys=hunting()?Object.keys(TEMPLATES).filter(k=>FLAWSET[k]):Object.keys(TEMPLATES);
+  $("typeSel").innerHTML=keys.map(k=>`<option value="${k}">${TEMPLATES[k].name}</option>`).join("");
+  if(!keys.includes(curKey))curKey=keys[0];return curKey}
+function setMode(mode,key,seed){curMode=mode;
+  $("mPractice").className=mode==="practice"?"":"ghost";$("mError").className=mode==="error"?"":"ghost";
+  $("reportLbl").textContent=hunting()?"Found a mistake other than the planted one?":"Found a mistake in a problem or its solution?";
+  if(key)curKey=key;render(fillTypes(),seed||parseInt($("seedIn").value,10)||newSeed())}
+function render(key,seed){
+  const T=TEMPLATES[key],F=hunting()?FLAWSET[key]:null;let fr=null;
+  for(let i=0;i<60;i++){cur=T.generate(seed);if(!F)break;fr=flawRun(F,cur.p,cur.s,T);if(fr.vis)break;seed++}
+  curKey=key;curSeed=seed;const {p,s}=cur;
+  $("typeSel").value=key;$("seedIn").value=seed;try{history.replaceState(null,"","#"+key+"-"+seed+(F?"-e":""))}catch(e){}
+  {const fh=T.figure(p,s);$("fig").innerHTML=fh;$("figCard").style.display=fh?"":"none"}$("statement").innerHTML=tidy(T.statement(p,s));
+  $("flawCard").style.display=F?"":"none";$("flawed").innerHTML=F?tidy(flawHtml(fr.o)):"";
+  curFields=T.fields(p,s);curTruth=T.truth(p,s);
+  if(F){const steps=fr.o.steps.map((_,i)=>String(i+1));
+    curFields=[{id:"step",label:"Step in which the error first appears",unit:"",choices:steps},...curFields];curTruth={step:String(F.step),...curTruth}}
+  $("answers").innerHTML=curFields.map(f=>f.choices
+    ?`<label>${tidy(f.label)}</label><select id="a_${f.id}"><option value="">choose</option>${f.choices.map(c=>`<option>${c}</option>`).join("")}</select><span class="mark" id="m_${f.id}"></span>`
+    :`<label>${tidy(f.label)}</label><span><input type="text" id="a_${f.id}" autocomplete="off" inputmode="decimal"> ${f.unit||""}</span><span class="mark" id="m_${f.id}"></span>`).join("");
+  $("ansNote").textContent=(F?"Enter the corrected answers. ":"")+(T.note||"");
+  $("solution").innerHTML=(F?`<p class="note">The error is in step ${F.step}. ${F.why}</p>`:"")+tidy(T.solution(p,s));
+  $("solution").style.display="none";$("solBtn").textContent=F?"Show the correct solution":"Show solution";
+}
+function check(){
+  const tr=curTruth;
+  curFields.forEach(f=>{
+    const el=$("m_"+f.id);let raw=$("a_"+f.id).value.trim().replace(/[\u2212\u2013\u2014]/g,"-");let ok=false;
+    if(f.choices)ok=raw===tr[f.id];
+    else{const v=parseFloat(raw.replace(/,/g,"")),t=tr[f.id];
+      if(isFinite(v)&&f.abs!==undefined) ok=Math.abs(v-t)<=f.abs;
+      else if(isFinite(v)) ok=f.signed?Math.abs(v-t)<=0.02*Math.abs(t)+1e-9:Math.abs(Math.abs(v)-Math.abs(t))<=0.02*Math.abs(t)+1e-9;
+      if(isFinite(v)&&f.signed&&f.abs===undefined&&Math.abs(v)>0&&Math.sign(v)!==Math.sign(t)) ok=false}
+    el.textContent=raw===""?"":ok?"Correct":"Incorrect";el.className="mark "+(ok?"ok":"bad");
+  });
+}
+const newSeed=()=>1+Math.floor(Math.random()*999999);
+$("typeSel").onchange=e=>render(e.target.value,newSeed());
+$("newBtn").onclick=()=>render(curKey,newSeed());
+$("loadBtn").onclick=()=>{const v=parseInt($("seedIn").value,10);if(v>0)render(curKey,v)};
+$("checkBtn").onclick=check;
+$("mPractice").onclick=()=>setMode("practice");
+$("mError").onclick=()=>setMode("error");
+$("reportBtn").onclick=()=>window.open(reportUrl(),"_blank","noopener");
+if(!Object.keys(FLAWSET).length)$("mError").style.display="none";
+$("solBtn").onclick=e=>{const s=$("solution"),show=s.style.display!=="block";
+  s.style.display=show?"block":"none";e.target.textContent=(show?"Hide":"Show")+(hunting()?" the correct solution":" solution")};
+(function(){const m=/^#([a-z0-9-]+?)-(\d+)(-e)?$/.exec(location.hash);
+  if(m&&TEMPLATES[m[1]]&&(!m[3]||FLAWSET[m[1]]))setMode(m[3]?"error":"practice",m[1],parseInt(m[2],10));
+  else setMode("practice",Object.keys(TEMPLATES)[0],newSeed())})();
+
+</script>
+</body>
+</html>

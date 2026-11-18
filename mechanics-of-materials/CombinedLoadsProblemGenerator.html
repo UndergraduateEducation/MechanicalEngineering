@@ -327,7 +327,7 @@ const deg=r=>r*180/Math.PI;
 const tq=(v,us)=>sig(v*TU(us).tf,3), st=(v,us)=>sig(v*TU(us).sf,3), lb_=(v,us)=>sig(v/TU(us).lb,3);
 const GFILL={steel:"#dfe4ea",aluminum:"#eef1f4",bronze:"#ecd3a6",copper:"#e9b996",wood:"#f2d9b0"};
 // shaft segment as a cylinder seen from the side
-// e / el = true: right / left end built into a wall, so that end face is not drawn
+// e = true: right end built into a wall, so its end face is not drawn; el = true: left end hidden inside a hub (straight end, no arc)
 const CYL=(x1,x2,yc,r,f="#dfe4ea",e=false,el=false)=>`<path d="M${x1},${yc-r} L${x2},${yc-r} L${x2},${yc+r} L${x1},${yc+r} ${el?"":`A${r*0.28},${r} 0 0 1 `}${x1},${yc-r} Z" fill="${f}" stroke="${C.steelln}" stroke-width="1.5"/>`+(e?"":`<ellipse cx="${x2}" cy="${yc}" rx="${r*0.28}" ry="${r}" fill="${f}" stroke="${C.steelln}" stroke-width="1.5"/>`);
 // torque vector (right-hand rule): double-headed arrow along the axis
 function TV(x,y,dir,lab,c=C.load){const L=56,x2=x+dir*L;const hd=xx=>`<polygon points="${xx},${y} ${xx-dir*11},${y-5} ${xx-dir*11},${y+5}" fill="${c}"/>`;
@@ -351,7 +351,7 @@ function csGenerate(seed){
 }
 function csFigure(p){
   const u=TU(p.us),r=60,x1=170,x2=560,yc=140;
-  let b=CYL(x1,x2,yc,r,GFILL[p.m],false,true)+WALLV(x1,yc-90,yc+90,true);
+  let b=CYL(x1,x2,yc,r,GFILL[p.m])+WALLV(x1-r*0.28,yc-90,yc+90,true);
   if(p.hollow)b+=`<ellipse cx="${x2}" cy="${yc}" rx="${r*0.28*p.di/p.d}" ry="${r*p.di/p.d}" fill="#fff" stroke="${C.steelln}" stroke-width="1.5"/>`;
   b+=TV(x2+30,yc,1,`T = ${tq(p.T,p.us)} ${u.T}`)+DIMH(x1,x2,yc+r+36,`L = ${lb_(p.L,p.us)} ${u.Lb}`)
    +TX(x2,yc-r-14,p.hollow?`outer d = ${p.d} ${u.L}, inner d = ${p.di} ${u.L}`:`d = ${p.d} ${u.L}`,{s:13,c:C.dim});
@@ -516,7 +516,7 @@ function iwGenerate(seed){
 }
 function iwFigure(p){
   const u=TU(p.us),x0=110,W=540,sc=W/(p.L[0]+p.L[1]),xB=x0+p.L[0]*sc,yc=150,md=Math.max(...p.d),rr=i=>22+38*p.d[i]/md;
-  let b=CYL(x0,xB,yc,rr(0),GFILL[p.M[0]],false,true)+WALLV(x0,yc-90,yc+90,true)+CYL(xB,x0+W,yc,rr(1),GFILL[p.M[1]],true)+WALLV(x0+W,yc-90,yc+90,false)
+  let b=CYL(x0,xB,yc,rr(0),GFILL[p.M[0]])+WALLV(x0-rr(0)*0.28,yc-90,yc+90,true)+CYL(xB,x0+W,yc,rr(1),GFILL[p.M[1]],true)+WALLV(x0+W,yc-90,yc+90,false)
    +TX((x0+xB)/2,yc+5,`${p.M[0]}, ${p.d[0]} ${u.L}`,{s:12})+TX((xB+x0+W)/2,yc+5,`${p.M[1]}, ${p.d[1]} ${u.L}`,{s:12})
    +TV(xB,yc-84,1,`T = ${tq(p.T,p.us)} ${u.T}`)+LN(xB,yc-78,xB,yc-62,{c:C.dim,w:1,d:"2 2"})
    +TX(x0+10,yc+76,"A",{s:15,i:1})+TX(xB,yc+76,"B",{s:15,i:1})+TX(x0+W-12,yc+76,"C",{s:15,i:1})
@@ -558,7 +558,7 @@ function ctGenerate(seed){
 }
 function ctFigure(p){
   const u=TU(p.us),x0=160,x1=520,yc=140,R=70,ri=R*p.d1/p.d2;
-  let b=CYL(x0,x1,yc,R,GFILL[p.pr[1]],false,true)+WALLV(x0,yc-100,yc+100,true)+`<ellipse cx="${x1}" cy="${yc}" rx="${ri*0.28}" ry="${ri}" fill="${GFILL[p.pr[0]]}" stroke="${C.steelln}" stroke-width="1.5"/>`
+  let b=CYL(x0,x1,yc,R,GFILL[p.pr[1]])+WALLV(x0-R*0.28,yc-100,yc+100,true)+`<ellipse cx="${x1}" cy="${yc}" rx="${ri*0.28}" ry="${ri}" fill="${GFILL[p.pr[0]]}" stroke="${C.steelln}" stroke-width="1.5"/>`
    +LN(x0,yc-ri,x1,yc-ri,{c:C.steelln,w:1,d:"5 4"})+LN(x0,yc+ri,x1,yc+ri,{c:C.steelln,w:1,d:"5 4"})
    +TV(x1+36,yc,1,`T = ${tq(p.T,p.us)} ${u.T}`)+DIMH(x0,x1,yc+R+34,`L = ${lb_(p.L,p.us)} ${u.Lb}`)
    +TX(x1+30,yc+R+4,`${p.pr[1]} tube, outer d = ${p.d2} ${u.L}`,{s:12,c:C.dim,a:"start"})+TX(x1+30,yc+R+20,`${p.pr[0]} core, d = ${p.d1} ${u.L}`,{s:12,c:C.dim,a:"start"});
@@ -720,7 +720,7 @@ function dtGenerate(seed){
 }
 function dtFigure(p){
   const u=TU(p.us),x0=160,x1=580,yc=170;
-  let b=CYL(x0,x1,yc,26,GFILL[p.m],false,true)+WALLV(x0,yc-80,yc+80,true);
+  let b=CYL(x0,x1,yc,26,GFILL[p.m])+WALLV(x0-26*0.28,yc-80,yc+80,true);
   const top=yc-44,hmax=58;
   b+=`<polygon points="${x0},${top} ${x1},${top} ${x1},${top-hmax} ${x0},${top-(p.lin?0:hmax)}" fill="#f3d6d8" stroke="${C.load}" stroke-width="1.5"/>`;
   for(let i=1;i<=7;i++){const x=x0+(x1-x0)*i/8;b+=`<path d="M${x-7},${yc-20} A9,26 0 1,0 ${x+7},${yc-20}" fill="none" stroke="${C.load}" stroke-width="1.4"/><polygon points="${x+7},${yc-20} ${x+2},${yc-27} ${x+11},${yc-27}" fill="${C.load}"/>`}
