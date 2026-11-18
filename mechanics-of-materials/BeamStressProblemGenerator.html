@@ -852,7 +852,43 @@ const F8={name:"Built-up beam: spacing of nails from the shear flow",generate:f8
   fields:p=>{const su=SU(p.us);return [{id:"I",label:"Moment of inertia",unit:su.d+"⁴"},{id:"Q",label:"First moment Q",unit:su.d+"³"},{id:"q",label:"Shear flow",unit:p.us?"lb/in.":"N/mm"},{id:"s",label:"Largest nail spacing",unit:su.d}]},
   truth:(p,s)=>({I:s.sp.I,Q:s.Q,q:s.q,s:s.s}),note:"Answers within 2% are accepted."};
 
-const TEMPLATES={"rect-flexure":F1,"t-section":F2,"stepped-cantilever":F3,"glued-planks":F4,"shear-distribution":F5,"allowable-load":F6,"timber-design":F7,"nail-spacing":F8};
+// ----- 9. selecting a standard wide-flange section
+const WSEC=[["W8 × 10",10,7.81],["W10 × 12",12,10.9],["W12 × 14",14,14.9],["W12 × 16",16,17.1],["W8 × 18",18,15.2],["W10 × 19",19,18.8],["W12 × 19",19,21.3],["W12 × 22",22,25.4],["W14 × 22",22,29.0],["W16 × 26",26,38.4],["W14 × 30",30,42.0],["W16 × 31",31,47.2],["W18 × 35",35,57.6],["W18 × 40",40,68.4],["W21 × 44",44,81.6],["W21 × 48",48,93.0],["W24 × 55",55,114],["W24 × 62",62,131],["W24 × 68",68,154]];
+function wsLightest(S){let b=null;WSEC.forEach(w=>{if(w[2]>=S&&(!b||w[1]<b[1]||(w[1]===b[1]&&w[2]>b[2])))b=w});return b}
+function w9Generate(seed){
+  const r=mulberry32(seed);
+  for(let k=0;k<20000;k++){
+    const L=pick(r,range(10,30,2)),w=pick(r,range(0.2,2.4,0.1)),P=pick(r,range(0,20,2)),sa=pick(r,[20,22,24]);
+    const M=w*L*L/8+P*L/4,Sr=M*12/sa;if(Sr<6||Sr>150) continue;
+    const sec=wsLightest(Sr);if(!sec) continue;
+    if(WSEC.some(x=>Math.abs(x[2]/Sr-1)<0.025)) continue;
+    const M2=M+sec[1]/1000*L*L/8,sg=M2*12/sec[2];if(sg>sa) continue;
+    const wrong=(w*L+P)*L/4;if(wsLightest(wrong*12/sa)===sec||Math.abs(wrong/M-1)<0.05) continue;
+    return {p:{us:true,L,w,P,sa},s:{M,Sr,sec,M2,sg}};
+  }
+  throw new Error("no valid problem");
+}
+const W9={name:"Selecting a standard W section for bending",generate:w9Generate,
+  figure:p=>{const x0=40,x1=400,y=190;let s=LN(x0,y,x1,y,{c:C.steelln,w:6});
+    s+=`<polygon points="${x0},${y+4} ${x0-12},${y+24} ${x0+12},${y+24}" fill="#eceae4" stroke="${C.ln}"/>`+CI(x1,y+12,8,{f:"#eceae4"})+LN(x0-20,y+25,x0+20,y+25,{c:C.ln})+LN(x1-20,y+21,x1+20,y+21,{c:C.ln});
+    s+=`<rect x="${x0}" y="${y-36}" width="${x1-x0}" height="30" fill="#f4d6d6" stroke="${C.load}" stroke-width="1"/>`;for(let i=0;i<=12;i++){const x=x0+(x1-x0)*i/12;s+=AR(x,y-36,x,y-5,C.load,1.2)}
+    s+=TX(x0+60,y-44,`w = ${p.w} kips/ft`,{s:13,c:C.load});
+    if(p.P)s+=AR((x0+x1)/2,y-110,(x0+x1)/2,y-40,C.load,2.2)+TX((x0+x1)/2,y-116,`P = ${p.P} kips`,{s:13,c:C.load});
+    s+=DIMH(x0,x1,y+48,`L = ${p.L} ft`);
+    let t=TX(460,30,"Section",{s:12,a:"start"})+TX(560,30,"lb/ft",{s:12,a:"start"})+TX(620,30,"S (in.³)",{s:12,a:"start"})+LN(455,35,720,35,{c:C.dim,w:1});
+    WSEC.forEach((w,i)=>{const yy=52+i*17;t+=TX(460,yy,w[0],{s:12,a:"start"})+TX(560,yy,w[1],{s:12,a:"start"})+TX(620,yy,w[2],{s:12,a:"start"})});
+    return SVG(760,52+WSEC.length*17+10,s+t)},
+  statement:p=>`<p>A simply supported steel beam spans ${p.L} ft and carries a uniform load of ${p.w} kips/ft${p.P?` and a concentrated load of ${p.P} kips at midspan`:""}. These loads do not include the weight of the beam. The allowable bending stress is ${p.sa} ksi.</p>
+  <p>Using the table of wide-flange sections shown (S is the elastic section modulus about the strong axis), find the largest bending moment from the applied loads, the required section modulus, and the lightest adequate section. Then include the weight of the chosen beam and find the largest bending stress.</p>`,
+  solution:(p,s)=>`<h3>1. Largest bending moment</h3><p>For a simply supported span the largest moment is at midspan:</p><p class="eq">M = wL²/8${p.P?" + PL/4":""} = ${sig(s.M,4)} kip·ft</p>
+  <h3>2. Required section modulus</h3><p class="eq">S<sub>req</sub> = M/σ<sub>allow</sub> = ${sig(s.M,4)}(12)/${p.sa} = ${sig(s.Sr,4)} in.³</p>
+  <h3>3. Lightest adequate section</h3><p>Among the sections with S ≥ ${sig(s.Sr,4)} in.³, the one with the smallest weight per foot is the <b>${s.sec[0]}</b> (S = ${s.sec[2]} in.³, ${s.sec[1]} lb/ft). A deeper section often carries more moment per pound, so compare weights, not section moduli.</p>
+  <h3>4. Check with the beam weight</h3><p class="eq">M = ${sig(s.M,4)} + ${sig(s.sec[1]/1000,3)}(${p.L})²/8 = ${sig(s.M2,4)} kip·ft; σ = M/S = ${sig(s.M2,4)}(12)/${s.sec[2]} = ${sig(s.sg,4)} ksi</p>
+  <p class="final">${s.sec[0]} is adequate: σ = ${sig(s.sg,3)} ksi ≤ ${p.sa} ksi.</p>`,
+  fields:p=>[{id:"M",label:"Largest moment from the applied loads",unit:"kip·ft"},{id:"Sr",label:"Required section modulus",unit:"in.³"},{id:"sec",label:"Lightest adequate section",unit:"",choices:WSEC.map(w=>w[0])},{id:"sg",label:"Largest bending stress with the beam weight",unit:"ksi"}],
+  truth:(p,s)=>({M:s.M,Sr:s.Sr,sec:s.sec[0],sg:s.sg}),note:"Answers within 2% are accepted."};
+
+const TEMPLATES={"rect-flexure":F1,"t-section":F2,"stepped-cantilever":F3,"glued-planks":F4,"shear-distribution":F5,"allowable-load":F6,"timber-design":F7,"nail-spacing":F8,"w-section-select":W9};
 
 // ===== planted errors: shared helpers. Each entry: {step, why, run:(p,s)=>({v:{field:value}, steps:[[title, html], ...]})}
 const FLAWS={};
@@ -931,6 +967,15 @@ FLAWS["nail-spacing"]={step:2,
       ["First moment",PP("Q is taken for the area above the neutral axis:")+EQ(`Q = ${g4(Q)} ${fd5(p)}³`)],
       ["Shear flow",EQ(`q = VQ/I = ${g4(q)} ${qu}`)],
       ["Nail spacing",FIN(`s = ${p.n}F/q = ${g4(sx)} ${fd5(p)}`)]]}}};
+
+FLAWS["w-section-select"]={step:1,
+  why:"A uniform load and a midspan load produce different midspan moments: wL²/8 for the distributed load and PL/4 for the point load. Lumping the distributed load at midspan doubles its moment.",
+  run:(p,s)=>{const M=(p.w*p.L+p.P)*p.L/4,Sr=M*12/p.sa,sec=wsLightest(Sr)||WSEC[WSEC.length-1],M2=M+sec[1]/1000*p.L*p.L/8,sg=M2*12/sec[2];
+    return {v:{M,Sr,sg},steps:[
+    ["Largest bending moment",PP("Replace the loads by their total acting at midspan:")+EQ(`M = (wL + P)L/4 = ${g4(M)} kip·ft`)],
+    ["Required section modulus",EQ(`S<sub>req</sub> = ${g4(M)}(12)/${p.sa} = ${g4(Sr)} in.³`)],
+    ["Lightest adequate section",EQ(`${sec[0]} (S = ${sec[2]} in.³)`)],
+    ["Check with the beam weight",FIN(`σ = ${g4(sg)} ksi`)]]}}};
 
 const $=id=>document.getElementById(id);
 let curKey,curSeed,cur,curFields=[],curTruth={},curMode="practice";

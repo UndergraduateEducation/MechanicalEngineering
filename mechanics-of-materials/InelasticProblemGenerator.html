@@ -1659,7 +1659,61 @@ const P5={name:"Limit analysis of indeterminate beams: limit load and yield load
   fields:p=>{const u=IU(p.us),Lw=p.udl?(p.us?"kips/ft":"kN/m"):u.F;return [{id:"Myp",label:"Yield moment",unit:u.M},{id:"ML",label:"Limit moment",unit:u.M},{id:"Py",label:"Load at first yield",unit:Lw},{id:"PL",label:"Limit load",unit:Lw},{id:"r",label:"Limit load / yield load",unit:""}]},
   truth:(p,s)=>({Myp:s.Myp/IU(p.us).Mf,ML:s.ML/IU(p.us).Mf,Py:s.Py,PL:s.PL,r:s.ratio}),note:"Answers within 2% are accepted."};
 
-const TEMPLATES={"plastic-torsion":P1,"shape-factor":P2,"elastoplastic-beam":P3,"rods-residual":P4,"limit-analysis":P5};
+// ----- 6. elastic spring-back of a strip bent around a mandrel
+function p6Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const E=us?29000:200000,sy=us?pick(r,[36,42,50,60]):pick(r,[250,300,350,400]),h=us?pick(r,[0.125,0.1875,0.25,0.375,0.5]):pick(r,[3,4,5,6,8,10]),b=us?pick(r,[1,1.5,2,3]):pick(r,[25,40,50,75]);
+    const rho=us?pick(r,range(10,80,2)):pick(r,range(250,2000,50)),e=sy*rho/E;if(e>0.4*h||e<0.08*h) continue;
+    const M=sy*b*(h*h/4-e*e/3),I=b*h**3/12,kf=1/rho-M/(E*I),rf=1/kf,sr=sy-M*(h/2)/I;
+    if(!(kf>0)) continue;
+    return {p:{us,E,sy,h,b,rho},s:{e,M,I,rf,sr}};
+  }
+  throw new Error("no valid problem");
+}
+const P6={name:"Elastic spring-back of a strip bent around a mandrel",generate:p6Generate,
+  figure:p=>{const u=IU(p.us),cx=250,cy=170,R=120;let s=CI(cx,cy,R-8,{f:"#eceae4"})+TX(cx-40,cy+60,"mandrel",{s:13,c:C.dim});
+    s+=`<path d="M${cx-R*Math.cos(0.9)},${cy-R*Math.sin(0.9)} A${R},${R} 0 0 1 ${cx+R*Math.cos(0.9)},${cy-R*Math.sin(0.9)}" fill="none" stroke="${C.steelln}" stroke-width="8"/>`;
+    s+=LN(cx,cy,cx+R*Math.cos(1.2),cy-R*Math.sin(1.2),{c:C.dim,w:1,d:"4 3"})+TX(cx+30,cy-40,`ρ = ${p.rho} ${u.d}`,{s:13,a:"start"});
+    s+=TX(470,90,`strip ${p.b} × ${dstr(p.h)} ${u.d}`,{s:13,a:"start"})+TX(470,112,`σ<tspan baseline-shift="sub" font-size="10">yp</tspan> = ${p.sy} ${u.S}`,{s:13,a:"start"})+TX(470,134,`E = ${p.us?"29 × 10⁶ psi":"200 GPa"}`,{s:13,a:"start"});
+    return SVG(760,310,s)},
+  statement:p=>{const u=IU(p.us);return `<p>A straight steel strip, ${p.b} ${u.d} wide and ${dstr(p.h)} ${u.d} thick, is bent around a cylindrical mandrel so that the radius of curvature of its middle surface is ρ = ${p.rho} ${u.d}. The steel is elastoplastic with σ<sub>yp</sub> = ${p.sy} ${u.S} and E = ${p.us?"29 × 10⁶ psi":"200 GPa"}. The strip is then released.</p>
+  <p>Find the depth of the elastic core while the strip is on the mandrel, the bending moment needed to hold it there, the radius of curvature after release, and the residual stress at the outer (convex) surface after release (tension positive).</p>`},
+  solution:(p,s)=>{const u=IU(p.us),Md=s.M/u.Mf;return `<h3>1. Elastic core</h3><p>The strain is proportional to the distance y from the middle surface, ε = y/ρ. Yielding starts where ε = σ<sub>yp</sub>/E, so the half-depth of the elastic core is</p><p class="eq">e = σ<sub>yp</sub>ρ/E = ${sig(s.e,4)} ${u.d}; core depth 2e = ${sig(2*s.e,4)} ${u.d}</p>
+  <h3>2. Bending moment</h3><p class="eq">M = σ<sub>yp</sub>b(h²/4 − e²/3) = ${sig(Md,4)} ${u.M}</p>
+  <h3>3. Spring-back</h3><p>Removing M is an elastic unloading of the whole section, which changes the curvature by M/(EI) with I = bh³/12 = ${sig(s.I,4)} ${u.d}⁴:</p><p class="eq">1/ρ<sub>r</sub> = 1/ρ − M/(EI) ⇒ ρ<sub>r</sub> = ${sig(s.rf,4)} ${u.d}</p>
+  <h3>4. Residual stress at the outer surface</h3><p class="eq">σ<sub>r</sub> = σ<sub>yp</sub> − M(h/2)/I = ${sig(s.sr,4)} ${u.S}</p>
+  <p class="final">2e = ${sig(2*s.e,3)} ${u.d}, M = ${sig(Md,3)} ${u.M}, ρ<sub>r</sub> = ${sig(s.rf,3)} ${u.d}, σ<sub>r</sub> = ${sig(s.sr,3)} ${u.S}.</p>`},
+  fields:p=>{const u=IU(p.us);return [{id:"c",label:"Depth of the elastic core 2e",unit:u.d},{id:"M",label:"Bending moment on the mandrel",unit:u.M},{id:"rf",label:"Radius of curvature after release",unit:u.d},{id:"sr",label:"Residual stress at the outer surface (signed)",unit:u.S,signed:true}]},
+  truth:(p,s)=>({c:2*s.e,M:s.M/IU(p.us).Mf,rf:s.rf,sr:s.sr}),note:"Answers within 2% are accepted."};
+
+// ----- 7. limit torque of a shaft built in at both ends
+function p7Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const u=IU(us),c=us?pick(r,[0.75,1,1.25,1.5,2]):pick(r,[20,25,30,40,50]),ty=us?pick(r,[18,20,24,30]):pick(r,[120,140,160,200]),G=us?11500:80000;
+    const L=pick(r,us?range(4,12,1):range(1.2,4,0.2)),a=+(L*pick(r,[0.2,0.25,0.3,0.35,0.4])).toFixed(2),bL=L-a,Lp=L*u.lb,ap=a*u.lb,bp=bL*u.lb;
+    const Typ=Math.PI*c**3*ty/2,TLs=2*Math.PI*c**3*ty/3,Ty=Typ*Lp/bp,TL=2*TLs,ph=ty*bp/(G*c);
+    return {p:{us,c,ty,G,L,a},s:{Typ,TLs,Ty,TL,ph:ph*180/Math.PI,bp}};
+  }
+  throw new Error("no valid problem");
+}
+const P7={name:"Limit torque of a shaft built in at both ends",generate:p7Generate,
+  figure:p=>{const u=IU(p.us),x0=90,x1=560,y=140,xa=x0+(x1-x0)*p.a/p.L;let s=HATCH(x0-24,60,24,160)+HATCH(x1,60,24,160)+RC(x0,y-26,x1-x0,52,{f:"#dfe4ea",c:C.steelln});
+    s+=`<ellipse cx="${xa}" cy="${y}" rx="10" ry="40" fill="none" stroke="${C.load}" stroke-width="2"/>`+AR(xa+6,y-40,xa-8,y-38,C.load,2)+TX(xa,y-52,"T",{s:15,i:1,c:C.load});
+    s+=TX(x0+6,y+4,"A",{s:14,i:1,a:"start"})+TX(x1-6,y+4,"B",{s:14,i:1,a:"end"})+DIMH(x0,xa,y+70,`${sig(p.a,3)} ${u.L}`)+DIMH(xa,x1,y+70,`${sig(p.L-p.a,3)} ${u.L}`);
+    return SVG(760,250,s)},
+  statement:p=>{const u=IU(p.us);return `<p>A solid circular steel shaft of radius ${p.c} ${u.d} is built in at both ends, A and B, ${p.L} ${u.L} apart. A torque T is applied ${p.a} ${u.L} from A. The material is elastoplastic in shear with τ<sub>yp</sub> = ${p.ty} ${u.S} and G = ${p.us?"11.5 × 10⁶ psi":"80 GPa"}.</p>
+  <p>Find the yield torque and the limit torque of the cross section, the torque T at which yielding first occurs, the limit torque T<sub>L</sub> of the shaft, and the rotation of the loaded section when the limit torque is first reached.</p>`},
+  solution:(p,s)=>{const u=IU(p.us),f=v=>sig(v/u.Mf,4);return `<h3>1. Section torques</h3><p class="eq">T<sub>yp</sub> = πc³τ<sub>yp</sub>/2 = ${f(s.Typ)} ${u.T}; T<sub>L,s</sub> = 2πc³τ<sub>yp</sub>/3 = ${f(s.TLs)} ${u.T}</p>
+  <h3>2. First yield</h3><p>While both segments are elastic their rotations at the load point are equal, so each end torque is inversely proportional to its segment length: T<sub>A</sub> = T·b/L and T<sub>B</sub> = T·a/L. The shorter segment AC carries the larger torque and yields first when T<sub>A</sub> = T<sub>yp</sub>:</p><p class="eq">T<sub>y</sub> = T<sub>yp</sub>L/b = ${f(s.Ty)} ${u.T}</p>
+  <h3>3. Limit torque</h3><p>As T grows, segment AC becomes fully plastic and carries no more than T<sub>L,s</sub>; the extra torque goes to CB until it is also fully plastic:</p><p class="eq">T<sub>L</sub> = 2T<sub>L,s</sub> = ${f(s.TL)} ${u.T}</p>
+  <h3>4. Rotation at the limit state</h3><p>The rotation is controlled by the segment that is still elastic in its core. The limit is first reached when the outer fibers of CB reach τ<sub>yp</sub>, so with γ = τ<sub>yp</sub>/G at r = c:</p><p class="eq">φ = τ<sub>yp</sub>b/(Gc) = ${sig(s.ph,4)}°</p>
+  <p class="final">T<sub>yp</sub> = ${sig(s.Typ/u.Mf,3)}, T<sub>L,s</sub> = ${sig(s.TLs/u.Mf,3)}, T<sub>y</sub> = ${sig(s.Ty/u.Mf,3)}, T<sub>L</sub> = ${sig(s.TL/u.Mf,3)} ${u.T}; φ = ${sig(s.ph,3)}°.</p>`},
+  fields:p=>{const u=IU(p.us);return [{id:"Typ",label:"Yield torque of the section",unit:u.T},{id:"TLs",label:"Limit torque of the section",unit:u.T},{id:"Ty",label:"Applied torque at first yield",unit:u.T},{id:"TL",label:"Limit torque of the shaft",unit:u.T},{id:"ph",label:"Rotation of the loaded section at the limit state",unit:"degrees"}]},
+  truth:(p,s)=>{const u=IU(p.us);return {Typ:s.Typ/u.Mf,TLs:s.TLs/u.Mf,Ty:s.Ty/u.Mf,TL:s.TL/u.Mf,ph:s.ph}},note:"Answers within 2% are accepted."};
+
+const TEMPLATES={"plastic-torsion":P1,"shape-factor":P2,"elastoplastic-beam":P3,"rods-residual":P4,"limit-analysis":P5,"spring-back":P6,"limit-torque-shaft":P7};
 
 // ===== planted errors: shared helpers. Each entry: {step, why, run:(p,s)=>({v:{field:value}, steps:[[title, html], ...]})}
 const FLAWS={};
@@ -1709,6 +1763,24 @@ FLAWS["limit-analysis"]={step:3,
       ["Section",EQ(`M<sub>yp</sub> = ${g4(s.Myp/IU(p.us).Mf)}; M<sub>L</sub> = ${g4(s.ML/IU(p.us).Mf)} ${IU(p.us).M}`)],
       ["First yield",EQ(`load at first yield = ${g4(s.Py)} ${Lw}`)],
       ["Limit load",PP("The beam collapses when the most highly stressed section becomes fully plastic, at M<sub>L</sub> = 1.5M<sub>yp</sub>:")+FIN(`limit load = 1.5 × ${g4(s.Py)} = ${g4(PL)} ${Lw}; ratio 1.5`)]]}}};
+
+FLAWS["spring-back"]={step:3,
+  why:"Unloading is elastic over the whole cross section, including the yielded outer layers, so the change in curvature is M/(EI) with I = bh³/12, not the moment of inertia of the elastic core.",
+  run:(p,s)=>{const u=IU(p.us),Ic=p.b*(2*s.e)**3/12,kf=1/p.rho-s.M/(p.E*Ic),rf=1/kf,sr=p.sy-s.M*s.e/Ic;
+    return {v:{rf,sr},steps:[
+    ["Elastic core",EQ(`2e = 2σ<sub>yp</sub>ρ/E = ${g4(2*s.e)} ${u.d}`)],
+    ["Bending moment",EQ(`M = σ<sub>yp</sub>b(h²/4 − e²/3) = ${g4(s.M/u.Mf)} ${u.M}`)],
+    ["Spring-back",PP("Only the elastic core springs back, so use its moment of inertia I<sub>c</sub> = b(2e)³/12:")+EQ(`1/ρ<sub>r</sub> = 1/ρ − M/(EI<sub>c</sub>) ⇒ ρ<sub>r</sub> = ${g4(rf)} ${u.d}`)],
+    ["Residual stress at the outer surface",FIN(`σ<sub>r</sub> = σ<sub>yp</sub> − Me/I<sub>c</sub> = ${g4(sr)} ${u.S}`)]]}}};
+
+FLAWS["limit-torque-shaft"]={step:3,
+  why:"At the limit state both segments are fully plastic and each carries T<sub>L,s</sub>, so T<sub>L</sub> = 2T<sub>L,s</sub>. The elastic distribution of torque no longer holds after yielding.",
+  run:(p,s)=>{const u=IU(p.us),TL=s.TLs*p.L/(p.L-p.a);
+    return {v:{TL:TL/u.Mf},steps:[
+    ["Section torques",EQ(`T<sub>yp</sub> = ${g4(s.Typ/u.Mf)}; T<sub>L,s</sub> = ${g4(s.TLs/u.Mf)} ${u.T}`)],
+    ["First yield",EQ(`T<sub>y</sub> = T<sub>yp</sub>L/b = ${g4(s.Ty/u.Mf)} ${u.T}`)],
+    ["Limit torque",PP("The shorter segment still carries the fraction b/L of the applied torque; it reaches T<sub>L,s</sub> at")+EQ(`T<sub>L</sub> = T<sub>L,s</sub>L/b = ${g4(TL/u.Mf)} ${u.T}`)],
+    ["Rotation at the limit state",FIN(`φ = ${g4(s.ph)}°`)]]}}};
 
 const $=id=>document.getElementById(id);
 let curKey,curSeed,cur,curFields=[],curTruth={},curMode="practice";

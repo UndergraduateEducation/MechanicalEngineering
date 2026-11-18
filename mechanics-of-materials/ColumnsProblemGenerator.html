@@ -512,7 +512,33 @@ const K7={name:"Eccentrically loaded column: secant formula",generate:k7Generate
   fields:p=>{const u=KU(p.us);return [{id:"s",label:"Maximum compressive stress",unit:u.S},{id:"N",label:"Factor of safety against yielding",unit:""},{id:"v",label:"Maximum lateral deflection",unit:u.d}]},
   truth:(p,s)=>({s:s.smax,N:s.N,v:s.v}),note:"Answers within 2% are accepted."};
 
-const TEMPLATES={"euler":K1,"two-planes":K2,"frame-strut":K3,"thermal-buckling":K4,"aisc-strength":K5,"aisc-length":K6,"secant":K7};
+// ----- 8. intermediate column: tangent modulus theory
+function k8Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4,u=KU(us);
+  for(let k=0;k<20000;k++){
+    const end=pick(r,ENDS),sec=colSec(r,us),E=u.E,spl=us?pick(r,[30,32,34,36]):pick(r,[200,220,240,250]),su=us?spl+pick(r,[10,12,15,18]):spl+pick(r,[70,80,100,120]);
+    const L=pick(r,us?range(2,16,0.5):range(0.6,5,0.1))*u.lb,rg=Math.sqrt(sec.I/sec.A),lam=end.K*L/rg,sE=Math.PI**2*E/lam**2;
+    if(sE<1.15*spl||lam<20) continue;
+    const kk=Math.PI**2/lam**2,sc=kk*E*su/(su-spl+kk*E);if(sc<spl*1.03||sc>0.95*su) continue;
+    const Pc=sc*sec.A/(us?1:1000);
+    return {p:{us,end,sec,L,spl,su,mat:{n:"steel"}},s:{rg,lam,sE,sc,Pc,Et:E*(su-sc)/(su-spl)}};
+  }
+  throw new Error("no valid problem");
+}
+const K8={name:"Intermediate column: tangent-modulus critical load",generate:k8Generate,
+  figure:p=>colDraw(p.end.k,`L = ${sig(p.L/KU(p.us).lb,3)} ${KU(p.us).L}`,p.sec,p.us),
+  statement:p=>{const u=KU(p.us);return `<p>A steel column of length ${sig(p.L/u.lb,3)} ${u.L} is ${p.end.n}. It has ${secTxt(p.sec)}. Use E = ${u.Ed}. The stress-strain curve is linear up to the proportional limit σ<sub>pl</sub> = ${p.spl} ${u.S}; above it, the tangent modulus decreases linearly with stress, from E at σ<sub>pl</sub> to zero at ${p.su} ${u.S}:</p>
+  <p class="eq">E<sub>t</sub> = E(${p.su} − σ)/(${p.su} − ${p.spl}) for ${p.spl} ≤ σ ≤ ${p.su} ${u.S}</p>
+  <p>Find the slenderness ratio, the Euler stress computed with E, the critical stress from the tangent-modulus theory, and the critical load.</p>`},
+  solution:(p,s)=>{const u=KU(p.us);return `<h3>1. Slenderness</h3><p>r = √(I/A) = ${sig(s.rg,4)} ${u.d}; with K = ${p.end.K}, ${"KL/r"} = ${sig(s.lam,4)}.</p>
+  <h3>2. Euler stress</h3><p class="eq">σ<sub>E</sub> = π²E/(KL/r)² = ${sig(s.sE,4)} ${u.S}</p><p>This exceeds the proportional limit, so the column buckles inelastically and Euler's formula does not apply.</p>
+  <h3>3. Tangent-modulus stress</h3><p>Replace E by E<sub>t</sub> evaluated at the critical stress itself: σ<sub>cr</sub> = π²E<sub>t</sub>(σ<sub>cr</sub>)/(KL/r)². With k = π²/(KL/r)² = ${sig(Math.PI**2/s.lam**2,4)}:</p>
+  <p class="eq">σ<sub>cr</sub> = kE(${p.su} − σ<sub>cr</sub>)/(${p.su} − ${p.spl}) ⇒ σ<sub>cr</sub> = kE(${p.su})/(${p.su - p.spl} + kE) = ${sig(s.sc,4)} ${u.S}</p><p>Check: σ<sub>cr</sub> lies between σ<sub>pl</sub> and ${p.su} ${u.S}, and E<sub>t</sub> = ${sig(s.Et,4)} ${u.S}.</p>
+  <h3>4. Critical load</h3><p class="final">P<sub>cr</sub> = σ<sub>cr</sub>A = ${sig(s.sc,4)} × ${sig(p.sec.A,4)} = ${sig(s.Pc,4)} ${u.F}</p>`},
+  fields:p=>{const u=KU(p.us);return [{id:"lam",label:"Slenderness ratio KL/r",unit:""},{id:"sE",label:"Euler stress with E",unit:u.S},{id:"sc",label:"Tangent-modulus critical stress",unit:u.S},{id:"Pc",label:"Critical load",unit:u.F}]},
+  truth:(p,s)=>({lam:s.lam,sE:s.sE,sc:s.sc,Pc:s.Pc}),note:"Answers within 2% are accepted."};
+
+const TEMPLATES={"euler":K1,"two-planes":K2,"frame-strut":K3,"thermal-buckling":K4,"aisc-strength":K5,"aisc-length":K6,"secant":K7,"tangent-modulus":K8};
 
 // ===== planted errors: shared helpers. Each entry: {step, why, run:(p,s)=>({v:{field:value}, steps:[[title, html], ...]})}
 const FLAWS={};
@@ -584,6 +610,14 @@ FLAWS["secant"]={step:2,
       ["Maximum stress",EQ(`σ<sub>max</sub> = (P/A)[1 + (ec/r²) sec(·)] = ${g4(o.smax)} ${u.S}`)],
       ["Factor of safety",EQ(`N = ${g4(lo)}`)],
       ["Lateral deflection",FIN(`v = e[sec(·) − 1] = ${g4(o.v)} ${u.d}`)]]}}};
+
+FLAWS["tangent-modulus"]={step:3,
+  why:"Above the proportional limit the material is softer than E. The critical stress must use the tangent modulus at that stress; Euler's formula with E overestimates the strength of an intermediate column.",
+  run:(p,s)=>{const u=KU(p.us),Pc=s.sE*p.sec.A/(p.us?1:1000);return {v:{sc:s.sE,Pc},steps:[
+    ["Slenderness",EQ(`KL/r = ${g4(s.lam)}`)],
+    ["Euler stress",EQ(`σ<sub>E</sub> = π²E/(KL/r)² = ${g4(s.sE)} ${u.S}`)],
+    ["Critical stress",PP("The column buckles at the Euler stress:")+EQ(`σ<sub>cr</sub> = ${g4(s.sE)} ${u.S}`)],
+    ["Critical load",FIN(`P<sub>cr</sub> = ${g4(Pc)} ${u.F}`)]]}}};
 
 const $=id=>document.getElementById(id);
 let curKey,curSeed,cur,curFields=[],curTruth={},curMode="practice";

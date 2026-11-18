@@ -1800,7 +1800,60 @@ const M9={name:"Strain rosette: principal strains and principal stresses",genera
     angF("tp","θp, from x to ε₁"),{id:"gm",label:"Maximum in-plane shear strain",unit:"× 10⁻⁶"},{id:"s1",label:"σ₁ (signed)",unit:S,signed:true},{id:"s2",label:"σ₂ (signed)",unit:S,signed:true}]},
   truth:(p,s)=>({ey:s.eyr,g:s.gr,e1:s.e1,e2:s.e2,tp:s.tp/D2R,gm:s.gmax,s1:s.s1,s2:s.s2}),note:"Answers within 2% are accepted; angles within 1°."};
 
-const TEMPLATES={"pressure-vessel":M1,"weld-seam":M2,"eccentric-column":M3,"clamp":M4,"rotated-element":M5,"principal-stresses":M6,"axial-torque":M7,"crank-shaft":M8,"strain-rosette":M9};
+// ----- 10. absolute maximum shear stress with a normal stress out of the plane
+function x1Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const v=()=>pick(r,us?range(-20,20,2):range(-140,140,10)),sx=v(),sy=v(),txy=v(),sz=v();if(txy===0||sz===0) continue;
+    const q=princ(sx,sy,txy),ps=[q.s1,q.s2,sz].sort((a,b)=>b-a),ta=(ps[0]-ps[2])/2;
+    if(ta<1.1*q.R||Math.min(Math.abs(ps[0]-ps[1]),Math.abs(ps[1]-ps[2]))<0.05*ta) continue;
+    return {p:{us,sx,sy,txy,sz},s:{...q,ps,ta}};
+  }
+  throw new Error("no valid problem");
+}
+const X1={name:"Absolute maximum shear stress with an out-of-plane normal stress",generate:x1Generate,
+  figure:p=>SVG(760,290,stressElem(p.sx,p.sy,p.txy,0,{cx:300,cy:140,unit:UK(p.us)})+TX(520,90,`σ<tspan baseline-shift="sub" font-size="10">z</tspan> = ${p.sz} ${UK(p.us)}`,{s:15,a:"start"})+TX(520,112,"(normal to the page;",{s:12,c:C.dim,a:"start"})+TX(520,128,"no shear on the z faces)",{s:12,c:C.dim,a:"start"})),
+  statement:p=>{const S=UK(p.us);return `<p>At a point in a body, σ<sub>x</sub> = ${p.sx}, σ<sub>y</sub> = ${p.sy}, τ<sub>xy</sub> = ${p.txy} and σ<sub>z</sub> = ${p.sz} ${S}; the shear stresses τ<sub>xz</sub> and τ<sub>yz</sub> are zero, so z is a principal direction.</p>
+  <p>Find the three principal stresses ordered σ₁ ≥ σ₂ ≥ σ₃, the largest shear stress in the xy plane, and the absolute maximum shear stress at the point.</p>`},
+  solution:(p,s)=>{const S=UK(p.us);return `<h3>1. Principal stresses in the xy plane</h3><p class="eq">σ<sub>avg</sub> = ${sig(s.a,4)}, R = √[((σ<sub>x</sub>−σ<sub>y</sub>)/2)² + τ<sub>xy</sub>²] = ${sig(s.R,4)} ${S}</p><p>The in-plane principal stresses are σ<sub>avg</sub> ± R = ${sig(s.s1,4)} and ${sig(s.s2,4)} ${S}.</p>
+  <h3>2. Third principal stress</h3><p>No shear acts on the z faces, so σ<sub>z</sub> = ${p.sz} ${S} is the third principal stress. Ordering the three values: σ₁ = ${sig(s.ps[0],4)}, σ₂ = ${sig(s.ps[1],4)}, σ₃ = ${sig(s.ps[2],4)} ${S}.</p>
+  <h3>3. Shear stresses</h3><p>The largest shear stress in the xy plane is R = ${sig(s.R,4)} ${S}. The three Mohr's circles have radii (σ₁−σ₂)/2, (σ₂−σ₃)/2 and (σ₁−σ₃)/2; the largest is</p><p class="final">τ<sub>abs</sub> = (σ₁ − σ₃)/2 = ${sig(s.ta,4)} ${S}</p>
+  <p class="note">It acts on planes at 45° to the directions of σ₁ and σ₃.</p>`},
+  fields:p=>{const S=UK(p.us);return [{id:"p1",label:"σ₁ (signed)",unit:S,signed:true},{id:"p2",label:"σ₂ (signed)",unit:S,signed:true},{id:"p3",label:"σ₃ (signed)",unit:S,signed:true},{id:"R",label:"Largest shear stress in the xy plane",unit:S},{id:"ta",label:"Absolute maximum shear stress",unit:S}]},
+  truth:(p,s)=>({p1:s.ps[0],p2:s.ps[1],p3:s.ps[2],R:s.R,ta:s.ta}),note:"Answers within 2% are accepted."};
+
+// ----- 11. strain transformation and principal strains (Mohr's circle for strain)
+function x2Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const ex=pick(r,range(-800,800,50)),ey=pick(r,range(-800,800,50)),g=pick(r,range(-1000,1000,50)),th=pick(r,[15,20,25,30,35,40,50,55,60,65,70,75,-15,-20,-25,-30,-35,-40,-50,-60]);
+    if(g===0||ex===ey) continue;
+    const t=trans(ex,ey,g/2,th*D2R),q=princ(ex,ey,g/2);
+    if([t.sx,t.sy,t.txy].some(v=>Math.abs(v)<40)||Math.abs(q.s2)<40||Math.abs(Math.abs(q.tp)-45*D2R)<3*D2R) continue;
+    return {p:{us,ex,ey,g,th},s:{ex1:t.sx,ey1:t.sy,g1:2*t.txy,e1:q.s1,e2:q.s2,tp:q.tp,gm:2*q.R}};
+  }
+  throw new Error("no valid problem");
+}
+const X2={name:"Strain transformation: strains on rotated axes and principal strains",generate:x2Generate,
+  figure:p=>{const cx=250,cy=150,L=120,a=p.th*D2R,P=(x,y)=>[cx+x,cy-y];let s="";
+    s+=`<rect x="${cx-45}" y="${cy-45}" width="90" height="90" fill="#eef1f4" stroke="${C.steelln}"/>`;
+    s+=AR(cx,cy,cx+L,cy,C.dim,1.2)+TX(cx+L+8,cy+4,"x",{s:13,i:1,c:C.dim,a:"start"})+AR(cx,cy,cx,cy-L,C.dim,1.2)+TX(cx,cy-L-8,"y",{s:13,i:1,c:C.dim});
+    const xp=P(L*Math.cos(a),L*Math.sin(a)),yp=P(-L*Math.sin(a),L*Math.cos(a));
+    s+=AR(cx,cy,xp[0],xp[1],C.load,1.6)+TX(xp[0]+10*Math.cos(a),xp[1]-10*Math.sin(a)+4,"x′",{s:13,i:1,c:C.load})+AR(cx,cy,yp[0],yp[1],C.load,1.6)+TX(yp[0]-10*Math.sin(a),yp[1]-10*Math.cos(a)+4,"y′",{s:13,i:1,c:C.load});
+    s+=TX(cx+70,cy+(p.th>0?-14:24),`θ = ${p.th}°`,{s:13,c:C.load,a:"start"});
+    s+=TX(470,100,`ε<tspan baseline-shift="sub" font-size="10">x</tspan> = ${p.ex} × 10⁻⁶`,{s:14,a:"start"})+TX(470,124,`ε<tspan baseline-shift="sub" font-size="10">y</tspan> = ${p.ey} × 10⁻⁶`,{s:14,a:"start"})+TX(470,148,`γ<tspan baseline-shift="sub" font-size="10">xy</tspan> = ${p.g} × 10⁻⁶`,{s:14,a:"start"});
+    return SVG(760,300,s)},
+  statement:p=>`<p>The plane strain components at a point are ε<sub>x</sub> = ${p.ex}, ε<sub>y</sub> = ${p.ey} and γ<sub>xy</sub> = ${p.g} (× 10⁻⁶). The x′y′ axes are rotated ${Math.abs(p.th)}° ${p.th>0?"counterclockwise":"clockwise"} from the xy axes.</p>
+  <p>Find ε<sub>x′</sub>, ε<sub>y′</sub> and γ<sub>x′y′</sub>, the principal strains ε₁ ≥ ε₂, the angle θ<sub>p</sub> from the x axis to the direction of ε₁ (counterclockwise positive, between −90° and 90°), and the maximum in-plane shear strain.</p>`,
+  solution:(p,s)=>{const t=p.th;return `<h3>1. Transformation equations</h3><p>Strains transform like stresses with γ/2 in the place of τ:</p>
+  <p class="eq">ε<sub>x′</sub> = (ε<sub>x</sub>+ε<sub>y</sub>)/2 + (ε<sub>x</sub>−ε<sub>y</sub>)/2 cos 2θ + (γ<sub>xy</sub>/2) sin 2θ</p><p class="eq">γ<sub>x′y′</sub>/2 = −(ε<sub>x</sub>−ε<sub>y</sub>)/2 sin 2θ + (γ<sub>xy</sub>/2) cos 2θ</p>
+  <h3>2. Strains on the rotated axes</h3><p>With θ = ${t}°: ε<sub>x′</sub> = ${sig(s.ex1,4)}, ε<sub>y′</sub> = ${sig(s.ey1,4)} (ε<sub>x′</sub> + ε<sub>y′</sub> = ε<sub>x</sub> + ε<sub>y</sub>), γ<sub>x′y′</sub> = ${sig(s.g1,4)} (× 10⁻⁶).</p>
+  <h3>3. Mohr's circle for strain</h3><p class="eq">center = (ε<sub>x</sub>+ε<sub>y</sub>)/2 = ${sig((p.ex+p.ey)/2,4)}, radius = √[((ε<sub>x</sub>−ε<sub>y</sub>)/2)² + (γ<sub>xy</sub>/2)²] = ${sig(s.gm/2,4)} (× 10⁻⁶)</p>
+  <p>ε₁ = ${sig(s.e1,4)}, ε₂ = ${sig(s.e2,4)} (× 10⁻⁶); θ<sub>p</sub> = ½ atan2(γ<sub>xy</sub>, ε<sub>x</sub>−ε<sub>y</sub>) = ${sig(s.tp/D2R,4)}°; γ<sub>max</sub> = 2 × radius = ${sig(s.gm,4)} × 10⁻⁶.</p>`},
+  fields:p=>[{id:"ex1",label:"εx′ (signed)",unit:"× 10⁻⁶",signed:true},{id:"ey1",label:"εy′ (signed)",unit:"× 10⁻⁶",signed:true},{id:"g1",label:"γx′y′ (signed)",unit:"× 10⁻⁶",signed:true},{id:"e1",label:"ε₁ (signed)",unit:"× 10⁻⁶",signed:true},{id:"e2",label:"ε₂ (signed)",unit:"× 10⁻⁶",signed:true},angF("tp","θp, from x to ε₁"),{id:"gm",label:"Maximum in-plane shear strain",unit:"× 10⁻⁶"}],
+  truth:(p,s)=>({ex1:s.ex1,ey1:s.ey1,g1:s.g1,e1:s.e1,e2:s.e2,tp:s.tp/D2R,gm:s.gm}),note:"Answers within 2% are accepted; angles within 1°."};
+
+const TEMPLATES={"pressure-vessel":M1,"weld-seam":M2,"eccentric-column":M3,"clamp":M4,"rotated-element":M5,"principal-stresses":M6,"axial-torque":M7,"crank-shaft":M8,"strain-rosette":M9,"abs-max-shear-3d":X1,"strain-transformation":X2};
 
 // ===== planted errors: shared helpers. Each entry: {step, why, run:(p,s)=>({v:{field:value}, steps:[[title, html], ...]})}
 const FLAWS={};
@@ -1884,6 +1937,21 @@ FLAWS["strain-rosette"]={step:4,
       ["Principal strains",EQ(`ε₁ = ${g4(s.e1)}, ε₂ = ${g4(s.e2)} (× 10⁻⁶); θ<sub>p</sub> = ${g4(s.tp/D2R)}°`)],
       ["Maximum in-plane shear strain",EQ(`γ<sub>max</sub> = ε₁ − ε₂ = ${g4(s.gmax)} × 10⁻⁶`)],
       ["Principal stresses",FIN(`σ₁ = Eε₁ = ${g4(s1)}; σ₂ = Eε₂ = ${g4(s2)} ${fS8(p)}`)]]}}};
+
+FLAWS["abs-max-shear-3d"]={step:3,
+  why:"The largest shear stress at a point is half the difference between the largest and smallest of all three principal stresses. The in-plane value R misses the circles that involve σ<sub>z</sub>.",
+  run:(p,s)=>{const S=UK(p.us);return {v:{ta:s.R},steps:[
+    ["Principal stresses in the xy plane",EQ(`σ<sub>avg</sub> ± R = ${g4(s.s1)}, ${g4(s.s2)} ${S}`)],
+    ["Third principal stress",EQ(`σ₁ = ${g4(s.ps[0])}, σ₂ = ${g4(s.ps[1])}, σ₃ = ${g4(s.ps[2])} ${S}`)],
+    ["Shear stresses",PP("The maximum shear stress is the radius of Mohr's circle for the stresses in the xy plane:")+FIN(`τ<sub>abs</sub> = R = ${g4(s.R)} ${S}`)]]}}};
+
+FLAWS["strain-transformation"]={step:1,
+  why:"In the strain transformation equations the shear strain enters as γ<sub>xy</sub>/2, the tensor shear strain. Using γ<sub>xy</sub> in the place of τ<sub>xy</sub> doubles its effect.",
+  run:(p,s)=>{const t=trans(p.ex,p.ey,p.g,p.th*D2R),q=princ(p.ex,p.ey,p.g);
+    return {v:{ex1:t.sx,ey1:t.sy,g1:t.txy,e1:q.s1,e2:q.s2,gm:2*q.R},steps:[
+    ["Transformation equations",EQ(`ε<sub>x′</sub> = (ε<sub>x</sub>+ε<sub>y</sub>)/2 + (ε<sub>x</sub>−ε<sub>y</sub>)/2 cos 2θ + γ<sub>xy</sub> sin 2θ`)+EQ(`γ<sub>x′y′</sub> = −(ε<sub>x</sub>−ε<sub>y</sub>)/2 sin 2θ + γ<sub>xy</sub> cos 2θ`)],
+    ["Strains on the rotated axes",EQ(`ε<sub>x′</sub> = ${g4(t.sx)}, ε<sub>y′</sub> = ${g4(t.sy)}, γ<sub>x′y′</sub> = ${g4(t.txy)} (× 10⁻⁶)`)],
+    ["Principal strains",EQ(`radius = √[((ε<sub>x</sub>−ε<sub>y</sub>)/2)² + γ<sub>xy</sub>²] = ${g4(q.R)}`)+FIN(`ε₁ = ${g4(q.s1)}, ε₂ = ${g4(q.s2)}, γ<sub>max</sub> = ${g4(2*q.R)} (× 10⁻⁶)`)]]}}};
 
 const $=id=>document.getElementById(id);
 let curKey,curSeed,cur,curFields=[],curTruth={},curMode="practice";

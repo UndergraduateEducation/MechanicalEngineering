@@ -1317,7 +1317,68 @@ const E9={name:"Stress concentration at a central hole in a bar",generate:e9Gene
   fields:p=>{const F=p.us?"kips":"kN";return [{id:"kt",label:"Stress concentration factor kt",unit:""},{id:"P",label:"Largest load P",unit:F}]},
   truth:(p,s)=>({kt:s.kt,P:s.P/(p.us?1:1000)}),note:"Answers within 2% are accepted."};
 
-const TEMPLATES={"two-bar-truss":E1,"truss-deflection":E2,"quarter-circle":E3,"portal-frame":E4,"beam-impact":E5,"axial-impact":E6,"shaft-failure":E7,"failure-theories":E8,"stress-concentration":E9};
+// ----- 10. modulus of resilience and modulus of toughness
+function e10Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const E=us?pick(r,[29e6,10e6,16e6]):pick(r,[200000,70000,110000]),sy=us?pick(r,range(30000,80000,5000)):pick(r,range(200,550,25)),su=sy*pick(r,[1.2,1.3,1.4,1.5,1.6]),ef=pick(r,[0.08,0.1,0.12,0.15,0.2,0.25]);
+    const d=us?pick(r,[0.5,0.75,1,1.25]):pick(r,[12,16,20,25,30]),L=us?pick(r,range(24,120,6)):pick(r,range(500,3000,100)),W=us?pick(r,range(20,400,10)):pick(r,range(100,2000,50));
+    const ey=sy/E,ur=sy*sy/(2*E),ut=ur+(sy+su)/2*(ef-ey),A=Math.PI*d*d/4,U=ur*A*L,dl=ey*L,h=U/W-dl;
+    if(h<0.05*dl||ey>0.5*ef) continue;
+    return {p:{us,E,sy,su,ef,d,L,W},s:{ey,ur,ut,A,U,dl,h}};
+  }
+  throw new Error("no valid problem");
+}
+const RU=us=>us?{S:"psi",u:"in.·lb/in.³",U:"in.·lb",d:"in.",F:"lb",Uf:1}:{S:"MPa",u:"MJ/m³",U:"J",d:"mm",F:"N",Uf:1000};
+const E10={name:"Modulus of resilience and modulus of toughness",generate:e10Generate,
+  figure:p=>{const u=RU(p.us),x0=70,y0=250,W=380,H=190,ex=p.ef,X=e=>x0+e/ex*W,Y=s=>y0-s/p.su*H,xe=Math.max(X(p.sy/p.E),x0+18);
+    let s=AR(x0,y0,x0+W+40,y0,C.dim,1)+TX(x0+W+46,y0+4,"ε",{s:14,i:1,a:"start",c:C.dim})+AR(x0,y0,x0,y0-H-40,C.dim,1)+TX(x0,y0-H-46,"σ",{s:14,i:1,c:C.dim});
+    s+=`<polygon points="${x0},${y0} ${xe},${Y(p.sy)} ${xe},${y0}" fill="#cde1cd"/><polygon points="${xe},${y0} ${xe},${Y(p.sy)} ${X(ex)},${Y(p.su)} ${X(ex)},${y0}" fill="#f4e4c8"/>`;
+    s+=LN(x0,y0,xe,Y(p.sy),{c:C.steelln,w:2.2})+LN(xe,Y(p.sy),X(ex),Y(p.su),{c:C.steelln,w:2.2})+LN(X(ex),Y(p.su),X(ex),y0,{c:C.steelln,w:1,d:"4 3"});
+    s+=TX(x0-6,Y(p.sy)+4,`${p.sy}`,{s:12,a:"end"})+TX(x0-6,Y(p.su)+4,`${sig(p.su,3)}`,{s:12,a:"end"})+LN(x0,Y(p.su),X(ex),Y(p.su),{c:C.dim,w:.8,d:"3 3"})+TX(X(ex),y0+18,`${p.ef}`,{s:12})+TX(x0+W/2,y0+36,`stresses in ${u.S} (strain axis not to scale near the origin)`,{s:11,c:C.dim});
+    s+=TX(560,90,"idealized tension test",{s:13,a:"start"})+TX(560,112,`E = ${p.us?sig(p.E/1e6,3)+" × 10⁶ psi":sig(p.E/1000,3)+" GPa"}`,{s:13,a:"start"});
+    return SVG(760,300,s)},
+  statement:p=>{const u=RU(p.us);return `<p>A tension test gives the idealized stress-strain diagram shown: linear with E = ${p.us?sig(p.E/1e6,3)+" × 10⁶ psi":sig(p.E/1000,3)+" GPa"} up to the yield stress σ<sub>y</sub> = ${p.sy} ${u.S}, then a straight line to the ultimate stress ${sig(p.su,4)} ${u.S}, where the bar fractures at a strain of ${p.ef}.</p>
+  <p>A rod of this material, ${p.d} ${u.d} in diameter and ${p.L} ${u.d} long, hangs from a support and has a collar at its lower end. A ${p.W} ${u.F} weight is dropped onto the collar. Find the modulus of resilience, the modulus of toughness, the largest strain energy the rod can store without yielding, and the largest height (above the collar) from which the weight may be dropped without yielding the rod. Neglect the masses of the rod and collar.</p>`},
+  solution:(p,s)=>{const u=RU(p.us);return `<h3>1. Modulus of resilience</h3><p>The strain energy per unit volume at the yield point is the area under the linear part of the diagram:</p><p class="eq">u<sub>r</sub> = σ<sub>y</sub>²/(2E) = ${sig(s.ur,4)} ${u.u}</p>
+  <h3>2. Modulus of toughness</h3><p>The energy per unit volume to fracture is the whole area under the diagram:</p><p class="eq">u<sub>t</sub> = u<sub>r</sub> + ½(σ<sub>y</sub> + σ<sub>u</sub>)(ε<sub>f</sub> − σ<sub>y</sub>/E) = ${sig(s.ut,4)} ${u.u}</p>
+  <h3>3. Elastic energy capacity of the rod</h3><p class="eq">U = u<sub>r</sub>AL = ${sig(s.ur,4)} × ${sig(s.A,4)} × ${p.L} = ${sig(s.U/u.Uf,4)} ${u.U}</p>
+  <h3>4. Drop height</h3><p>At the instant of largest stretch the weight has fallen h + δ, where δ = σ<sub>y</sub>L/E = ${sig(s.dl,4)} ${u.d}. Equating its loss of potential energy to U:</p><p class="eq">W(h + δ) = U ⇒ h = U/W − δ = ${sig(s.h,4)} ${u.d}</p>
+  <p class="final">u<sub>r</sub> = ${sig(s.ur,3)} ${u.u}, u<sub>t</sub> = ${sig(s.ut,3)} ${u.u}, U = ${sig(s.U/u.Uf,3)} ${u.U}, h = ${sig(s.h,3)} ${u.d}.</p>`},
+  fields:p=>{const u=RU(p.us);return [{id:"ur",label:"Modulus of resilience",unit:u.u},{id:"ut",label:"Modulus of toughness",unit:u.u},{id:"U",label:"Largest elastic strain energy of the rod",unit:u.U},{id:"h",label:"Largest drop height",unit:u.d}]},
+  truth:(p,s)=>({ur:s.ur,ut:s.ut,U:s.U/RU(p.us).Uf,h:s.h}),note:"Answers within 2% are accepted. In SI, 1 MPa = 1 MJ/m³ = 1 N·mm/mm³."};
+
+// ----- 11. fatigue life from an S-N line
+function e11Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const su=us?pick(r,range(60,120,5)):pick(r,range(400,850,50)),S3=0.9*su,Se=su*pick(r,[0.4,0.45,0.5]),d=us?pick(r,[0.75,1,1.25,1.5,2]):pick(r,[20,25,30,40,50]);
+    const Z=Math.PI*d**3/32,sa=S3*pick(r,range(0.55,0.95,0.01)),M=sa*Z/(us?1:1000);   // kip·in. or N·m
+    const Mr=us?+M.toFixed(1):Math.round(M);const sr=Mr*(us?1:1000)/Z;if(sr<=Se*1.05||sr>=S3*0.97) continue;
+    const b=Math.log10(Se/S3)/3,N=1e3*Math.pow(sr/S3,1/b),Mmax=Se*Z/(us?1:1000);
+    return {p:{us,su,S3,Se,d,M:Mr,Nt:N},s:{sa:sr,b,N,Mmax}};
+  }
+  throw new Error("no valid problem");
+}
+const E11={name:"Fatigue: life of a rotating shaft from an S-N line",generate:e11Generate,
+  figure:p=>{const S=p.us?"ksi":"MPa",x0=80,y0=240,W=420,H=180,X=n=>x0+(Math.log10(n)-3)/3*W*0.75+W*0.0,Y=s=>y0-(Math.log10(s)-Math.log10(p.Se*0.8))/(Math.log10(p.su)-Math.log10(p.Se*0.8))*H;
+    let s=AR(x0,y0,x0+W+30,y0,C.dim,1)+TX(x0+W+36,y0+4,"N (log)",{s:12,a:"start",c:C.dim})+AR(x0,y0,x0,y0-H-30,C.dim,1)+TX(x0,y0-H-36,"S (log)",{s:12,c:C.dim});
+    s+=LN(X(1e3),Y(p.S3),X(1e6),Y(p.Se),{c:C.steelln,w:2.2})+LN(X(1e6),Y(p.Se),x0+W,Y(p.Se),{c:C.steelln,w:2.2});
+    [[1e3,"10³"],[1e6,"10⁶"]].forEach(([n,l])=>{s+=LN(X(n),y0,X(n),y0+5,{c:C.dim,w:1})+TX(X(n),y0+20,l,{s:12})});
+    s+=TX(x0-6,Y(p.S3)+4,`${sig(p.S3,3)}`,{s:12,a:"end"})+TX(x0-6,Y(p.Se)+4,`${sig(p.Se,3)}`,{s:12,a:"end"})+LN(x0,Y(p.S3),X(1e3),Y(p.S3),{c:C.dim,w:.8,d:"3 3"})+LN(x0,Y(p.Se),X(1e6),Y(p.Se),{c:C.dim,w:.8,d:"3 3"});
+    s+=TX(x0+W/2,y0+40,`stress amplitude S in ${S}`,{s:11,c:C.dim});
+    return SVG(760,300,s)},
+  statement:p=>{const S=p.us?"ksi":"MPa",u=p.us?"in.":"mm";return `<p>A rotating steel shaft of diameter ${p.d} ${u} carries a constant bending moment of ${p.M} ${p.us?"kip·in.":"N·m"}, so each surface fiber goes through a fully reversed stress cycle once per revolution. The S-N diagram of the material is idealized as a straight line on log-log scales from ${sig(p.S3,3)} ${S} at 10³ cycles to the endurance limit ${sig(p.Se,3)} ${S} at 10⁶ cycles, and horizontal beyond.</p>
+  <p>Find the stress amplitude, the slope b of the S-N line (S = a N<sup>b</sup>), the number of revolutions to failure, and the largest bending moment the shaft can carry indefinitely. Neglect stress concentrations.</p>`},
+  solution:(p,s)=>{const S=p.us?"ksi":"MPa";return `<h3>1. Stress amplitude</h3><p>The stress at the surface alternates between ±Mc/I:</p><p class="eq">σ<sub>a</sub> = 32M/(πd³) = ${sig(s.sa,4)} ${S}</p>
+  <h3>2. S-N line</h3><p>On log-log scales the line through (10³, ${sig(p.S3,3)}) and (10⁶, ${sig(p.Se,3)}) has slope</p><p class="eq">b = log(${sig(p.Se,3)}/${sig(p.S3,3)})/log(10⁶/10³) = ${sig(s.b,4)}</p>
+  <h3>3. Life</h3><p>σ<sub>a</sub> lies between the endurance limit and the 10³-cycle strength, so</p><p class="eq">N = 10³ (σ<sub>a</sub>/${sig(p.S3,3)})<sup>1/b</sup> = ${sig(s.N,4)} cycles</p>
+  <h3>4. Moment for unlimited life</h3><p class="eq">M = σ<sub>e</sub>πd³/32 = ${sig(s.Mmax,4)} ${p.us?"kip·in.":"N·m"}</p>
+  <p class="note">Because N depends on a high power of the stress, a small change in σ<sub>a</sub> changes the life a great deal; the life is accepted within 6%.</p>`},
+  fields:p=>{const S=p.us?"ksi":"MPa";return [{id:"sa",label:"Stress amplitude",unit:S},{id:"b",label:"Slope b (signed)",unit:"",signed:true},{id:"N",label:"Revolutions to failure",unit:"cycles",abs:0.06*p.Nt},{id:"Mmax",label:"Largest moment for unlimited life",unit:p.us?"kip·in.":"N·m"}]},
+  truth:(p,s)=>({sa:s.sa,b:s.b,N:s.N,Mmax:s.Mmax}),note:"Answers within 2% are accepted; the life within 6%."};
+
+const TEMPLATES={"two-bar-truss":E1,"truss-deflection":E2,"quarter-circle":E3,"portal-frame":E4,"beam-impact":E5,"axial-impact":E6,"shaft-failure":E7,"failure-theories":E8,"stress-concentration":E9,"resilience-toughness":E10,"fatigue-life":E11};
 
 // ===== planted errors: shared helpers. Each entry: {step, why, run:(p,s)=>({v:{field:value}, steps:[[title, html], ...]})}
 const FLAWS={};
@@ -1405,6 +1466,24 @@ FLAWS["stress-concentration"]={step:2,
       ["Stress concentration factor",EQ(`2r/D = ${g4(p.ratio)}; k<sub>t</sub> = ${g4(s.kt)}`)],
       ["Nominal stress",PP("The nominal stress is the load divided by the cross-sectional area of the bar:")+EQ(`σ<sub>nom</sub> = P/(Db)`)],
       ["Largest load",FIN(`k<sub>t</sub>P/(Db)${p.ecc?" + bending":""} = σ<sub>w</sub> ⇒ P = ${g4(P)} ${F}`)]]}}};
+
+FLAWS["resilience-toughness"]={step:1,
+  why:"Strain energy density is the area under the stress-strain line, a triangle up to the yield point: u<sub>r</sub> = ½σ<sub>y</sub>ε<sub>y</sub> = σ<sub>y</sub>²/(2E).",
+  run:(p,s)=>{const u=RU(p.us),ur=p.sy*p.sy/p.E,ut=ur+(p.sy+p.su)/2*(p.ef-s.ey),U=ur*s.A*p.L,h=U/p.W-s.dl;
+    return {v:{ur,ut,U:U/u.Uf,h},steps:[
+    ["Modulus of resilience",EQ(`u<sub>r</sub> = σ<sub>y</sub>ε<sub>y</sub> = σ<sub>y</sub>²/E = ${g4(ur)} ${u.u}`)],
+    ["Modulus of toughness",EQ(`u<sub>t</sub> = u<sub>r</sub> + ½(σ<sub>y</sub> + σ<sub>u</sub>)(ε<sub>f</sub> − ε<sub>y</sub>) = ${g4(ut)} ${u.u}`)],
+    ["Elastic energy capacity of the rod",EQ(`U = u<sub>r</sub>AL = ${g4(U/u.Uf)} ${u.U}`)],
+    ["Drop height",FIN(`h = U/W − δ = ${g4(h)} ${u.d}`)]]}}};
+
+FLAWS["fatigue-life"]={step:3,
+  why:"The S-N line is straight on logarithmic scales, so the life follows from a power law, N = 10³(σ<sub>a</sub>/S<sub>1000</sub>)<sup>1/b</sup>. Interpolating linearly in N between 10³ and 10⁶ cycles has no basis.",
+  run:(p,s)=>{const N=1e3+(p.S3-s.sa)/(p.S3-p.Se)*(1e6-1e3);
+    return {v:{N},steps:[
+    ["Stress amplitude",EQ(`σ<sub>a</sub> = 32M/(πd³) = ${g4(s.sa)}`)],
+    ["S-N line",EQ(`b = ${g4(s.b)}`)],
+    ["Life",PP("Interpolate between the two points of the line:")+EQ(`N = 10³ + (${sig(p.S3,3)} − σ<sub>a</sub>)/(${sig(p.S3,3)} − ${sig(p.Se,3)}) × (10⁶ − 10³) = ${g4(N)} cycles`)],
+    ["Moment for unlimited life",FIN(`M = ${g4(s.Mmax)} ${p.us?"kip·in.":"N·m"}`)]]}}};
 
 const $=id=>document.getElementById(id);
 let curKey,curSeed,cur,curFields=[],curTruth={},curMode="practice";

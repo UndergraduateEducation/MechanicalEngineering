@@ -807,7 +807,33 @@ const A5={name:"Curved beam (hook): curved-beam formula and allowable load",gene
   fields:p=>{const u=AU(p.us);return [{id:"rb",label:"Centroidal radius r̄",unit:u.d},{id:"R",label:"Neutral-surface radius R",unit:u.d},{id:"ki",label:`Inner-fiber stress per unit P (${u.S} per ${p.us?"lb":"N"})`,unit:"",signed:true},{id:"ko",label:`Outer-fiber stress per unit P (${u.S} per ${p.us?"lb":"N"})`,unit:"",signed:true},{id:"P",label:"Largest safe P",unit:u.F},{id:"kst",label:`Straight-beam inner-fiber stress per unit P (${u.S} per ${p.us?"lb":"N"})`,unit:"",signed:true}]},
   truth:(p,s)=>({rb:s.rbar,R:s.R,ki:s.kin,ko:s.kout,P:s.Pm/AU(p.us).Ff,kst:s.kst}),note:"Answers within 2% are accepted; R needs four or more significant figures."};
 
-const TEMPLATES={"shear-flow":A1,"shear-center":A2,"inclined-moment":A3,"angle-bending":A4,"curved-beam":A5};
+// ----- 6. principal moments of inertia of an angle (Mohr's circle for second moments)
+function a6Generate(seed){
+  const r=mulberry32(seed),us=r()<0.4;
+  for(let k=0;k<20000;k++){
+    const a=us?pick(r,[4,5,6,7,8]):pick(r,[100,125,150,175,200]),b=us?pick(r,[3,3.5,4,5,6]):pick(r,[75,90,100,125,150]),t=us?pick(r,[0.375,0.5,0.625,0.75]):pick(r,[8,10,12,16,20]);
+    if(b>=a||t>b/5) continue;
+    const g=angleProps(a,b,t),av=(g.Iz+g.Iy)/2,R=Math.hypot((g.Iz-g.Iy)/2,g.Iyz),tp=0.5*Math.atan2(-2*g.Iyz,g.Iz-g.Iy);
+    return {p:{us,a,b,t},s:{g,av,R,Imax:av+R,Imin:av-R,tp:tp*180/Math.PI}};
+  }
+  throw new Error("no valid problem");
+}
+const A6={name:"Principal moments of inertia of an angle (Mohr's circle for areas)",generate:a6Generate,
+  figure:p=>{const u=AU(p.us),g=angleProps(p.a,p.b,p.t),k=200/p.a,cx=240,cy=40+(p.a-g.yc)*k+10,X=z=>cx+z*k,Y=y=>cy-y*k;
+    let s=`<polygon points="${g.pts.map(([z,y])=>X(z)+","+Y(y)).join(" ")}" fill="#dfe4ea" stroke="${C.steelln}" stroke-width="1.5"/>`+CI(cx,cy,3,{f:"#333",c:"#333"})
+     +AR(cx-120,cy,cx+170,cy,C.dim,1)+TX(cx+176,cy+4,"z",{s:13,i:1,c:C.dim,a:"start"})+AR(cx,cy+140,cx,cy-150,C.dim,1)+TX(cx,cy-156,"y",{s:13,i:1,c:C.dim})
+     +TX(470,60,`vertical leg ${p.a} ${u.d}`,{s:12,c:C.dim,a:"start"})+TX(470,80,`horizontal leg ${p.b} ${u.d} (total width)`,{s:12,c:C.dim,a:"start"})+TX(470,100,`thickness ${dstr(p.t)} ${u.d}`,{s:12,c:C.dim,a:"start"});
+    return SVG(760,cy+g.yc*k+40,s)},
+  statement:p=>{const u=AU(p.us);return `<p>An unequal-leg angle has a vertical leg ${p.a} ${u.d} long, a horizontal leg ${p.b} ${u.d} wide (overall), and thickness ${dstr(p.t)} ${u.d}; neglect fillets. The y axis is vertical (up) and the z axis horizontal, toward the horizontal leg, both through the centroid.</p>
+  <p>Find the location of the centroid, I<sub>z</sub>, I<sub>y</sub> and the product of inertia I<sub>yz</sub> about the centroidal axes, the principal moments of inertia, and the angle θ<sub>p</sub> from the z axis to the axis of the maximum moment of inertia (counterclockwise positive, between −90° and 90°).</p>`},
+  solution:(p,s)=>{const u=AU(p.us),g=s.g;return `<h3>1. Centroid</h3><p>Split the angle into the vertical leg and the rest of the horizontal leg. The centroid is z̄ = ${sig(g.zc,4)} ${u.d} from the back of the vertical leg and ȳ = ${sig(g.yc,4)} ${u.d} above the bottom.</p>
+  <h3>2. Centroidal moments and product of inertia</h3><p>With the parallel-axis theorems for each rectangle (I<sub>yz</sub> = Σ(Ī<sub>yz</sub> + A d<sub>y</sub>d<sub>z</sub>), and Ī<sub>yz</sub> = 0 for a rectangle about its own centroid):</p><p class="eq">I<sub>z</sub> = ${sig(g.Iz,4)}, I<sub>y</sub> = ${sig(g.Iy,4)}, I<sub>yz</sub> = ${sig(g.Iyz,4)} ${u.d}⁴</p>
+  <h3>3. Mohr's circle</h3><p class="eq">center = (I<sub>z</sub>+I<sub>y</sub>)/2 = ${sig(s.av,4)}, R = √[((I<sub>z</sub>−I<sub>y</sub>)/2)² + I<sub>yz</sub>²] = ${sig(s.R,4)} ${u.d}⁴</p><p class="eq">I<sub>max</sub> = ${sig(s.Imax,4)}, I<sub>min</sub> = ${sig(s.Imin,4)} ${u.d}⁴</p>
+  <h3>4. Principal axis</h3><p>For an axis z′ rotated θ counterclockwise from z, I<sub>z′</sub> = (I<sub>z</sub>+I<sub>y</sub>)/2 + (I<sub>z</sub>−I<sub>y</sub>)/2 cos 2θ − I<sub>yz</sub> sin 2θ. It is largest at</p><p class="final">θ<sub>p</sub> = ½ atan2(−2I<sub>yz</sub>, I<sub>z</sub> − I<sub>y</sub>) = ${sig(s.tp,4)}°</p>`},
+  fields:p=>{const u=AU(p.us);return [{id:"zc",label:"z̄ from the back of the vertical leg",unit:u.d},{id:"yc",label:"ȳ from the bottom",unit:u.d},{id:"Iz",label:"I<sub>z</sub>",unit:u.d+"⁴"},{id:"Iy",label:"I<sub>y</sub>",unit:u.d+"⁴"},{id:"Iyz",label:"I<sub>yz</sub> (signed)",unit:u.d+"⁴",signed:true},{id:"Imax",label:"I<sub>max</sub>",unit:u.d+"⁴"},{id:"Imin",label:"I<sub>min</sub>",unit:u.d+"⁴"},angF("tp","θp, from z to the axis of Imax")]},
+  truth:(p,s)=>({zc:s.g.zc,yc:s.g.yc,Iz:s.g.Iz,Iy:s.g.Iy,Iyz:s.g.Iyz,Imax:s.Imax,Imin:s.Imin,tp:s.tp}),note:"Answers within 2% are accepted; angles within 1°."};
+
+const TEMPLATES={"shear-flow":A1,"shear-center":A2,"inclined-moment":A3,"angle-bending":A4,"curved-beam":A5,"area-principal-axes":A6};
 
 // ===== planted errors: shared helpers. Each entry: {step, why, run:(p,s)=>({v:{field:value}, steps:[[title, html], ...]})}
 const FLAWS={};
@@ -863,6 +889,15 @@ FLAWS["curved-beam"]={step:2,
       ["Centroid and neutral surface",EQ(`r̄ = ${g4(s.rbar)} ${u.d}; R = A/∫dA/r = ${g4(s.R)} ${u.d}`)],
       ["Fiber stresses per unit load",PP("With N = P and M = Pr̄, the bending part follows from Mc/I:")+EQ(`inner: 1/A + r̄c<sub>i</sub>/I = ${g4(ki)}; outer: 1/A − r̄c<sub>o</sub>/I = ${g4(ko)} ${u.S} per ${p.us?"lb":"N"}`)],
       ["Largest safe load",FIN(`P = σ<sub>w</sub>/max|k| = ${g4(P/u.Ff)} ${u.F}`)]]}}};
+
+FLAWS["area-principal-axes"]={step:3,
+  why:"The product of inertia is nonzero for an angle, so the centroidal y and z axes are not principal. The radius of Mohr's circle includes I<sub>yz</sub>: R = √[((I<sub>z</sub>−I<sub>y</sub>)/2)² + I<sub>yz</sub>²].",
+  run:(p,s)=>{const u=AU(p.us),g=s.g,R=Math.abs(g.Iz-g.Iy)/2;
+    return {v:{Imax:s.av+R,Imin:s.av-R},steps:[
+    ["Centroid",EQ(`z̄ = ${g4(g.zc)}, ȳ = ${g4(g.yc)} ${u.d}`)],
+    ["Centroidal moments and product of inertia",EQ(`I<sub>z</sub> = ${g4(g.Iz)}, I<sub>y</sub> = ${g4(g.Iy)}, I<sub>yz</sub> = ${g4(g.Iyz)} ${u.d}⁴`)],
+    ["Principal moments",PP("The principal moments of inertia are the larger and smaller of the two centroidal moments:")+EQ(`I<sub>max</sub> = ${g4(s.av+R)}, I<sub>min</sub> = ${g4(s.av-R)} ${u.d}⁴`)],
+    ["Principal axis",FIN(`θ<sub>p</sub> = ${g4(s.tp)}°`)]]}}};
 
 const $=id=>document.getElementById(id);
 let curKey,curSeed,cur,curFields=[],curTruth={},curMode="practice";
