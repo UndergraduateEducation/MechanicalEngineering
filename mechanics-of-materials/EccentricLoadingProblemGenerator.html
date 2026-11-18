@@ -45,20 +45,20 @@
 <body>
 <header>
   <h1>Mechanics of Materials: Eccentric Loading Problem Generator</h1>
-  <div class="sub">Loads applied off the centroid, bending combined with torsion, and stresses at a point under combined loading. Each problem is generated from a seed and solved exactly in the browser. Share the seed to reproduce a problem.</div>
+  <div class="sub">Loads applied off the centroid, bending combined with torsion, and stresses at a point under combined loading. Each problem is generated from an instance and solved exactly in the browser. Share the instance to reproduce a problem.</div>
 </header>
 <main>
   <div class="card howto">
     <h2>How to use</h2>
-    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has a seed number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
+    <p>Practice mode: pick a problem type and press New problem. Enter your answers and press Check answers; numerical answers are accepted within 2%. Show the solution when you are done. Every problem has an instance number in the page address, so a link to it brings up the same problem for anyone you share it with. Find the error mode: the worked solution shown with the problem contains exactly one error, which is conceptual rather than a slip in arithmetic, with every later step following correctly from it. Identify the step in which the error first appears and enter the corrected answers.</p>
     <div class="reportrow"><span id="reportLbl">Found a mistake in a problem or its solution?</span> <button class="ghost" id="reportBtn">Report an error</button></div>
   </div>
   <div class="card bar"><label>Mode</label><button id="mPractice">Practice</button><button class="ghost" id="mError">Find the error</button></div>
   <div class="card bar"><label for="typeSel">Problem type</label><select id="typeSel"></select></div>
   <div class="card bar">
     <button id="newBtn">New problem</button>
-    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
-    <button class="ghost" id="loadBtn">Load seed</button>
+    <label for="seedIn">Instance</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load Instance</button>
   </div>
   <div class="card" id="figCard"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>

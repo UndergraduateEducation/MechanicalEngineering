@@ -51,7 +51,7 @@
 <body>
 <header>
   <h1>Shaft Analysis Problem Generator</h1>
-  <div class="sub">Practice mode: generate a problem, enter your answers and check them. Find-the-error mode: the worked solution shown with the problem contains exactly one conceptual error, and every later step follows correctly from it; identify the step where the error first appears and enter the corrected answers. Each problem comes from a seed in the page address, so a link reproduces it.</div>
+  <div class="sub">Practice mode: generate a problem, enter your answers and check them. Find-the-error mode: the worked solution shown with the problem contains exactly one conceptual error, and every later step follows correctly from it; identify the step where the error first appears and enter the corrected answers. Each problem comes from an instance in the page address, so a link reproduces it.</div>
 </header>
 <main>
   <div class="card bar">
@@ -64,8 +64,8 @@
   </div>
   <div class="card bar">
     <button id="newBtn">New problem</button>
-    <label for="seedIn">Seed</label><input id="seedIn" type="number" min="1" step="1">
-    <button class="ghost" id="loadBtn">Load seed</button>
+    <label for="seedIn">Instance</label><input id="seedIn" type="number" min="1" step="1">
+    <button class="ghost" id="loadBtn">Load Instance</button>
   </div>
   <div class="card"><div id="fig"></div></div>
   <div class="card statement" id="statement"></div>
